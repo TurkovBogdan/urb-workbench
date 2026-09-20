@@ -17,6 +17,7 @@ from src.modules.tasks.constants import (
     DESCRIPTION_MAX,
     ICON_MAX,
     SORT_DEFAULT,
+    SORT_STEP,
     TITLE_MAX,
 )
 from src.modules.tasks.models.group import TasksGroup
@@ -36,6 +37,20 @@ async def _require_workspace(s, workspace_code: str) -> None:
         )
 
 
+async def _sort_at_end(s, workspace_code: str) -> int:
+    """Позиция ниже всех живых групп пространства; в пустом — ``SORT_DEFAULT``.
+
+    Считается в той же транзакции, что и вставка: разойтись с чужой одновременной записью
+    значение не успеет, а совпадение двух ``sort`` порядок всё равно не ломает — его разводит
+    тайбрейк по названию.
+    """
+    stmt = select(func.min(TasksGroup.sort)).where(
+        TasksGroup.workspace_code == workspace_code, TasksGroup.deleted_at.is_(None)
+    )
+    lowest = (await s.execute(stmt)).scalar_one_or_none()
+    return SORT_DEFAULT if lowest is None else lowest - SORT_STEP
+
+
 async def group_create(
     *,
     workspace_code: str,
@@ -43,8 +58,14 @@ async def group_create(
     description: str | None = None,
     color: str | None = None,
     icon: str | None = None,
-    sort: int = SORT_DEFAULT,
+    sort: int | None = None,
 ) -> TasksGroup:
+    """Завести группу; ``sort=None`` — в конец списка, число — на точную позицию.
+
+    Умолчание именно «в конец», а не ``SORT_DEFAULT``: у новой группы с тем же ``sort``, что у
+    половины соседей, позиция определяется тайбрейком по названию, то есть случайна с точки
+    зрения заводившего. Интерфейс шлёт число сам и этой ветки не касается.
+    """
     async with write_scope() as s:
         await _require_workspace(s, workspace_code)
         row = TasksGroup(
@@ -54,12 +75,36 @@ async def group_create(
             description=clip(description, DESCRIPTION_MAX),
             color=clip(color, COLOR_MAX),
             icon=clip(icon, ICON_MAX),
-            sort=sort,
+            sort=await _sort_at_end(s, workspace_code) if sort is None else sort,
         )
         s.add(row)
         await s.flush()
         await s.refresh(row)
     return row
+
+
+async def group_find_by_title(workspace_code: str, title: str) -> TasksGroup | None:
+    """Живая группа пространства с таким названием, без учёта регистра; иначе ``None``.
+
+    Нужна не схеме, а тому, кто заводит группу вслепую: уникального индекса на паре
+    «пространство + название» нет, и без этой проверки в одной раскладке заводятся «Биллинг» и
+    «биллинг». Регистр игнорируется, потому что различать их — значит спорить с человеком,
+    который считает это одним словом.
+
+    **Регистр сворачивается в Python, а не в SQL**, и это не вкус. ``lower()`` у SQLite складывает
+    только ASCII: «Биллинг» остаётся «Биллинг», и запрос не находит ничего. На PostgreSQL та же
+    функция кириллицу свернёт — то есть ``func.lower`` дал бы провайдерам РАЗНОЕ поведение на
+    русских названиях, причём на dev-провайдере проверка просто молча не срабатывала бы. Цена —
+    чтение групп пространства целиком; их единицы, и вызывающий читает тот же список следующей
+    строкой.
+    """
+    wanted = title.strip().casefold()
+    stmt = select(TasksGroup).where(
+        TasksGroup.workspace_code == workspace_code, TasksGroup.deleted_at.is_(None)
+    )
+    async with session_scope() as s:
+        rows = list((await s.execute(stmt)).scalars().all())
+    return next((row for row in rows if row.title.strip().casefold() == wanted), None)
 
 
 async def group_get(code: str, *, include_deleted: bool = False) -> TasksGroup | None:
@@ -113,6 +158,75 @@ async def group_update(
             row.icon = clip(icon, ICON_MAX)
         if sort is not None:
             row.sort = sort
+        await s.flush()
+        await s.refresh(row)
+    return row
+
+
+async def group_reorder(
+    code: str, *, after: str | None = None, before: str | None = None
+) -> TasksGroup | None:
+    """Поставить группу прямо под (``after``) или прямо над (``before``) соседней.
+
+    Позиция задаётся соседом, а не числом: ``sort`` — внутренняя механика, и тому, кто двигает
+    группу, попасть в него нечем. Ровно одна из двух точек отсчёта обязательна.
+
+    Список после вставки **перенумеровывается целиком** — сверху вниз с шагом ``SORT_STEP``, —
+    а записываются только строки, у которых значение реально изменилось. Групп в пространстве
+    единицы, поэтому дешёвая арифметика «поделить зазор пополам» не окупается: она добавляет
+    вторую ветку на случай кончившегося зазора, и эта ветка живёт непройденной до того дня,
+    когда сломается.
+
+    ``None`` — группы нет или она удалена; чужая, удалённая или несуществующая точка отсчёта —
+    ``ValueError`` с названием причины.
+    """
+    if (after is None) == (before is None):
+        raise ValueError(
+            "Pass exactly one of after / before — a position needs one point of reference."
+        )
+    anchor_code = after or before
+    async with write_scope() as s:
+        row = await s.get(TasksGroup, code)
+        if row is None or row.deleted_at is not None:
+            return None
+        if anchor_code == code:
+            raise ValueError(
+                f"Group {code!r} cannot be placed relative to itself — name another group."
+            )
+        anchor = await s.get(TasksGroup, anchor_code)
+        if anchor is None or anchor.deleted_at is not None:
+            raise ValueError(f"Group {anchor_code!r} does not exist (or is deleted).")
+        if anchor.workspace_code != row.workspace_code:
+            raise ValueError(
+                f"Group {anchor_code!r} belongs to workspace {anchor.workspace_code!r}, but "
+                f"{code!r} belongs to {row.workspace_code!r} — a layout never spans workspaces."
+            )
+        siblings = list(
+            (
+                await s.execute(
+                    select(TasksGroup)
+                    .where(
+                        TasksGroup.workspace_code == row.workspace_code,
+                        TasksGroup.deleted_at.is_(None),
+                    )
+                    .order_by(
+                        TasksGroup.sort.desc(),
+                        TasksGroup.title.asc(),
+                        TasksGroup.code.asc(),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        ordered = [item for item in siblings if item.code != code]
+        at = next(i for i, item in enumerate(ordered) if item.code == anchor_code)
+        ordered.insert(at + 1 if after else at, row)
+        top = SORT_DEFAULT + (len(ordered) - 1) * SORT_STEP
+        for position, item in enumerate(ordered):
+            place = top - position * SORT_STEP
+            if item.sort != place:
+                item.sort = place
         await s.flush()
         await s.refresh(row)
     return row
@@ -177,8 +291,10 @@ __all__ = [
     "group_count_by_workspace_codes",
     "group_create",
     "group_delete",
+    "group_find_by_title",
     "group_get",
     "group_list_by_workspace",
+    "group_reorder",
     "group_restore",
     "group_update",
 ]
