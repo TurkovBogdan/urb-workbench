@@ -1,0 +1,73 @@
+# agents — the whole working-records tree (instructions, memory, tasks, docs, plans) is local-only,
+# never published; AGENTS.md/CLAUDE.md are root symlinks into it
+.claude/
+/AGENTS/
+/AGENTS.md
+/CLAUDE.md
+
+# local stands for migration rehearsals — compose files, volumes, dumps and copies of a live
+# database stay on the machine, never in the repository. The names are kept ignored although the
+# folders are gone (removed 2026-09-20): re-creating one must not expose credentials or a database
+# copy to the next "commit everything".
+/docker/
+/tests-migration/
+
+# env / secrets — real .env never committed; example templates are tracked
+.env
+.env.*
+!.env.example
+!.env.example.*
+
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# node / frontend deps + build caches (web/dist is committed — see below)
+node_modules/
+web/tsconfig.tsbuildinfo
+*.tsbuildinfo
+
+# built SPA — web/dist/ IS committed (deploy = git pull; nginx serves it as docroot).
+# Source statics live in web/static/ (Vite publicDir, copied into web/dist on build).
+
+# runtime artifacts — keep the profile dirs, ignore generated content (DB, cache, logs, user files)
+/runtime/*
+!/runtime/dev/
+/runtime/dev/*
+!/runtime/dev/.gitkeep
+!/runtime/test/
+/runtime/test/*
+!/runtime/test/.gitkeep
+!/runtime/prod/
+/runtime/prod/*
+!/runtime/prod/.gitkeep
+
+# file storage — keep the folders, ignore contents.
+# storage/public — served by nginx directly; storage/protected — served only via backend auth.
+/storage/public/*
+!/storage/public/.gitkeep
+/storage/protected/*
+!/storage/protected/.gitkeep
+
+# caches
+.cache/
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+.directory
+
+# scratch
+/temp/

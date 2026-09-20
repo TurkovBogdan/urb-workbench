@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- Source of the favicon/apple-touch rasters next to it; geometry mirrors the generator
+       that produced them. Wrench: handle, head, bolt hole, then the jaw notch cut back out. -->
+  <clipPath id="plate"><circle cx="16" cy="16" r="16"/></clipPath>
+  <g clip-path="url(#plate)">
+    <circle cx="16" cy="16" r="16" fill="#FF7A33"/>
+    <line x1="8.30" y1="23.70" x2="19.30" y2="12.70"
+          stroke="#fff" stroke-width="5.06" stroke-linecap="round"/>
+    <circle cx="22.05" cy="9.95" r="5.94" fill="#fff"/>
+    <circle cx="22.05" cy="9.95" r="2.64" fill="#FF7A33"/>
+    <polygon points="33.17,2.41 29.59,-1.17 20.26,8.16 23.84,11.74" fill="#FF7A33"/>
+  </g>
+</svg>

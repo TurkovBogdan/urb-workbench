@@ -1,0 +1,274 @@
+<script setup lang="ts">
+import { computed, onActivated, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { IconRefresh, IconSortAscending, IconSortDescending } from '@tabler/icons-vue'
+
+import PageLayout from '@/layout/templates/PageLayout.vue'
+import PageHeader from '@/layout/components/PageHeader.vue'
+import SearchField from '@/components/SearchField.vue'
+import SectionError from '@/components/SectionError.vue'
+import { RESEARCH_LIST_VIEWS } from '@/constants/lists'
+import { researchListView } from '../listView'
+
+import GroupSelect from '../components/GroupSelect.vue'
+import ResearchesList from '../components/ResearchesList.vue'
+import { registryScopes, registryScopesModel } from '../search'
+import { useGroupCatalogStore } from '../stores/group-catalog.store'
+import { useResearchesStore } from '../stores/researches.store'
+import { RESEARCH_SORT_FIELDS, UNGROUPED_CODE, type ResearchSortBy } from '../api'
+
+const { t } = useI18n()
+const store = useResearchesStore()
+// Справочник полок нужен странице не ради выбора (его держит `GroupSelect`), а ради подписи
+// на чипе активного фильтра: там стоит имя выбранной полки.
+const groupCatalog = useGroupCatalogStore()
+
+const sortOptions = computed(() =>
+  RESEARCH_SORT_FIELDS.map((field) => ({ title: t(`research.sort.by.${field}`), value: field })),
+)
+
+// Плитки рамки строк не имеют, и порядок в них назвать нечем — им ручка сортировки нужна.
+// Таблица называет его заголовком колонки, по которой сортирует.
+const sortByFilters = computed(() => researchListView.value === 'grouped')
+
+// null — все полки; UNGROUPED_CODE — только не разложенные (бэк читает пустой код именно так).
+const groupFilterTitle = computed(() => {
+  if (store.groupFilter === null) return t('research.group.select.all')
+  if (store.groupFilter === UNGROUPED_CODE) return t('research.group.ungrouped.title')
+  return groupCatalog.items.find((group) => group.code === store.groupFilter)?.title ?? ''
+})
+
+// Три слоя стога — кнопки прямо в поле запроса; название и описание в нём всегда, поэтому
+// четвёртой кнопки нет. Состав стога называет сама подпись поля, как на странице групп:
+// отдельной строкой пояснения он повторял бы то, что и так написано в поле. Слои названы одним
+// словом каждый и без слова «поиск» — подпись стоит в общей строке с фильтрами, места в ней
+// немного, а что поле поисковое, уже сказано лупой слева.
+const searchScopes = computed(() => registryScopes((scope) => t(`research.search.scope.${scope}`)))
+const activeScopes = registryScopesModel(
+  () => ({
+    inBody: store.inBody,
+    inAreasAndNotes: store.inAreasAndNotes,
+    inSources: store.inSources,
+  }),
+  (next) => store.searchScopes(next),
+)
+const searchLabel = computed(() =>
+  [
+    t('research.research.filter.query_scope_base'),
+    ...activeScopes.value.map((scope) => t(`research.search.haystack.${scope}`)),
+  ].join(', '),
+)
+
+const SEARCH_DEBOUNCE_MS = 350
+const queryInput = ref(store.query)
+let queryTimer: ReturnType<typeof setTimeout> | null = null
+
+watch(queryInput, (v) => {
+  if ((v ?? '') === store.query) return
+  if (queryTimer) clearTimeout(queryTimer)
+  queryTimer = setTimeout(() => {
+    store.query = v ?? ''
+    store.resetPage()
+    store.load()
+  }, SEARCH_DEBOUNCE_MS)
+})
+
+watch(() => store.query, (v) => {
+  if (v !== queryInput.value) queryInput.value = v
+})
+
+function clearAll() {
+  queryInput.value = ''
+  store.clearFilters()
+  store.load()
+}
+
+function reload() {
+  store.resetPage()
+  store.load()
+}
+
+function selectGroup(code: string | null) {
+  store.groupFilter = code
+  reload()
+}
+
+function selectSortBy(field: ResearchSortBy) {
+  store.sortBy = field
+  reload()
+}
+
+function toggleSortDir() {
+  store.sortDir = store.sortDir === 'desc' ? 'asc' : 'desc'
+  reload()
+}
+
+// Стор общий с деталью полки, поэтому реестр каждый раз снимает с себя её контекст —
+// иначе после возврата из группы список остался бы отфильтрованным. Выбранная в панели
+// полка (groupFilter) — наоборот, переживает уход со страницы, как и строка поиска.
+onActivated(() => {
+  if (store.groupCode !== null) {
+    store.groupCode = null
+    store.resetPage()
+  }
+  store.load()
+})
+</script>
+
+<template>
+  <PageLayout>
+    <PageHeader
+      :title="t('research.research.list.title')"
+      :description="t('research.research.list.description')"
+    >
+      <template #actions>
+        <VBtn variant="text" :disabled="store.loading" @click="store.load()">
+          <template #prepend><IconRefresh :size="16" :class="{ 'icon-spin': store.loading }" /></template>
+          {{ t('research.action.refresh') }}
+        </VBtn>
+      </template>
+    </PageHeader>
+
+    <SectionError v-if="store.error" :error="store.error" />
+
+    <!-- Фильтры отдаются таблице слотом: они рисуются в её карточке над линейкой, как панель
+         фильтров у таблицы источников. -->
+    <ResearchesList v-else>
+      <template #filters>
+        <div class="filter-grid">
+          <!-- Запрос занимает всё, что осталось от фильтров: у остальных ручек ширина от
+               содержимого, а поле тем шире, чем шире панель. -->
+          <SearchField
+            v-model="queryInput"
+            v-model:active-scopes="activeScopes"
+            :scopes="searchScopes"
+            :label="searchLabel"
+            :loading="store.loading"
+            class="filter-grid__search"
+          />
+
+          <GroupSelect
+            :model-value="store.groupFilter"
+            with-all
+            with-ungrouped
+            class="filter-grid__select"
+            @update:model-value="selectGroup"
+          />
+          <!-- Поле и направление — одна ручка (`.field-group`, см. /design-system/selects):
+               направление сортировки без поля, по которому сортируют, ничего не значит.
+               В таблице этой ручки нет: там порядком управляют заголовки колонок, и вторая
+               ручка о том же означала бы два способа сказать одно, расходящиеся на глазах. -->
+          <div v-if="sortByFilters" class="field-group filter-grid__sort">
+            <VSelect
+              :model-value="store.sortBy"
+              :items="sortOptions"
+              :label="t('research.sort.label')"
+              variant="outlined"
+              density="comfortable"
+              hide-details
+              @update:model-value="selectSortBy"
+            />
+            <VBtn
+              variant="outlined"
+              density="comfortable"
+              icon
+              class="field-group__btn"
+              :aria-label="t(`research.sort.${store.sortDir}`)"
+              @click="toggleSortDir"
+            >
+              <IconSortAscending v-if="store.sortDir === 'asc'" :size="16" />
+              <IconSortDescending v-else :size="16" />
+              <VTooltip activator="parent" location="top">
+                {{ t(`research.sort.${store.sortDir}`) }}
+              </VTooltip>
+            </VBtn>
+          </div>
+
+          <!-- Раскладка стоит последней: она не сужает список, а меняет то, как он нарисован.
+               `mandatory` — снять обе кнопки нельзя, раскладка всегда есть. -->
+          <VBtnToggle
+            v-model="researchListView"
+            mandatory
+            density="comfortable"
+            variant="outlined"
+            divided
+            class="filter-grid__view"
+          >
+            <VBtn v-for="view in RESEARCH_LIST_VIEWS" :key="view.code" :value="view.code" icon>
+              <component :is="view.icon" :size="18" />
+              <VTooltip activator="parent" location="top">{{ t(view.label) }}</VTooltip>
+            </VBtn>
+          </VBtnToggle>
+        </div>
+
+        <div v-if="store.hasActiveFilters" class="filter-chips">
+          <VChip v-if="store.query" size="small" closable @click:close="queryInput = ''">
+            {{ store.query }}
+          </VChip>
+          <VChip
+            v-if="store.groupFilter !== null"
+            size="small"
+            closable
+            @click:close="selectGroup(null)"
+          >
+            {{ groupFilterTitle }}
+          </VChip>
+          <VBtn variant="text" size="small" @click="clearAll">
+            {{ t('research.action.clear_filters') }}
+          </VBtn>
+        </div>
+      </template>
+    </ResearchesList>
+  </PageLayout>
+</template>
+
+<style scoped>
+/* Панель живёт внутри карточки таблицы, поэтому отступ несёт она сама — как у фильтров
+   источников (`.doc-filters`). Чипы дотягивают тот же отступ снизу, если они есть. */
+.filter-grid {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+}
+
+/* Поле запроса — единственное, что тянется: у полки, сортировки и раскладки ширина от
+   содержимого. 320px — не ширина, а порог переноса: у́же поле начинает съедать подпись со
+   списком слоёв, и на этой ширине панель лучше сложить в две строки. */
+.filter-grid__search {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+/* `:deep` не для красоты: класс едет на корень `VSelect` через два компонента (`GroupSelect` →
+   `VSelectSearch`), и scoped-атрибут этой вьюхи туда уже не доходит — обычное правило не
+   совпало бы, а поле растянулось бы на всю свободную ширину строки. */
+.filter-grid :deep(.filter-grid__select) {
+  /* `flex: none` обязателен: у `.v-input` собственный `flex: 1 1 auto`, и с ним ширина ниже
+     работает только как основа — свободное место строки поле всё равно забирает себе. */
+  flex: none;
+  width: 190px;
+}
+
+/* Ширину держит поле; кнопка направления приросла к нему справа и в неё не входит. */
+.filter-grid__sort .v-select {
+  width: 190px;
+}
+
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px 12px;
+}
+
+/* Узкий экран: полка во всю ширину своей строкой, а сортировка с раскладкой делят следующую —
+   кнопка направления при этом остаётся рядом с выбором поля, она читается только вместе с ним. */
+@media (max-width: 720px) {
+  .filter-grid :deep(.filter-grid__select) {
+    width: 100%;
+  }
+}
+</style>
