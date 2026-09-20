@@ -21,11 +21,14 @@ from src.modules.tasks.crud.group import group_create
 from src.modules.tasks.crud.link import link_get
 from src.modules.tasks.crud.task import (
     task_create,
+    task_delete,
     task_get,
     task_list_by_parent,
     task_list_by_workspace,
+    task_regroup,
     task_update,
     task_update_status,
+    task_workspace_by_codes,
 )
 from src.modules.workspace.crud.workspace import workspace_create
 
@@ -210,3 +213,73 @@ async def test_overlong_plan_is_refused_not_clipped(db, workspace):
             title="Слишком длинный план",
             body="x" * (BODY_MAX + 1),
         )
+
+
+async def test_workspace_by_codes_skips_what_is_not_live(db, workspace):
+    """Пропавшая и удалённая отвечают одинаково: перед записью разницы между ними нет."""
+    alive = await task_create(workspace_code=workspace.code, title="Счета")
+    gone = await task_create(workspace_code=workspace.code, title="Отчёты")
+    await task_delete(gone.code)
+
+    owners = await task_workspace_by_codes([alive.code, gone.code, "0" * CODE_LEN])
+
+    assert owners == {alive.code: workspace.code}
+
+
+async def test_regroup_files_the_whole_batch(db, workspace):
+    group = await group_create(workspace_code=workspace.code, title="Биллинг")
+    first = await task_create(workspace_code=workspace.code, title="Счета")
+    second = await task_create(workspace_code=workspace.code, title="Тарифы")
+
+    assert await task_regroup([first.code, second.code], group.code) == 2
+
+    assert (await task_get(first.code)).group_code == group.code
+    assert (await task_get(second.code)).group_code == group.code
+
+
+async def test_regroup_with_no_group_unfiles(db, workspace):
+    group = await group_create(workspace_code=workspace.code, title="Биллинг")
+    row = await task_create(
+        workspace_code=workspace.code, title="Счета", group_code=group.code
+    )
+
+    await task_regroup([row.code], None)
+
+    assert (await task_get(row.code)).group_code is None
+
+
+async def test_regroup_writes_nothing_when_one_code_is_missing(db, workspace):
+    """Смысл пачки — атомарность: половина переложенного выглядит как переложенное целиком."""
+    group = await group_create(workspace_code=workspace.code, title="Биллинг")
+    row = await task_create(workspace_code=workspace.code, title="Счета")
+
+    with pytest.raises(ValueError, match="nothing was filed"):
+        await task_regroup([row.code, "0" * CODE_LEN], group.code)
+
+    assert (await task_get(row.code)).group_code is None
+
+
+async def test_regroup_refuses_a_batch_from_two_workspaces(db, workspace):
+    other = await workspace_create(title="Личное")
+    group = await group_create(workspace_code=workspace.code, title="Биллинг")
+    mine = await task_create(workspace_code=workspace.code, title="Счета")
+    stranger = await task_create(workspace_code=other.code, title="Ремонт")
+
+    with pytest.raises(ValueError, match="different workspaces"):
+        await task_regroup([mine.code, stranger.code], group.code)
+
+    assert (await task_get(mine.code)).group_code is None
+
+
+async def test_regroup_refuses_a_group_from_another_workspace(db, workspace):
+    other = await workspace_create(title="Личное")
+    stranger_group = await group_create(workspace_code=other.code, title="Ремонт")
+    row = await task_create(workspace_code=workspace.code, title="Счета")
+
+    with pytest.raises(ValueError, match="never spans workspaces"):
+        await task_regroup([row.code], stranger_group.code)
+
+
+async def test_regroup_refuses_an_empty_batch(db, workspace):
+    with pytest.raises(ValueError, match="at least one"):
+        await task_regroup([], None)

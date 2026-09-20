@@ -530,6 +530,71 @@ async def task_count_by_group_codes(
         return {code: count for code, count in (await s.execute(stmt)).all()}
 
 
+async def task_workspace_by_codes(codes: list[str]) -> dict[str, str]:
+    """``code → workspace_code`` для живых задач одним запросом; пропавших в ответе нет.
+
+    Нужна тому, кто проверяет контур у ПАЧКИ кодов: забор (``mcp/scope.py``) читает по одной
+    задаче за раз, и на списке это превратилось бы в запрос на элемент. Отсутствие кода в ответе
+    — это и «нет такой», и «удалена»: для проверки перед записью разницы между ними нет.
+    """
+    if not codes:
+        return {}
+    stmt = select(TasksTask.code, TasksTask.workspace_code).where(
+        TasksTask.code.in_(codes), TasksTask.deleted_at.is_(None)
+    )
+    async with session_scope() as s:
+        return {code: workspace for code, workspace in (await s.execute(stmt)).all()}
+
+
+async def task_regroup(codes: list[str], group_code: str | None) -> int:
+    """Переложить пачку задач в группу (``None`` — снять разложенность); вернуть, сколько легло.
+
+    Одна транзакция на всю пачку, и это её причина существовать: та же работа тремя вызовами
+    ``task_update`` даёт частичное применение, а частично переложенная пачка выглядит ровно как
+    переложенная.
+
+    Поэтому и проверки идут до первой записи: пропавшая задача, задачи из разных пространств,
+    группа не оттуда — всё это ``ValueError`` с перечислением виноватых кодов, и ни одна строка
+    при этом не тронута.
+
+    Строки правятся через ORM, а не массовым ``UPDATE``: ``onupdate`` у ``updated_at`` висит на
+    маппере, и в обход него отметка времени осталась бы вчерашней.
+    """
+    if not codes:
+        raise ValueError("No task codes given — name at least one task to file.")
+    async with write_scope() as s:
+        rows = list(
+            (
+                await s.execute(
+                    select(TasksTask).where(
+                        TasksTask.code.in_(codes), TasksTask.deleted_at.is_(None)
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        missing = [code for code in codes if code not in {row.code for row in rows}]
+        if missing:
+            raise ValueError(
+                f"No live task for {', '.join(repr(code) for code in missing)} — "
+                "nothing was filed."
+            )
+        workspaces = {row.workspace_code for row in rows}
+        if len(workspaces) > 1:
+            raise ValueError(
+                "These tasks live in different workspaces "
+                f"({', '.join(sorted(repr(code) for code in workspaces))}) — "
+                "a single call files work inside one."
+            )
+        if group_code:
+            await _require_group_of(s, group_code, workspaces.pop())
+        for row in rows:
+            row.group_code = group_code or None
+        await s.flush()
+    return len(rows)
+
+
 __all__ = [
     "KEEP",
     "task_count_by_group_codes",
@@ -539,7 +604,9 @@ __all__ = [
     "task_get",
     "task_list_by_parent",
     "task_list_by_workspace",
+    "task_regroup",
     "task_restore",
     "task_update",
     "task_update_status",
+    "task_workspace_by_codes",
 ]

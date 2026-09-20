@@ -37,8 +37,10 @@ _REFUSALS = {
         "edit answers nothing. Changed your mind: write a new entry pointing at the old one."
     ),
     GROUP_CODE_PREFIX: (
-        "A group is the person's layout of their own workspace, and removing it is theirs to "
-        "do. Move the task instead: task_update(group_code=…), or an empty string to unfile it."
+        "Removing a group is the person's to do: the tasks filed there keep pointing at it, and "
+        "bringing it back is theirs as well — you would leave them a hole you cannot undo. "
+        "Re-word the theme with group_update, or empty it with tasks_regroup(group_code=\"\", …) "
+        "and leave the empty group for them to clear."
     ),
     WORKSPACE_CODE_PREFIX: (
         "A workspace holds everything else here, and deleting it is the person's call. "
