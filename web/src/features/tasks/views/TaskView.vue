@@ -25,8 +25,8 @@ import {
   IconArchiveOff,
   IconArrowUp,
   IconCalendarEvent,
+  IconCode,
   IconDotsVertical,
-  IconEye,
   IconFlame,
   IconPencil,
   IconPlus,
@@ -37,9 +37,11 @@ import PageLayout from '@/layout/templates/PageLayout.vue'
 import PageHeader from '@/layout/components/PageHeader.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import CopyCodeButton from '@/components/CopyCodeButton.vue'
-import MarkdownRenderer from '@/components/MarkdownRenderer.vue'
+import { MarkdownEditor } from '@/components/markdown/editor'
 import SectionError from '@/components/SectionError.vue'
 import SectionHeader from '@/components/SectionHeader.vue'
+import IconSwatch from '@/components/IconSwatch.vue'
+import VSelectSearch from '@/components/VSelectSearch.vue'
 import { fmtDateTime, fmtRelative } from '@/shared/utils/date'
 
 import TaskCard from '../components/TaskCard.vue'
@@ -47,14 +49,16 @@ import TaskFormDialog from '../components/TaskFormDialog.vue'
 import TaskJournal from '../components/TaskJournal.vue'
 import TaskPrioritySelect from '../components/TaskPrioritySelect.vue'
 import TaskStages from '../components/TaskStages.vue'
+import TaskStatusSelect from '../components/TaskStatusSelect.vue'
 import { listGroups, type GroupRow, type TaskDetail, type TaskListRow, type TaskUpdateBody } from '../api'
 import { deadlineDay, formatDay, formatDeadline, parseDay } from '../dates'
+import { TASK_BRIEF_FEATURES, TASK_DOCUMENT_FEATURES } from '../editor'
 import {
+  BODY_MAX,
   TASK_CONSTRAINTS_MAX,
   TASK_CONTEXT_MAX,
   TASK_CRITERIA_MAX,
   TASK_DESCRIPTION_MAX,
-  TASK_STATUSES,
   TASK_TITLE_MAX,
   TASK_TYPES,
   typeLayout,
@@ -119,8 +123,9 @@ watch(() => task.value?.code, (loaded) => {
   draft.priority = row?.priority ?? 'normal'
   draft.groupCode = row?.group_code ?? null
   draft.deadlineAt = parseDay(row?.deadline_at ?? null)
-  contextPreview.value = Boolean(row?.context)
-  bodyPreview.value = Boolean(row?.body)
+  // Задача открывается редактором всегда: исходник — запасной выход, а не режим по умолчанию.
+  contextSource.value = false
+  bodySource.value = false
   if (loaded) void loadGroups()
 })
 
@@ -226,14 +231,20 @@ async function loadGroups() {
 
 // ── Справочники ───────────────────────────────────────────────────────────────
 
-const statusItems = computed(() =>
-  TASK_STATUSES.map((value) => ({ value, title: t(`tasks.task.status.${value}`) })),
-)
+// Справочник статусов собирает сам `TaskStatusSelect`: порядок и значки живут в `labels.ts`, и
+// собирать их здесь заново значило бы разойтись на первой же правке справочника.
 const typeItems = computed(() =>
   TASK_TYPES.map((value) => ({ value, title: t(`tasks.task.type.${value}`) })),
 )
+// Вид группы едет в пункт вместе с именем: значок рисуется в списке и в самом поле, и брать
+// его потом по коду значило бы искать группу второй раз на каждую отрисовку.
 const groupItems = computed(() =>
-  groups.value.map((group) => ({ value: group.code, title: group.title })),
+  groups.value.map((group) => ({
+    value: group.code,
+    title: group.title,
+    icon: group.icon,
+    color: group.color,
+  })),
 )
 
 // Смену статуса ведёт стор: поле только сообщает выбранное. Через `computed` с сеттером, а не
@@ -269,22 +280,18 @@ const updatedAt = computed(() => {
 })
 
 // ── Длинные тексты ────────────────────────────────────────────────────────────
-// Контекст и план набираются markdown'ом, а читаются свёрстанными, и одно поле не может быть и
-// тем и другим. Написанное открывается свёрстанным (его чаще читают, чем правят), пустое — сразу
-// полем: рисовать предпросмотр пустоты не для чего.
+// Правка идёт свёрстанной: поле — тот же документ, что и на чтении, одной типографикой. Поэтому
+// прежней пары «предпросмотр ↔ правка» больше нет — нечего переключать, это одно и то же.
 //
-// Ограничения и критерии живут без предпросмотра: это короткие списки, и переключатель режима над
-// тремя строками стоил бы больше, чем экономил.
-const contextPreview = ref(false)
-const bodyPreview = ref(false)
-
-function editContext(): void {
-  contextPreview.value = false
-}
-
-function editBody(): void {
-  bodyPreview.value = false
-}
+// Переключатель остался, но значит другое: РЕДАКТОР ↔ ИСХОДНИК. Он нужен не для красоты, а как
+// запасной выход. Редактор переносит не всё (`UNSUPPORTED` в мосте): картинку он выбросит, блок
+// внутри пункта списка — тоже. Пока это так, у человека обязан быть способ добраться до текста
+// как он есть и починить руками то, чего редактор не выражает.
+//
+// Границы и критерии обходятся без него: там короткие перечни, и переключатель над тремя
+// строками стоил бы больше, чем экономил.
+const contextSource = ref(false)
+const bodySource = ref(false)
 
 /** Этап или запись журнала изменились — перечитываем задачу: списки едут внутри её ответа. */
 function reloadTask(): void {
@@ -425,122 +432,146 @@ async function purge() {
             {{ task.parent.title }}
           </button>
 
-          <!-- Имя поля написано в нём самом, пока оно пустое, и поднимается меткой, как только в
-               поле появился текст: подпись не занимает строки, но и не пропадает, когда значение
-               уже не даёт её угадать. -->
-          <VTextarea
-            :model-value="draft.description"
-            :label="t('tasks.task.form.description')"
-            :maxlength="TASK_DESCRIPTION_MAX"
-            :disabled="deleted"
-            variant="outlined"
-            rows="1"
-            auto-grow
-            hide-details
-            class="task-page__desc"
-            @update:model-value="(value) => { draft.description = value; schedule() }"
-            @blur="commit"
-          />
+          <!-- Цель получила такой же заголовок секции, как соседи: поднятая метка поля пропала
+               вместе с рамкой, а без подписи верхняя карточка читалась абзацем ниоткуда.
+               Длинная подсказка осталась там, где она и нужна, — в пустом поле. -->
+          <VCard variant="outlined" rounded="lg" class="task-page__card">
+            <SectionHeader :title="t('tasks.task.detail.description')" />
+            <!-- Цель — одна-две фразы, поэтому простой режим: абзац, жирный, курсив. Заголовку
+                 или таблице в цели взяться неоткуда, и схема их просто не знает. -->
+            <MarkdownEditor
+              :model-value="draft.description"
+              :placeholder="t('tasks.task.form.description')"
+              :aria-label="t('tasks.task.detail.description')"
+              :max-length="TASK_DESCRIPTION_MAX"
+              :readonly="deleted"
+              mode="simple"
+              variant="plain"
+              min-height="0"
+              @update:model-value="(value) => { draft.description = value; schedule() }"
+              @blur="commit"
+            />
+          </VCard>
 
           <!-- Контекст есть у любой задачи, даже простой: это «что надо знать, чтобы взяться», и
                без него простая карточка превращается в одну строку заголовка. -->
-          <section>
+          <VCard variant="outlined" rounded="lg" class="task-page__card">
             <SectionHeader :title="t('tasks.task.detail.context')">
               <template #right>
-                <VBtn v-if="contextPreview" variant="text" size="small" :disabled="deleted" @click="editContext">
-                  <template #prepend><IconPencil :size="16" /></template>
-                  {{ t('common.action.edit') }}
-                </VBtn>
-                <VBtn v-else variant="text" size="small" :disabled="!draft.context" @click="contextPreview = true">
-                  <template #prepend><IconEye :size="16" /></template>
-                  {{ t('tasks.task.detail.preview') }}
+                <VBtn variant="text" size="small" @click="contextSource = !contextSource">
+                  <template #prepend>
+                    <component :is="contextSource ? IconPencil : IconCode" :size="16" />
+                  </template>
+                  {{ contextSource ? t('tasks.task.detail.editor') : t('tasks.task.detail.source') }}
                 </VBtn>
               </template>
             </SectionHeader>
 
-            <MarkdownRenderer v-if="contextPreview" :text="draft.context" heavy @dblclick="editContext" />
             <VTextarea
-              v-else
+              v-if="contextSource"
               :model-value="draft.context"
               :placeholder="t('tasks.task.form.context_hint')"
               :aria-label="t('tasks.task.detail.context')"
               :maxlength="TASK_CONTEXT_MAX"
               :disabled="deleted"
-              variant="outlined"
+              variant="plain"
               rows="4"
               auto-grow
               hide-details
+              class="task-page__source"
               @update:model-value="(value) => { draft.context = value; schedule() }"
               @blur="commit"
             />
-          </section>
+            <MarkdownEditor
+              v-else
+              :model-value="draft.context"
+              :placeholder="t('tasks.task.form.context_hint')"
+              :aria-label="t('tasks.task.detail.context')"
+              :max-length="TASK_CONTEXT_MAX"
+              :readonly="deleted"
+              :features="TASK_DOCUMENT_FEATURES"
+              variant="plain"
+              min-height="0"
+              @update:model-value="(value) => { draft.context = value; schedule() }"
+              @blur="commit"
+            />
+          </VCard>
 
           <!-- Границы и требования к сдаче — постановка стандартной задачи. У простой их нет:
                там нечего сдавать по критериям, и пустые поля только занимали бы экран. -->
-          <section v-if="layout.brief">
+          <VCard v-if="layout.brief" variant="outlined" rounded="lg" class="task-page__card">
             <SectionHeader :title="t('tasks.task.detail.constraints')" />
-            <VTextarea
+            <MarkdownEditor
               :model-value="draft.constraints"
               :placeholder="t('tasks.task.form.constraints_hint')"
               :aria-label="t('tasks.task.detail.constraints')"
-              :maxlength="TASK_CONSTRAINTS_MAX"
-              :disabled="deleted"
-              variant="outlined"
-              rows="3"
-              auto-grow
-              hide-details
+              :max-length="TASK_CONSTRAINTS_MAX"
+              :readonly="deleted"
+              :features="TASK_BRIEF_FEATURES"
+              variant="plain"
+              min-height="0"
               @update:model-value="(value) => { draft.constraints = value; schedule() }"
               @blur="commit"
             />
-          </section>
+          </VCard>
 
-          <section v-if="layout.brief">
+          <VCard v-if="layout.brief" variant="outlined" rounded="lg" class="task-page__card">
             <SectionHeader :title="t('tasks.task.detail.criteria')" />
-            <VTextarea
+            <MarkdownEditor
               :model-value="draft.criteria"
               :placeholder="t('tasks.task.form.criteria_hint')"
               :aria-label="t('tasks.task.detail.criteria')"
-              :maxlength="TASK_CRITERIA_MAX"
-              :disabled="deleted"
-              variant="outlined"
-              rows="3"
-              auto-grow
-              hide-details
+              :max-length="TASK_CRITERIA_MAX"
+              :readonly="deleted"
+              :features="TASK_BRIEF_FEATURES"
+              variant="plain"
+              min-height="0"
               @update:model-value="(value) => { draft.criteria = value; schedule() }"
               @blur="commit"
             />
-          </section>
+          </VCard>
 
-          <section v-if="layout.plan">
+          <VCard v-if="layout.plan" variant="outlined" rounded="lg" class="task-page__card">
             <SectionHeader :title="t('tasks.task.detail.body')">
               <template #right>
-                <VBtn v-if="bodyPreview" variant="text" size="small" :disabled="deleted" @click="editBody">
-                  <template #prepend><IconPencil :size="16" /></template>
-                  {{ t('common.action.edit') }}
-                </VBtn>
-                <VBtn v-else variant="text" size="small" :disabled="!draft.body" @click="bodyPreview = true">
-                  <template #prepend><IconEye :size="16" /></template>
-                  {{ t('tasks.task.detail.preview') }}
+                <VBtn variant="text" size="small" @click="bodySource = !bodySource">
+                  <template #prepend>
+                    <component :is="bodySource ? IconPencil : IconCode" :size="16" />
+                  </template>
+                  {{ bodySource ? t('tasks.task.detail.editor') : t('tasks.task.detail.source') }}
                 </VBtn>
               </template>
             </SectionHeader>
 
-            <MarkdownRenderer v-if="bodyPreview" :text="draft.body" heavy @dblclick="editBody" />
             <VTextarea
+              v-if="bodySource"
+              :model-value="draft.body"
+              :placeholder="t('tasks.task.form.body_hint')"
+              :aria-label="t('tasks.task.form.body')"
+              :maxlength="BODY_MAX"
+              :disabled="deleted"
+              variant="plain"
+              rows="6"
+              auto-grow
+              hide-details
+              class="task-page__source"
+              @update:model-value="(value) => { draft.body = value; schedule() }"
+              @blur="commit"
+            />
+            <MarkdownEditor
               v-else
               :model-value="draft.body"
               :placeholder="t('tasks.task.form.body_hint')"
               :aria-label="t('tasks.task.form.body')"
-              :disabled="deleted"
-              variant="outlined"
-              rows="6"
-              auto-grow
-              hide-details
-              class="task-page__body"
+              :max-length="BODY_MAX"
+              :readonly="deleted"
+              :features="TASK_DOCUMENT_FEATURES"
+              variant="plain"
+              min-height="0"
               @update:model-value="(value) => { draft.body = value; schedule() }"
               @blur="commit"
             />
-          </section>
+          </VCard>
 
           <!-- Этапы и журнал — работа по задаче, и место им сразу под планом: план обещает, этапы
                показывают ход, журнал держит то, что всплыло по дороге.
@@ -591,48 +622,67 @@ async function purge() {
           </section>
         </div>
 
-        <aside class="task-page__side">
-          <!-- Кнопки сохранения нет, поэтому строка состояния обязательна: без неё человек не
-               знает, добралась ли правка до базы. Молчит она только в покое. -->
-          <p class="task-page__save" :class="{ 'task-page__save--error': store.saveError }">
-            <template v-if="store.saveError">{{ store.saveError }}</template>
-            <template v-else-if="store.saving">{{ t('tasks.task.detail.saving') }}</template>
-            <template v-else>{{ t('tasks.task.detail.autosave') }}</template>
+        <!-- Карточка сама себе `aside`: отдельная обёртка вокруг неё добавила бы уровень, на
+             котором нечему жить — колонка полей и есть эта карточка. -->
+        <VCard tag="aside" variant="outlined" rounded="lg" class="task-page__side">
+          <!-- Строка состояния молчит в покое: кнопки сохранения нет, поэтому про ошибку и про
+               идущую запись сказать обязательно, а про то, что всё сохранено, — нет. Пустая
+               строка в покое не занимала бы места, но занимала бы место в голове. -->
+          <p
+            v-if="store.saveError || store.saving"
+            class="task-page__save"
+            :class="{ 'task-page__save--error': store.saveError }"
+          >
+            {{ store.saveError || t('tasks.task.detail.saving') }}
           </p>
 
-          <VSelect
+          <!-- Группа необязательна: задача без неё попадает в секцию «Без группы», а не теряется.
+               Групп в пространстве бывает много, и узнают их по виду — иконке в цвете группы,
+               тому же, что в списке задач. Поиск прикреплён сверху меню и поле не меняет.
+               `:chips="false"` обязателен: с чипами Vuetify рисует `#chip` и молча игнорирует
+               `#selection`, то есть выбранная группа осталась бы без значка. -->
+          <VSelectSearch
+            :model-value="draft.groupCode"
+            :items="groupItems"
+            :label="t('tasks.task.detail.group')"
+            :search-placeholder="t('tasks.task.detail.group_search')"
+            :no-data-text="t('tasks.task.detail.group_empty')"
+            :disabled="deleted"
+            :chips="false"
+            variant="outlined"
+            density="compact"
+            clearable
+            hide-details
+            @update:model-value="(value) => pick('groupCode', (value ?? null) as string | null)"
+          >
+            <template #item="{ props: itemProps, item }">
+              <VListItem v-bind="itemProps">
+                <template #prepend>
+                  <IconSwatch :icon="item.icon" :color="item.color" :width="20" />
+                </template>
+              </VListItem>
+            </template>
+
+            <template #selection="{ item }">
+              <span class="task-page__group-value">
+                <IconSwatch :icon="item.icon" :color="item.color" :width="20" />
+                {{ item.title }}
+              </span>
+            </template>
+          </VSelectSearch>
+
+          <!-- Статус ходят по соседям — из плана в работу, из работы на проверку, — поэтому
+               поле со ступенями, как у приоритета, и со значком: тем же, что стоит в строке
+               списка задач. -->
+          <TaskStatusSelect
             v-model="status"
-            :items="statusItems"
             :label="t('tasks.task.detail.status')"
             :disabled="deleted || store.busy"
             :loading="store.busy"
-            :chips="false"
             variant="outlined"
             density="compact"
             hide-details
           />
-
-          <!-- Тип — закрытый набор из трёх значений: у VSelect в узком ряду Vuetify рисует лишнюю
-               рамку вокруг поля, у переключателя её нет.
-               Переключение только ПРЯЧЕТ лишние поля: написанное остаётся в базе и вернётся
-               вместе с типом — поэтому подпись под рядом говорит про показ, а не про удаление. -->
-          <div class="task-page__field">
-            <span class="task-page__label">{{ t('tasks.task.detail.type') }}</span>
-            <VBtnToggle
-              :model-value="draft.type"
-              mandatory
-              density="compact"
-              variant="tonal"
-              :disabled="deleted"
-              class="task-page__toggle"
-              @update:model-value="(value) => pick('type', value as string)"
-            >
-              <VBtn v-for="item in typeItems" :key="item.value" :value="item.value">
-                {{ item.title }}
-              </VBtn>
-            </VBtnToggle>
-            <span class="task-page__hint">{{ t('tasks.task.detail.type_hint') }}</span>
-          </div>
 
           <TaskPrioritySelect
             :model-value="draft.priority"
@@ -642,22 +692,6 @@ async function purge() {
             density="compact"
             hide-details
             @update:model-value="(value) => pick('priority', value as string)"
-          />
-
-          <!-- Группа необязательна: задача без неё попадает в секцию «Без группы», а не теряется.
-               Своего placeholder'а у поля нет намеренно: рядом с ним имя поля перестало бы
-               подниматься меткой и стояло бы над пустой строкой. -->
-          <VSelect
-            :model-value="draft.groupCode"
-            :items="groupItems"
-            :label="t('tasks.task.detail.group')"
-            :disabled="deleted"
-            :chips="false"
-            variant="outlined"
-            density="compact"
-            clearable
-            hide-details
-            @update:model-value="(value) => pick('groupCode', (value ?? null) as string | null)"
           />
 
           <!-- Единственная назначаемая дата: до какого числа успеть. Выбранный день уезжает
@@ -679,13 +713,38 @@ async function purge() {
             @update:model-value="(value) => pick('deadlineAt', (value ?? null) as Date | null)"
           />
 
+          <!-- Тип выбирается кнопками: все три значения видны сразу, без раскрытия списка.
+               Вид взят у дизайн-системы — `outlined` + `divided`, как умолчание проекта для
+               `VBtnToggle` (plugins/vuetify.ts) и как показано в витрине. Прежний `tonal`
+               заливал выбранное сплошным цветом, и ряд читался тяжёлой полосой.
+               Стоит последним из полей: тип ставят один раз при заведении, а меняют реже всего
+               остального в этой колонке. -->
+          <div class="task-page__field">
+            <span class="task-page__label">{{ t('tasks.task.detail.type') }}</span>
+            <VBtnToggle
+              :model-value="draft.type"
+              mandatory
+              divided
+              variant="outlined"
+              density="compact"
+              :disabled="deleted"
+              class="task-page__toggle"
+              @update:model-value="(value) => pick('type', value as string)"
+            >
+              <VBtn v-for="item in typeItems" :key="item.value" :value="item.value">
+                {{ item.title }}
+              </VBtn>
+            </VBtnToggle>
+            <span class="task-page__hint">{{ t('tasks.task.detail.type_hint') }}</span>
+          </div>
+
           <dl v-if="marks.length" class="task-page__marks">
             <div v-for="mark in marks" :key="mark.key" class="task-page__mark">
               <dt class="task-page__mark-label">{{ mark.label }}</dt>
               <dd class="task-page__mark-value">{{ mark.value }}</dd>
             </div>
           </dl>
-        </aside>
+        </VCard>
       </div>
     </div>
 
@@ -725,9 +784,11 @@ async function purge() {
 /* Колонка полей не тянется и не жмётся: её ширину задают поля внутри, а всё остальное место
    достаётся прозе. Ниже 900px колонки встают друг под друга — половинка экрана под текст задачи
    уже не колонка чтения. */
+/* 312px = 280px полей + падинг карточки с двух сторон: колонка обзавелась рамкой, а поля внутри
+   обязаны остаться той же ширины, иначе ряд переключателя типа сожмётся ещё на 32px. */
 .task-page__grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 280px;
+  grid-template-columns: minmax(0, 1fr) 312px;
   gap: 28px;
   align-items: start;
 }
@@ -743,6 +804,17 @@ async function purge() {
   min-width: 0;
 }
 
+/* Карточка получает только текстовая секция. Этапы, журнал и подзадачи остаются на полотне: у
+   каждой их строки своя рамка, и карточка вокруг дала бы рамку в рамке.
+   16px — между панелью фильтров (12px) и плиткой группы (18px): здесь пять карточек в колонке
+   подряд, и каждый лишний пиксель отступа умножается на пять.
+   Правило про рамку в рамке действует и ВНУТРИ карточки, поэтому поля прозы набраны тихими
+   (`quiet-field`, как заголовок страницы): рамка у секции одна — сама карточка, а то, что поле
+   можно править, показывают подложка под курсором и обводка под фокусом. */
+.task-page__card {
+  padding: 16px;
+}
+
 /* Колонка полей держится в виду, пока листают длинный текст: статус и срок нужны на любой его
    строке, а уехавшие вверх поля пришлось бы искать прокруткой обратно. Липнет она только в
    двухколоночной раскладке — в одноколоночной липкая полоса накрывала бы сам текст.
@@ -754,6 +826,7 @@ async function purge() {
   flex-direction: column;
   gap: 18px;
   min-width: 0;
+  padding: 16px;
   position: sticky;
   top: 0;
 }
@@ -843,17 +916,15 @@ async function purge() {
   margin-inline-start: -3px;
 }
 
-/* Описание и тело — связный текст, поэтому набираются зоной чтения, а не интерфейсной
-   гарнитурой: их читают подряд, а не просматривают. Типографика достаётся и скрытой мерке
-   (`v-textarea__sizer` — тот же класс поля): именно ею Vuetify считает высоту набранного, и
-   мерка, набранная другим кеглем, дала бы высоту не от этого текста. */
-.task-page__desc :deep(.v-field__input),
-.task-page__body :deep(.v-field__input) {
-  max-width: var(--reading-measure, 92ch);
-  font-family: var(--font-reading);
-  font-size: var(--reading-size, 14px);
-  font-weight: 300;
-  line-height: 1.7;
+/* Исходник — запасной выход, и выглядеть он должен исходником: моноширинный, мельче прозы,
+   без меры строки. Так видно, что правишь текст как он есть, а не документ.
+   Типографика достаётся и скрытой мерке (`v-textarea__sizer` — тот же класс поля): именно ею
+   Vuetify считает высоту набранного, и мерка, набранная другим кеглем, дала бы высоту не от
+   этого текста. */
+.task-page__source :deep(.v-field__input) {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
 }
 
 /* `min-height` возвращает `auto-grow` на место: высоту набранного Vuetify кладёт в
@@ -865,8 +936,7 @@ async function purge() {
    поля, её `scrollHeight` вернулся бы не меньше упора, и каждый пересчёт добавлял бы поле к
    самому себе. На широком экране это незаметно, а на узком, где текст переносится, поле за
    несколько пересчётов вырастает на весь экран. */
-.task-page__desc :deep(.v-field__input:not(.v-textarea__sizer)),
-.task-page__body :deep(.v-field__input:not(.v-textarea__sizer)) {
+.task-page__source :deep(.v-field__input:not(.v-textarea__sizer)) {
   min-height: var(--v-input-control-height);
 }
 
@@ -891,20 +961,30 @@ async function purge() {
 .task-page__save--error { color: var(--error); }
 
 /* Подпись прижата к своему полю теснее, чем поля друг к другу, — иначе она читается как
-   заголовок всего блока, а не как метка переключателя. */
+   заголовок всего блока, а не как пояснение к полю. */
 .task-page__field {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
+/* Значок и имя группы в поле стоят тем же рядом, что и в пункте списка: выбранное значение —
+   это тот же пункт, только показанный в поле. */
+.task-page__group-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* У ряда кнопок нет поднятой метки, как у соседних полей, поэтому имя стоит строкой над ним. */
 .task-page__label {
   font-size: 12px;
   color: var(--text-muted);
 }
 
-/* Подпись под переключателем типа: она объясняет поведение, а не называет поле, поэтому тише
-   метки и стоит ПОД рядом, а не над ним. */
+/* Подпись под типом: она объясняет поведение, а не называет поле, поэтому тише метки и стоит
+   ПОД рядом, а не над ним. */
 .task-page__hint {
   font-size: 11px;
   line-height: 1.4;
@@ -912,9 +992,19 @@ async function purge() {
 }
 
 /* Размер у группы кнопок не наследуется детьми (docs/conventions/frontend.md), поэтому высота
-   ставится руками — по соседним полям, а они здесь идут плотной ступенью. */
+   ставится руками — по соседним полям, а они здесь идут плотной ступенью. Подписи в 11 символов
+   делят ширину колонки поровну, поэтому шрифт на ступень мельче кнопочного. */
 .task-page__toggle { width: 100%; }
-.task-page__toggle :deep(.v-btn) { flex: 1; height: 28px; font-size: 0.8125rem; }
+
+.task-page__toggle :deep(.v-btn) {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding-inline: 6px;
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: none;
+}
 
 /* Отметки времени идут строками «метка / значение» под полями: их не правят, и место под
    колонкой полей у них общее. */

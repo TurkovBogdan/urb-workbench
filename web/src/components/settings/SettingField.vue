@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import type { FieldDescriptor } from '@/shared/settings-fields'
 
-import MarkdownRenderer from '@/components/MarkdownRenderer.vue'
+import MarkdownRenderer from '@/components/markdown/renderer/MarkdownRenderer.vue'
 import SettingFieldInt from './SettingFieldInt.vue'
 import SettingFieldFloat from './SettingFieldFloat.vue'
 import SettingFieldBool from './SettingFieldBool.vue'

@@ -9,11 +9,12 @@
 // проверкой, а показывает: пока `evidence` пуст, кнопка «Готово» заперта и объясняет почему.
 // Продублируй мы проверку здесь, у одного правила стало бы два места, и разошлись бы они в первый
 // же день.
-import { computed, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { IconChevronRight, IconPlus, IconTrash } from '@tabler/icons-vue'
 
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import { MarkdownEditor } from '@/components/markdown/editor'
 import { errorText } from '@/api/errorText'
 
 import {
@@ -23,7 +24,9 @@ import {
   updateStage,
   type StageRow,
 } from '../api'
+import { TASK_BRIEF_FEATURES, TASK_DOCUMENT_FEATURES } from '../editor'
 import {
+  BODY_MAX,
   STAGE_EVIDENCE_MAX,
   TASK_DESCRIPTION_MAX,
   TASK_STATUSES,
@@ -79,6 +82,27 @@ async function add() {
     )
     open.value = stage.code
   })
+}
+
+// ── Набранное, но ещё не отправленное ─────────────────────────────────────────
+// Поля уезжают по уходу из них, а у редактора разметки значение приходит событием, не лежит в
+// DOM: прочитать его в момент blur, как у `VTextarea`, неоткуда. Поэтому последнее набранное
+// копится здесь по паре «этап + поле», а blur его забирает.
+type MarkdownField = 'description' | 'body' | 'evidence'
+
+const pending = reactive<Record<string, Partial<Record<MarkdownField, string>>>>({})
+
+function stash(stage: StageRow, field: MarkdownField, value: string): void {
+  ;(pending[stage.code] ??= {})[field] = value
+}
+
+function flush(stage: StageRow, field: MarkdownField): void {
+  const value = pending[stage.code]?.[field]
+  delete pending[stage.code]?.[field]
+  // Неизменившееся не отправляем: уход из поля, в котором ничего не набрали, не должен
+  // выглядеть правкой — ни в журнале изменений, ни по времени обновления задачи.
+  if (value === undefined || value === stage[field]) return
+  void patch(stage, { [field]: value })
 }
 
 function patch(stage: StageRow, fields: Partial<Pick<StageRow, 'title' | 'description' | 'body' | 'evidence'>>) {
@@ -144,45 +168,45 @@ async function remove() {
           @blur="(event: FocusEvent) => patch(stage, { title: (event.target as HTMLInputElement).value })"
         />
 
-        <VTextarea
+        <!-- Цель этапа — фраза, поэтому простой режим: заголовку или таблице в ней взяться
+             неоткуда, и схема их не знает. -->
+        <MarkdownEditor
           :model-value="stage.description"
           :label="t('tasks.stage.description')"
-          :maxlength="TASK_DESCRIPTION_MAX"
-          :disabled="props.disabled || busy"
-          variant="outlined"
-          density="compact"
-          rows="2"
-          auto-grow
-          hide-details
-          @blur="(event: FocusEvent) => patch(stage, { description: (event.target as HTMLTextAreaElement).value })"
+          :max-length="TASK_DESCRIPTION_MAX"
+          :readonly="props.disabled || busy"
+          mode="simple"
+          min-height="0"
+          @update:model-value="(value) => stash(stage, 'description', value)"
+          @blur="flush(stage, 'description')"
         />
 
-        <VTextarea
+        <!-- Тело этапа — такой же документ, как план задачи, и потолок у них общий: в бэке это
+             одна колонка `BODY_MAX`. -->
+        <MarkdownEditor
           :model-value="stage.body"
           :label="t('tasks.stage.body')"
-          :disabled="props.disabled || busy"
-          variant="outlined"
-          density="compact"
-          rows="3"
-          auto-grow
-          hide-details
-          @blur="(event: FocusEvent) => patch(stage, { body: (event.target as HTMLTextAreaElement).value })"
+          :max-length="BODY_MAX"
+          :readonly="props.disabled || busy"
+          :features="TASK_DOCUMENT_FEATURES"
+          min-height="0"
+          @update:model-value="(value) => stash(stage, 'body', value)"
+          @blur="flush(stage, 'body')"
         />
 
         <!-- Доказательство — указатель, а не рассказ: подпись под полем говорит, что сюда кладут,
-             потому что по имени поля это не угадывается. -->
-        <VTextarea
+             потому что по имени поля это не угадывается. Отсюда и состав: перечень со строчной
+             разметкой, без разделов и таблиц. -->
+        <MarkdownEditor
           :model-value="stage.evidence"
           :label="t('tasks.stage.evidence')"
           :hint="t('tasks.stage.evidence_hint')"
-          :maxlength="STAGE_EVIDENCE_MAX"
-          :disabled="props.disabled || busy"
-          persistent-hint
-          variant="outlined"
-          density="compact"
-          rows="2"
-          auto-grow
-          @blur="(event: FocusEvent) => patch(stage, { evidence: (event.target as HTMLTextAreaElement).value })"
+          :max-length="STAGE_EVIDENCE_MAX"
+          :readonly="props.disabled || busy"
+          :features="TASK_BRIEF_FEATURES"
+          min-height="0"
+          @update:model-value="(value) => stash(stage, 'evidence', value)"
+          @blur="flush(stage, 'evidence')"
         />
 
         <div class="stage__actions">

@@ -7,7 +7,7 @@ import SectionError from '@/components/SectionError.vue'
 import { type NavSection } from '@/components/SectionNav.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import InlineEditBlock from '@/components/InlineEditBlock.vue'
-import type { HeadingAnchor } from '@/components/markdown/render'
+import type { HeadingAnchor } from '@/components/markdown/renderer/render'
 import { fmtDateTime, fmtRelative } from '@/shared/utils/date'
 
 import BodySection from '../components/BodySection.vue'

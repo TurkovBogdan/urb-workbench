@@ -8,7 +8,7 @@ import PageLayout from '@/layout/templates/PageLayout.vue'
 import PageHeader from '@/layout/components/PageHeader.vue'
 import SectionError from '@/components/SectionError.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
-import MarkdownRenderer from '@/components/MarkdownRenderer.vue'
+import MarkdownRenderer from '@/components/markdown/renderer/MarkdownRenderer.vue'
 import { fmtDateTime } from '@/shared/utils/date'
 
 import { usePageDetailStore } from '../stores/page-detail.store'

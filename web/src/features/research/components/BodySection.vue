@@ -5,7 +5,7 @@
 // порознь у него разъезжались бы поля карточки и вид пустого места. Отличаются только подписи,
 // поэтому они приходят пропами: у исследования это «Исследование», у зоны — её результат.
 import SectionHeader from '@/components/SectionHeader.vue'
-import type { HeadingAnchor } from '@/components/markdown/render'
+import type { HeadingAnchor } from '@/components/markdown/renderer/render'
 
 import ResearchBody from './ResearchBody.vue'
 
