@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
 
-import MarkdownRenderer from '@/components/MarkdownRenderer.vue'
-import { REF_CODE, type HeadingAnchor } from '@/components/markdown/render'
+import MarkdownRenderer from '@/components/markdown/renderer/MarkdownRenderer.vue'
+import { REF_CODE, type HeadingAnchor } from '@/components/markdown/renderer/render'
 import { useReferencesStore } from '../stores/references.store'
 
 // Тело исследования/области/заметки: markdown + разрешение ссылок-кодов (TYPE@hash) в

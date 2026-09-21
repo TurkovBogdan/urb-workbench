@@ -3,7 +3,7 @@ import { useI18n } from 'vue-i18n'
 
 import PageLayout from '@/layout/templates/PageLayout.vue'
 import PageHeader from '@/layout/components/PageHeader.vue'
-import MarkdownRenderer from '@/components/MarkdownRenderer.vue'
+import MarkdownRenderer from '@/components/markdown/renderer/MarkdownRenderer.vue'
 import SettingsGroup from '@/components/settings/SettingsGroup.vue'
 import SwitchPanel from '@/components/SwitchPanel.vue'
 import VSelectStepper from '@/components/VSelectStepper.vue'

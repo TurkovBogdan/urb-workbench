@@ -26,7 +26,7 @@ import {
 } from '../api'
 import { formatDeadline, parseDay } from '../dates'
 import {
-  TASK_BODY_MAX,
+  BODY_MAX,
   TASK_CONSTRAINTS_MAX,
   TASK_CONTEXT_MAX,
   TASK_CRITERIA_MAX,
@@ -349,7 +349,7 @@ async function save() {
         v-model="body"
         :label="t('tasks.task.form.body')"
         :hint="t('tasks.task.form.body_hint')"
-        :maxlength="TASK_BODY_MAX"
+        :maxlength="BODY_MAX"
         :disabled="loadingBody"
         :loading="loadingBody"
         variant="outlined"

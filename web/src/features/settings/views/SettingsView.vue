@@ -5,7 +5,7 @@ import { IconRotate, IconDeviceFloppy } from '@tabler/icons-vue'
 
 import PageLayout from '@/layout/templates/PageLayout.vue'
 import PageHeader from '@/layout/components/PageHeader.vue'
-import MarkdownRenderer from '@/components/MarkdownRenderer.vue'
+import MarkdownRenderer from '@/components/markdown/renderer/MarkdownRenderer.vue'
 import SettingField from '@/components/settings/SettingField.vue'
 import type { FieldDescriptor } from '@/shared/settings-fields'
 import { useSettingLabels } from '../labels'

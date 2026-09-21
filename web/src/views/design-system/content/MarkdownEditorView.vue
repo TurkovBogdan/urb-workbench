@@ -8,10 +8,8 @@ import { useI18n } from 'vue-i18n'
 import { IconCheck, IconAlertTriangle } from '@tabler/icons-vue'
 import PageLayout from '@/layout/templates/PageLayout.vue'
 import PageHeader from '@/layout/components/PageHeader.vue'
-import MarkdownEditor from '@/components/markdown/editor/MarkdownEditor.vue'
-import MarkdownRenderer from '@/components/MarkdownRenderer.vue'
-import { markdownToDoc, UNSUPPORTED } from '@/components/markdown/editor/markdownToDoc'
-import { docToMarkdown } from '@/components/markdown/editor/docToMarkdown'
+import MarkdownRenderer from '@/components/markdown/renderer/MarkdownRenderer.vue'
+import { MarkdownEditor, UNSUPPORTED, docToMarkdown, markdownToDoc } from '@/components/markdown/editor'
 // Настоящее тело заметки из стабильного ресёча, а не сочинённый пример: в нём таблицы, фенсы,
 // коды сущностей в бэктиках и длинные абзацы с мягкими переносами — то есть ровно тот материал,
 // на котором мост обязан работать. Подключено как файл, потому что бэктиков внутри 344 штуки и
@@ -22,6 +20,27 @@ const { t } = useI18n()
 
 const source = ref(SAMPLE)
 const body = ref(SAMPLE)
+
+// Отдельный маленький документ под таблицу. В большом образце таблицы тоже есть — и именно они
+// гоняются круговым проходом ниже, — но сесть в ячейку и потрогать колонки посреди тела на две
+// сотни строк неудобно. Здесь всё на экране разом: выравнивание по трём колонкам, пустая
+// ячейка, `|` внутри кода и код сущности в ячейке.
+const TABLE_SAMPLE = `| Конструкция | Правка | Печать обратно |
+| --- | :---: | ---: |
+| Заголовок | да | одна строка |
+| Таблица | да | шапка, разделитель, ряды |
+| Картинка | нет |  |
+| Экранирование | \`a \\| b\` | AREA@0123456789 |
+`
+
+const tableBody = ref(TABLE_SAMPLE)
+
+// Простой режим: то, чем правят короткое поле — название этапа, подпись, однострочную заметку.
+// Предел взят маленьким нарочно, чтобы до красного счётчика доходило за пару фраз.
+const SIMPLE_SAMPLE = 'Короткое поле: **жирный** и *курсив* есть, всего остального — нет.'
+
+const simpleBody = ref(SIMPLE_SAMPLE)
+const SIMPLE_LIMIT = 120
 
 // Правка исходника перезаряжает редактор; правка в редакторе меняет только `body`. Вердикт
 // ниже считается от исходника и потому не зависит от того, что пользователь успел натыкать.
@@ -92,6 +111,51 @@ const diff = computed(() => diffLines(source.value.trimEnd().split('\n'), roundt
         <h6 class="mb-3">{{ t('design-system.section.markdown-editor.editor') }}</h6>
         <MarkdownEditor v-model="body" />
         <p class="ds-note mt-2">{{ t('design-system.section.markdown-editor.editorHint') }}</p>
+      </section>
+
+      <!-- Простой режим: состав возможностей как контракт поля -->
+      <section class="ds-section">
+        <h6 class="mb-3">{{ t('design-system.section.markdown-editor.simple') }}</h6>
+        <MarkdownEditor
+          v-model="simpleBody"
+          mode="simple"
+          min-height="120px"
+          :max-length="SIMPLE_LIMIT"
+        />
+        <p class="ds-note mt-2">{{ t('design-system.section.markdown-editor.simpleHint') }}</p>
+
+        <div class="pane-grid mt-4">
+          <div class="pane">
+            <span class="ds-tag mb-2">{{ t('design-system.section.markdown-editor.emitted') }}</span>
+            <pre class="code-box code-box--short">{{ simpleBody }}</pre>
+          </div>
+          <div class="pane">
+            <span class="ds-tag mb-2">{{ t('design-system.section.markdown-editor.rendered') }}</span>
+            <div class="preview-box">
+              <MarkdownRenderer :text="simpleBody" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Таблица: единственный блок, который не ложится в одну строку markdown -->
+      <section class="ds-section">
+        <h6 class="mb-3">{{ t('design-system.section.markdown-editor.table') }}</h6>
+        <MarkdownEditor v-model="tableBody" min-height="220px" />
+        <p class="ds-note mt-2">{{ t('design-system.section.markdown-editor.tableHint') }}</p>
+
+        <div class="pane-grid mt-4">
+          <div class="pane">
+            <span class="ds-tag mb-2">{{ t('design-system.section.markdown-editor.emitted') }}</span>
+            <pre class="code-box code-box--short">{{ tableBody }}</pre>
+          </div>
+          <div class="pane">
+            <span class="ds-tag mb-2">{{ t('design-system.section.markdown-editor.rendered') }}</span>
+            <div class="preview-box">
+              <MarkdownRenderer :text="tableBody" />
+            </div>
+          </div>
+        </div>
       </section>
 
       <!-- Круговой проход -->
@@ -229,6 +293,12 @@ const diff = computed(() => diffLines(source.value.trimEnd().split('\n'), roundt
   border: 1px solid var(--border-soft);
   border-radius: var(--radius);
   color: var(--text-muted);
+}
+
+/* У маленького примера высота по содержимому: пустая панель на треть экрана под таблицей из
+   пяти строк читалась бы как «тут что-то не загрузилось». */
+.code-box--short {
+  min-height: 0;
 }
 
 .preview-box {

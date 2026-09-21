@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { BoolFieldDescriptor } from '@/shared/settings-fields'
 import SwitchPanel from '@/components/SwitchPanel.vue'
-import MarkdownRenderer from '@/components/MarkdownRenderer.vue'
+import MarkdownRenderer from '@/components/markdown/renderer/MarkdownRenderer.vue'
 
 defineProps<{
   field: BoolFieldDescriptor

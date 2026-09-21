@@ -13,10 +13,13 @@ import { useI18n } from 'vue-i18n'
 import { IconPlus } from '@tabler/icons-vue'
 
 import StatusBadge from '@/components/StatusBadge.vue'
+import MarkdownRenderer from '@/components/markdown/renderer/MarkdownRenderer.vue'
+import { MarkdownEditor } from '@/components/markdown/editor'
 import { errorText } from '@/api/errorText'
 import { fmtDateTime } from '@/shared/utils/date'
 
 import { createNote, resolveNote, type NoteRow } from '../api'
+import { TASK_DOCUMENT_FEATURES } from '../editor'
 import {
   NOTE_BODY_MAX,
   NOTE_RESOLUTION_MAX,
@@ -148,15 +151,15 @@ async function resolve(note: NoteRow, value: string) {
         hide-details
         autofocus
       />
-      <VTextarea
+      <!-- Запись журнала — тот же документ, что и план: в неё кладут разбор со списками,
+           листингами и ссылками на соседние сущности. Потолок при этом вчетверо ниже, и
+           счётчик об этом говорит. -->
+      <MarkdownEditor
         v-model="draftBody"
         :label="t('tasks.note.body')"
-        :maxlength="NOTE_BODY_MAX"
-        variant="outlined"
-        density="compact"
-        rows="2"
-        auto-grow
-        hide-details
+        :max-length="NOTE_BODY_MAX"
+        :features="TASK_DOCUMENT_FEATURES"
+        min-height="0"
       />
       <div class="journal__form-actions">
         <VBtn variant="text" size="small" :disabled="busy" @click="adding = false">
@@ -186,7 +189,10 @@ async function resolve(note: NoteRow, value: string) {
         <span class="entry__date">{{ fmtDateTime(note.created_at) }}</span>
       </header>
 
-      <p v-if="note.body" class="entry__body">{{ note.body }}</p>
+      <!-- Тело записи набирают разметкой, а показывалось оно сырым текстом: списки шли дефисами
+           в строку, а код — бэктиками. Правки у записи нет (лента дописываемая), поэтому здесь
+           рендерер, а не редактор. -->
+      <MarkdownRenderer v-if="note.body" :text="note.body" compact class="entry__body" />
 
       <!-- Разрешение у закрытой записи стоит текстом: переписать его нельзя, и поле ввода тут
            обещало бы правку, которой нет. -->
@@ -286,12 +292,12 @@ async function resolve(note: NoteRow, value: string) {
   white-space: nowrap;
 }
 
+/* Кегль, интерлиньяж и зазоры даёт компактный вид рендерера — он для того и есть: интерфейсный
+   хром, а не зона чтения. Здесь остаётся только то, чего у него нет: запись в ленте вторична по
+   отношению к своему заголовку, поэтому приглушена. */
 .entry__body {
   margin: 0;
-  font-size: 13px;
-  line-height: 1.5;
   color: var(--text-muted);
-  white-space: pre-wrap;
 }
 
 .entry__resolution {

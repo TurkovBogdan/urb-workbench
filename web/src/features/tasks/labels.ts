@@ -38,7 +38,9 @@ export const TASK_DESCRIPTION_MAX = 512
 export const TASK_CONTEXT_MAX = 4048
 export const TASK_CONSTRAINTS_MAX = 1024
 export const TASK_CRITERIA_MAX = 1024
-export const TASK_BODY_MAX = 8192
+// Одна колонка на два поля: `BODY_MAX` в бэке держит и план задачи, и тело этапа. Имя здесь
+// общее, чтобы на месте применения не казалось, будто у этапа потолок свой.
+export const BODY_MAX = 8192
 export const STAGE_EVIDENCE_MAX = 1024
 export const NOTE_BODY_MAX = 2048
 export const NOTE_RESOLUTION_MAX = 1024
