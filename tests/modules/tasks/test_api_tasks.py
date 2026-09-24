@@ -86,6 +86,7 @@ async def test_groups_of_a_missing_workspace_are_404(client):
     response = await client.get(GROUPS, params={"workspace": "0" * CODE_LEN})
 
     assert response.status_code == 404
+    assert response.json()["code"] == "workspace.workspace.not_found"
 
 
 # ── список задач ──────────────────────────────────────────────────────────────
@@ -367,6 +368,8 @@ async def test_get_of_a_missing_task_is_404(client):
     response = await client.get(f"{TASKS}/{'0' * CODE_LEN}")
 
     assert response.status_code == 404
+    assert response.json()["code"] == "tasks.task.not_found"
+    assert response.json()["error"] == "Task not found"
 
 
 async def test_a_foreign_code_prefix_is_a_bad_request(client):
@@ -451,6 +454,7 @@ async def test_update_of_a_deleted_task_is_409(client):
     response = await client.put(f"{TASKS}/{task.code}", json={"title": "Счёт"})
 
     assert response.status_code == 409
+    assert response.json()["code"] == "tasks.task.deleted"
 
 
 # ── статус ────────────────────────────────────────────────────────────────────
@@ -654,12 +658,11 @@ async def test_get_names_the_group_and_the_parent(client):
     """Группа и родитель едут строками: страница показывает их названиями, а не кодами."""
     workspace = await _workspace()
     group = await group_crud.group_create(workspace_code=workspace.code, title="Биллинг")
-    parent = await task_crud.task_create(workspace_code=workspace.code, title="Счета")
+    parent = await task_crud.task_create(
+        workspace_code=workspace.code, title="Счета", group_code=group.code
+    )
     task = await task_crud.task_create(
-        workspace_code=workspace.code,
-        title="Акт",
-        group_code=group.code,
-        parent_code=parent.code,
+        workspace_code=workspace.code, title="Акт", parent_code=parent.code
     )
 
     body = (await client.get(f"{TASKS}/{task.code}")).json()
@@ -751,6 +754,148 @@ async def test_reorder_without_the_group_key_keeps_the_group(client):
     ).json()
 
     assert body["group_code"] == f"GROUP@{group.code}"
+
+
+async def test_reorder_detaches_the_subtask_in_one_request(client):
+    """Второй жест списка: подзадачу вытащили из ветки в карточку группы — и она стала корнем."""
+    workspace = await _workspace()
+    group = await group_crud.group_create(workspace_code=workspace.code, title="Биллинг")
+    parent = await task_crud.task_create(workspace_code=workspace.code, title="Эпик")
+    neighbour = await task_crud.task_create(
+        workspace_code=workspace.code, title="Сосед по карточке", group_code=group.code
+    )
+    child = await task_crud.task_create(
+        workspace_code=workspace.code, title="Подзадача", parent_code=parent.code
+    )
+
+    body = (
+        await client.post(
+            f"{TASKS}/{child.code}/reorder",
+            json={
+                "parent_code": None,
+                "group_code": f"GROUP@{group.code}",
+                "after_code": f"TASK@{neighbour.code}",
+            },
+        )
+    ).json()
+
+    assert body["parent_code"] is None
+    assert body["group_code"] == f"GROUP@{group.code}"
+    # Встала ровно под названной соседкой — то есть на место броска, а не в конец ряда.
+    row = await link_crud.link_list_by_parent(None)
+    codes = [item.task_code for item in row if item.task_code in {neighbour.code, child.code}]
+    assert codes == [neighbour.code, child.code]
+
+
+async def test_reorder_detaches_a_subtask_of_a_filed_epic_into_another_card(client):
+    """Группа подзадачи — только родительская, поэтому вынос и смена группы — одна запись.
+
+    Двумя шагами (сначала группа, потом родитель) жест упёрся бы в этот запрет на первом же.
+    """
+    workspace = await _workspace()
+    billing = await group_crud.group_create(workspace_code=workspace.code, title="Биллинг")
+    interface = await group_crud.group_create(workspace_code=workspace.code, title="Интерфейс")
+    parent = await task_crud.task_create(
+        workspace_code=workspace.code, title="Эпик", group_code=billing.code
+    )
+    child = await task_crud.task_create(
+        workspace_code=workspace.code, title="Подзадача", parent_code=parent.code
+    )
+
+    response = await client.post(
+        f"{TASKS}/{child.code}/reorder",
+        json={"parent_code": None, "group_code": f"GROUP@{interface.code}", "after_code": None},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["parent_code"] is None
+    assert response.json()["group_code"] == f"GROUP@{interface.code}"
+
+
+@pytest.mark.parametrize("gesture", ["parent", "group"])
+async def test_reorder_with_a_wrong_neighbour_writes_nothing(client, gesture):
+    """Неверный сосед (устаревший экран) — 400, и перенос откатывается вместе с позицией."""
+    workspace = await _workspace()
+    billing = await group_crud.group_create(workspace_code=workspace.code, title="Биллинг")
+    interface = await group_crud.group_create(workspace_code=workspace.code, title="Интерфейс")
+    epic = await task_crud.task_create(
+        workspace_code=workspace.code, title="Эпик", group_code=interface.code
+    )
+    stranger = await task_crud.task_create(
+        workspace_code=workspace.code, title="Не сосед", group_code=billing.code
+    )
+    moved = await task_crud.task_create(
+        workspace_code=workspace.code, title="Тащат", group_code=billing.code
+    )
+    before = (await link_crud.link_get(moved.code)).sort
+    tree_change = (
+        {"parent_code": f"TASK@{epic.code}"}
+        if gesture == "parent"
+        else {"group_code": f"GROUP@{interface.code}"}
+    )
+
+    response = await client.post(
+        f"{TASKS}/{moved.code}/reorder",
+        json={"after_code": f"TASK@{stranger.code}", **tree_change},
+    )
+
+    assert response.status_code == 400
+    link = await link_crud.link_get(moved.code)
+    assert link.parent_code is None
+    assert link.sort == before
+    assert (await task_crud.task_get(moved.code)).group_code == billing.code
+
+
+async def test_move_refuses_a_parent_in_the_bin(client):
+    workspace = await _workspace()
+    parent = await task_crud.task_create(workspace_code=workspace.code, title="Эпик")
+    loose = await task_crud.task_create(workspace_code=workspace.code, title="Отдельная")
+    await task_crud.task_delete(parent.code)
+
+    response = await client.post(
+        f"{TASKS}/{loose.code}/move", json={"parent_code": f"TASK@{parent.code}"}
+    )
+
+    assert response.status_code == 400
+    assert (await link_crud.link_get(loose.code)).parent_code is None
+
+
+async def test_reorder_without_the_parent_key_keeps_the_branch(client):
+    """Ключа нет — родителя не трогаем: перестановка среди сестёр про дерево не знает."""
+    workspace = await _workspace()
+    parent = await task_crud.task_create(workspace_code=workspace.code, title="Эпик")
+    first = await task_crud.task_create(
+        workspace_code=workspace.code, title="Первая", parent_code=parent.code
+    )
+    second = await task_crud.task_create(
+        workspace_code=workspace.code, title="Вторая", parent_code=parent.code
+    )
+
+    body = (
+        await client.post(
+            f"{TASKS}/{second.code}/reorder", json={"after_code": None}
+        )
+    ).json()
+
+    assert body["parent_code"] == f"TASK@{parent.code}"
+    row = await link_crud.link_list_by_parent(parent.code)
+    assert [item.task_code for item in row] == [second.code, first.code]
+
+
+async def test_reorder_refuses_to_hang_a_task_under_its_own_child(client):
+    """Петля — это разорванное дерево, а не странная раскладка: 400, и ничего не тронуто."""
+    workspace = await _workspace()
+    parent = await task_crud.task_create(workspace_code=workspace.code, title="Эпик")
+    child = await task_crud.task_create(
+        workspace_code=workspace.code, title="Подзадача", parent_code=parent.code
+    )
+
+    response = await client.post(
+        f"{TASKS}/{parent.code}/reorder", json={"parent_code": f"TASK@{child.code}"}
+    )
+
+    assert response.status_code == 400
+    assert (await link_crud.link_get(parent.code)).parent_code is None
 
 
 async def test_reorder_refuses_a_neighbour_from_another_row(client):

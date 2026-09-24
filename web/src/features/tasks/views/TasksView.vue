@@ -18,13 +18,14 @@ import PageLayout from '@/layout/templates/PageLayout.vue'
 import PageHeader from '@/layout/components/PageHeader.vue'
 import SectionError from '@/components/SectionError.vue'
 
+import GroupFormDialog from '../components/GroupFormDialog.vue'
 import TaskFilters from '../components/TaskFilters.vue'
 import TaskFormDialog from '../components/TaskFormDialog.vue'
 import TaskListTable from '../components/TaskListTable.vue'
 import { useTasksStore } from '../stores/tasks.store'
 import { useWorkspaceContextStore } from '@/features/workspace/stores/workspace-context.store'
 import type { TaskListFormat } from '../stores/tasks.store'
-import type { TaskDetail, TaskListRow } from '../api'
+import type { GroupRow, TaskDetail, TaskListRow } from '../api'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -110,6 +111,18 @@ function onSaved(code: string) {
   void store.load()
   if (parent.value) openTask(code)
 }
+
+// ── Форма группы ──────────────────────────────────────────────────────────────
+// То же окно, что на странице групп, — правку зовут из шапки карточки в списке. Живёт оно здесь,
+// а не внутри списка: окон на странице одно на сущность, и формат показа (доска будет второй) не
+// должен возить их с собой.
+const editingGroup = ref<GroupRow | null>(null)
+const groupFormOpen = ref(false)
+
+function editGroup(group: GroupRow) {
+  editingGroup.value = group
+  groupFormOpen.value = true
+}
 </script>
 
 <template>
@@ -175,6 +188,7 @@ function onSaved(code: string) {
         @create="create"
         @edit="edit"
         @add-child="addChild"
+        @edit-group="editGroup"
       />
     </template>
 
@@ -185,6 +199,15 @@ function onSaved(code: string) {
       :parent="parent"
       @saved="onSaved"
     />
+
+    <!-- Правка группы меняет и её карточку, и раскладку секций, поэтому список перечитывается
+         целиком — тем же способом, что и после правки задачи. -->
+    <GroupFormDialog
+      v-model="groupFormOpen"
+      :workspace="workspace"
+      :group="editingGroup"
+      @saved="store.load"
+    />
   </PageLayout>
 </template>
 
@@ -193,9 +216,10 @@ function onSaved(code: string) {
    соседние кнопки — про её содержимое. */
 .format-toggle { margin-right: 4px; }
 
-/* Общая для страниц-списков рамка панели: 12px по кругу. Внутри строка поиска и фильтров
-   держит свои отступы сама. */
-.filter-panel { padding: 6px 12px; }
+/* Общая для страниц-списков рамка панели: 12px по кругу — ОДИН отступ на двоих, внутри панель
+   своего не добавляет. Пока отступ держали оба, слева набегало 24px: вдвое больше, чем у
+   заголовка страницы и у строк списка под ней, и панель выглядела сдвинутой вправо. */
+.filter-panel { padding: 10px 12px; }
 
 .tasks-empty {
   display: flex;

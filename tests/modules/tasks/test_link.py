@@ -11,7 +11,8 @@ from src.modules.tasks.crud.link import (
     link_move,
     link_reorder,
 )
-from src.modules.tasks.crud.task import task_create
+from src.modules.tasks.crud.group import group_create
+from src.modules.tasks.crud.task import task_create, task_regroup, task_update
 from src.modules.workspace.crud.workspace import workspace_create
 
 pytestmark = pytest.mark.db
@@ -73,14 +74,16 @@ async def test_move_under_a_foreign_workspace_is_refused(db, workspace):
         await link_move(task.code, parent_code=stranger.code)
 
 
-async def test_move_under_its_own_descendant_is_refused(db, workspace):
+async def test_move_under_its_own_child_is_refused_as_a_second_level(db, workspace):
+    """Петлю отсекает правило одного уровня: ребёнок — подзадача, под неё не кладут никого."""
     root = await task_create(workspace_code=workspace.code, title="Эпик")
     child = await task_create(
         workspace_code=workspace.code, title="Ребёнок", parent_code=root.code
     )
 
-    with pytest.raises(ValueError, match="descendant"):
+    with pytest.raises(ValueError, match="itself a subtask"):
         await link_move(root.code, parent_code=child.code)
+    assert (await link_get(root.code)).parent_code is None
 
     with pytest.raises(ValueError, match="own parent"):
         await link_move(root.code, parent_code=root.code)
@@ -173,3 +176,134 @@ async def test_a_fresh_task_lands_under_the_arranged_row(db, workspace):
 
     codes = [row.task_code for row in await link_list_by_parent(None)]
     assert codes == [second, first, third.code]
+
+
+# ── ряд корня — его группа ────────────────────────────────────────────────────
+# Экран раскладывает корни карточками по группам, и строку переставляют ВНУТРИ карточки. Пока ряд
+# был общим на пространство, бросок на верх карточки означал «в начало всего пространства»:
+# внутри группы выглядело верно, а в базе задача перепрыгивала через соседние группы.
+
+
+async def test_root_rows_of_two_groups_do_not_touch_each_other(db, workspace):
+    first = await group_create(workspace_code=workspace.code, title="Биллинг")
+    second = await group_create(workspace_code=workspace.code, title="Интерфейс")
+    alone = await task_create(
+        workspace_code=workspace.code, title="Одна в своей группе", group_code=second.code
+    )
+    top = await task_create(
+        workspace_code=workspace.code, title="Первая", group_code=first.code
+    )
+    bottom = await task_create(
+        workspace_code=workspace.code, title="Вторая", group_code=first.code
+    )
+
+    # Перестановка в чужой группе не должна ни сдвинуть, ни перенумеровать соседку.
+    before = (await link_get(alone.code)).sort
+    await link_reorder(bottom.code, after_code=None)
+
+    assert (await link_get(alone.code)).sort == before
+    assert (await link_get(bottom.code)).sort > (await link_get(top.code)).sort
+
+
+async def test_a_fresh_task_starts_its_own_row_in_an_empty_group(db, workspace):
+    """Ряд пустой группы начинается с умолчания, а не продолжает чужой."""
+    filled = await group_create(workspace_code=workspace.code, title="Биллинг")
+    empty = await group_create(workspace_code=workspace.code, title="Интерфейс")
+    await task_create(workspace_code=workspace.code, title="Занятая", group_code=filled.code)
+
+    fresh = await task_create(
+        workspace_code=workspace.code, title="Первая в группе", group_code=empty.code
+    )
+
+    assert (await link_get(fresh.code)).sort == SORT_DEFAULT
+
+
+async def test_unfiled_roots_are_a_row_of_their_own(db, workspace):
+    """«Без группы» — такой же ряд, а не отсутствие ряда."""
+    group = await group_create(workspace_code=workspace.code, title="Биллинг")
+    filed = await task_create(
+        workspace_code=workspace.code, title="Разложенная", group_code=group.code
+    )
+    first = await task_create(workspace_code=workspace.code, title="Первая без группы")
+    second = await task_create(workspace_code=workspace.code, title="Вторая без группы")
+
+    before = (await link_get(filed.code)).sort
+    await link_reorder(second.code, after_code=None)
+
+    assert (await link_get(filed.code)).sort == before
+    assert (await link_get(second.code)).sort > (await link_get(first.code)).sort
+
+
+async def test_reorder_against_a_task_of_another_group_is_refused(db, workspace):
+    """Сосед из чужой карточки — неверно выбранная цель, а не новая позиция."""
+    first = await group_create(workspace_code=workspace.code, title="Биллинг")
+    second = await group_create(workspace_code=workspace.code, title="Интерфейс")
+    mine = await task_create(
+        workspace_code=workspace.code, title="Своя", group_code=first.code
+    )
+    alien = await task_create(
+        workspace_code=workspace.code, title="Чужая", group_code=second.code
+    )
+
+    with pytest.raises(ValueError):
+        await link_reorder(mine.code, after_code=alien.code)
+
+
+async def test_a_subtask_keeps_its_row_by_parent_not_by_group(db, workspace):
+    """У подзадачи ряд задан родителем: корни той же группы ей не соседи."""
+    group = await group_create(workspace_code=workspace.code, title="Биллинг")
+    parent = await task_create(
+        workspace_code=workspace.code, title="Эпик", group_code=group.code
+    )
+    root_neighbour = await task_create(
+        workspace_code=workspace.code, title="Корень той же группы", group_code=group.code
+    )
+    first = await task_create(
+        workspace_code=workspace.code, title="Первая", parent_code=parent.code
+    )
+    second = await task_create(
+        workspace_code=workspace.code, title="Вторая", parent_code=parent.code
+    )
+    before = (await link_get(root_neighbour.code)).sort
+
+    await link_reorder(second.code, after_code=None)
+
+    assert (await link_get(second.code)).sort > (await link_get(first.code)).sort
+    assert (await link_get(root_neighbour.code)).sort == before
+
+
+async def test_changing_the_group_puts_the_task_at_the_end_of_the_new_row(db, workspace):
+    """Переезд между группами — это переезд между рядами: прежнее число к новому не относится."""
+    source = await group_create(workspace_code=workspace.code, title="Биллинг")
+    target = await group_create(workspace_code=workspace.code, title="Интерфейс")
+    settled = await task_create(
+        workspace_code=workspace.code, title="Обжитая", group_code=target.code
+    )
+    # Ряд принимающей группы уже переставляли руками, поэтому он перенумерован от своей длины и
+    # стоит НИЖЕ умолчания. Переезжающая приходит со свежим числом — без переклейки она встала бы
+    # в новом ряду выше обжитой только потому, что в старом её никто не двигал.
+    await link_reorder(settled.code, after_code=None)
+    moved = await task_create(
+        workspace_code=workspace.code, title="Переезжает", group_code=source.code
+    )
+    assert (await link_get(moved.code)).sort > (await link_get(settled.code)).sort
+
+    await task_update(moved.code, group_code=target.code)
+
+    assert (await link_get(moved.code)).sort < (await link_get(settled.code)).sort
+
+
+async def test_regroup_puts_the_batch_at_the_end_of_the_new_row(db, workspace):
+    source = await group_create(workspace_code=workspace.code, title="Биллинг")
+    target = await group_create(workspace_code=workspace.code, title="Интерфейс")
+    settled = await task_create(
+        workspace_code=workspace.code, title="Обжитая", group_code=target.code
+    )
+    await link_reorder(settled.code, after_code=None)
+    moved = await task_create(
+        workspace_code=workspace.code, title="Переезжает", group_code=source.code
+    )
+
+    await task_regroup([moved.code], target.code)
+
+    assert (await link_get(moved.code)).sort < (await link_get(settled.code)).sort

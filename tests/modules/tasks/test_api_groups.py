@@ -170,6 +170,7 @@ async def test_restore_of_a_live_group_is_409(client):
     response = await client.post(f"{GROUPS}/{group.code}/restore")
 
     assert response.status_code == 409
+    assert response.json()["code"] == "tasks.group.not_deleted"
 
 
 async def test_purge_drops_the_group_and_unsorts_its_tasks(client):
@@ -188,5 +189,87 @@ async def test_purge_drops_the_group_and_unsorts_its_tasks(client):
 
 async def test_purge_of_a_missing_group_is_404(client):
     response = await client.delete(f"{GROUPS}/{'0' * CODE_LEN}/purge")
+
+    assert response.status_code == 404
+
+
+# ── перестановка ──────────────────────────────────────────────────────────────
+
+
+async def test_reorder_puts_the_group_right_under_its_anchor(client):
+    """Позиция названа соседкой: «под Биллингом» — это место, а не число в колонке ``sort``."""
+    workspace = await _workspace()
+    first = await group_crud.group_create(workspace_code=workspace.code, title="Биллинг")
+    second = await group_crud.group_create(workspace_code=workspace.code, title="Интерфейс")
+    third = await group_crud.group_create(workspace_code=workspace.code, title="Сборка")
+
+    response = await client.post(
+        f"{GROUPS}/{third.code}/reorder", json={"after_code": first.code}
+    )
+
+    assert response.status_code == 200
+    rows = await group_crud.group_list_by_workspace(workspace.code)
+    assert [row.code for row in rows] == [first.code, third.code, second.code]
+
+
+async def test_reorder_accepts_the_anchor_with_its_prefix(client):
+    """Код соседки принимается в том же виде, в каком уезжает в списке групп."""
+    workspace = await _workspace()
+    first = await group_crud.group_create(workspace_code=workspace.code, title="Биллинг")
+    second = await group_crud.group_create(workspace_code=workspace.code, title="Интерфейс")
+
+    response = await client.post(
+        f"{GROUPS}/{second.code}/reorder", json={"before_code": f"GROUP@{first.code}"}
+    )
+
+    assert response.status_code == 200
+    rows = await group_crud.group_list_by_workspace(workspace.code)
+    assert [row.code for row in rows] == [second.code, first.code]
+
+
+async def test_reorder_without_a_reference_point_is_400(client):
+    """Ни одной точки отсчёта — это не «куда-нибудь», а незаданное место."""
+    workspace = await _workspace()
+    group = await group_crud.group_create(workspace_code=workspace.code, title="Биллинг")
+
+    response = await client.post(f"{GROUPS}/{group.code}/reorder", json={})
+
+    assert response.status_code == 400
+
+
+async def test_reorder_with_both_reference_points_is_400(client):
+    workspace = await _workspace()
+    first = await group_crud.group_create(workspace_code=workspace.code, title="Биллинг")
+    second = await group_crud.group_create(workspace_code=workspace.code, title="Интерфейс")
+
+    response = await client.post(
+        f"{GROUPS}/{first.code}/reorder",
+        json={"after_code": second.code, "before_code": second.code},
+    )
+
+    assert response.status_code == 400
+
+
+async def test_reorder_against_a_stranger_is_400(client):
+    """Раскладка не пересекает пространства: соседка из чужого — ошибка вызова, а не пропажа."""
+    mine = await _workspace()
+    stranger = await _workspace("Личное")
+    group = await group_crud.group_create(workspace_code=mine.code, title="Биллинг")
+    alien = await group_crud.group_create(workspace_code=stranger.code, title="Дача")
+
+    response = await client.post(
+        f"{GROUPS}/{group.code}/reorder", json={"after_code": alien.code}
+    )
+
+    assert response.status_code == 400
+
+
+async def test_reorder_of_a_missing_group_is_404(client):
+    workspace = await _workspace()
+    anchor = await group_crud.group_create(workspace_code=workspace.code, title="Биллинг")
+
+    response = await client.post(
+        f"{GROUPS}/{'0' * CODE_LEN}/reorder", json={"after_code": anchor.code}
+    )
 
     assert response.status_code == 404
