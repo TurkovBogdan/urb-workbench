@@ -1,0 +1,259 @@
+{
+  "nav_groups": "Groups",
+  "nav_tasks": "Tasks",
+  "action": {
+    "refresh": "Refresh"
+  },
+  "task": {
+    "status": {
+      "backlog": "Backlog",
+      "planned": "Planned",
+      "in_progress": "In progress",
+      "in_test": "In testing",
+      "in_review": "In review",
+      "done": "Done",
+      "canceled": "Canceled"
+    },
+    "priority": {
+      "burning": "Burning",
+      "high": "High",
+      "normal": "Normal",
+      "low": "Low",
+      "frozen": "Frozen"
+    },
+    "priority_step": {
+      "raise": "Raise priority",
+      "lower": "Lower priority"
+    },
+    "status_step": {
+      "forward": "Next status",
+      "back": "Previous status"
+    },
+    "type": {
+      "simple": "Simple",
+      "standard": "Standard",
+      "extended": "Extended"
+    },
+    "actor": {
+      "human": "Operator",
+      "agent": "Agent"
+    },
+    "list": {
+      "title": "Tasks",
+      "description": "Tasks of the current workspace, arranged by group.",
+      "add": "New task",
+      "no_group": "No group",
+      "group_empty": "Empty — drag a task here",
+      "empty": "No tasks yet",
+      "empty_hint": "Create the first one — it will land in its group's section.",
+      "collapse_group": "Collapse group",
+      "expand_group": "Expand group",
+      "nothing_found": "Nothing found",
+      "clear_filters": "Clear filters",
+      "show_finished": "Show finished",
+      "no_workspace": "No workspace selected",
+      "no_workspace_hint": "A task lives inside a workspace. Create the first one — and tasks will appear here.",
+      "to_workspaces": "Go to workspaces",
+      "format": {
+        "list": "List"
+      }
+    },
+    "filter": {
+      "query": "Search tasks",
+      "status": "Status",
+      "status_more": "{count} more",
+      "priority": "Priority",
+      "reset": "Reset",
+      "finished": "Finished",
+      "deleted": "Deleted",
+      "scope": {
+        "brief": "Search the brief: context, constraints, criteria",
+        "plan": "Search the plan and stages",
+        "journal": "Search the journal"
+      }
+    },
+    "card": {
+      "actions": "Actions",
+      "drag": "Drag task",
+      "move_up": "Move up",
+      "move_down": "Move down",
+      "deadline_at": "Deadline",
+      "has_children": "Has subtasks",
+      "deleted": "Deleted",
+      "edit": "Edit",
+      "add_child": "Subtask",
+      "detach": "Detach from task",
+      "collapse_children": "Collapse subtasks",
+      "expand_children": "Expand subtasks",
+      "delete": "Delete",
+      "restore": "Restore",
+      "purge": "Delete forever"
+    },
+    "form": {
+      "create_title": "New task",
+      "title": "Edit task",
+      "under": "Subtask of: {title}",
+      "name": "Title",
+      "description": "Goal: what becomes true when the work is done",
+      "context": "Context",
+      "context_hint": "Details, starting requirements, links to references. Markdown",
+      "constraints": "Constraints",
+      "constraints_hint": "What is allowed, what to ask about, what is off-limits — as a list",
+      "criteria": "Acceptance criteria",
+      "criteria_hint": "Checkable conditions of done and handover requirements — as a list",
+      "body": "Plan",
+      "body_hint": "How you intend to do the work and which files it touches. Markdown",
+      "type": "Type",
+      "status": "Status",
+      "priority": "Priority",
+      "group": "Group",
+      "no_group": "No group",
+      "deadline_at": "Deadline",
+      "left": "{count} left"
+    },
+    "conflict": {
+      "title": "The field you are editing has changed",
+      "text": "While you were editing, this field was changed in the database — most likely by the agent. The page now shows that version. Your text is below: copy whatever you need, it will be gone once you close this window.",
+      "copy": "Copy",
+      "empty": "You left the field empty",
+      "close": "Got it"
+    },
+    "detail": {
+      "title": "Task",
+      "description": "Goal",
+      "context": "Context",
+      "constraints": "Constraints",
+      "criteria": "Acceptance criteria",
+      "body": "Plan",
+      "hint": {
+        "description": "What becomes true when the work is done",
+        "context": "Details, starting requirements, links to references",
+        "constraints": "What is allowed, what to ask about, what is off-limits — as a list",
+        "criteria": "Checkable conditions of done and handover requirements — as a list",
+        "body": "How you intend to do the work and which files it touches"
+      },
+      "group_search": "Find a group",
+      "group_empty": "No groups",
+      "children": "Subtasks",
+      "no_children": "No subtasks",
+      "children_query": "Search subtasks",
+      "children_filtered": "No subtasks match these conditions",
+      "no_body": "No text yet",
+      "status": "Status",
+      "group": "Group",
+      "type": "Task type",
+      "type_hint": "Controls which fields are available",
+      "priority": "Priority",
+      "created_by": "Author",
+      "deadline_at": "Deadline",
+      "started_at": "Started",
+      "completed_at": "Completed",
+      "canceled_at": "Canceled",
+      "updated_at": "Updated",
+      "saving": "Saving…",
+      "deleted_note": "The task was deleted together with its branch. While it is in the bin, it can't be edited and its status can't be changed."
+    },
+    "purge": {
+      "title": "Delete forever",
+      "text": "The task will be removed from the database for good. It can't be restored.",
+      "with_children": "The task will be removed from the database together with all its subtasks. They can't be restored."
+    }
+  },
+  "stage": {
+    "section": "Stages",
+    "empty": "No stages. Add the first one with the button below — the plan is broken into steps, each with its own evidence.",
+    "add": "Add stage",
+    "new_title": "New stage",
+    "title": "Stage title",
+    "description": "What the stage is about",
+    "body": "What needs to be done",
+    "status": "State",
+    "evidence": "Evidence of completion",
+    "evidence_hint": "A pointer, not a story: a command and its result, a file path, a diff summary. The stage can't be closed without it.",
+    "has_evidence": "has evidence",
+    "remove": "Delete stage",
+    "remove_title": "Delete stage",
+    "remove_text": "The stage will be removed together with its journal entries. It can't be restored."
+  },
+  "note": {
+    "section": "Journal",
+    "empty": "No entries. This is where decisions made along the way, remarks, findings and things to remember go.",
+    "empty_open": "No open entries",
+    "add": "Add entry",
+    "open_only": "Open only ({count})",
+    "type_label": "Entry type",
+    "title": "The point in one line",
+    "body": "Details",
+    "resolution": "Resolution",
+    "resolve": "Close with",
+    "type": {
+      "decision": "Decision",
+      "remark": "Remark",
+      "finding": "Finding",
+      "fact": "Fact"
+    }
+  },
+  "group": {
+    "list": {
+      "title": "Groups",
+      "description": "Themes of the current workspace: the task list is arranged by them.",
+      "add": "New group",
+      "show_deleted": "Show deleted",
+      "empty": "No groups yet",
+      "empty_hint": "Create the first one — the task list will split into sections by it."
+    },
+    "card": {
+      "actions": "Actions",
+      "move_up": "Move up",
+      "move_down": "Move down",
+      "tasks": "Tasks",
+      "sort": "Position",
+      "updated_at": "Last change",
+      "deleted": "Deleted",
+      "edit": "Edit",
+      "delete": "Delete",
+      "restore": "Restore",
+      "purge": "Delete forever"
+    },
+    "form": {
+      "create_title": "New group",
+      "title": "Edit group",
+      "name": "Name",
+      "description": "Short description",
+      "sort": "Position in the list",
+      "look": "Icon and color"
+    },
+    "delete": {
+      "title": "Delete group",
+      "text": "Tasks inside: {count}. They stay in place and return to the group together with it — deletion can be undone."
+    },
+    "purge": {
+      "title": "Delete forever",
+      "text": "The group will be removed from the database for good. The tasks inside ({count}) outlive it and move to the “No group” section."
+    }
+  },
+  "workspace": {
+    "counter": {
+      "groups": "Groups",
+      "tasks": "Tasks"
+    }
+  },
+  "error": {
+    "group": {
+      "not_found": "Group not found",
+      "deleted": "The group is deleted — restore it first",
+      "not_deleted": "The group isn't deleted — nothing to restore"
+    },
+    "task": {
+      "not_found": "Task not found",
+      "deleted": "The task is deleted — restore it first",
+      "not_deleted": "The task isn't deleted — nothing to restore"
+    },
+    "stage": {
+      "not_found": "Stage not found"
+    },
+    "note": {
+      "not_found": "Journal entry not found"
+    }
+  }
+}

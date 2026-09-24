@@ -96,6 +96,20 @@ export async function updateGroup(
   return internalApi.put<GroupRow>(`${BASE}/groups/${seg(code)}`, body, opts)
 }
 
+/**
+ * Перетаскивание карточки группы: соседка, относительно которой она встала.
+ *
+ * Ровно одна из двух точек отсчёта — двух сразу бэк не принимает, и ни одной тоже: «переставь
+ * куда-нибудь» это не позиция. Номера здесь нет намеренно, `sort` человеку на экране не виден.
+ */
+export async function reorderGroup(
+  code: string,
+  body: { after_code?: string | null; before_code?: string | null },
+  opts?: RequestOptions,
+): Promise<GroupRow> {
+  return internalApi.post<GroupRow>(`${BASE}/groups/${seg(code)}/reorder`, body, opts)
+}
+
 /** Мягкое удаление: задачи остаются в группе, и `restoreGroup` возвращает раскладку как была. */
 export async function deleteGroup(code: string, opts?: RequestOptions): Promise<void> {
   await internalApi.del<void>(`${BASE}/groups/${seg(code)}`, undefined, opts)
@@ -272,6 +286,37 @@ export async function listTasks(
   return internalApi.get<TaskListRow[]>(`${BASE}/tasks`, { ...opts, query: { ...params } })
 }
 
+/**
+ * Области глубокого поиска: что, кроме заголовка и цели, входит в стог.
+ *
+ * Ни одна не включена по умолчанию — ни здесь, ни на бэке: поиск, тихо залезающий в тела по
+ * восемь килобайт, возвращает совпадения, по которым не понять, та ли это задача.
+ */
+export interface SearchTasksParams {
+  workspace: string
+  query: string
+  /** Постановка: контекст, границы, критерии. */
+  in_brief?: boolean
+  /** План задачи и тела её этапов. */
+  in_plan?: boolean
+  /** Записи журнала. */
+  in_journal?: boolean
+}
+
+/**
+ * Коды задач, у которых запрос нашёлся В ТЕЛАХ — вторая половина поиска по списку.
+ *
+ * Заголовок и цель есть в каждой строке, и по ним ищет сам список — мгновенно и без круга по
+ * сети. Сюда ходят только за тем, чего в строке нет, поэтому и ответ — одни коды: карточки у
+ * спрашивающего уже есть, и он пересекает их со своим списком.
+ */
+export async function searchTasks(
+  params: SearchTasksParams,
+  opts?: RequestOptions,
+): Promise<string[]> {
+  return internalApi.get<string[]>(`${BASE}/tasks/search`, { ...opts, query: { ...params } })
+}
+
 export async function getTask(code: string, opts?: RequestOptions): Promise<TaskDetail> {
   return internalApi.get<TaskDetail>(`${BASE}/tasks/${seg(code)}`, opts)
 }
@@ -289,6 +334,19 @@ export async function updateTask(
   opts?: RequestOptions,
 ): Promise<TaskDetail> {
   return internalApi.put<TaskDetail>(`${BASE}/tasks/${seg(code)}`, body, opts)
+}
+
+/**
+ * Частичная правка: уходят только названные поля, остальные на бэке не трогаются. Так страница
+ * задачи, сохраняя одно поле, не откатывает то, что тем временем записал агент. `null` у группы
+ * и срока — снять их.
+ */
+export async function patchTask(
+  code: string,
+  body: Partial<TaskUpdateBody>,
+  opts?: RequestOptions,
+): Promise<TaskDetail> {
+  return internalApi.patch<TaskDetail>(`${BASE}/tasks/${seg(code)}`, body, opts)
 }
 
 /** Смена статуса — своя ручка: вместе со статусом бэк ставит отметку фазы. */
@@ -318,10 +376,17 @@ export async function moveTask(
  *
  * Ключ `group_code` отсутствует — группу не трогаем, `null` — снимаем: перестановка внутри своей
  * карточки про группы знать не должна, а переезд в «Без группы» обязан уметь её снять.
+ *
+ * `parent_code` устроен так же: ключа нет — родителя не трогаем, `null` — открепить. Так
+ * выражается второй жест списка: подзадачу вытащили из ветки, и она стала обычной задачей.
  */
 export async function reorderTask(
   code: string,
-  body: { after_code: string | null; group_code?: string | null },
+  body: {
+    after_code: string | null
+    group_code?: string | null
+    parent_code?: string | null
+  },
   opts?: RequestOptions,
 ): Promise<TaskDetail> {
   return internalApi.post<TaskDetail>(`${BASE}/tasks/${seg(code)}/reorder`, body, opts)
