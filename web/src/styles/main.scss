@@ -1250,6 +1250,13 @@ a { color: var(--accent); text-decoration: none; &:hover { text-decoration: unde
   max-width: 320px;
 }
 
+// Пока строку задачи держат в руке, подсказки молчат: они всплывают по одной на каждую кнопку и
+// глиф под курсором и закрывают как раз ту строку, куда целятся. Признак ставит стор задач
+// (`features/tasks/stores/tasks.store.ts`, `dragging`) — и на списке, и на странице задачи.
+body.tasks-dragging .v-tooltip > .v-overlay__content {
+  display: none !important;
+}
+
 // ── Sidebar tooltip ───────────────────────────────────────────────────────────
 .sidebar-tooltip {
   background: var(--legacy-tooltip-bg) !important;  // inline overlay background
