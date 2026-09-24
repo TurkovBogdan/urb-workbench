@@ -1,7 +1,7 @@
 {
-  "nav": "Jobs",
+  "nav": "Job monitoring",
   "page": {
-    "title": "Monitoring",
+    "title": "Job monitoring",
     "description": "Scheduler background jobs",
     "description_updated": "Scheduler background jobs · updated {rel}"
   },

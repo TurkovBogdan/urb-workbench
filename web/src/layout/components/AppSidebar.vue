@@ -48,11 +48,12 @@ const navSections: NavSection[] = [
 
 const navEntries: NavSectionEntry[] = [
   { section: 'mcp', order: 10, path: '/mcp-servers', label: 'MCP servers', labelKey: 'core_mcp.nav', icon: IconServerBolt },
-  { section: 'tasks', order: 10, path: '/tasks/list', label: 'Tasks', labelKey: 'tasks.nav_tasks', icon: IconChecklist },
+  // Страница задачи — часть раздела задач, хотя её адрес не лежит под `/tasks/list`.
+  { section: 'tasks', order: 10, path: '/tasks/list', activeOn: ['/tasks/task'], label: 'Tasks', labelKey: 'tasks.nav_tasks', icon: IconChecklist },
   { section: 'tasks', order: 20, path: '/tasks/groups', label: 'Groups', labelKey: 'tasks.nav_groups', icon: IconSitemap },
   { section: 'workspace', order: 10, path: '/workspaces', label: 'Workspaces', labelKey: 'workspace.nav', icon: IconStack2 },
   { section: 'settings', order: 10, path: '/settings/interface', label: 'Interface', labelKey: 'settings.interface.nav', icon: IconTypography },
-  { section: 'settings', order: 40, path: '/tasks', label: 'Jobs', labelKey: 'core_monitoring.nav', icon: IconClock },
+  { section: 'settings', order: 40, path: '/monitoring', label: 'Job monitoring', labelKey: 'core_monitoring.nav', icon: IconClock },
   { section: 'settings', order: 50, path: '/settings/core', label: 'Server', labelKey: 'setup.nav', icon: IconServerCog },
   { section: 'about', order: 10, path: '/about', label: 'Version and update', labelKey: 'about.nav', icon: IconInfoCircle },
   // design-system is template chrome (not a module) — link inlined.
@@ -74,14 +75,19 @@ const visibleNav = computed<NavEntry[]>(() =>
 const visibleNavBottom = computed<NavLink[]>(() => navBottom)
 
 // Подсветка по ПРЕФИКСУ, а не по точному совпадению: деталка (запуск задачи планировщика —
-// `/tasks/<module>/<code>` под записью `/tasks`) принадлежит своему разделу, и раньше на ней в
-// меню не было подсвечено ничего.
-function isActive(navPath: string) {
-  return route.path === navPath || route.path.startsWith(navPath + '/')
+// `/monitoring/<module>/<code>` под записью `/monitoring`) принадлежит своему разделу, и раньше на
+// ней в меню не было подсвечено ничего. Поэтому префиксы пунктов не должны вкладываться друг в
+// друга: пункт на `/tasks` горел бы на каждой странице модуля задач.
+function underPrefix(prefix: string): boolean {
+  return route.path === prefix || route.path.startsWith(prefix + '/')
+}
+
+function isActive(link: NavLink): boolean {
+  return underPrefix(link.path) || (link.activeOn ?? []).some(underPrefix)
 }
 
 function isGroupActive(group: NavEntry): boolean {
-  return isGroup(group) && group.children.some(c => isActive(c.path))
+  return isGroup(group) && group.children.some(isActive)
 }
 
 const openGroups = ref<Record<string, boolean>>(
@@ -184,7 +190,7 @@ const drawerWidth = computed(() => (mobile.value ? 280 : collapsed.value ? 56 : 
                   v-for="child in entry.children"
                   :key="child.path"
                   :to="child.path"
-                  :active="isActive(child.path)"
+                  :active="isActive(child)"
                   :prepend-icon="child.icon"
                   :title="navLabel(child)"
                   rounded="lg"
@@ -205,7 +211,7 @@ const drawerWidth = computed(() => (mobile.value ? 280 : collapsed.value ? 56 : 
               <VListItem
                 v-bind="props"
                 :to="entry.path"
-                :active="isActive(entry.path)"
+                :active="isActive(entry)"
                 :prepend-icon="entry.icon"
                 rounded="lg"
                 class="nav-item nav-item--collapsed"
@@ -245,7 +251,7 @@ const drawerWidth = computed(() => (mobile.value ? 280 : collapsed.value ? 56 : 
               v-for="child in entry.children"
               :key="child.path"
               :to="child.path"
-              :active="isActive(child.path)"
+              :active="isActive(child)"
               :prepend-icon="child.icon"
               :title="navLabel(child)"
               rounded="lg"
@@ -256,7 +262,7 @@ const drawerWidth = computed(() => (mobile.value ? 280 : collapsed.value ? 56 : 
           <VListItem
             v-else
             :to="entry.path"
-            :active="isActive(entry.path)"
+            :active="isActive(entry)"
             :prepend-icon="entry.icon"
             :title="navLabel(entry)"
             rounded="lg"
@@ -288,7 +294,7 @@ const drawerWidth = computed(() => (mobile.value ? 280 : collapsed.value ? 56 : 
             <VListItem
               v-bind="props"
               :to="item.path"
-              :active="isActive(item.path)"
+              :active="isActive(item)"
               :prepend-icon="item.icon"
               :title="collapsed ? '' : navLabel(item)"
               rounded="lg"

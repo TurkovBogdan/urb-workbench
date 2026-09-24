@@ -9,6 +9,8 @@ export type NavPlacement = {
 
 export type NavLink = {
   path: string
+  /** Другие префиксы адреса, на которых пункт тоже подсвечен (страницы раздела вне `path`). */
+  activeOn?: string[]
   label: string
   labelKey?: string
   icon: TablerIcon

@@ -197,7 +197,7 @@ function fmtPayload(p: Record<string, unknown> | null): string {
     <PageHeader
       :title="task ? taskName(task) : t('core_monitoring.runs.fallback_title')"
       :description="task ? taskDescription(task) : `${module}.${code}`"
-      back-to="/tasks"
+      back-to="/monitoring"
     >
       <template #actions>
         <VBtn variant="text" :disabled="loading || refreshing" @click="loadRuns">

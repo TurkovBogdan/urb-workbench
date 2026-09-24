@@ -31,7 +31,7 @@ onActivated(() => {
 onUnmounted(() => { if (tick) window.clearInterval(tick) })
 
 function openRuns(t: TaskInfo) {
-  router.push(`/tasks/${t.module}/${t.code}`)
+  router.push(`/monitoring/${t.module}/${t.code}`)
 }
 
 const updatedLabel = computed(() => {
