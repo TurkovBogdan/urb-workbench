@@ -17,6 +17,7 @@ from __future__ import annotations
 from sqlalchemy import delete as sa_delete, func, select
 
 from src.core.database import session_scope, write_scope
+from src.modules.core_changes import DELETED, mark_changes
 from src.modules.tasks.codes import new_code
 from src.modules.tasks.constants import (
     NOTE_BODY_MAX,
@@ -159,6 +160,8 @@ async def note_delete(code: str) -> bool:
         if row is None:
             return False
         await s.execute(sa_delete(TasksNote).where(TasksNote.code == code))
+        # Массовый оператор объектов не даёт — ленте изменений код называем сами.
+        mark_changes(s, "tasks.note", DELETED, [code])
     return True
 
 

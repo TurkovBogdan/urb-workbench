@@ -13,6 +13,7 @@ import { useLayoutStore } from '@/layout/store'
 // Оболочка собирает модули — панель их не знает: выбор пространства приезжает в её слот отсюда,
 // как маршруты модулей приезжают в роутер (см. conventions/frontend.md — два яруса импорта).
 import WorkspaceSwitcher from '@/features/workspace/components/WorkspaceSwitcher.vue'
+import ChangesIndicator from '@/layout/components/ChangesIndicator.vue'
 
 const route = useRoute()
 const { mobile } = useDisplay()
@@ -100,6 +101,9 @@ const transitionName = computed(() => route.meta.transition ?? 'page')
     <!-- Отказ, который экран не показал сам, всплывает сюда: сообщение поверх всего, вне
          зоны содержимого, поэтому переживает смену маршрута. -->
     <ToastStack />
+
+    <!-- Тихий признак ленты изменений: что обновилось в данных — мелко, в углу, на пару секунд. -->
+    <ChangesIndicator v-if="!fullscreen" />
   </VApp>
 </template>
 

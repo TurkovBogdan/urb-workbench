@@ -2,6 +2,7 @@
 // own backend. Общая фабрика (`createClient`) плюс политика ЭТОЙ зоны; отдельный клиент под
 // будущий внешний/публичный API заводится там же одной строкой. Вызывающие передают
 // зона-относительные пути ('/workbench/tasks') — префикс принадлежит этому файлу.
+import { CLIENT_ID, CLIENT_ID_HEADER } from './client-id'
 import { createClient } from './createClient'
 import { errorText } from '@/api/errorText'
 import { setShellError } from '@/composables/useShellError'
@@ -13,6 +14,8 @@ export type { ApiErrorBody, RequestOptions } from './createClient'
 export const internalApi = createClient({
   prefix: '/internal',
   origin: import.meta.env.VITE_API_BASE ?? '',
+  // Метка вкладки: по ней лента изменений отличает эхо своих правок от чужих (`client-id.ts`).
+  headers: { [CLIENT_ID_HEADER]: CLIENT_ID },
   // ⚠️ Авторизации у зоны сегодня нет: CSRF-проверки на бэкенде не существует, и включённый
   // тумблер добавил бы провальный GET `/internal/csrf-cookie` перед каждой записью. Здесь же
   // появится `loginPath`/`onUnauthenticated`, если вход когда-нибудь заведётся.

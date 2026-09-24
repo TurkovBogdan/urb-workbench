@@ -185,6 +185,14 @@
   "color_picker": {
     "none": "No color"
   },
+  "changes": {
+    "event": {
+      "created": "created",
+      "updated": "updated",
+      "deleted": "deleted"
+    },
+    "resync": "reconnected — refreshing the screen"
+  },
   "editor": {
     "placeholder": "Type / for commands…",
     "placeholder_plain": "Start typing…",

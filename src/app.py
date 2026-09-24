@@ -95,6 +95,11 @@ from pathlib import Path
 # Точка входа лежит в src/ — корень проекта это родитель src/.
 sys.path.insert(0, str(Path(__file__).parents[1]))
 
+# Сколько uvicorn ждёт открытые соединения при остановке. Поток изменений (`core_changes`, SSE)
+# сам не заканчивается никогда, и без потолка остановка и hot-reload висели бы, пока вкладка
+# открыта. Обычный запрос за две секунды успевает; поток обрывается, и вкладка переподключится.
+GRACEFUL_SHUTDOWN_SECONDS = 2
+
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(
@@ -261,6 +266,7 @@ def _run_server(config, args: argparse.Namespace) -> None:
             reload=True,
             reload_dirs=[str(Path(__file__).parent)],
             log_level=log_level,
+            timeout_graceful_shutdown=GRACEFUL_SHUTDOWN_SECONDS,
         )
         return
     uvicorn.run(
@@ -269,6 +275,7 @@ def _run_server(config, args: argparse.Namespace) -> None:
         port=port,
         workers=args.processes or config.server_processes,
         log_level=log_level,
+        timeout_graceful_shutdown=GRACEFUL_SHUTDOWN_SECONDS,
     )
 
 

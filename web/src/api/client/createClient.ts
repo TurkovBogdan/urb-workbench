@@ -26,6 +26,8 @@ export interface ClientConfig {
   prefix: string
   /** Backend origin for direct-HTTP dev (VITE_API_BASE); '' for same-origin (prod default). */
   origin?: string
+  /** Заголовки, которые уходят с каждым запросом зоны (например, id вкладки — `client-id.ts`). */
+  headers?: Record<string, string>
   /**
    * Двойная отправка CSRF-токена на записи: кука `XSRF-TOKEN` → заголовок `X-XSRF-TOKEN`,
    * обновление куки через `<prefix>/csrf-cookie` и один молчаливый повтор на 419. Включать
@@ -332,7 +334,11 @@ export function createClient(config: ClientConfig): ApiClient {
     const csrf = config.csrf === true
     if (write && csrf) await ensureCsrfCookie()
 
-    const headers: Record<string, string> = { 'Cache-Control': 'no-cache', Accept: 'application/json' }
+    const headers: Record<string, string> = {
+      ...config.headers,
+      'Cache-Control': 'no-cache',
+      Accept: 'application/json',
+    }
     if (write && csrf) {
       const token = readCookie('XSRF-TOKEN')
       if (token) headers['X-XSRF-TOKEN'] = token
