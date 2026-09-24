@@ -17,19 +17,19 @@ const kinds = Object.keys(ERROR_KINDS) as ErrorKind[]
 const kind = ref<ErrorKind>('not-found')
 const spec = computed(() => ERROR_KINDS[kind.value])
 
-const missing = new ApiError(404, { error: 'Исследование не найдено' })
-const failed = new ApiError(500, { error: 'Внутренняя ошибка сервера' })
+const missing = new ApiError(404, { error: 'Research not found' })
+const failed = new ApiError(500, { error: 'Internal server error' })
 const offline = new ApiError(0, { error: 'Network error', code: 'network' })
 
-const usageSnippet = `// Экран вместо содержимого — ставит клиент API, перехватчик рендера или обработчик навигации.
-// Адрес НЕ меняется: уход на отдельный /403 стёр бы то, что человек открывал.
+const usageSnippet = `// A screen instead of content — set by the API client, a render interceptor, or a nav guard.
+// The address does NOT change: navigating to a separate /403 would erase what the person had open.
 import { setShellError } from '@/composables/useShellError'
 setShellError('failure')
 
-// Отказ чтения раздела — на месте содержимого, шелл и меню остаются
+// Failure to load a section — replaces the content area, the shell and menu stay
 <SectionError v-if="store.error" :error="store.error" />
 
-// Отказ операции — всплывает сам, из клиента API. Показывает форма сама → report: false
+// Operation failure — surfaces on its own, from the API client. The form shows it itself → report: false
 await internalApi.post('/web-search/queries', body, { report: false })`
 </script>
 

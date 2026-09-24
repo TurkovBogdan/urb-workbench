@@ -39,7 +39,9 @@ class Setting:
 # Приставка ``interface_`` — не проверка (пространство ключей закрывает сама карта), а признак
 # принадлежности: по имени видно, отвечает ключ за внешний вид приложения или за что-то другое.
 SETTINGS: dict[str, Setting] = {
-    "interface_theme": Setting("dark", options=("dark", "light", "system")),
+    # Язык интерфейса человека. Поверхность агента (MCP) им не управляется — она всегда английская.
+    "interface_language": Setting("en", options=("en", "ru")),
+    "interface_theme":Setting("dark", options=("dark", "light", "system")),
     "interface_font": Setting("onest"),
     "interface_font_reading": Setting("onest"),
     # ``reading`` — не гарнитура, а «как шрифт текста»: заголовки следуют за ним при смене.
@@ -97,23 +99,31 @@ def validate_registry() -> None:
             )
 
 
+UNKNOWN_SETTING = "unknown setting"
+NOT_AN_OPTION = "value is not one of the allowed options"
+CHECK_FAILED = "value failed the check"
+
+
 def rejection(key: str, value: Any) -> str | None:
     """Причина отказа или ``None``, если значение принимается.
+
+    Причина — английский текст: клиент интерфейса синхронизирует настройки молча и по ней
+    только снимает ключ с очереди, человеку она не показывается.
 
     Порядок проверок — от общего к частному: каждая следующая имеет смысл только после
     предыдущей (набор нечего сверять у значения чужого типа).
     """
     setting = SETTINGS.get(key)
     if setting is None:
-        return "неизвестная настройка"
+        return UNKNOWN_SETTING
     if not matches_default_type(value, setting.default):
-        return f"ожидалось значение типа {value_type(setting.default)}"
+        return f"expected a {value_type(setting.default)} value"
     if setting.options is not None and value not in setting.options:
-        return "значение вне набора допустимых"
+        return NOT_AN_OPTION
     if setting.check is not None and not setting.check(value):
-        return "значение не прошло проверку"
+        return CHECK_FAILED
     if _serialized_size(value) > VALUE_MAX_BYTES:
-        return f"значение длиннее {VALUE_MAX_BYTES} байт"
+        return f"value is longer than {VALUE_MAX_BYTES} bytes"
     return None
 
 
@@ -169,11 +179,14 @@ def _serialized_size(value: Any) -> int:
 
 
 __all__ = [
+    "CHECK_FAILED",
+    "NOT_AN_OPTION",
     "Setting",
     "SETTINGS",
     "TYPE_BOOLEAN",
     "TYPE_NUMBER",
     "TYPE_STRING",
+    "UNKNOWN_SETTING",
     "effective_values",
     "matches_default_type",
     "rejection",

@@ -1,0 +1,1356 @@
+{
+  "nav": "Design system",
+  "index": {
+    "title": "Design system",
+    "description": "Showcase of interface components, tokens and patterns",
+    "group": {
+      "basics": "Basics",
+      "responsive": "Responsive",
+      "controls": "Controls",
+      "tables": "Tables",
+      "charts": "Charts",
+      "feedback": "Feedback",
+      "content": "Content",
+      "structure": "Structure",
+      "interface": "Interface",
+      "special": "Special components",
+      "project": "Project"
+    },
+    "page": {
+      "tokens": {
+        "label": "Tokens",
+        "tags": [
+          "Color palette",
+          "Radii",
+          "Fonts"
+        ]
+      },
+      "typography": {
+        "label": "Typography",
+        "tags": [
+          "Headings h1–h6",
+          "Paragraphs",
+          "Links",
+          "Code"
+        ]
+      },
+      "layout": {
+        "label": "Layout",
+        "tags": [
+          "PageLayout",
+          "PageHeader",
+          "Scroll modes",
+          "Spacing"
+        ]
+      },
+      "breakpoints": {
+        "label": "Breakpoints",
+        "tags": [
+          "useDisplay",
+          "mobileBreakpoint",
+          "Live indicator"
+        ]
+      },
+      "action-panel": {
+        "label": "Action panel",
+        "tags": [
+          "Mobile",
+          "Action placement",
+          "Bottom panel",
+          "Prototype"
+        ]
+      },
+      "buttons": {
+        "label": "Buttons",
+        "tags": [
+          "VBtn",
+          "Variants",
+          "Sizes",
+          "States"
+        ]
+      },
+      "button-group": {
+        "label": "Button groups",
+        "tags": [
+          "VBtnGroup",
+          "VBtnToggle",
+          "Single select",
+          "Multiple select"
+        ]
+      },
+      "copy-chip": {
+        "label": "Copy chip",
+        "tags": [
+          "CopyChip",
+          "Clipboard",
+          "Object code",
+          "Ellipsis"
+        ]
+      },
+      "selects": {
+        "label": "Dropdowns",
+        "tags": [
+          "VSelect",
+          "VAutocomplete",
+          "Multi-select",
+          "Density"
+        ]
+      },
+      "inputs": {
+        "label": "Input fields",
+        "tags": [
+          "VTextField",
+          "VTextarea",
+          "States",
+          "Icons"
+        ]
+      },
+      "search-field": {
+        "label": "Search field",
+        "tags": [
+          "SearchField",
+          "Search scopes",
+          "Two models"
+        ]
+      },
+      "numbers": {
+        "label": "Numbers and currency",
+        "tags": [
+          "VNumberInput",
+          "Step",
+          "Precision",
+          "Range"
+        ]
+      },
+      "toggle": {
+        "label": "Checkboxes and radios",
+        "tags": [
+          "VCheckbox",
+          "VRadio",
+          "VSwitch",
+          "Groups"
+        ]
+      },
+      "sliders": {
+        "label": "Sliders",
+        "tags": [
+          "VSlider",
+          "VRangeSlider",
+          "Marks",
+          "Formatting"
+        ]
+      },
+      "date-pickers": {
+        "label": "Date and time",
+        "tags": [
+          "VDateInput",
+          "VTimePicker",
+          "Date range",
+          "Combined field"
+        ]
+      },
+      "icon-picker": {
+        "label": "Icon picker",
+        "tags": [
+          "IconPicker",
+          "Search",
+          "Scrolling"
+        ]
+      },
+      "color-picker": {
+        "label": "Color picker",
+        "tags": [
+          "ColorPicker",
+          "Palette",
+          "Themes"
+        ]
+      },
+      "icon-color-picker": {
+        "label": "Icon and color picker",
+        "tags": [
+          "IconColorPicker",
+          "Chip",
+          "Two models"
+        ]
+      },
+      "table-page": {
+        "label": "Table page",
+        "tags": [
+          "Anatomy",
+          "Filters",
+          "Header",
+          "Pagination"
+        ]
+      },
+      "data-table": {
+        "label": "Data table",
+        "tags": [
+          "VDataTable",
+          "Slots",
+          "States",
+          "Pagination"
+        ]
+      },
+      "table": {
+        "label": "Table",
+        "tags": [
+          "VTable",
+          "Native markup",
+          "Density",
+          "States"
+        ]
+      },
+      "task-status": {
+        "label": "Task status",
+        "tags": [
+          "Pinia store",
+          "Run requests",
+          "Status"
+        ]
+      },
+      "pagination": {
+        "label": "Pagination",
+        "tags": [
+          "VPagination",
+          "TablePaginationBar",
+          "Density",
+          "Page size"
+        ]
+      },
+      "line-chart": {
+        "label": "Line chart",
+        "tags": [
+          "LineChart",
+          "Multi-series",
+          "Area",
+          "Hover-crosshair"
+        ]
+      },
+      "bar-chart": {
+        "label": "Bar chart",
+        "tags": [
+          "BarChart",
+          "Groups",
+          "Stack",
+          "Horizontal"
+        ]
+      },
+      "pie-chart": {
+        "label": "Pie chart",
+        "tags": [
+          "PieChart",
+          "Donut",
+          "Legend",
+          "Percentages"
+        ]
+      },
+      "world-map": {
+        "label": "World map",
+        "tags": [
+          "WorldMap",
+          "Choropleth",
+          "Chips",
+          "Custom tooltip"
+        ]
+      },
+      "alerts": {
+        "label": "Alerts",
+        "tags": [
+          "VAlert",
+          "Types",
+          "Variants",
+          "With action"
+        ]
+      },
+      "toasts": {
+        "label": "Toasts",
+        "tags": [
+          "pushToast",
+          "Levels",
+          "Queue",
+          "Countdown"
+        ]
+      },
+      "callout": {
+        "label": "Callout",
+        "tags": [
+          "Callout",
+          "Tones",
+          "Density",
+          "Not VAlert"
+        ]
+      },
+      "error-states": {
+        "label": "Error states",
+        "tags": [
+          "ErrorState",
+          "SectionError",
+          "Screen or state",
+          "Rule"
+        ]
+      },
+      "loaders": {
+        "label": "Loaders",
+        "tags": [
+          "VProgressCircular",
+          "VProgressLinear",
+          ".spin"
+        ]
+      },
+      "skeleton": {
+        "label": "Skeleton loading",
+        "tags": [
+          "VSkeletonLoader",
+          "Types",
+          "Presets",
+          "Loading → content"
+        ]
+      },
+      "status-badge": {
+        "label": "Status badge",
+        "tags": [
+          "StatusBadge",
+          "Colors",
+          "Pulse animation"
+        ]
+      },
+      "chips": {
+        "label": "Chips",
+        "tags": [
+          "VChip",
+          "Variants",
+          "Colors",
+          "Closable",
+          "Filter group"
+        ]
+      },
+      "switch-panel": {
+        "label": "Switch panel",
+        "tags": [
+          "SwitchPanel",
+          "Switch",
+          "Description"
+        ]
+      },
+      "dialogs": {
+        "label": "Dialogs",
+        "tags": [
+          "VDialog",
+          "Forms",
+          "Confirmation",
+          "Scrollable"
+        ]
+      },
+      "tooltips": {
+        "label": "Tooltips",
+        "tags": [
+          "VTooltip",
+          "Positions",
+          "Complex content",
+          "Delays"
+        ]
+      },
+      "code-block": {
+        "label": "CodeBlock",
+        "tags": [
+          "CodeBlock",
+          "Languages",
+          "Line numbers",
+          "Copying"
+        ]
+      },
+      "markdown": {
+        "label": "Markdown",
+        "tags": [
+          "MarkdownRenderer",
+          "Compact mode",
+          "Preview"
+        ]
+      },
+      "markdown-editor": {
+        "label": "Markdown editor",
+        "tags": [
+          "Block editor",
+          "Slash menu",
+          "Round trip",
+          "Custom nodes"
+        ]
+      },
+      "chat": {
+        "label": "Chat",
+        "tags": [
+          "ChatFeed",
+          "ChatMessage",
+          "ChatEvent",
+          "Bubbles"
+        ]
+      },
+      "message": {
+        "label": "Message",
+        "tags": [
+          "MessageContent",
+          "HTML / Text",
+          "Spoilers",
+          "Safe mode"
+        ]
+      },
+      "cards": {
+        "label": "Cards",
+        "tags": [
+          "VCard",
+          "Variants",
+          "Structure",
+          "States"
+        ]
+      },
+      "dividers": {
+        "label": "Dividers",
+        "tags": [
+          "VDivider",
+          "Horizontal",
+          "Vertical",
+          "Inset"
+        ]
+      },
+      "file-cards": {
+        "label": "File cards",
+        "tags": [
+          "FileCards",
+          "Attachments",
+          "Security",
+          "Download"
+        ]
+      },
+      "research-card": {
+        "label": "Research card",
+        "tags": [
+          "ResearchCard",
+          "Registry",
+          "Shelf",
+          "Actions"
+        ]
+      },
+      "group-select": {
+        "label": "Group select",
+        "tags": [
+          "GroupSelect",
+          "Reference list",
+          "Search",
+          "Icons"
+        ]
+      },
+      "kanban": {
+        "label": "Kanban",
+        "tags": [
+          "Board",
+          "Columns",
+          "Horizontal scroll",
+          "Cards"
+        ]
+      },
+      "spoiler": {
+        "label": "Spoiler",
+        "tags": [
+          "Spoiler",
+          "Collapse",
+          "Expand",
+          "minimal"
+        ]
+      },
+      "members-cell": {
+        "label": "Members cell",
+        "tags": [
+          "MembersCell",
+          "+N popup",
+          "Click filter",
+          "Mono"
+        ]
+      },
+      "page-header": {
+        "label": "Page header",
+        "tags": [
+          "PageHeader",
+          "Standard",
+          "Lists only",
+          "Auto-check"
+        ]
+      },
+      "detail-nav": {
+        "label": "Detail navigation",
+        "tags": [
+          "DetailNav",
+          "DetailLayout",
+          "Sticky column",
+          "Auto-check"
+        ]
+      },
+      "section-header": {
+        "label": "Section header",
+        "tags": [
+          "SectionHeader",
+          "PageHeader",
+          "Levels h1–h6",
+          "Counter"
+        ]
+      },
+      "edge-scroller": {
+        "label": "EdgeScroller",
+        "tags": [
+          "Full-bleed",
+          "Horizontal scroll",
+          "Edge shadows",
+          "Tables"
+        ]
+      },
+      "counter-button": {
+        "label": "Counter button",
+        "tags": [
+          "CounterButton",
+          "Counter",
+          "Collapse",
+          "Subtasks"
+        ]
+      }
+    }
+  },
+  "page": {
+    "tokens": {
+      "title": "Tokens",
+      "description": "Base variables: colors, radii, fonts"
+    },
+    "typography": {
+      "title": "Typography",
+      "description": "Default styles for HTML elements"
+    },
+    "layout": {
+      "title": "Layout",
+      "description": "Page structure and content-zone control via route.meta"
+    },
+    "breakpoints": {
+      "title": "Breakpoints",
+      "description": "Vuetify breakpoints, the mobile threshold and a live indicator of the current size"
+    },
+    "action-panel": {
+      "title": "Action panel",
+      "description": "Prototype: laying out page actions and moving them to the bottom action panel on mobile"
+    },
+    "buttons": {
+      "title": "Buttons",
+      "description": "Variants, sizes, states and grouping"
+    },
+    "button-group": {
+      "title": "Button grouping",
+      "description": "VBtnGroup and VBtnToggle — variants, density, real-world patterns"
+    },
+    "selects": {
+      "title": "Dropdowns",
+      "description": "VSelect, VAutocomplete — variants, states, sizes"
+    },
+    "inputs": {
+      "title": "Input fields",
+      "description": "VTextField, VTextarea — variants, states, density"
+    },
+    "search-field": {
+      "title": "Search field",
+      "description": "One query and scope toggles right in the field's frame: the buttons say where the entered text is searched, and live in the field because they belong only to it."
+    },
+    "numbers": {
+      "title": "Numbers and currency",
+      "description": "VNumberInput — control variants, step, precision, sliders"
+    },
+    "toggle": {
+      "title": "Checkboxes, radios, switches",
+      "description": "VCheckbox, VRadio, VSwitch — variants, states, groups"
+    },
+    "sliders": {
+      "title": "Sliders",
+      "description": "VSlider, VRangeSlider — step, marks, color, range"
+    },
+    "date-pickers": {
+      "title": "Date and time picking",
+      "description": "VDateInput (labs) and VTimePicker — 4 scenarios"
+    },
+    "icon-picker": {
+      "title": "Icon picker",
+      "description": "A panel of icon tiles with search by code: the set is fixed, and search matches the same name that goes into the database."
+    },
+    "color-picker": {
+      "title": "Color picker",
+      "description": "Tiles from a named set: the color is picked from a palette, not chosen freely. The name goes into the database, and the theme-specific shade is substituted on the spot."
+    },
+    "icon-color-picker": {
+      "title": "Icon and color picker",
+      "description": "Shape and tone in one panel: a chip preview and palette on top, an icon set with search below. The chosen color also tints the chosen icon."
+    },
+    "data-table": {
+      "title": "Data table",
+      "description": "VDataTable — density, slots, states, pagination"
+    },
+    "table": {
+      "title": "Table",
+      "description": "VTable — native thead/tbody markup, styled to match the data table"
+    },
+    "task-status": {
+      "title": "Task status",
+      "description": "Global task store — a short status per task plus run requests (core_users)",
+      "refresh": "Refresh",
+      "panel_note": "TaskRunPanel — a bare row: status badge + name + last success + run button. Drops into any page via :module / :code.",
+      "button_note": "TaskStatusButton — a button that opens a modal listing tasks as run rows. Pass it an array of tasks.",
+      "section": {
+        "panel": "Examples",
+        "usage": "Usage",
+        "button": "Task status button"
+      }
+    },
+    "pagination": {
+      "title": "Pagination",
+      "description": "VPagination — navigation across list and table pages"
+    },
+    "world-map": {
+      "title": "World map",
+      "description": "WorldMap — a choropleth with a configurable palette, chips and a custom tooltip"
+    },
+    "line-chart": {
+      "title": "Line charts",
+      "description": "LineChart — time series and numeric axes, multi-series, area, hover-crosshair, tooltip"
+    },
+    "bar-chart": {
+      "title": "Bar charts",
+      "description": "BarChart — categorical bars, groups and stacking, vertical and horizontal, hover tooltip"
+    },
+    "pie-chart": {
+      "title": "Pie charts",
+      "description": "PieChart — pie and donut, segment legend, percentages, hover tooltip"
+    },
+    "alerts": {
+      "title": "Alerts",
+      "description": "VAlert — inline notifications (success / info / warning / error)"
+    },
+    "toasts": {
+      "title": "Toasts",
+      "description": "pushToast / ToastStack — a failure the screen didn't show itself; one at a time, deduped, with a countdown to close"
+    },
+    "callout": {
+      "title": "Callout",
+      "description": "Callout — persistent context next to a field or section. Not VAlert: that reports an event"
+    },
+    "error-states": {
+      "title": "Error states",
+      "description": "ErrorState / SectionError — what the screen gets, what stays a state inside a section, and what becomes a message next to the action"
+    },
+    "loaders": {
+      "title": "Loaders",
+      "description": "VProgressCircular, VProgressLinear, .spin"
+    },
+    "skeleton": {
+      "title": "Skeleton loading",
+      "description": "VSkeletonLoader — placeholders while data loads"
+    },
+    "status-badge": {
+      "title": "Status badge",
+      "description": "StatusBadge — a colored dot + text for showing states"
+    },
+    "chips": {
+      "title": "Chips",
+      "description": "VChip — variants, colors, sizes, closable tags and filter groups"
+    },
+    "switch-panel": {
+      "title": "Switch panel",
+      "description": "SwitchPanel — a gray panel: switch on the left, text on the right. Clickable as a whole"
+    },
+    "dialogs": {
+      "title": "Dialogs",
+      "description": "VDialog — variants, forms, action confirmation"
+    },
+    "tooltips": {
+      "title": "Tooltips",
+      "description": "VTooltip — hover-triggered hints"
+    },
+    "code-block": {
+      "title": "CodeBlock",
+      "description": "Syntax highlighting with line numbers and copying"
+    },
+    "markdown": {
+      "title": "MarkdownRenderer",
+      "description": "Markdown rendering with custom classes via marked + DOMPurify"
+    },
+    "chat": {
+      "title": "Chat feed",
+      "description": "ChatFeed / ChatMessage / ChatEvent — conversation bubbles with sides and tones"
+    },
+    "message": {
+      "title": "Message content",
+      "description": "MessageContent — an email body in the chosen view (formatted / plain text) with spoilers for forwards and history, plus a safety toggle"
+    },
+    "cards": {
+      "title": "Cards",
+      "description": "VCard — variants, structure, states and real-world patterns"
+    },
+    "dividers": {
+      "title": "Dividers",
+      "description": "VDivider — horizontal and vertical dividers"
+    },
+    "file-cards": {
+      "title": "File cards",
+      "description": "FileCards — floating file cards with a type icon and a trust-level color/caption"
+    },
+    "research-card": {
+      "title": "Research card",
+      "description": "ResearchCard — a research registry tile: title with actions, description, shelf and date"
+    },
+    "group-select": {
+      "title": "Group select",
+      "description": "GroupSelect — a shelf list with search and icons; the set comes from the reference list and loads itself"
+    },
+    "kanban": {
+      "title": "Kanban",
+      "description": "Kanban board — cards in columns with horizontal scroll"
+    },
+    "spoiler": {
+      "title": "Spoiler",
+      "description": "Spoiler — a collapsible section with a clickable header; appearance themes (default / minimal / card)"
+    },
+    "members-cell": {
+      "title": "Members cell",
+      "description": "MembersCell — a table cell: first member shown, the rest under a clickable +N popup, each item a click filter"
+    },
+    "page-header": {
+      "title": "Page header",
+      "description": "PageHeader — the header for list pages: two forms (section and nested section with a back action), what it's made of and what's checked automatically"
+    },
+    "detail-nav": {
+      "title": "Detail navigation",
+      "description": "DetailLayout + DetailNav — the frame of an object page: a sticky column with an exit and actions up top, no header on the detail itself"
+    },
+    "section-header": {
+      "title": "Section header",
+      "description": "SectionHeader — the level sets both the <h*> tag and the size; counter, description, right slot. PageHeader is built on top of it"
+    },
+    "edge-scroller": {
+      "title": "EdgeScroller",
+      "description": "A full-bleed horizontal-scroll wrapper with edge shadows — here it wraps a wide table"
+    },
+    "table-page": {
+      "title": "Table page",
+      "description": "What a list page is assembled from: filter panel, header, rows and pagination at the bottom — and in what order they sit"
+    },
+    "markdown-editor": {
+      "title": "MarkdownEditor",
+      "description": "Editing-zone prototype: Tiptap as the document model, Vuetify as the entire visible layer"
+    },
+    "copy-chip": {
+      "title": "Copy chip",
+      "description": "CopyChip — text and a copy icon in one button: clicking anywhere takes the value to the clipboard"
+    },
+    "counter-button": {
+      "title": "Counter button",
+      "description": "CounterButton — an icon, a number and a collapse arrow in one button: shows how much is inside, and hides it on a click anywhere on it"
+    }
+  },
+  "section": {
+    "copy-chip": {
+      "in_context": "In an object's header",
+      "in_context_note": "This is how it sits on a task page: the code under the title, copyable by clicking the code itself. At rest the chip reads as plain text.",
+      "title_sample": "Configurable Pro: first phase of the new pricing",
+      "variants": "What it can show",
+      "code": "Object code — the value is its own label",
+      "label": "A label shorter than the value — the full text still gets copied",
+      "long": "A long value is truncated with an ellipsis, the icon stays",
+      "hint": "Default hint is \"Copy\"; it can be customized",
+      "usage": "Usage"
+    },
+    "counter-button": {
+      "in_context": "In a task list",
+      "in_context_note": "This is how it sits on screen: next to a group name it counts tasks, next to a task with subtasks it counts subtasks. The icon names what's counted; the look is the same for both.",
+      "group_title": "Payments module",
+      "task_title": "Configurable Pro: first phase of the new pricing",
+      "states": "States",
+      "expanded": "Content expanded — arrow points down",
+      "folded": "Content collapsed — arrow points sideways",
+      "zero": "Zero is shown: for a group that's an answer",
+      "no_count": "No number — the count is unknown, only the icon and arrow remain",
+      "tint": "Resting color",
+      "tint_note": "The place of use turns the button on when the cursor is over it — as a variable, not an outside rule: a rule with its own weight would override hovering the button itself.",
+      "tint_default": "Default",
+      "tint_muted": "Cursor over the row",
+      "expand": "Expand",
+      "collapse": "Collapse",
+      "usage": "Usage"
+    },
+    "table-page": {
+      "assembled": "Assembled page",
+      "assembled_note": "Exactly the assembly used on the registry, sources, queries and task-run pages: filters, ruler, rows, pagination strip — all in one card.",
+      "parts": "Parts",
+      "placement": "Where the panel lives",
+      "placement_note": "The filter panel and pagination sit in the TABLE's card, because rows have no frame of their own. Tiles are the opposite: a tile is its own frame, and a shared card would put a frame inside a frame — so the panel and pagination get their own cards, and the grid sits on bare canvas.",
+      "filter": "Search by title",
+      "empty": "Nothing found",
+      "column": {
+        "title": "Research",
+        "areas": "Areas",
+        "sources": "Sources",
+        "updated": "Updated"
+      },
+      "part": {
+        "filters": "Filter fields at the top of the card, set off from the rows by a ruler. 12px padding, fields are outlined and comfortable.",
+        "head": "Column labels: 11px, capitalized, muted color — they name the column rather than compete with the rows.",
+        "rows": "A row is clickable as a whole if it has somewhere to lead; hover highlights the whole row, not a single cell.",
+        "footer": "Range, page size and pager in one strip. Its own ruler stays on — it separates the strip from the last row."
+      }
+    },
+    "breakpoints": {
+      "current": "Current breakpoint",
+      "scale": "Breakpoint scale",
+      "mobileChrome": "Mobile interface",
+      "desktopChrome": "Desktop interface",
+      "mobileThreshold": "Mobile threshold",
+      "note": "The \"mobile\" breakpoint in Vuetify is overridden to md (< 960px): below this threshold the mobile navigation kicks in — overlay drawer and top bar. Reactive state comes from useDisplay() (name, width, mobile).",
+      "device": {
+        "xs": "Phones (portrait)",
+        "sm": "Phones (landscape)",
+        "md": "Tablets",
+        "lg": "Laptops",
+        "xl": "Desktops",
+        "xxl": "Large screens"
+      }
+    },
+    "action-panel": {
+      "intro": "Page actions (refresh button, filter panel, etc.) live in the toolbar on a wide screen, but there's no room on a phone. This prototype lets you mark each action — keep it in the toolbar or move it to the bottom action panel, which only appears on mobile.",
+      "marking": "Action placement",
+      "markingHint": "For each action, choose where it lives on mobile: in the page toolbar or in the bottom action panel.",
+      "viewport": "Preview mode",
+      "desktop": "Desktop",
+      "mobile": "Mobile",
+      "preview": "Preview",
+      "placement": {
+        "inline": "In the toolbar",
+        "bottom": "Bottom panel"
+      },
+      "action": {
+        "refresh": "Refresh",
+        "create": "Create",
+        "filters": "Filters"
+      },
+      "page": {
+        "title": "Conversation list"
+      },
+      "filters": {
+        "status": "Status",
+        "channel": "Channel",
+        "search": "Search"
+      }
+    },
+    "buttons": {
+      "variants": "Variants",
+      "withIcons": "With icons",
+      "sizes": "Sizes",
+      "states": "States",
+      "whenToUse": "When to use which"
+    },
+    "button-group": {
+      "neutral": "VBtnGroup — neutral grouping",
+      "single": "VBtnToggle — single select",
+      "multiple": "VBtnToggle — multiple select",
+      "styling": "VBtnToggle style variants"
+    },
+    "kanban": {
+      "title": "Kanban board",
+      "note": "Assembled from KanbanBoard / KanbanColumn / KanbanCard. KanbanBoard wraps the columns in a shared EdgeScroller (layout/components) — a full-bleed horizontal scroll with edge shadows. Each column has a fixed width and its own vertical stack of cards.",
+      "addCard": "Add card"
+    },
+    "edge-scroller": {
+      "title": "EdgeScroller",
+      "note": "A reusable wrapper from layout/ for any wide content: horizontal scroll with soft edge shadows that appear on the side where content is still hidden, plus an optional `bleed` prop — pushes content to the screen edges (cancels the page padding) while the first column stays aligned with the heading. The Kanban board uses it; here it wraps a wide table — scroll sideways to see the edge shadows and the bleed to the edges."
+    },
+    "cards": {
+      "variants": "Variants",
+      "structure": "Structure",
+      "rounded": "Radius and shadow",
+      "states": "States",
+      "clickable": "Clickable",
+      "usage": "Usage examples"
+    },
+    "code-block": {
+      "props": "Component settings",
+      "demo": "Demo",
+      "allVariants": "All variants",
+      "languages": "Languages"
+    },
+    "date-pickers": {
+      "date": "Date picking",
+      "time": "Time picking",
+      "dateTime": "Date and time picking",
+      "range": "Date range"
+    },
+    "dialogs": {
+      "variants": "Variants",
+      "app_dialog": "AppDialog — the project's dialog",
+      "open": "Open",
+      "sample": {
+        "narrow_title": "Run search?",
+        "narrow_text": "The query goes to the selected engine and spends its service quota.",
+        "base_title": "New group",
+        "base_desc": "A shelf that research on one topic is filed under.",
+        "field": "Name",
+        "scroll_title": "Long content",
+        "scroll_line": "Body line: only the body scrolls, the header and button row stay in place.",
+        "confirm_title": "Delete group?",
+        "confirm_text": "The research will remain but lose its group. This action can't be undone."
+      }
+    },
+    "dividers": {
+      "horizontal": "Horizontal",
+      "vertical": "Vertical",
+      "usage": "Usage examples"
+    },
+    "file-cards": {
+      "withHeader": "With header",
+      "states": "Trust states",
+      "kinds": "File types",
+      "list": "List variant",
+      "usage": "Usage examples"
+    },
+    "group-select": {
+      "variants": "Variants"
+    },
+    "research-card": {
+      "base": "Tile",
+      "group": "Shelf chip",
+      "edges": "Edge cases",
+      "usage": "Usage examples"
+    },
+    "search-field": {
+      "basic": "Field and scopes",
+      "label": "Search research",
+      "plain_note": "No scope set — a plain search field.",
+      "hint_deep": "Searches titles, descriptions and the content written inside research.",
+      "hint_labels": "Searches only titles and descriptions — content inside isn't read.",
+      "parts": "Breakdown",
+      "panel": "In the filter panel",
+      "panel_note": "The reason the field exists: it sits in the shared filter grid, the toggles hide inside its frame, and the width of neighboring fields is left untouched.",
+      "usage": "How it's wired up",
+      "reload_note": "Changing scope re-fetches the list only for a non-empty query — otherwise the result set is the same.",
+      "group": "Shelf",
+      "scope": {
+        "areas": "Search area bodies",
+        "notes": "Search notes",
+        "sources": "Search sources"
+      },
+      "part": {
+        "query": "The query string — the only text in the whole field: scopes don't multiply it, they widen the haystack it's searched in.",
+        "toggles": "The toggles go into the append-inner slot, so they sit inside the frame rather than as a separate button group next to it.",
+        "focus": "Clicking a toggle doesn't move the cursor out of the field: a scope can be clicked mid-query and typing continues.",
+        "state": "An enabled scope gets an accent fill, a disabled one only the glyph; the same state is announced to the screen reader."
+      }
+    },
+    "inputs": {
+      "variants": "Variants",
+      "states": "States",
+      "withIcons": "With icons",
+      "specialTypes": "Special types",
+      "multiline": "Multiline",
+      "description": "With description",
+      "density": "Density"
+    },
+    "layout": {
+      "structure": "Structure",
+      "examples": "Examples"
+    },
+    "error-states": {
+      "rule": "Rule: screen, state, or message",
+      "rule_note": "A full-content screen is given when NAVIGATION has died — the person arrived at an address and there's nothing here to look at. If the OPERATION died (a button was clicked, a request failed), the screen must not be taken over: context is worth more, and the answer goes next to the action.",
+      "screens": "Error screens",
+      "section": "State inside a section",
+      "section_note": "Navigation is alive, the shell and menu stay in place. \"Not found\" is distinguished from a failure by the response status; the backend itself supplies the noun.",
+      "usage": "Usage",
+      "col": {
+        "case": "Scenario",
+        "form": "Form",
+        "who": "Who shows it"
+      },
+      "rules": {
+        "route": {
+          "case": "No such route (typo, broken link)",
+          "form": "404 screen at the original address",
+          "who": "router catch-all"
+        },
+        "entity": {
+          "case": "No such entity (404 on read)",
+          "form": "State inside a section",
+          "who": "SectionError"
+        },
+        "forbidden": {
+          "case": "No access to the section (403)",
+          "form": "Screen, address does NOT change",
+          "who": "API client → setShellError"
+        },
+        "operation": {
+          "case": "Operation failed (create, save)",
+          "form": "Message next to the action",
+          "who": "toast or form (report: false)"
+        },
+        "failure": {
+          "case": "Render failure, 500",
+          "form": "\"Something broke\" screen + retry",
+          "who": "app.config.errorHandler"
+        },
+        "offline": {
+          "case": "No connection, timeout",
+          "form": "Message; screen — only if there's no data at all",
+          "who": "API client"
+        },
+        "chunk": {
+          "case": "A chunk failed to load after a deploy",
+          "form": "NOT a screen: a silent reload of the same path",
+          "who": "router/reload.ts"
+        }
+      }
+    },
+    "page-header": {
+      "rule": "Rule",
+      "rule_note": "The header sits first on a LIST page: the section name there is the page title. A detail page has no header — its frame is the sticky column (see \"Detail navigation\"): the artifact's name belongs to the artifact and sits in its first card. Both frames share one thing: it's the first thing seen; let a page do without a frame or put it after the content, and arriving at that page reads as a jump. The rule is checked automatically, not kept on trust.",
+      "list_form": "Section form",
+      "list_note": "Section name, what's in it, actions over the list. No back action: a section is reached from the menu, not from another page.",
+      "detail_form": "Nested-section form",
+      "detail_note": "The same list, but nested inside something — for example a shelf with its research. Hence the back action: arrived here from the parent page, not from the menu.",
+      "parts": "Parts",
+      "loading": "Loading",
+      "loading_note": "Until the section name arrives, a placeholder sits in its spot, not emptiness: the page must occupy its space from the first frame, or content would jump underneath it.",
+      "toggle": "Toggle loading",
+      "part": {
+        "back": "An icon back button, aligned to the TOP edge. Nested sections only. Goes back through history, or to the `back-to` path on a direct visit.",
+        "title": "The page name, the only required part. The `title` slot replaces it along with the tag — for editing the name in place.",
+        "description": "One line about what's on the page.",
+        "actions": "Actions over what's on the page, pinned to the right. Text buttons with an icon — only create gets a filled style.",
+        "loading": "Title and description go into placeholders, back and actions remain: you can leave the page or re-request it even before the data arrives."
+      },
+      "sample": {
+        "list_title": "Research",
+        "list_desc": "Research: areas, searches, sources and notes.",
+        "detail_title": "DevOps: server setup",
+        "detail_desc": "Shelf: 7 research items.",
+        "refresh": "Refresh",
+        "copy": "Copy code"
+      }
+    },
+    "detail-nav": {
+      "rule": "Rule",
+      "rule_note": "An object page is built from a sticky column on the left (320px) and content on the right. It has no header: leaving the page and its actions live in the column and stay on screen for the full length of the document, instead of scrolling away with the text. The artifact's name belongs to the artifact and opens the content as a caption above the cards, without a frame around it. The frame is carried not by the view but by the parent route (`DetailShell`): moving from a research item to its area changes only the right half, the column stays put and rebuilds. The rule is checked automatically: a page that fills the column via `useDetailRail` isn't allowed to draw its own frame.",
+      "panel": "Panel in the column",
+      "panel_note": "The exit takes the full row: the column answers \"how to leave from here\", not \"what to do here\", and actions over the object sit next to its name, not here. At the right edge of that same row is an unlabeled gear for appearance. Below the exit is what's used for the whole length of reading: search within the document, a full-width \"Copy code\" button, and a section outline. All of it comes from the `detailRail` registry, filled by whichever page arrives; the column itself lives in the shared frame and survives transitions.",
+      "head": "Content header",
+      "head_note": "The object's name on the left, actions over it to the right of the title, in the same spot on every detail page. The place and look match the actions in `PageHeader` on lists: `variant=\"text\"`, default size, 16px icon, 8px gap. A detail and a list differ in content, not in where to look for \"Refresh\". Above the name is where the object lives — for a research item that's its shelf, and it's just a link; re-filing happens from the \"More\" menu.",
+      "parts": "Parts",
+      "markup": "Markup",
+      "part": {
+        "layout": "The page grid: a fixed-width column and content filling the rest. Below 1099px it collapses to a single track, the column stops being sticky. Lives in `DetailShell` — one for all detail pages, so only the right track animates on transition.",
+        "back": "There's one way out of a detail page: back where you came from. That's browsing history, and with it the restored reading position. There's no list of higher-up places — the way up is walked the same click at a time, one level per click. The chip's corner is 28px, one line: the exit is recognized by the same shape across the whole app. The label says what the button WILL DO: from history that's \"Back\", and the place name (\"To research list\", \"To area\") appears only on a direct link visit, when leaving has to go specifically there.",
+        "appearance": "The gear in the exit row on a page with a document (`appearance`): clicking it expands a card below the panel with the same fields as the \"Document appearance\" group in interface settings — typeface, size, line length, code-block font. It's the same setting (localStorage), just at hand next to the text: size and line length get judged by eye against the live body, not against a sample on the settings page. Unlabeled and closed by default — it's about HOW to show the page, not about the page itself.",
+        "parent": "The button's fallback address and label: a direct history-less visit means \"back\" means \"one level up\" — with that place's name on the button. Exactly ONE level up: for a source that's its area, not the research item and not the registry.",
+        "code": "The object code is what it's called to the agent, so it's grabbed constantly. Hence two spots: in the header it comes first, left of \"refresh\" (what belongs to the object first, then what belongs to the page), and in the sticky column — a full-width button right under search, in the row of reading tools. The header scrolls off with the first screen, but the code is needed midway through a long body too. Both buttons carry a label: an icon alone doesn't say WHAT gets copied. The \"copied\" checkmark is gray — success is told by the icon change, and the code gets copied many times over, so color would read as an event.",
+        "head": "There's no name in the column. The object's name, its place in the tree, and inline renaming — above the content, as a plain caption with no card.",
+        "refresh": "Reload the page. Header buttons carry a label rather than a bare icon: the copy icon alone doesn't say WHAT gets copied, and the button next to the name should read its answer, not have it guessed.",
+        "more": "The last button — \"More\": rare things done to the object once in its lifetime (re-filing onto shelves). That doesn't deserve its own header button, but an unlabeled ellipsis doesn't need to hide it either. The component holds the button and the list, the page supplies the items — only the page knows their set, and without the slot there's no button at all."
+      },
+      "sample": {
+        "exit": "To research list",
+        "move_group": "Change group",
+        "shelf": "DevOps: server setup",
+        "title": "PostgreSQL: secure configuration and full isolation from outside connections"
+      }
+    },
+    "section-header": {
+      "levels": "Levels",
+      "parts": "Parts",
+      "page_level": "Page level",
+      "page_level_note": "PageHeader = \"back\" button + the same component at level 1. The header anatomy is the same for a page and for a section within it.",
+      "toggle": "Toggle loading",
+      "usage": "Usage",
+      "sample": {
+        "title": "Areas",
+        "page_title": "Research",
+        "desc": "The sections a topic's breakdown is split into.",
+        "action": "Refresh"
+      }
+    },
+    "callout": {
+      "tones": "Tones",
+      "title_lead": "With a lead-in",
+      "dense": "Dense — under a form field",
+      "vs_alert": "Callout vs VAlert",
+      "vs_alert_note": "An alert reports an EVENT (something failed, something needs looking at) and gets dismissed. A callout was always there. If explanations look like alerts, real alerts stop getting noticed.",
+      "usage": "Usage",
+      "sample": {
+        "info": "Found pages are saved as markdown and reused across research items.",
+        "muted": "A neutral remark — no pressure, just context.",
+        "warn": "The engine only returns links: page content will be fetched by the content engine.",
+        "error": "The service key isn't set — search with this engine will fail.",
+        "lead_title": "Engine disabled",
+        "lead_text": "While the connector is disabled in settings, a request to it fails before reaching the network.",
+        "field": "Search engine",
+        "dense": "Tavily can both search and fetch page content.",
+        "alert": "Couldn't create the request",
+        "callout": "The request runs synchronously: the page will update once the engine responds."
+      }
+    },
+    "toasts": {
+      "levels": "Levels",
+      "queue": "Queue and behavior",
+      "usage": "Usage",
+      "show": "Show",
+      "burst": "Four at once",
+      "clear": "Clear",
+      "same": "Same text again",
+      "dedupe_note": "A repeat is ignored while the previous one is still showing",
+      "sample": {
+        "success": "Settings saved",
+        "info": "Search queued",
+        "warn": "Engine disabled in settings",
+        "error": "Couldn't run the request",
+        "sticky": "Server is restarting…"
+      }
+    },
+    "alerts": {
+      "types": "Types",
+      "variants": "Variants",
+      "density": "Density and title",
+      "closable": "Closable",
+      "action": "With action",
+      "actionNote": "Text + button on one line; on narrow widths the button wraps under the text (email tracking-protection banner).",
+      "iconNote": "Type sets the default color and icon. The glyph can be overridden with :icon — the default for warning/error is IconAlertCircle.",
+      "reset": "Reset",
+      "showContent": "Show content",
+      "sample": {
+        "title": "Note",
+        "success": "Changes saved successfully.",
+        "info": "This page refreshes every minute.",
+        "warning": "Some fields couldn't be validated.",
+        "error": "Couldn't load data. Try again.",
+        "tracking": "Some images and all links are disabled to protect against tracking."
+      }
+    },
+    "loaders": {
+      "spin": ".spin — custom spinner"
+    },
+    "markdown": {
+      "props": "Component settings",
+      "liveEditor": "Live editor",
+      "fullDemo": "Full demo — all elements",
+      "jobContent": "Typical job-posting content"
+    },
+    "chat": {
+      "feed": "Conversation feed",
+      "events": "Events and structure",
+      "kinds": "Message types",
+      "incoming": "Incoming",
+      "outgoing": "Outgoing",
+      "agent": "Agent",
+      "note": "Note",
+      "tones": "Tones",
+      "empty": "Empty state",
+      "composer": "Composer",
+      "composer_placeholder": "Type a reply and press Enter…",
+      "instruction": "Instruction to the agent",
+      "instruction_for": "Instruction for",
+      "instruction_label": "Instruction for AI",
+      "instruction_edit": "Edit",
+      "instruction_updated": "Updated",
+      "instruction_empty": "There's no instruction for this contact yet — write one below and save it.",
+      "instruction_placeholder": "Describe how AI should behave with this contact, then press \"Save\"…",
+      "no_messages": "No messages yet",
+      "usage": "Usage example",
+      "slots": "Slot layout",
+      "example": "Example",
+      "tracking_blocked": "Some images and trackers are blocked",
+      "show_images": "Show images",
+      "note_divider": "Internal note · not sent to the client"
+    },
+    "message": {
+      "controls": "Settings",
+      "controls_safe": "Settings — safety only",
+      "controls_safe_note": "With hide-format, the formatted/plain toggle is removed — only the safe-mode toggle remains, for single-message pages with no format choice (e.g. an email page).",
+      "reply": "Reply with history",
+      "forward": "Forwarded message",
+      "plain": "Plain text",
+      "images": "Images and lightbox",
+      "images_note": "In the text view, images render as Markdown ![alt](src); hovering shows a zoom hint, clicking opens the lightbox. In the formatted view, the safety toggle gates remote images. Previews are wrapped in a real chat bubble (ChatMessage), exactly as conversation views render them.",
+      "reaction": "Inline image (reaction)",
+      "reaction_note": "An image sharing a paragraph with text sits on the sentence's line (vertical-align:middle, no block spacing) rather than wrapping to its own line — for example a 👍 reaction.",
+      "usage": "Usage example",
+      "data": "Data shape from the backend",
+      "example": "Example",
+      "note": "View mode (formatted / plain) and the safety flag are global user settings (stores/settings.ts → message.*); the toolbar writes to them, so every message in the app follows one choice, and it's persisted.",
+      "data_note": "The backend (content_processors.build_message_view) prepares `html` and `text` from the source body; the component only renders."
+    },
+    "members-cell": {
+      "basic": "Basic",
+      "mono": "Email column (mono)",
+      "empty": "Empty states",
+      "no_team": "No team",
+      "event": "Selection event",
+      "usage": "Usage examples"
+    },
+    "spoiler": {
+      "basic": "Basic",
+      "variants": "Appearance themes",
+      "slots": "Header and action slots",
+      "states": "States",
+      "colors": "Custom colors",
+      "usage": "Wiring and usage",
+      "sample": {
+        "title": "Technical details",
+        "openTitle": "Open by default",
+        "body": "Hidden content is revealed when the spoiler expands.",
+        "attachments": "Attachments",
+        "disabledTitle": "Locked section",
+        "colorTitle": "Accent header",
+        "dangerTitle": "Danger zone"
+      },
+      "variantSample": {
+        "default": "default theme",
+        "minimal": "minimal theme",
+        "card": "card theme"
+      }
+    },
+    "numbers": {
+      "modifiers": "Modifiers",
+      "stepPrecision": "Step and precision",
+      "currency": "Currency"
+    },
+    "pagination": {
+      "basic": "Basic",
+      "density": "Density",
+      "shape": "Button shape",
+      "arrowIcons": "Arrow icons",
+      "states": "States",
+      "pageSize": "With page-size select",
+      "component": "TablePaginationBar — standard footer",
+      "componentNote": "The standard table footer for all list views. Range + page-size select + pager on one line; below the sm breakpoint the layout changes — pager on top, a divider, then range (left) {'|'} page-size select (right). Narrow the window below 600px to see it."
+    },
+    "selects": {
+      "variants": "Variants",
+      "states": "States",
+      "withIcons": "With icons",
+      "objects": "Objects",
+      "density": "Density",
+      "sizes": "Sizes",
+      "searchInDropdown": "Search inside the list",
+      "withButton": "Select with an attached button",
+      "withSteppers": "Select with step: previous / next",
+      "itemIcons": "Icons in items"
+    },
+    "skeleton": {
+      "basicTypes": "Basic types",
+      "presets": "Composite presets",
+      "custom": "Custom composition",
+      "loadingToContent": "Loading → content"
+    },
+    "sliders": {
+      "states": "States",
+      "range": "VRangeSlider — range"
+    },
+    "status-badge": {
+      "colors": "Colors",
+      "mapping": "Typical mapping"
+    },
+    "chips": {
+      "variants": "Variants",
+      "theme": "Theme colors",
+      "palette": "Full palette",
+      "sizes": "Sizes",
+      "content": "Icons and avatar",
+      "closable": "Closable",
+      "filter": "Filter group",
+      "states": "States",
+      "all_removed": "All removed"
+    },
+    "switch-panel": {
+      "basic": "Basic",
+      "stateText": "Text by state",
+      "tones": "Tones",
+      "toneDesc": "The panel background and switch color depend on the tone.",
+      "switchTone": "Switch tone",
+      "switchToneDesc": "A neutral panel — only the switch gets a color.",
+      "states": "States",
+      "usage": "Wiring and usage",
+      "sample": {
+        "title": "Import paused",
+        "desc": "Mail won't sync while the switch is off.",
+        "activeTitle": "Mailbox active",
+        "slot": "Arbitrary content via the default slot.",
+        "onTitle": "Import enabled",
+        "offTitle": "Import disabled",
+        "onDesc": "Mail syncs on schedule.",
+        "offDesc": "Sync is paused.",
+        "disabledTitle": "Controlled by the system",
+        "disabledDesc": "This switch can't be changed manually."
+      },
+      "toneSample": {
+        "default": "Neutral",
+        "primary": "Accent",
+        "info": "Info",
+        "success": "Success",
+        "warning": "Warning",
+        "error": "Error",
+        "transparent": "Unstyled"
+      }
+    },
+    "toggle": {
+      "checkboxVariants": "VCheckbox — variants",
+      "checkboxGroup": "VCheckbox — group",
+      "radioGroup": "VRadio — group",
+      "switchVariants": "VSwitch — variants",
+      "density": "Density"
+    },
+    "tokens": {
+      "colors": "Colors",
+      "radii": "Radii",
+      "fonts": "Fonts"
+    },
+    "tooltips": {
+      "basic": "Basic",
+      "placement": "Placement",
+      "multiline": "Multiline",
+      "structured": "Structured",
+      "delays": "Delays"
+    },
+    "typography": {
+      "headings": "Headings",
+      "text": "Text",
+      "code": "Code",
+      "links": "Links",
+      "families": "Families"
+    },
+    "icon-picker": {
+      "basic": "Panel and selection",
+      "height": "Scroll height"
+    },
+    "color-picker": {
+      "basic": "Palette and selection",
+      "plate": "Icon chip"
+    },
+    "icon-color-picker": {
+      "basic": "Panel and selection"
+    },
+    "markdown-editor": {
+      "editor": "Editing zone",
+      "editorHint": "Type \"/\" for the block menu. An entity code like AREA{'@'}0123456789 becomes a pill as you type or paste it. To the left of a block is the drag handle.",
+      "simple": "Simple mode and length limit",
+      "simpleHint": "Only paragraph, bold and italic live here: no slash menu, no drag handles, no block constructs — their nodes aren't in the schema. Paste a heading or a list from the clipboard: the text is kept, the formatting is dropped. The counter below counts the stored markdown and turns red past the limit.",
+      "table": "Table",
+      "tableHint": "Insert with \"/\" then \"Table\". Tab and Shift+Tab move across cells, Tab from the last cell and Enter from the last row start a new one. Columns and alignment are on the panel above the table; the header row can't be removed — without it a table doesn't exist in GFM.",
+      "roundtrip": "Round trip: markdown → document → markdown",
+      "source": "Source",
+      "emitted": "What the serializer returned",
+      "rendered": "How MarkdownRenderer renders it",
+      "diff": "Line-by-line differences",
+      "identicalYes": "The text came back unchanged",
+      "identicalNo": "The text changed — see the differences below",
+      "stableYes": "The second pass matched the first",
+      "stableNo": "The second pass differs — the serializer is unstable",
+      "output": "Live editor output",
+      "coverage": "Construct coverage",
+      "unsupported": "What the bridge doesn't carry yet and silently drops on input:"
+    }
+  }
+}

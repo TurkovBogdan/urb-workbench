@@ -14,6 +14,6 @@ from src.modules.core_setup.api import router
 
 class CoreSetupModule(Module):
     name: ClassVar[str] = "core_setup"
-    description: ClassVar[str] = "Редактирование ENV/.env (параметры деплоя) и перезапуск процесса."
+    description: ClassVar[str] = "Editing ENV/.env (deployment parameters) and restarting the process."
     internal_router = router
     internal_router_prefix = "/core/setup"

@@ -29,6 +29,22 @@ async def test_start_request_carries_the_schema(client):
     assert by_key["interface_code_line_numbers"]["type"] == "boolean"
 
 
+async def test_language_defaults_to_english_and_offers_russian(client):
+    r = await client.get(f"{BASE}/settings", params={"include_schema": "true"})
+
+    by_key = {field["key"]: field for field in r.json()["schema"]}
+    assert r.json()["values"]["interface_language"] == "en"
+    assert by_key["interface_language"]["options"] == ["en", "ru"]
+
+
+async def test_language_outside_the_set_is_refused_and_not_written(client):
+    r = await client.patch(f"{BASE}/settings", json={"values": {"interface_language": "de"}})
+
+    assert r.status_code == 422
+    assert "interface_language" in r.json()["fields"]
+    assert await crud.list_all() == {}
+
+
 async def test_schema_has_its_own_route(client):
     r = await client.get(f"{BASE}/settings/schema")
 

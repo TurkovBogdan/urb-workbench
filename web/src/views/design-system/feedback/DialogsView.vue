@@ -129,7 +129,7 @@ async function fakeSubmit() {
               {{ t('design-system.section.dialogs.open') }}
             </VBtn>
           </div>
-          <span class="ds-spec">scrollable · шапка и кнопки на месте</span>
+          <span class="ds-spec">scrollable · header and buttons stay put</span>
         </div>
 
         <div class="ds-row ds-row--center">
@@ -139,7 +139,7 @@ async function fakeSubmit() {
               {{ t('design-system.section.dialogs.open') }}
             </VBtn>
           </div>
-          <span class="ds-spec">ConfirmDialog · спрашивает, но не делает</span>
+          <span class="ds-spec">ConfirmDialog · asks, doesn't act</span>
         </div>
 
       </div>

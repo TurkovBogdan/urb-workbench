@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { extent, max, min, bisector } from 'd3-array'
 import { scaleLinear, scaleTime, type ScaleLinear, type ScaleTime } from 'd3-scale'
 import { area as d3Area, line as d3Line, curveMonotoneX, curveLinear, curveStepAfter } from 'd3-shape'
@@ -67,6 +68,8 @@ const props = withDefaults(defineProps<Props>(), {
   strokeWidth: 2,
   showPoints: false,
 })
+
+const { locale } = useI18n()
 
 const DEFAULT_PALETTE = [
   '#008890', // accent
@@ -197,10 +200,7 @@ const defaultFormatY = (v: number): string => {
 }
 
 const defaultFormatX = (v: number | Date): string => {
-  if (v instanceof Date) {
-    const m = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек']
-    return `${v.getDate()} ${m[v.getMonth()]}`
-  }
+  if (v instanceof Date) return v.toLocaleDateString(locale.value, { day: 'numeric', month: 'short' })
   return defaultFormatY(v as number)
 }
 

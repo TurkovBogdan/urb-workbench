@@ -1,0 +1,75 @@
+{
+  "nav": "Jobs",
+  "page": {
+    "title": "Monitoring",
+    "description": "Scheduler background jobs",
+    "description_updated": "Scheduler background jobs · updated {rel}"
+  },
+  "updated": {
+    "just_now": "just now",
+    "sec": "{n} s ago",
+    "min": "{n} min ago",
+    "hour": "{n} h ago"
+  },
+  "kpi": {
+    "enabled": "enabled",
+    "running": "running",
+    "errors24h": "errors 24h"
+  },
+  "filter": {
+    "all": "All",
+    "running": "Running",
+    "errors": "Errors",
+    "search": {
+      "label": "Search jobs",
+      "placeholder": "name, code, module, description"
+    }
+  },
+  "badge": {
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "manual": "manual",
+    "ttl": "TTL {n}s"
+  },
+  "stats": {
+    "last24h": "in the last 24 hours",
+    "runs": "runs",
+    "running": "running",
+    "success": "successful",
+    "errors": "errors"
+  },
+  "action": {
+    "refresh": "Refresh",
+    "logs": "Run log"
+  },
+  "empty": {
+    "none": "No registered jobs.",
+    "filtered": "No jobs match the filters."
+  },
+  "runs": {
+    "fallback_title": "Job",
+    "filter_status": "Status",
+    "col": {
+      "status": "Status",
+      "started": "Started",
+      "finished": "Finished",
+      "duration": "Duration",
+      "error": "Error"
+    },
+    "empty": "No runs yet",
+    "logs": "Logs",
+    "logs_empty": "No entries",
+    "payload": "Run parameters",
+    "status": {
+      "running": "Running",
+      "success": "Success",
+      "error": "Error"
+    }
+  },
+  "catalog": {
+    "core": {
+      "heartbeat": { "name": "Heartbeat", "short": "Heartbeat", "description": "A marker that the scheduler is alive: records a successful run in core_tasks every minute." },
+      "sqlite_health": { "name": "SQLite health", "short": "SQLite", "description": "Hourly: size of the WAL companion file relative to the database (checkpoint starvation shows no other sign), quick_check and foreign_key_check." }
+    }
+  }
+}

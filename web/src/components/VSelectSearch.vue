@@ -8,6 +8,7 @@
  * ($attrs + slot forwarding), so it's a drop-in replacement: swap VSelect → VSelectSearch.
  */
 import { computed, ref, useSlots } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { IconSearch } from '@tabler/icons-vue'
 
 const model = defineModel<unknown>()
@@ -22,9 +23,9 @@ const props = withDefaults(defineProps<{
   noDataText?: string
 }>(), {
   itemTitle: 'title',
-  searchPlaceholder: 'Search…',
-  noDataText: 'Nothing found',
 })
+
+const { t } = useI18n()
 
 defineOptions({ inheritAttrs: false })
 
@@ -68,7 +69,7 @@ const forwardedSlots = computed(() =>
         <VTextField
           v-model="search"
           :prepend-inner-icon="IconSearch"
-          :placeholder="searchPlaceholder"
+          :placeholder="searchPlaceholder ?? t('common.prefs.search')"
           variant="plain"
           density="compact"
           autofocus
@@ -80,7 +81,7 @@ const forwardedSlots = computed(() =>
     </template>
 
     <template #no-data>
-      <div class="vss-empty">{{ noDataText }}</div>
+      <div class="vss-empty">{{ noDataText ?? t('common.prefs.not_found') }}</div>
     </template>
 
     <template v-for="name in forwardedSlots" #[name]="slotProps" :key="name">

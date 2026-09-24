@@ -4,28 +4,15 @@
 
 export type CodeVariant = 'icon' | 'accent' | 'minimal'
 
+// Label and note come from the dictionary by code (`composables/useAppearanceOptions.ts`).
 export interface CodeVariantOption {
   code: CodeVariant
-  label: string
-  note: string
 }
 
 export const CODE_VARIANTS: CodeVariantOption[] = [
-  {
-    code: 'icon',
-    label: 'Шапка со значками',
-    note: 'Ярлык языка слева, значки нумерации и копирования справа.',
-  },
-  {
-    code: 'accent',
-    label: 'Шапка с кнопкой',
-    note: 'Тот же ярлык языка, но копирование — заметной кнопкой с подписью.',
-  },
-  {
-    code: 'minimal',
-    label: 'Без шапки',
-    note: 'Только подсвеченный код: ни языка, ни кнопок. Копировать придётся выделением.',
-  },
+  { code: 'icon' },
+  { code: 'accent' },
+  { code: 'minimal' },
 ]
 
 export const DEFAULT_CODE_VARIANT: CodeVariant = 'minimal'

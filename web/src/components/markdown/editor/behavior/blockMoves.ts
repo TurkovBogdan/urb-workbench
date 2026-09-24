@@ -23,8 +23,11 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view'
 export type MoveTarget = 'up' | 'down' | 'start' | 'end'
 
 export interface BlockMovesOptions {
-  /** Текст для live-region: что именно произошло, позициями, а не индексами. */
-  onAnnounce: ((message: string) => void) | null
+  /**
+   * Where the block landed, for the live region — as positions, not indexes. The words belong to
+   * the editor, which knows the interface language; the extension only reports the numbers.
+   */
+  onAnnounce: ((position: number, total: number) => void) | null
 }
 
 declare module '@tiptap/core' {
@@ -104,9 +107,7 @@ export const BlockMoves = Extension.create<BlockMovesOptions>({
           tr.scrollIntoView()
 
           const total = state.doc.childCount
-          this.options.onAnnounce?.(
-            `Блок перемещён на позицию ${position(target, block, total)} из ${total}`,
-          )
+          this.options.onAnnounce?.(position(target, block, total), total)
         }
         return true
       },

@@ -21,7 +21,7 @@ from src.modules.core_monitoring.constants import LOG_CHANNEL
 
 class CoreMonitoringModule(Module):
     name: ClassVar[str] = "core_monitoring"
-    description: ClassVar[str] = "Наблюдаемость планировщика: список задач, их запуски и логи."
+    description: ClassVar[str] = "Scheduler observability: the job list, their runs and logs."
     migrations_dir = None
     config_cls = None
     settings_schema = None

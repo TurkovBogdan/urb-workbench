@@ -130,7 +130,7 @@ function open(tool: McpToolInfo) {
           <div v-else class="tool-dialog__empty">{{ $t('common.mcp.no_description') }}</div>
 
           <div v-if="active.input_schema" class="tool-dialog__schema">
-            <h6 class="mcp-panel__section-title">Input schema</h6>
+            <h6 class="mcp-panel__section-title">{{ $t('common.mcp.input_schema') }}</h6>
             <CodeBlock
               :code="JSON.stringify(active.input_schema, null, 2)"
               lang="json"
@@ -139,7 +139,7 @@ function open(tool: McpToolInfo) {
           </div>
 
           <div v-if="active.output_schema" class="tool-dialog__schema">
-            <h6 class="mcp-panel__section-title">Output schema</h6>
+            <h6 class="mcp-panel__section-title">{{ $t('common.mcp.output_schema') }}</h6>
             <CodeBlock
               :code="JSON.stringify(active.output_schema, null, 2)"
               lang="json"

@@ -75,10 +75,12 @@ export type ClientErrorCode = 'network' | 'timeout' | 'aborted' | 'protocol' | '
 export const ALREADY_AUTHENTICATED = 'already_authenticated'
 
 // Mirror of backend ErrorBody (src/core/api/errors.py). `fields` — ошибки по полям формы;
-// `code` несёт машинный код бэкенда либо один из ClientErrorCode.
+// `code` несёт машинный код бэкенда либо один из ClientErrorCode; `params` — значения для
+// подстановки в текст кода; `error` — английский запасной текст (см. `api/errorText.ts`).
 export interface ApiErrorBody {
   error: string
   code?: string
+  params?: Record<string, string | number>
   fields?: Record<string, string>
   /** Секунды из заголовка `Retry-After` у 429 — сколько ждать на самом деле. */
   retryAfter?: number
@@ -88,6 +90,7 @@ export interface ApiErrorBody {
 export class ApiError extends Error {
   readonly status: number
   readonly code?: string
+  readonly params?: Record<string, string | number>
   readonly fields?: Record<string, string>
   readonly retryAfter?: number
 
@@ -96,6 +99,7 @@ export class ApiError extends Error {
     this.name = 'ApiError'
     this.status = status
     this.code = body.code ?? undefined
+    this.params = body.params ?? undefined
     this.fields = body.fields ?? undefined
     this.retryAfter = body.retryAfter
   }
@@ -219,6 +223,12 @@ async function toApiError(res: Response): Promise<ApiError> {
       if (data && typeof data === 'object') {
         if (typeof data.error === 'string' && data.error) body.error = data.error
         if (typeof data.code === 'string') body.code = data.code
+        if (data.params && typeof data.params === 'object') {
+          const params: Record<string, string | number> = {}
+          for (const [k, v] of Object.entries(data.params as Record<string, unknown>))
+            params[k] = typeof v === 'number' ? v : String(v)
+          body.params = params
+        }
         if (data.fields && typeof data.fields === 'object') {
           const fields: Record<string, string> = {}
           for (const [k, v] of Object.entries(data.fields as Record<string, unknown>))

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import PageLayout from '@/layout/templates/PageLayout.vue'
@@ -7,30 +8,18 @@ import MarkdownRenderer from '@/components/markdown/renderer/MarkdownRenderer.vu
 import SettingsGroup from '@/components/settings/SettingsGroup.vue'
 import SwitchPanel from '@/components/SwitchPanel.vue'
 import VSelectStepper from '@/components/VSelectStepper.vue'
+import { useAppearanceOptions, type DescribedFont } from '@/composables/useAppearanceOptions'
 import { useSettingsStore } from '@/stores/settings'
-import { CODE_VARIANTS, type CodeVariantOption } from '@/constants/code'
-import {
-  DIAGRAM_ALIGNS,
-  DIAGRAM_HEIGHTS,
-  DIAGRAM_THEMES,
-  NO_DIAGRAM_HEIGHT,
-  type DiagramAlignOption,
-  type DiagramThemeOption,
-} from '@/constants/diagrams'
+import { DIAGRAM_HEIGHTS, NO_DIAGRAM_HEIGHT } from '@/constants/diagrams'
 import {
   CODE_SIZES,
-  DIAGRAM_FONTS,
-  HEADING_FONTS,
-  INTERFACE_FONTS,
-  MONO_FONTS,
   NO_MEASURE,
-  READING_FONTS,
   READING_MEASURES,
   READING_SIZES,
   READING_WEIGHTS,
-  type FontOption,
 } from '@/constants/fonts'
-import { THEME_OPTIONS, type ThemeOption } from '@/constants/theme'
+import { LANGUAGE_OPTIONS } from '@/constants/language'
+import { PREVIEWS } from '../previews'
 
 // Оформление приложения. В отличие от `/settings/modules` кнопки сохранения здесь нет: выбор
 // применяется в тот же миг, а в базу (модуль `core_interface`) уезжает сам — пачкой, спустя
@@ -43,103 +32,38 @@ import { THEME_OPTIONS, type ThemeOption } from '@/constants/theme'
 const { t } = useI18n()
 const settings = useSettingsStore()
 
-// The sample is markdown and goes through the real renderer, so the preview is the reading
-// zone itself rather than an imitation of it. It carries what the choices above are judged
-// by — headings, running text with its inline constructions, a list — and stops there:
-// tables, code, diagrams and the rest get preview zones of their own.
-const PREVIEW = `# Заголовок первого уровня
+const {
+  themes,
+  codeVariants,
+  diagramAligns,
+  diagramThemes,
+  interfaceFonts,
+  readingFonts,
+  headingFonts,
+  monoFonts,
+  diagramFonts,
+} = useAppearanceOptions()
 
-Первый абзац идёт сразу под заголовком — по нему видно рисунок строчных, интерлиньяж и,
-главное, длину строки, на которой глаз ещё уверенно находит начало следующей. Длина строки
-влияет на скорость чтения сильнее, чем кегль, поэтому колонка ограничена по ширине, а
-таблицы и блоки кода из этого ограничения выведены — их просматривают, а не читают подряд.
-
-## Заголовок второго уровня
-
-Второй абзац — чтобы стало видно расстояние между разделами и то, что отступ над заголовком
-заметно больше отступа под ним: заголовок принадлежит тексту, который идёт следом. Внутри
-строки встречаются \`inline-код\`, **жирное выделение**, *курсив* и [внешняя ссылка](https://example.com),
-а ещё пилюля ссылки на сущность — RESEARCH@ef8a7d2f25.
-
-### Заголовок третьего уровня
-
-- маркированный список: первый пункт
-- второй пункт, заметно длиннее первого, чтобы стало видно, как ложится перенос внутри пункта
-  - вложенный пункт
-`
-
-// Блок кода судят не сам по себе, а рядом с текстом: абзацы вокруг показывают, насколько
-// моноширинная гарнитура спорит с читательской по цвету и росту знака. Питон — потому что на
-// нём в этих телах пишут чаще всего, и подсветка здесь такая же, как в настоящем документе.
-//
-// Блока два, и это разные вещи: в многострочном видно шапку, номера строк и длину строки на
-// выбранном кегле, а однострочный рисуется командной плашкой — без шапки и с кнопкой копирования
-// по наведению. Судить их порознь нельзя, поэтому оба стоят в примере.
-const CODE_PREVIEW = `Короткий абзац перед блоком: по нему видно, как моноширинный набор стоит
-рядом с текстом — не спорит ли он с ним по росту знака и насыщенности. Внутри строки тоже
-встречается \`inline-код\`, и он набран той же гарнитурой, что и блок ниже.
-
-\`\`\`python
-def read(path: Path) -> str:
-    """Блок кода: подсветка, номера строк и копирование."""
-    text = path.read_text(encoding="utf-8")
-    if not text.strip():
-        raise ValueError(f"пустой файл: {path}")
-    lines = [line.rstrip() for line in text.splitlines()]
-    return "\\n".join(lines)
-\`\`\`
-
-Абзац между блоками — тот же текст, что и в теле документа: по нему видно, сколько воздуха
-остаётся вокруг листинга и не съедает ли блок отбивку соседних абзацев.
-
-\`\`\`bash
-uv run pytest --module=core_interface
-\`\`\`
-`
-
-// Схему судят по тесноте: раскладка меряет подписи выбранной гарнитурой и по ним считает ширину
-// коробок, поэтому в примере стоит дерево решений — три ромба, ветки с подписями на стрелках
-// (в том числе длинной, в три значения) и восемь исходов. На схеме из трёх слов разницы между
-// гарнитурами не видно, а выбирается здесь именно она.
-const DIAGRAM_PREVIEW = `\`\`\`mermaid
-flowchart TD
-  Status{Order status} -->|paid, completed, needs_review| Paid([Paid])
-  Status -->|canceled| Canceled([Canceled])
-  Status -->|awaiting_payment| Due{Due date passed?}
-  Status -->|draft| Failed{Payment failed?}
-  Due -->|yes| Overdue([Overdue])
-  Due -->|no| Awaiting([AwaitingPayment])
-  Failed -->|yes| PaymentFailed([PaymentFailed])
-  Failed -->|no| NoRow([No row in history])
-\`\`\`
-`
+// The samples are markdown and go through the real renderer, so each preview is the reading zone
+// itself rather than an imitation of it.
+const preview = computed(() => PREVIEWS[settings.locale.language])
 
 // Each option previews itself: the row is set in the family it selects, which tells more
 // than its name does, and the note says what the family is for.
-function optionProps(option: FontOption) {
+function optionProps(option: DescribedFont) {
   return { subtitle: option.note, style: { fontFamily: option.stack } }
 }
 
-function themeProps(option: ThemeOption) {
+function noteProps(option: { note: string }) {
   return { subtitle: option.note }
 }
 
-function alignProps(option: DiagramAlignOption) {
-  return { subtitle: option.note }
-}
-
-function variantProps(option: CodeVariantOption) {
-  return { subtitle: option.note }
-}
-
-function themeNoteProps(option: DiagramThemeOption) {
-  return { subtitle: option.note }
-}
-
-const diagramHeightOptions = DIAGRAM_HEIGHTS.map((height) => ({
-  title: height === NO_DIAGRAM_HEIGHT ? t('settings.interface.diagram.height.unlimited') : `${height} px`,
-  value: height,
-}))
+const diagramHeightOptions = computed(() =>
+  DIAGRAM_HEIGHTS.map((height) => ({
+    title: height === NO_DIAGRAM_HEIGHT ? t('settings.interface.diagram.height.unlimited') : `${height} px`,
+    value: height,
+  })),
+)
 
 const sizeOptions = READING_SIZES.map((size) => ({ title: `${size} px`, value: size }))
 
@@ -152,10 +76,12 @@ const weightOptions = READING_WEIGHTS.map((weight) => ({
   props: { style: { fontWeight: weight } },
 }))
 
-const measureOptions = READING_MEASURES.map((measure) => ({
-  title: measure === NO_MEASURE ? t('settings.interface.measure.reading.unlimited') : `${measure}ch`,
-  value: measure,
-}))
+const measureOptions = computed(() =>
+  READING_MEASURES.map((measure) => ({
+    title: measure === NO_MEASURE ? t('settings.interface.measure.reading.unlimited') : `${measure}ch`,
+    value: measure,
+  })),
+)
 
 </script>
 
@@ -173,11 +99,26 @@ const measureOptions = READING_MEASURES.map((measure) => ({
       >
         <div class="setting">
           <VSelect
-            v-model="settings.appearance.theme"
-            :items="THEME_OPTIONS"
+            v-model="settings.locale.language"
+            :items="LANGUAGE_OPTIONS"
             item-title="label"
             item-value="code"
-            :item-props="themeProps"
+            :chips="false"
+            :label="t('settings.interface.language.label')"
+            variant="outlined"
+            density="comfortable"
+            hide-details="auto"
+          />
+          <p class="setting__desc">{{ t('settings.interface.language.description') }}</p>
+        </div>
+
+        <div class="setting">
+          <VSelect
+            v-model="settings.appearance.theme"
+            :items="themes"
+            item-title="label"
+            item-value="code"
+            :item-props="noteProps"
             :chips="false"
             :label="t('settings.interface.theme.label')"
             variant="outlined"
@@ -190,7 +131,7 @@ const measureOptions = READING_MEASURES.map((measure) => ({
         <div class="setting">
           <VSelectStepper
             v-model="settings.typography.interfaceFont"
-            :items="INTERFACE_FONTS"
+            :items="interfaceFonts"
             item-title="label"
             item-value="code"
             :item-props="optionProps"
@@ -211,7 +152,7 @@ const measureOptions = READING_MEASURES.map((measure) => ({
         <div class="setting">
           <VSelectStepper
             v-model="settings.typography.readingFont"
-            :items="READING_FONTS"
+            :items="readingFonts"
             item-title="label"
             item-value="code"
             :item-props="optionProps"
@@ -253,7 +194,7 @@ const measureOptions = READING_MEASURES.map((measure) => ({
         <div class="setting">
           <VSelectStepper
             v-model="settings.typography.headingFont"
-            :items="HEADING_FONTS"
+            :items="headingFonts"
             item-title="label"
             item-value="code"
             :item-props="optionProps"
@@ -301,7 +242,7 @@ const measureOptions = READING_MEASURES.map((measure) => ({
         <VCardTitle class="text-h6">{{ t('settings.interface.preview.title') }}</VCardTitle>
         <VDivider />
         <VCardText>
-          <MarkdownRenderer :text="PREVIEW" />
+          <MarkdownRenderer :text="preview.document" />
         </VCardText>
       </VCard>
 
@@ -312,10 +253,10 @@ const measureOptions = READING_MEASURES.map((measure) => ({
         <div class="setting">
           <VSelect
             v-model="settings.typography.codeVariant"
-            :items="CODE_VARIANTS"
+            :items="codeVariants"
             item-title="label"
             item-value="code"
-            :item-props="variantProps"
+            :item-props="noteProps"
             :chips="false"
             :label="t('settings.interface.code.variant.label')"
             variant="outlined"
@@ -328,7 +269,7 @@ const measureOptions = READING_MEASURES.map((measure) => ({
         <div class="setting">
           <VSelectStepper
             v-model="settings.typography.monoFont"
-            :items="MONO_FONTS"
+            :items="monoFonts"
             item-title="label"
             item-value="code"
             :item-props="optionProps"
@@ -365,7 +306,7 @@ const measureOptions = READING_MEASURES.map((measure) => ({
         <VCardTitle class="text-h6">{{ t('settings.interface.preview.title') }}</VCardTitle>
         <VDivider />
         <VCardText>
-          <MarkdownRenderer :text="CODE_PREVIEW" />
+          <MarkdownRenderer :text="preview.code" />
         </VCardText>
       </VCard>
 
@@ -376,10 +317,10 @@ const measureOptions = READING_MEASURES.map((measure) => ({
         <div class="setting">
           <VSelect
             v-model="settings.diagrams.theme"
-            :items="DIAGRAM_THEMES"
+            :items="diagramThemes"
             item-title="label"
             item-value="code"
-            :item-props="themeNoteProps"
+            :item-props="noteProps"
             :chips="false"
             :label="t('settings.interface.diagram.theme.label')"
             variant="outlined"
@@ -392,7 +333,7 @@ const measureOptions = READING_MEASURES.map((measure) => ({
         <div class="setting">
           <VSelect
             v-model="settings.diagrams.font"
-            :items="DIAGRAM_FONTS"
+            :items="diagramFonts"
             item-title="label"
             item-value="code"
             :item-props="optionProps"
@@ -408,10 +349,10 @@ const measureOptions = READING_MEASURES.map((measure) => ({
         <div class="setting">
           <VSelect
             v-model="settings.diagrams.align"
-            :items="DIAGRAM_ALIGNS"
+            :items="diagramAligns"
             item-title="label"
             item-value="code"
-            :item-props="alignProps"
+            :item-props="noteProps"
             :chips="false"
             :label="t('settings.interface.diagram.align.label')"
             variant="outlined"
@@ -439,7 +380,7 @@ const measureOptions = READING_MEASURES.map((measure) => ({
         <VCardTitle class="text-h6">{{ t('settings.interface.preview.title') }}</VCardTitle>
         <VDivider />
         <VCardText>
-          <MarkdownRenderer :text="DIAGRAM_PREVIEW" />
+          <MarkdownRenderer :text="preview.diagram" />
         </VCardText>
       </VCard>
     </div>

@@ -52,7 +52,7 @@ def test_broken_registry_stops_the_build(monkeypatch, config):
 
 
 def test_unknown_key_is_rejected():
-    assert registry.rejection("interface_nope", "dark") == "неизвестная настройка"
+    assert registry.rejection("interface_nope", "dark") == registry.UNKNOWN_SETTING
 
 
 def test_boolean_is_not_a_number_and_a_number_is_not_a_boolean():
@@ -61,27 +61,27 @@ def test_boolean_is_not_a_number_and_a_number_is_not_a_boolean():
 
 
 def test_value_outside_the_option_set_is_rejected():
-    assert registry.rejection("interface_font_reading_size", 19) == "значение вне набора допустимых"
-    assert registry.rejection("interface_theme", "plaid") == "значение вне набора допустимых"
+    assert registry.rejection("interface_font_reading_size", 19) == registry.NOT_AN_OPTION
+    assert registry.rejection("interface_theme", "plaid") == registry.NOT_AN_OPTION
 
 
 def test_reading_weight_takes_the_css_ladder_by_hundreds():
     assert registry.SETTINGS["interface_font_reading_weight"].default == 300
     assert registry.rejection("interface_font_reading_weight", 900) is None
-    assert registry.rejection("interface_font_reading_weight", 350) == "значение вне набора допустимых"
+    assert registry.rejection("interface_font_reading_weight", 350) == registry.NOT_AN_OPTION
 
 
 def test_diagram_theme_keeps_the_app_palette_as_default():
     assert registry.SETTINGS["interface_diagram_theme"].default == "system"
     assert registry.rejection("interface_diagram_theme", "dracula") is None
-    assert registry.rejection("interface_diagram_theme", "monokai") == "значение вне набора допустимых"
+    assert registry.rejection("interface_diagram_theme", "monokai") == registry.NOT_AN_OPTION
 
 
 def test_code_variant_offers_the_three_chooseable_looks():
     assert registry.SETTINGS["interface_code_variant"].default == "minimal"
     assert registry.rejection("interface_code_variant", "minimal") is None
     # `compact` — вид однострочника, он следует из содержимого и человеком не выбирается.
-    assert registry.rejection("interface_code_variant", "compact") == "значение вне набора допустимых"
+    assert registry.rejection("interface_code_variant", "compact") == registry.NOT_AN_OPTION
 
 
 def test_code_line_numbers_is_a_switch_and_starts_on():
@@ -93,7 +93,7 @@ def test_code_line_numbers_is_a_switch_and_starts_on():
 def test_code_size_is_its_own_ladder_below_the_reading_one():
     assert registry.SETTINGS["interface_font_code_size"].default == 12
     assert registry.rejection("interface_font_code_size", 11) is None
-    assert registry.rejection("interface_font_code_size", 20) == "значение вне набора допустимых"
+    assert registry.rejection("interface_font_code_size", 20) == registry.NOT_AN_OPTION
 
 
 def test_heading_font_defaults_to_the_reading_one():
@@ -104,7 +104,7 @@ def test_heading_font_defaults_to_the_reading_one():
 def test_heading_weight_stands_above_the_text_by_default():
     assert registry.SETTINGS["interface_font_heading_weight"].default == 600
     assert registry.rejection("interface_font_heading_weight", 100) is None
-    assert registry.rejection("interface_font_heading_weight", 650) == "значение вне набора допустимых"
+    assert registry.rejection("interface_font_heading_weight", 650) == registry.NOT_AN_OPTION
 
 
 def test_failing_predicate_is_rejected(monkeypatch):
@@ -112,7 +112,7 @@ def test_failing_predicate_is_rejected(monkeypatch):
         registry.SETTINGS, "interface_font", Setting("onest", check=lambda value: value == "onest")
     )
 
-    assert registry.rejection("interface_font", "golos") == "значение не прошло проверку"
+    assert registry.rejection("interface_font", "golos") == registry.CHECK_FAILED
 
 
 def test_oversized_value_is_rejected():

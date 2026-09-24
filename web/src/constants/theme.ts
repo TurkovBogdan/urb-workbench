@@ -8,16 +8,15 @@
 export type ThemeMode = 'system' | 'light' | 'dark'
 export type ColorScheme = 'light' | 'dark'
 
+// Label and note come from the dictionary by code (`composables/useAppearanceOptions.ts`).
 export interface ThemeOption {
   code: ThemeMode
-  label: string
-  note: string
 }
 
 export const THEME_OPTIONS: ThemeOption[] = [
-  { code: 'dark', label: 'Тёмная', note: 'Схема приложения по умолчанию.' },
-  { code: 'light', label: 'Светлая', note: 'Тот же набор цветов, вывернутый на светлый фон.' },
-  { code: 'system', label: 'Системная', note: 'Следует за настройкой операционной системы и переключается вместе с ней.' },
+  { code: 'dark' },
+  { code: 'light' },
+  { code: 'system' },
 ]
 
 export const DEFAULT_THEME: ThemeMode = 'dark'

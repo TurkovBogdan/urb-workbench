@@ -14,31 +14,29 @@
 //
 // Описаний под полями здесь нет, в отличие от страницы настроек: в колонке шириной 320px они
 // заняли бы больше места, чем сами поля, а объяснять выбор — дело страницы настроек.
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import SwitchPanel from '@/components/SwitchPanel.vue'
 import VSelectStepper from '@/components/VSelectStepper.vue'
+import { useAppearanceOptions, type DescribedFont } from '@/composables/useAppearanceOptions'
 import { useSettingsStore } from '@/stores/settings'
-import { CODE_VARIANTS } from '@/constants/code'
-import { DIAGRAM_ALIGNS, DIAGRAM_HEIGHTS, DIAGRAM_THEMES, NO_DIAGRAM_HEIGHT } from '@/constants/diagrams'
+import { DIAGRAM_HEIGHTS, NO_DIAGRAM_HEIGHT } from '@/constants/diagrams'
 import {
   CODE_SIZES,
-  DIAGRAM_FONTS,
-  HEADING_FONTS,
-  MONO_FONTS,
   NO_MEASURE,
-  READING_FONTS,
   READING_MEASURES,
   READING_SIZES,
   READING_WEIGHTS,
-  type FontOption,
 } from '@/constants/fonts'
 
 const { t } = useI18n()
 const settings = useSettingsStore()
+const { codeVariants, diagramAligns, diagramThemes, readingFonts, headingFonts, monoFonts, diagramFonts } =
+  useAppearanceOptions()
 
 // Каждый пункт набран той гарнитурой, которую выбирает: имя семьи говорит меньше, чем её рисунок.
-function optionProps(option: FontOption) {
+function optionProps(option: DescribedFont) {
   return { style: { fontFamily: option.stack } }
 }
 
@@ -53,15 +51,19 @@ const weightOptions = READING_WEIGHTS.map((weight) => ({
   props: { style: { fontWeight: weight } },
 }))
 
-const measureOptions = READING_MEASURES.map((measure) => ({
-  title: measure === NO_MEASURE ? t('settings.interface.measure.reading.unlimited') : `${measure}ch`,
-  value: measure,
-}))
+const measureOptions = computed(() =>
+  READING_MEASURES.map((measure) => ({
+    title: measure === NO_MEASURE ? t('settings.interface.measure.reading.unlimited') : `${measure}ch`,
+    value: measure,
+  })),
+)
 
-const diagramHeightOptions = DIAGRAM_HEIGHTS.map((height) => ({
-  title: height === NO_DIAGRAM_HEIGHT ? t('settings.interface.diagram.height.unlimited') : `${height} px`,
-  value: height,
-}))
+const diagramHeightOptions = computed(() =>
+  DIAGRAM_HEIGHTS.map((height) => ({
+    title: height === NO_DIAGRAM_HEIGHT ? t('settings.interface.diagram.height.unlimited') : `${height} px`,
+    value: height,
+  })),
+)
 </script>
 
 <template>
@@ -71,7 +73,7 @@ const diagramHeightOptions = DIAGRAM_HEIGHTS.map((height) => ({
 
       <VSelectStepper
         v-model="settings.typography.readingFont"
-        :items="READING_FONTS"
+        :items="readingFonts"
         item-title="label"
         item-value="code"
         :item-props="optionProps"
@@ -101,7 +103,7 @@ const diagramHeightOptions = DIAGRAM_HEIGHTS.map((height) => ({
       />
       <VSelectStepper
         v-model="settings.typography.headingFont"
-        :items="HEADING_FONTS"
+        :items="headingFonts"
         item-title="label"
         item-value="code"
         :item-props="optionProps"
@@ -134,7 +136,7 @@ const diagramHeightOptions = DIAGRAM_HEIGHTS.map((height) => ({
 
       <VSelect
         v-model="settings.typography.codeVariant"
-        :items="CODE_VARIANTS"
+        :items="codeVariants"
         item-title="label"
         item-value="code"
         :chips="false"
@@ -145,7 +147,7 @@ const diagramHeightOptions = DIAGRAM_HEIGHTS.map((height) => ({
       />
       <VSelectStepper
         v-model="settings.typography.monoFont"
-        :items="MONO_FONTS"
+        :items="monoFonts"
         item-title="label"
         item-value="code"
         :item-props="optionProps"
@@ -176,7 +178,7 @@ const diagramHeightOptions = DIAGRAM_HEIGHTS.map((height) => ({
 
       <VSelect
         v-model="settings.diagrams.theme"
-        :items="DIAGRAM_THEMES"
+        :items="diagramThemes"
         item-title="label"
         item-value="code"
         :chips="false"
@@ -187,7 +189,7 @@ const diagramHeightOptions = DIAGRAM_HEIGHTS.map((height) => ({
       />
       <VSelect
         v-model="settings.diagrams.font"
-        :items="DIAGRAM_FONTS"
+        :items="diagramFonts"
         item-title="label"
         item-value="code"
         :item-props="optionProps"
@@ -199,7 +201,7 @@ const diagramHeightOptions = DIAGRAM_HEIGHTS.map((height) => ({
       />
       <VSelect
         v-model="settings.diagrams.align"
-        :items="DIAGRAM_ALIGNS"
+        :items="diagramAligns"
         item-title="label"
         item-value="code"
         :chips="false"

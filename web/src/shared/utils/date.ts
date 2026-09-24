@@ -149,9 +149,8 @@ export function fmtDuration(startedAt: string, finishedAt: string | null): strin
   if (!finishedAt) return '—'
   const ms = DateTime.fromSQL(finishedAt, { zone: 'utc' }).toMillis()
     - DateTime.fromSQL(startedAt, { zone: 'utc' }).toMillis()
-  if (ms < 1000) return `${ms} ms`
+  if (ms < 1000) return _t('common.duration.ms', { n: ms })
   const sec = Math.round(ms / 1000)
-  if (sec < 60) return `${sec} s`
-  const min = Math.floor(sec / 60)
-  return `${min}m ${sec % 60}s`
+  if (sec < 60) return _t('common.duration.sec', { n: sec })
+  return _t('common.duration.min_sec', { min: Math.floor(sec / 60), sec: sec % 60 })
 }

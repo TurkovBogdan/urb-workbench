@@ -1,0 +1,19 @@
+{
+  "nav": "MCP servers",
+  "empty": "No module is running as an MCP server",
+  "page": {
+    "title": "MCP servers",
+    "description": "Modules running as MCP servers — connection config, instructions and tools"
+  },
+  "action": {
+    "refresh": "Refresh"
+  },
+  "select": {
+    "label": "MCP server"
+  },
+  "error": {
+    "server": {
+      "not_found": "MCP server {code} not found"
+    }
+  }
+}

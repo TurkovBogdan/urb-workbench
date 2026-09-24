@@ -58,11 +58,18 @@
     },
     "empty": "Запусков ещё не было",
     "logs": "Логи",
-    "logs_empty": "Записей нет"
+    "logs_empty": "Записей нет",
+    "payload": "Параметры запуска",
+    "status": {
+      "running": "В работе",
+      "success": "Успешно",
+      "error": "Ошибка"
+    }
   },
   "catalog": {
     "core": {
-      "heartbeat": { "name": "Heartbeat", "short": "Heartbeat", "description": "Маркер живого планировщика: каждую минуту пишет успешный запуск в core_tasks." }
+      "heartbeat": { "name": "Heartbeat", "short": "Heartbeat", "description": "Маркер живого планировщика: каждую минуту пишет успешный запуск в core_tasks." },
+      "sqlite_health": { "name": "Здоровье SQLite", "short": "SQLite", "description": "Раз в час: размер файла-спутника WAL относительно базы (голодание чекпойнта ничем больше себя не выдаёт), quick_check и foreign_key_check." }
     }
   }
 }

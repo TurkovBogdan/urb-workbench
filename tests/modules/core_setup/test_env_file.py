@@ -105,7 +105,7 @@ def test_a_key_added_after_the_file_was_written_is_topped_up(tmp_path, monkeypat
     assert "UPDATE_BRANCH=main" in text
     assert "DB_PROVIDER=postgres" in text  # существующее значение не тронуто
     assert "# оператор правил руками" in text
-    assert "# Ветка обновления" in text  # ключ объяснён, а не свалился строкой
+    assert "# Update branch" in text  # ключ объяснён, а не свалился строкой
 
 
 @pytest.mark.pure

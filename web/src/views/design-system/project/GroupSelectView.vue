@@ -25,13 +25,13 @@ const groupCode = ref<string | null>(null)
 <\/script>
 
 <template>
-  <!-- Фильтр: «Все группы» снимает сужение, «Без группы» оставляет не разложенные -->
+  <!-- Filter: "All groups" clears the narrowing, "No group" leaves the ungrouped -->
   <GroupSelect v-model="groupCode" with-all with-ungrouped />
 
-  <!-- Форма: только настоящие полки -->
-  <GroupSelect v-model="groupCode" :label="'Группа'" autofocus />
+  <!-- Form: only real groups -->
+  <GroupSelect v-model="groupCode" :label="'Group'" autofocus />
 
-  <!-- Перевешивание при удалении: полку-источник выбрать нельзя -->
+  <!-- Reassigning on delete: the source group can't be picked -->
   <GroupSelect v-model="moveTo" :exclude="group.code" />
 <\/template>`
 </script>
@@ -54,15 +54,15 @@ const groupCode = ref<string | null>(null)
             <div class="ds-controls">
               <GroupSelect v-model="filterValue" with-all with-ungrouped />
             </div>
-            <span class="ds-spec">фильтр реестра</span>
+            <span class="ds-spec">list filter</span>
           </div>
 
           <div class="ds-row ds-row--center">
-            <span class="ds-tag">по умолчанию</span>
+            <span class="ds-tag">default</span>
             <div class="ds-controls">
               <GroupSelect v-model="formValue" />
             </div>
-            <span class="ds-spec">окно привязки полки</span>
+            <span class="ds-spec">group-binding dialog</span>
           </div>
 
           <div class="ds-row ds-row--center">
@@ -71,24 +71,24 @@ const groupCode = ref<string | null>(null)
               <GroupSelect v-model="excludeValue" :exclude="catalog.items[0]?.code" />
             </div>
             <span class="ds-spec">
-              {{ catalog.items[0]?.title ? `без «${catalog.items[0].title}»` : 'без одной полки' }}
+              {{ catalog.items[0]?.title ? `without «${catalog.items[0].title}»` : 'without one group' }}
             </span>
           </div>
 
         </div>
 
         <p class="ds-note">
-          Значение — код полки (<code>GROUP@…</code>), <code>null</code> — пункт «Все группы»,
-          <code>GROUP@</code> — «Без группы» (бэк читает пустой код как «только не разложенные»).
-          Псевдо-пункты появляются только по просьбе: форме они не нужны, а фильтру нужны оба.
+          The value is a group code (<code>GROUP@…</code>), <code>null</code> is the "All groups" item,
+          <code>GROUP@</code> is "No group" (the backend reads an empty code as "ungrouped only").
+          The pseudo-items appear only on request: the form doesn't need them, the filter needs both.
         </p>
 
         <p class="ds-note">
-          Набор полок компонент берёт из справочника
-          (<code>group-catalog.store</code>) и догружает сам, если их ещё никто не грузил, —
-          месту применения не нужно ни знать об этом, ни держать флаг загрузки. Справочник
-          наполняется и со страницы полок: пришедший туда список забирается без второго запроса.
-          Сейчас в нём {{ catalog.items.length }} полок, загружен — {{ catalog.loaded ? 'да' : 'нет' }}.
+          The component pulls the set of groups from the catalog
+          (<code>group-catalog.store</code>) and loads it itself if nobody has yet —
+          the call site doesn't need to know about that or hold a loading flag. The catalog
+          is also filled from the groups page: the list that lands there is reused without a second request.
+          Right now it holds {{ catalog.items.length }} groups, loaded — {{ catalog.loaded ? 'yes' : 'no' }}.
         </p>
 
         <CodeBlock :code="usageSnippet" lang="vue" variant="icon" class="mt-3" />

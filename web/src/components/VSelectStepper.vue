@@ -15,6 +15,7 @@
  * VSelect → VSelectStepper ничего больше не требует.
  */
 import { computed, useAttrs, useSlots } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { IconChevronLeft, IconChevronRight } from '@tabler/icons-vue'
 
 const model = defineModel<unknown>()
@@ -30,9 +31,9 @@ const props = withDefaults(defineProps<{
 }>(), {
   itemValue: 'value',
   density: 'default',
-  prevLabel: 'Предыдущий',
-  nextLabel: 'Следующий',
 })
+
+const { t } = useI18n()
 
 defineOptions({ inheritAttrs: false })
 
@@ -91,7 +92,7 @@ const selectAttrs = computed(() => {
       :density="density"
       icon
       class="field-group__btn field-group__btn--before"
-      :aria-label="prevLabel"
+      :aria-label="prevLabel ?? t('common.action.previous')"
       :disabled="disabled || atFirst"
       @click="step(-1)"
     >
@@ -115,7 +116,7 @@ const selectAttrs = computed(() => {
       :density="density"
       icon
       class="field-group__btn"
-      :aria-label="nextLabel"
+      :aria-label="nextLabel ?? t('common.action.next')"
       :disabled="disabled || atLast"
       @click="step(1)"
     >

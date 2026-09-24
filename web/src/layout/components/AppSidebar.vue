@@ -47,16 +47,16 @@ const navSections: NavSection[] = [
 ]
 
 const navEntries: NavSectionEntry[] = [
-  { section: 'mcp', order: 10, path: '/mcp-servers', label: 'MCP-серверы', labelKey: 'core_mcp.nav', icon: IconServerBolt },
-  { section: 'tasks', order: 10, path: '/tasks/list', label: 'Задачи', labelKey: 'tasks.nav_tasks', icon: IconChecklist },
-  { section: 'tasks', order: 20, path: '/tasks/groups', label: 'Группы', labelKey: 'tasks.nav_groups', icon: IconSitemap },
-  { section: 'workspace', order: 10, path: '/workspaces', label: 'Пространства', labelKey: 'workspace.nav', icon: IconStack2 },
-  { section: 'settings', order: 10, path: '/settings/interface', label: 'Интерфейс', icon: IconTypography },
-  { section: 'settings', order: 40, path: '/tasks', label: 'Задачи', labelKey: 'core_monitoring.nav', icon: IconClock },
-  { section: 'settings', order: 50, path: '/settings/core', label: 'Сервер', labelKey: 'setup.nav', icon: IconServerCog },
-  { section: 'about', order: 10, path: '/about', label: 'Версия и обновление', labelKey: 'about.nav', icon: IconInfoCircle },
+  { section: 'mcp', order: 10, path: '/mcp-servers', label: 'MCP servers', labelKey: 'core_mcp.nav', icon: IconServerBolt },
+  { section: 'tasks', order: 10, path: '/tasks/list', label: 'Tasks', labelKey: 'tasks.nav_tasks', icon: IconChecklist },
+  { section: 'tasks', order: 20, path: '/tasks/groups', label: 'Groups', labelKey: 'tasks.nav_groups', icon: IconSitemap },
+  { section: 'workspace', order: 10, path: '/workspaces', label: 'Workspaces', labelKey: 'workspace.nav', icon: IconStack2 },
+  { section: 'settings', order: 10, path: '/settings/interface', label: 'Interface', labelKey: 'settings.interface.nav', icon: IconTypography },
+  { section: 'settings', order: 40, path: '/tasks', label: 'Jobs', labelKey: 'core_monitoring.nav', icon: IconClock },
+  { section: 'settings', order: 50, path: '/settings/core', label: 'Server', labelKey: 'setup.nav', icon: IconServerCog },
+  { section: 'about', order: 10, path: '/about', label: 'Version and update', labelKey: 'about.nav', icon: IconInfoCircle },
   // design-system is template chrome (not a module) — link inlined.
-  { section: 'development', order: 10, path: '/design-system', label: 'Дизайн-система', labelKey: 'design-system.nav', icon: IconPalette },
+  { section: 'development', order: 10, path: '/design-system', label: 'Design system', labelKey: 'design-system.nav', icon: IconPalette },
 ]
 
 const navBottom: NavLink[] = []

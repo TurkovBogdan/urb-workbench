@@ -153,7 +153,7 @@ const paletteColors = [
               <template #prepend>
                 <VAvatar color="primary" size="20" class="me-1"><IconUser :size="14" /></VAvatar>
               </template>
-              Вася
+              Alex
             </VChip>
           </div>
           <span class="ds-spec">#prepend → VAvatar</span>

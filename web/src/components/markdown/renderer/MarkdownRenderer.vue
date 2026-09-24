@@ -120,8 +120,10 @@ watch(
 )
 
 // v-html replaces the container's children, so the previous instances are unmounted first —
-// while their slots (detached by then or not) are still known here.
-watch(html, () => {
+// while their slots (detached by then or not) are still known here. The blocks are watched too:
+// a slot is empty in the HTML, so a text that changed only inside a fence leaves `html` equal
+// and would keep the old block on screen.
+watch([html, () => rendered.value.codeBlocks], () => {
   unmountCodeBlocks()
   nextTick(mountCodeBlocks)
 })

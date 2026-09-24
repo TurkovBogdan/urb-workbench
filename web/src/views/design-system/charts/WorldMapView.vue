@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import PageLayout from '@/layout/templates/PageLayout.vue'
 import PageHeader from '@/layout/components/PageHeader.vue'
 import WorldMap, { type WorldMapDatum, type ProjectionKind, type ScaleKind } from '@/components/world-map/WorldMap.vue'
-import { CONTINENT_LABELS, ALL_CONTINENTS } from '@/components/world-map/continents'
+import { ALL_CONTINENTS } from '@/components/world-map/continents'
 
 // Synthetic dataset by alpha-2 (matches what intercom_contacts would produce).
 const CONTACT_STATS: WorldMapDatum[] = [
@@ -60,7 +60,6 @@ const colorMin = ref('#e8f1fb')
 const colorMax = ref('#1e6fd9')
 const visibleContinents = ref<string[]>([...ALL_CONTINENTS])
 
-const continentEntries = Object.entries(CONTINENT_LABELS) as [string, string][]
 
 function toggleContinent(code: string) {
   const idx = visibleContinents.value.indexOf(code)
@@ -194,13 +193,13 @@ const { t } = useI18n()
           <div class="continent-bar mt-3">
             <span class="ds-label mb-0">Continents:</span>
             <button
-              v-for="[code, label] in continentEntries"
+              v-for="code in ALL_CONTINENTS"
               :key="code"
               class="continent-chip"
               :class="{ 'continent-chip--active': visibleContinents.includes(code) }"
               @click="toggleContinent(code)"
             >
-              {{ label }}
+              {{ t(`common.continent.${code}`) }}
             </button>
             <button class="continent-chip continent-chip--reset" @click="allContinentsOn">
               All

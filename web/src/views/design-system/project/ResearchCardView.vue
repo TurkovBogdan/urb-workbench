@@ -10,11 +10,11 @@ const { t } = useI18n()
 
 const row = (over: Partial<ResearchListRow>): ResearchListRow => ({
   code: 'RESEARCH@ef8a7d2f258de68b188bda',
-  title: 'PostgreSQL: безопасная конфигурация и полная изоляция подключения извне',
+  title: 'PostgreSQL: secure configuration and full isolation of external connections',
   description:
-    'Как закрыть боевую PostgreSQL от внешнего мира и что оставить внутри: доступы, TLS, pg_hba, сеть.',
+    'How to shut production PostgreSQL off from the outside world and what to keep open: access, TLS, pg_hba, network.',
   group_code: 'GROUP@0632ba069422e69f3410bd',
-  group_name: 'DevOps: настройка сервера',
+  group_name: 'DevOps: server setup',
   group_icon: 'server',
   group_color: 'sky',
   area_count: 5,
@@ -34,8 +34,8 @@ const ungrouped = row({ code: 'RESEARCH@1b464e08943f77787fbc11', group_code: nul
 const longTitle = row({
   code: 'RESEARCH@95870b6e72eb40e293c564',
   title:
-    'Intercom Messenger: параметры виджета (boot/update, предзаполнение email, кастом-атрибуты, auth vs anonymous)',
-  group_name: 'Командные коммуникации: чат-платформы',
+    'Intercom Messenger: widget parameters (boot/update, email prefill, custom attributes, auth vs anonymous)',
+  group_name: 'Team communications: chat platforms',
   group_icon: 'message',
   group_color: 'violet',
 })
@@ -58,7 +58,7 @@ import ResearchCard from '@/features/research/components/ResearchCard.vue'
     @filter-group="filterByGroup"
   />
 
-  <!-- Разложено по полкам: полку назвал заголовок раздела -->
+  <!-- Filed into groups: the section heading already names the group -->
   <ResearchCard :research="item" :with-group="false" @open="open(item)" />
 <\/template>`
 </script>
@@ -79,8 +79,8 @@ import ResearchCard from '@/features/research/components/ResearchCard.vue'
           <ResearchCard :research="ungrouped" group-filterable />
         </div>
         <p class="ds-note">
-          Подвал несёт полку и дату обновления. Без полки остаётся одна дата — плашки «без
-          группы» нет, её отсутствие и есть ответ.
+          The footer carries the group and the update date. Without a group, only the date
+          remains — there's no "no group" chip; its absence is the answer.
         </p>
       </section>
 
@@ -91,10 +91,10 @@ import ResearchCard from '@/features/research/components/ResearchCard.vue'
           <ResearchCard :research="filed" />
         </div>
         <p class="ds-note">
-          <code>with-group="false"</code> — плашка полки скрыта: так плитка выглядит в раскладке
-          по группам, где полку уже назвал заголовок раздела. Слева скрыта, справа показана, но
-          <code>group-filterable</code> не задан, поэтому плашка — просто метка: кликом она
-          выставляет фильтр только там, где список ещё не сужен полкой.
+          <code>with-group="false"</code> — the group chip is hidden: that's how the tile looks
+          in a group layout, where the section heading already names the group. Hidden on the
+          left, shown on the right, but <code>group-filterable</code> isn't set, so the chip is
+          just a label: clicking it only sets the filter where the list isn't already narrowed by group.
         </p>
       </section>
 
@@ -105,8 +105,8 @@ import ResearchCard from '@/features/research/components/ResearchCard.vue'
           <ResearchCard :research="bare" group-filterable />
         </div>
         <p class="ds-note">
-          Длинное название переносится, описание режется на 128 символах, а подвал прижат к низу —
-          плитки в ряду заканчиваются одной линией независимо от длины текста.
+          A long title wraps, the description is cut at 128 characters, and the footer is pinned
+          to the bottom — tiles in a row end on the same line regardless of text length.
         </p>
       </section>
 
@@ -114,8 +114,8 @@ import ResearchCard from '@/features/research/components/ResearchCard.vue'
         <h6 class="mb-3">{{ t('design-system.section.research-card.usage') }}</h6>
         <CodeBlock :code="usageSnippet" lang="vue" />
         <p class="ds-note">
-          Плитка только сообщает: куда вести, что перезагружать и какие окна открывать, решает
-          список. Здесь обработчики не заданы, поэтому пункты меню ничего не делают.
+          The tile only reports: where to navigate, what to reload and which dialogs to open is
+          decided by the list. No handlers are set here, so the menu items do nothing.
         </p>
       </section>
     </div>

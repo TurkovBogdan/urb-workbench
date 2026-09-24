@@ -13,7 +13,7 @@ from pydantic import BaseModel
 
 from src.core.router.guards import guard
 from src.modules.core_setup import env_file, restart
-from src.modules.core_setup.keys import FIELD_BY_KEY, FIELDS
+from src.modules.core_setup.keys import FIELD_BY_KEY, FIELDS, GROUP_LABELS
 
 router = APIRouter()
 
@@ -38,7 +38,10 @@ def _groups_payload() -> list[dict[str, Any]]:
                 ),
             }
         )
-    return [{"group": group, "fields": fields} for group, fields in groups.items()]
+    return [
+        {"code": group, "group": GROUP_LABELS[group], "fields": fields}
+        for group, fields in groups.items()
+    ]
 
 
 class _ApplyBody(BaseModel):

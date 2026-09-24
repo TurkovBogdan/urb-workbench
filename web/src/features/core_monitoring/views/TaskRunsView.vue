@@ -7,6 +7,7 @@ import PageLayout from '@/layout/templates/PageLayout.vue'
 import PageHeader from '@/layout/components/PageHeader.vue'
 import TablePaginationBar from '@/components/TablePaginationBar.vue'
 import { DEFAULT_PAGE_SIZE } from '@/constants/pagination'
+import { errorText } from '@/api/errorText'
 import { useTaskLabels } from '../labels'
 import {
   fetchTask,
@@ -35,12 +36,12 @@ const sortBy = ref<string>('started_at')
 const sortDir = ref<'asc' | 'desc'>('desc')
 
 const PAGE_SIZES = [10, 25, 50, 100, 200]
-// running/success/error — значения enum статуса (оставляем литералами); null = все (clearable).
-const STATUS_OPTIONS: { title: string; value: TaskRunInfo['status'] }[] = [
-  { title: 'running', value: 'running' },
-  { title: 'success', value: 'success' },
-  { title: 'error',   value: 'error' },
-]
+// null = все (clearable). Подпись — из словаря по коду статуса, сам код уходит в запрос.
+const RUN_STATUSES: TaskRunInfo['status'][] = ['running', 'success', 'error']
+
+const statusOptions = computed(() =>
+  RUN_STATUSES.map((status) => ({ title: t(`core_monitoring.runs.status.${status}`), value: status })),
+)
 
 const STATUS_COLOR: Record<TaskRunInfo['status'], string> = {
   running: 'info',
@@ -67,7 +68,7 @@ async function loadRuns() {
     logsByRun.value = {}
     logsError.value = {}
   } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e)
+    error.value = errorText(e)
   } finally {
     refreshing.value = false
   }
@@ -89,7 +90,7 @@ async function reload() {
     task.value = await fetchTask(props.module, props.code)
     await loadRuns()
   } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e)
+    error.value = errorText(e)
   } finally {
     loading.value = false
   }
@@ -176,7 +177,7 @@ async function loadRunLogs(runId: number) {
     const items = await fetchTaskRunLogs(props.module, props.code, runId)
     logsByRun.value = { ...logsByRun.value, [runId]: items }
   } catch (e) {
-    logsError.value = { ...logsError.value, [runId]: e instanceof Error ? e.message : String(e) }
+    logsError.value = { ...logsError.value, [runId]: errorText(e) }
   } finally {
     logsLoading.value = { ...logsLoading.value, [runId]: false }
   }
@@ -211,7 +212,7 @@ function fmtPayload(p: Record<string, unknown> | null): string {
       <div class="filter-row">
         <VSelect
           :model-value="statusFilter"
-          :items="STATUS_OPTIONS"
+          :items="statusOptions"
           item-title="title"
           item-value="value"
           :label="t('core_monitoring.runs.filter_status')"
@@ -254,7 +255,7 @@ function fmtPayload(p: Record<string, unknown> | null): string {
         >
           <template #item.status="{ item }">
             <VChip :color="STATUS_COLOR[item.status]" size="small" variant="tonal">
-              {{ item.status }}
+              {{ t(`core_monitoring.runs.status.${item.status}`) }}
             </VChip>
           </template>
 
@@ -281,7 +282,7 @@ function fmtPayload(p: Record<string, unknown> | null): string {
               <td :colspan="columns.length">
                 <div class="d-flex flex-column ga-3 py-3">
                   <div>
-                    <div class="text-caption text-medium-emphasis mb-1">Payload</div>
+                    <div class="text-caption text-medium-emphasis mb-1">{{ t('core_monitoring.runs.payload') }}</div>
                     <pre class="detail-pre font-mono">{{ fmtPayload(item.payload) }}</pre>
                   </div>
                   <div>

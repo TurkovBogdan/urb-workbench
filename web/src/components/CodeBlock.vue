@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { IconCopy, IconCheck, IconListNumbers, IconCode } from '@tabler/icons-vue'
 import { useHighlighter } from '@/composables/useHighlighter'
 
@@ -12,6 +13,7 @@ const props = defineProps<{
   variant?: 'minimal' | 'icon' | 'accent' | 'compact'
 }>()
 
+const { t } = useI18n()
 const { highlight } = useHighlighter()
 
 const html = ref('')
@@ -69,7 +71,7 @@ const numbersShown = () => lineNumbers.value && resolvedVariant() !== 'compact'
         <button
           class="code-block__btn"
           :class="{ 'code-block__btn--active': lineNumbers }"
-          title="Номера строк"
+          :title="t('common.code.line_numbers')"
           @click="toggleLineNumbers"
         >
           <IconListNumbers :size="14" stroke-width="2" />
@@ -77,7 +79,7 @@ const numbersShown = () => lineNumbers.value && resolvedVariant() !== 'compact'
         <button
           class="code-block__btn"
           :class="{ 'code-block__btn--copied': copied }"
-          title="Скопировать"
+          :title="t('common.action.copy')"
           @click="copy"
         >
           <IconCheck v-if="copied" :size="14" stroke-width="2.5" />
@@ -99,7 +101,7 @@ const numbersShown = () => lineNumbers.value && resolvedVariant() !== 'compact'
         :prepend-icon="copied ? IconCheck : IconCopy"
         @click="copy"
       >
-        {{ copied ? 'Скопировано' : 'Копировать' }}
+        {{ copied ? t('common.action.copied') : t('common.action.copy') }}
       </VBtn>
     </div>
 
@@ -115,7 +117,7 @@ const numbersShown = () => lineNumbers.value && resolvedVariant() !== 'compact'
       v-if="resolvedVariant() === 'compact'"
       class="code-block__btn code-block__copy-float"
       :class="{ 'code-block__btn--copied': copied }"
-      title="Скопировать"
+      :title="t('common.action.copy')"
       @click="copy"
     >
       <IconCheck v-if="copied" :size="13" stroke-width="2.5" />

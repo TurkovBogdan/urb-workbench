@@ -145,7 +145,9 @@ async def get_server(code: str, request: Request) -> McpServerDetail:
     servers = _servers(request)
     mcp = servers.get(code)
     if mcp is None:
-        raise ApiError.not_found(f"MCP-сервер {code!r} не найден")
+        raise ApiError.not_found(
+            f"MCP server {code!r} not found", code="core_mcp.server.not_found", params={"code": code}
+        )
     return McpServerDetail(
         code=code,
         name=mcp.name,

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   IconArrowsMinimize,
   IconMaximize,
@@ -21,6 +22,8 @@ import CodeBlock from './CodeBlock.vue'
 // отрисовалось (неизвестный тип, синтаксис за пределами парсера), падает обратно в блок кода:
 // читатель всё равно видит исходник, а тело не ломается.
 const props = defineProps<{ code: string }>()
+
+const { t } = useI18n()
 
 // Движок рендера — 1.6 МБ (почти весь вес — раскладка ELK), поэтому он приезжает отдельным
 // чанком по первой схеме на странице, а не в основном бандле. Промис общий на приложение.
@@ -295,14 +298,14 @@ onBeforeUnmount(() => {
 
   <div v-else-if="!svg" class="diagram-loading">
     <VProgressCircular indeterminate size="16" width="2" />
-    загрузка схемы
+    {{ t('common.diagram.loading') }}
   </div>
 
   <figure v-else class="diagram" :style="frame" @dblclick="open">
     <div class="diagram__preview" v-html="svg" />
     <figcaption class="diagram__hint">
       <IconMaximize :size="13" stroke-width="2" />
-      двойной клик — во весь экран
+      {{ t('common.diagram.open_hint') }}
     </figcaption>
   </figure>
 
@@ -322,28 +325,28 @@ onBeforeUnmount(() => {
         <div class="viewer__canvas" :style="{ transform }" v-html="svg" />
       </div>
 
-      <button class="viewer__btn viewer__close" title="Закрыть (Esc)" @click="fullscreen = false">
+      <button class="viewer__btn viewer__close" :title="t('common.diagram.close')" @click="fullscreen = false">
         <IconX :size="18" stroke-width="2" />
       </button>
 
       <div class="viewer__controls">
-        <button class="viewer__btn" title="Отдалить (−)" @click="zoomCenter(1 / ZOOM_STEP)">
+        <button class="viewer__btn" :title="t('common.diagram.zoom_out')" @click="zoomCenter(1 / ZOOM_STEP)">
           <IconZoomOut :size="17" stroke-width="1.8" />
         </button>
         <span class="viewer__percent">{{ zoomPercent }}%</span>
-        <button class="viewer__btn" title="Приблизить (+)" @click="zoomCenter(ZOOM_STEP)">
+        <button class="viewer__btn" :title="t('common.diagram.zoom_in')" @click="zoomCenter(ZOOM_STEP)">
           <IconZoomIn :size="17" stroke-width="1.8" />
         </button>
         <span class="viewer__divider" />
-        <button class="viewer__btn" title="Вписать (0)" @click="fit">
+        <button class="viewer__btn" :title="t('common.diagram.fit')" @click="fit">
           <IconArrowsMinimize :size="17" stroke-width="1.8" />
         </button>
-        <button class="viewer__btn" title="Исходный размер (1)" @click="actualSize">
+        <button class="viewer__btn" :title="t('common.diagram.actual_size')" @click="actualSize">
           <IconZoomReset :size="17" stroke-width="1.8" />
         </button>
       </div>
 
-      <p class="viewer__legend">колесо — масштаб · пробел с перетаскиванием — перемещение</p>
+      <p class="viewer__legend">{{ t('common.diagram.legend') }}</p>
     </div>
   </VDialog>
 </template>

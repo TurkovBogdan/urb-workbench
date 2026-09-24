@@ -1,3 +1,4 @@
+import { watch } from 'vue'
 import type { RouteLocationNormalized, Router } from 'vue-router'
 import { startNavigationProgress, stopNavigationProgress } from './progress'
 import { dismissHoverTooltips } from './overlays'
@@ -61,4 +62,7 @@ export function setupGuards(router: Router): void {
   })
   // Aborted/failed navigation never reaches afterEach — clear the bar here too.
   router.onError(() => stopNavigationProgress())
+
+  // Switching the language is not a navigation, so afterEach never re-titles the tab.
+  watch(i18n.global.locale, () => applyDocumentTitle(router.currentRoute.value))
 }

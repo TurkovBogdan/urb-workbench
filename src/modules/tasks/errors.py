@@ -20,6 +20,17 @@ STAGE_EVIDENCE_REQUIRED = "stage_evidence_required"
 NOTE_ALREADY_RESOLVED = "note_already_resolved"
 """Запись журнала уже закрыта: переписать разрешение нельзя, журнал дописываемый."""
 
+# Отказы HTTP-слоя: их тоже читает человек. Код ``tasks.<сущность>.<причина>`` интерфейс ищет в
+# ``tasks.error.<сущность>.<причина>``; текст ответа — английский запасной.
+GROUP_NOT_FOUND = "tasks.group.not_found"
+GROUP_DELETED = "tasks.group.deleted"
+GROUP_NOT_DELETED = "tasks.group.not_deleted"
+TASK_NOT_FOUND = "tasks.task.not_found"
+TASK_DELETED = "tasks.task.deleted"
+TASK_NOT_DELETED = "tasks.task.not_deleted"
+STAGE_NOT_FOUND = "tasks.stage.not_found"
+NOTE_NOT_FOUND = "tasks.note.not_found"
+
 
 class TaskRuleError(ValueError):
     """Отказ правила модуля с машинным именем.
@@ -33,4 +44,16 @@ class TaskRuleError(ValueError):
         self.code = code
 
 
-__all__ = ["NOTE_ALREADY_RESOLVED", "STAGE_EVIDENCE_REQUIRED", "TaskRuleError"]
+__all__ = [
+    "GROUP_DELETED",
+    "GROUP_NOT_DELETED",
+    "GROUP_NOT_FOUND",
+    "NOTE_ALREADY_RESOLVED",
+    "NOTE_NOT_FOUND",
+    "STAGE_EVIDENCE_REQUIRED",
+    "STAGE_NOT_FOUND",
+    "TASK_DELETED",
+    "TASK_NOT_DELETED",
+    "TASK_NOT_FOUND",
+    "TaskRuleError",
+]

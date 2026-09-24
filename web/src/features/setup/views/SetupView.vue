@@ -6,9 +6,12 @@ import { IconRefresh, IconDeviceFloppy } from '@tabler/icons-vue'
 import PageLayout from '@/layout/templates/PageLayout.vue'
 import PageHeader from '@/layout/components/PageHeader.vue'
 import SwitchPanel from '@/components/SwitchPanel.vue'
+import { errorText } from '@/api/errorText'
 import { getSetup, applySetup, isBackendUp, type SetupGroup, type SetupField } from '../api'
+import { useSetupLabels } from '../labels'
 
 const { t } = useI18n()
+const { groupTitle, fieldLabel, fieldDescription } = useSetupLabels()
 
 const groups = ref<SetupGroup[]>([])
 // Локальная working-copy: { ENV_KEY: строковое значение }.
@@ -28,7 +31,7 @@ async function load() {
     for (const group of payload.groups)
       for (const field of group.fields) values[field.key] = field.value
   } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e)
+    error.value = errorText(e)
   } finally {
     loading.value = false
   }
@@ -75,7 +78,7 @@ async function apply() {
     restarting.value = true
     await waitForRestart()
   } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e)
+    error.value = errorText(e)
     applying.value = false
   }
 }
@@ -130,12 +133,12 @@ async function apply() {
       <div class="setup-grid">
         <VCard
           v-for="group in groups"
-          :key="group.group"
+          :key="group.code"
           variant="outlined"
           rounded="lg"
           class="setup-card"
         >
-          <VCardTitle class="text-h6">{{ group.group }}</VCardTitle>
+          <VCardTitle class="text-h6">{{ groupTitle(group) }}</VCardTitle>
           <VDivider />
           <VCardText class="d-flex flex-column ga-4">
             <div
@@ -147,7 +150,7 @@ async function apply() {
                 v-if="field.type === 'choice'"
                 v-model="values[field.key]"
                 :items="field.choices"
-                :label="field.label"
+                :label="fieldLabel(field)"
                 :disabled="applying || restarting"
                 density="comfortable"
                 hide-details
@@ -155,15 +158,15 @@ async function apply() {
               <SwitchPanel
                 v-else-if="field.type === 'bool'"
                 :model-value="values[field.key] === 'true'"
-                :title="field.label"
-                :description="field.description"
+                :title="fieldLabel(field)"
+                :description="fieldDescription(field)"
                 :disabled="applying || restarting"
                 @update:model-value="values[field.key] = String($event)"
               />
               <VTextField
                 v-else
                 v-model="values[field.key]"
-                :label="field.label"
+                :label="fieldLabel(field)"
                 :type="field.type === 'int' ? 'number' : field.secret ? 'password' : 'text'"
                 :disabled="applying || restarting"
                 density="comfortable"
@@ -173,7 +176,7 @@ async function apply() {
                 v-if="hasCaptionBelow(field)"
                 class="text-caption text-medium-emphasis mt-1"
               >
-                {{ field.description }}
+                {{ fieldDescription(field) }}
               </span>
             </div>
           </VCardText>

@@ -27,6 +27,9 @@ export interface SetupField {
 }
 
 export interface SetupGroup {
+  /** Machine code of the group — the key of its title in the form dictionary. */
+  code: string
+  /** English fallback title. */
   group: string
   fields: SetupField[]
 }

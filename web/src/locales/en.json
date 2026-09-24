@@ -1,0 +1,272 @@
+{
+  "safe_html": {
+    "tracking_blocked": "Some images and all links are disabled to protect against tracking.",
+    "show_images": "Enable",
+    "empty_body": "(empty)"
+  },
+  "chat": {
+    "composer": {
+      "placeholder": "Write a message…",
+      "send": "Send",
+      "cancel": "Cancel"
+    }
+  },
+  "message": {
+    "view_html": "Layout",
+    "view_text": "Text",
+    "disable_safe": "Turn off safe view",
+    "forwarded": "Forwarded message",
+    "history": "Conversation history"
+  },
+  "home": {
+    "badge": "Experimental project",
+    "title": "Uroboros.Workbench",
+    "lead": "A workbench for a developer and the agent that carries out their work. The person sets a task, the agent runs it over MCP, and everything the agent does shows up here as a page right away. The work stays in the database and outlives the agent's session.",
+    "hint": "Sections are on the left. Start with a workspace: tasks live inside it.",
+    "flow": {
+      "title": "The path of one task",
+      "steps": {
+        "workspace": "Workspace",
+        "brief": "Brief",
+        "plan": "Plan",
+        "stages": "Stages",
+        "handover": "Handover"
+      }
+    },
+    "capabilities": {
+      "mcp": {
+        "title": "Twenty-two tools",
+        "text": "The agent connects over MCP and runs the work with them: creates tasks, writes the plan, closes stages, leaves journal entries. A ready-made connection config is on the “MCP servers” page."
+      },
+      "workspace": {
+        "title": "The workspace is chosen once",
+        "text": "It separates work from personal and one client from another. The agent names it when connecting, and after that no tool takes a workspace as an argument — there is nothing to get wrong in a single call."
+      },
+      "evidence": {
+        "title": "A stage can't be closed with “done”",
+        "text": "Closing requires a pointer to the proof: a command with its result, a file path, a diff summary. A step marked done without a trace makes every step after it reason on something nobody checked."
+      },
+      "journal": {
+        "title": "The journal is append-only",
+        "text": "Decisions, findings and facts stay as written: an entry can be closed once and never rewritten. Changed your mind — that is a new entry, not an edit of the old one."
+      }
+    }
+  },
+  "nav": {
+    "mcp": "MCP",
+    "workspace": "Workspace",
+    "research": "Research",
+    "data": "Data",
+    "tasks": "Tasks",
+    "settings": "Settings",
+    "about": "About",
+    "development": "Development"
+  },
+  "action": {
+    "add": "Add",
+    "back": "Back",
+    "close": "Close",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "save": "Save",
+    "edit": "Edit",
+    "refresh": "Refresh",
+    "more": "More",
+    "copy_code": "Copy code",
+    "copy": "Copy",
+    "copied": "Copied",
+    "previous": "Previous",
+    "next": "Next"
+  },
+  "errors": {
+    "action": {
+      "back": "Back",
+      "home": "Home",
+      "retry": "Retry"
+    },
+    "notFound": {
+      "title": "Page not found",
+      "description": "This page doesn't seem to exist, or it has been moved."
+    },
+    "forbidden": {
+      "title": "Access denied",
+      "description": "This section isn't available to you right now. Go back or open the home page."
+    },
+    "failure": {
+      "title": "Something broke",
+      "description": "A failure on our side. Try again — if that doesn't help, restart the server."
+    },
+    "offline": {
+      "title": "No connection to the server",
+      "description": "The app couldn't reach the backend. Check that the server is running and try again."
+    },
+    "section": {
+      "missing": "Not found",
+      "failed": "Couldn't load"
+    },
+    "generic": "The request failed",
+    "stage_evidence_required": "A stage can't be closed without evidence: say what proves it is done — a command and its result, a file path, a diff summary.",
+    "note_already_resolved": "The entry is already closed. The journal is append-only: if the decision has changed, add a new entry.",
+    "network": "No connection to the server",
+    "timeout": "The server didn't respond in time",
+    "protocol": "The server's response isn't what the app expects",
+    "throttled": "Too many requests — wait a moment",
+    "throttled_wait": "Too many requests — try again in {seconds} s",
+    "route_closed": "The route is closed",
+    "validation_error": "The data didn't pass validation",
+    "internal_error": "Internal server error"
+  },
+  "task_status": {
+    "button": "Task status",
+    "title": "Task status"
+  },
+  "task_panel": {
+    "run": "Run",
+    "queued": "Queued",
+    "running": "Already running",
+    "never": "never run",
+    "completed": "Last successful run: {rel}",
+    "not_completed": "no successful runs yet"
+  },
+  "pagination": {
+    "of": "of",
+    "per_page": "Per page"
+  },
+  "members_cell": {
+    "hint": "Click to apply the filter"
+  },
+  "file_card": {
+    "safe": "The file is safe",
+    "warning": "Risky file",
+    "untrusted": "Not trusted",
+    "fallback_name": "File"
+  },
+  "file_type": {
+    "document": "Documents",
+    "table": "Spreadsheets",
+    "presentation": "Presentations",
+    "video": "Video",
+    "archive": "Archives",
+    "image": "Images",
+    "text": "Text",
+    "email": "Email",
+    "key": "Keys",
+    "font": "Fonts",
+    "other": "Other"
+  },
+  "prefs": {
+    "auto": "Auto",
+    "language": "Language",
+    "timezone": "Time zone",
+    "date_format": "Date format",
+    "search": "Search…",
+    "not_found": "Nothing found"
+  },
+  "date": {
+    "just_now": "just now",
+    "today": "today",
+    "yesterday": "yesterday",
+    "days_ago": "{n} d ago",
+    "in_days": "in {n} d"
+  },
+  "mcp": {
+    "connection": "Connection",
+    "description": "Description",
+    "tools": "Tools",
+    "tools_empty": "The server provides no tools",
+    "no_description": "No description",
+    "input_schema": "Input schema",
+    "output_schema": "Output schema"
+  },
+  "icon_picker": {
+    "search": "Search by icon code",
+    "empty": "No icons for “{query}”"
+  },
+  "color_picker": {
+    "none": "No color"
+  },
+  "editor": {
+    "placeholder": "Type / for commands…",
+    "placeholder_plain": "Start typing…",
+    "slash": {
+      "paragraph": "Text",
+      "h1": "Heading 1",
+      "h2": "Heading 2",
+      "h3": "Heading 3",
+      "bulletList": "Bulleted list",
+      "orderedList": "Numbered list",
+      "taskList": "Checklist",
+      "quote": "Quote",
+      "codeBlock": "Code block",
+      "divider": "Divider",
+      "table": "Table"
+    },
+    "toolbar": {
+      "block_type": "Block type",
+      "bold": "Bold",
+      "italic": "Italic",
+      "strike": "Strikethrough",
+      "code": "Code",
+      "link": "Link",
+      "unlink": "Remove",
+      "apply": "Apply",
+      "clear_formatting": "Clear formatting",
+      "list": "List",
+      "bullet": "Bulleted",
+      "ordered": "Numbered",
+      "entity_ref": "Entity link",
+      "insert": "Insert"
+    },
+    "move": {
+      "handle": "Move block",
+      "start": "To the top of the document",
+      "up": "Move up",
+      "down": "Move down",
+      "end": "To the end of the document",
+      "announce": "Block moved to position {position} of {total}"
+    },
+    "table": {
+      "column_after": "Column to the right",
+      "column_delete": "Delete column",
+      "row_after": "Row below",
+      "row_delete": "Delete row",
+      "align_default": "Default alignment",
+      "align_left": "Align left",
+      "align_center": "Align center",
+      "align_right": "Align right",
+      "delete": "Delete table"
+    }
+  },
+  "code": {
+    "line_numbers": "Line numbers"
+  },
+  "diagram": {
+    "loading": "loading diagram",
+    "open_hint": "double-click for full screen",
+    "close": "Close (Esc)",
+    "zoom_out": "Zoom out (−)",
+    "zoom_in": "Zoom in (+)",
+    "fit": "Fit (0)",
+    "actual_size": "Actual size (1)",
+    "legend": "wheel — zoom · space + drag — pan"
+  },
+  "chart": {
+    "value": "Value"
+  },
+  "continent": {
+    "AF": "Africa",
+    "AS": "Asia",
+    "EU": "Europe",
+    "NA": "N. America",
+    "OC": "Oceania",
+    "SA": "S. America"
+  },
+  "validation": {
+    "slug": "Only a-z, 0-9, hyphen and underscore"
+  },
+  "duration": {
+    "ms": "{n} ms",
+    "sec": "{n} s",
+    "min_sec": "{min} min {sec} s"
+  }
+}

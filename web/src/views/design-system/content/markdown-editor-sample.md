@@ -1,46 +1,46 @@
-Этап 4 — переделка того, КАК лицензия получает свои величины. Перед правками здесь записано, как
-всё устроено на 17.09.2026: сверено по коду, адреса указаны. Открытые вопросы и блокеры лежат
-отдельно — `NOTE@271f8e548f`; журнал сделанного — `NOTE@a3d1815018`.
+Stage 4 — reworking HOW the license gets its values. Before making changes, this records how
+everything works as of 2026-09-17: checked against the code, addresses given. Open questions and
+blockers live separately — `NOTE@271f8e548f`; the journal of what's been done — `NOTE@a3d1815018`.
 
-## Схема в двух половинах
+## The scheme in two halves
 
-Покупка разорвана во времени: сначала ОФОРМЛЕНИЕ (клиент нажал, заказ записан, деньги ещё не
-пришли), потом ИСПОЛНЕНИЕ (деньги пришли, лицензия изменена). Между ними могут пройти недели —
-инвойс живёт 30 дней.
+The purchase is split across time: first CHECKOUT (the client clicked, the order is recorded,
+money hasn't arrived yet), then FULFILLMENT (money arrived, the license changed). Weeks can pass
+between them — an invoice lives for 30 days.
 
 ```
-ОФОРМЛЕНИЕ
-  витрина            GET  /spa/projects/{code}/tariffs
+CHECKOUT
+  storefront         GET  /spa/projects/{code}/tariffs
                      └─ TariffResolver::forLicense()  → [TariffOffer, …]
-  клик               POST /spa/projects/{code}/orders  {tariff, expected_price, expected_limits}
-                     └─ CreateOrderRequest::intent()  → PurchaseIntent (снимок того, что видел клиент)
+  click              POST /spa/projects/{code}/orders  {tariff, expected_price, expected_limits}
+                     └─ CreateOrderRequest::intent()  → PurchaseIntent (a snapshot of what the client saw)
                         └─ OrderCheckout::create()
-                           ├─ TariffResolver::forTariff()      — что продаётся СЕЙЧАС
-                           ├─ mismatches(offer, intent)        — разошлось → 409, заказа нет
-                           ├─ resume()/sells()                 — живой черновик того же намерения
-                           ├─ store()                          — строка заказа + снимок license_before
-                           └─ handToPaySystem()                — транзакция txn_… у Paddle
+                           ├─ TariffResolver::forTariff()      — what's being sold NOW
+                           ├─ mismatches(offer, intent)        — mismatch → 409, no order
+                           ├─ resume()/sells()                 — live draft of the same intent
+                           ├─ store()                          — order row + license_before snapshot
+                           └─ handToPaySystem()                — txn_… transaction at Paddle
 
-ИСПОЛНЕНИЕ
-  вебхук/разбор      OrderService::…  либо BillingIncidents (решение человека по инциденту)
+FULFILLMENT
+  webhook/parsing    OrderService::…  or BillingIncidents (human decision on an incident)
                      └─ OrderCompletion::complete()
                         └─ applyToLicense()
                            └─ LicenseManager::applyPurchase()
                               ├─ takeMoney(): LicenseSubscribe | LicenseUpgrade | LicenseRenew
                               │   └─ LicenseAction::applyLicenseChanges($tariff->limits($overrides))
-                              │      → пишет колонки licenses.limit_* + limits_version + строку журнала
-                              └─ LicenseKeyManager::syncKeys() — добить ключи до limit_instances
+                              │      → writes the licenses.limit_* columns + limits_version + a journal row
+                              └─ LicenseKeyManager::syncKeys() — top up keys to limit_instances
 ```
 
-⚠️ Ключевой факт всей схемы: **величины в лицензию приходят из СПРАВОЧНИКА в момент оплаты, а не из
-снимка заказа**. Снимок отдаёт ровно одну величину — число инстансов.
+⚠️ The key fact of the whole scheme: **the values in the license come from the CATALOG at the
+moment of payment, not from the order snapshot**. The snapshot hands over exactly one value — the instance count.
 
-## Каталог тарифов сегодня
+## Today's tariff catalog
 
-`Modules/License/app/Enums/LicenseTariff.php` — закрытый енам из пяти кейсов и единственный источник
-величин; докблок это и объявляет.
+`Modules/License/app/Enums/LicenseTariff.php` — a closed enum of five cases and the single source
+of values; the docblock states exactly that.
 
-| Тариф | users | runners | instances | nodes | resources | rank |
+| Tariff | users | runners | instances | nodes | resources | rank |
 |---|---|---|---|---|---|---|
 | `community` | null | null | null | null | null | 0 |
 | `pro1` | 1 | 1 | 1 | null | null | 10 |
@@ -48,164 +48,164 @@
 | `pro10` | 10 | 10 | 1 | null | null | 30 |
 | `enterprise_core` | 1 000 000 | 1 000 000 | 1 | null | null | 40 |
 
-- `limits(array $overrides)` (`:124-144`) собирает ровно пять ключей под именами колонок
-  `licenses.limit_*` и кидает `UnknownLicenseLimitException` на незнакомый ключ. Через него проходят
-  ВСЕ выдачи: покупка, апгрейд, смена плана, старт пробы, чекаут, витрина, админский каталог, стенд.
-- `nodesLimit()` и `resourcesLimit()` возвращают `null` всегда — инфраструктуру каталог не назначает.
-  `instancesLimit()` = 1 у любого платного. `UNLIMITED = 1 000 000` — то, чем выражается «без
-  ограничения», когда число обязано быть названо.
-- Старшинство одномерно: `rank()` + `isAbove()`, `ranked()` задаёт и порядок витрины.
+- `limits(array $overrides)` (`:124-144`) assembles exactly five keys under the column names
+  `licenses.limit_*` and throws `UnknownLicenseLimitException` on an unknown key. ALL issuances
+  go through it: purchase, upgrade, plan change, trial start, checkout, storefront, admin catalog, stand.
+- `nodesLimit()` and `resourcesLimit()` always return `null` — the catalog does not assign
+  infrastructure. `instancesLimit()` = 1 for any paid tier. `UNLIMITED = 1 000 000` — how
+  "unlimited" is expressed when a number has to be named.
+- Precedence is one-dimensional: `rank()` + `isAbove()`, `ranked()` also sets the storefront order.
 
-**Цена лежит НЕ здесь.** `LicenseTariffPrice::forTariff()` матчит кейс на строку конфига
-`billing.tariffs.pro{1,4,10}` (`BILLING_TARIFF_PRO*_PRICE`, `_PRICE_ID`, `_PRODUCT_ID`);
-`community` и `enterprise_core` цены не имеют вовсе — `null`. Авторитетна сумма у Paddle, наша
-копия нужна, чтобы каталог читался без сетевого вызова.
+**The price does NOT live here.** `LicenseTariffPrice::forTariff()` matches the case against a config
+row `billing.tariffs.pro{1,4,10}` (`BILLING_TARIFF_PRO*_PRICE`, `_PRICE_ID`, `_PRODUCT_ID`);
+`community` and `enterprise_core` have no price at all — `null`. The Paddle amount is authoritative,
+our copy exists so the catalog can be read without a network call.
 
-**Оффер** собирает `TariffResolver::makeOffer()` (`:62-94`) и отдаёт `TariffOffer` — валюта, цена,
-списочная цена, `pri_…`/`pro_…`, тип покупки, срок и предпросмотр новой даты окончания. Тип покупки
-решает `purchaseTypeFor()` (`:142-179`) по двум осям — коммерческий этап лицензии и отношение
-тарифов: не куплено → `subscription`; тот же тариф → `renewal`; не выше текущего → `null` (кнопки
-нет); истёк или хвост периода короче `billing.upgrade.min_days` → `subscription`; иначе `upgrade`.
-Доплату за апгрейд считает `UpgradeChargeResolver::for()` — разница каталожных цен за
-неиспользованный остаток года, округление вверх до целого доллара.
+**The offer** is assembled by `TariffResolver::makeOffer()` (`:62-94`) and returns a `TariffOffer` —
+currency, price, list price, `pri_…`/`pro_…`, purchase type, term and a preview of the new expiry
+date. The purchase type is decided by `purchaseTypeFor()` (`:142-179`) along two axes — the
+license's commercial stage and the tariff relationship: not purchased → `subscription`; same tariff
+→ `renewal`; not above the current one → `null` (no button); expired, or the remaining period is
+shorter than `billing.upgrade.min_days` → `subscription`; otherwise `upgrade`. The upgrade surcharge is computed by `UpgradeChargeResolver::for()` — the difference in catalog prices for the unused
+remainder of the year, rounded up to a whole dollar.
 
-## Оформление: что записывается в заказ
+## Checkout: what gets written to the order
 
-`CreateOrderRequest` — единственное место перевода имён с провода (`users`, `runners`, `instances`,
-`nodes`, `resources`) на колонки (`limit_*`); `PurchaseIntent` — снимок того, что видел клиент, и
-он НИЧЕГО не решает.
+`CreateOrderRequest` is the single place that translates wire names (`users`, `runners`, `instances`,
+`nodes`, `resources`) into columns (`limit_*`); `PurchaseIntent` is a snapshot of what the client
+saw, and it decides NOTHING.
 
-`OrderCheckout::mismatches()` (`:525-557`) сверяет четыре вещи: тип покупки, цену, валюту и
-**`$offer->purchaseTariff->limits() !== $intent->limits`** — строгое сравнение массивов целиком.
-Разошлось — `OfferMismatchException` и 409, заказа нет. ⚠️ Отсюда правило прошлых этапов: состав
-ключей меняется ОДНИМ заходом по всей цепочке.
+`OrderCheckout::mismatches()` (`:525-557`) checks four things: purchase type, price, currency and
+**`$offer->purchaseTariff->limits() !== $intent->limits`** — a strict comparison of the whole
+arrays. A mismatch — `OfferMismatchException` and 409, no order. ⚠️ Hence the rule from earlier
+stages: the set of keys changes in ONE pass across the whole chain.
 
-`store()` (`:567-609`) пишет строку заказа; величины берутся у ТАРИФА, не у оффера и не у интента:
+`store()` (`:567-609`) writes the order row; the values are taken from the TARIFF, not from the offer and not from the intent:
 
-| Колонка заказа | Источник |
+| Order column | Source |
 |---|---|
 | `license_type`, `license_tariff` | `$tariff->type()`, `$tariff->value` |
-| `license_users`, `license_runners`, `license_instances`, `license_nodes`, `license_resources` | `$tariff->*Limit()` поштучно |
+| `license_users`, `license_runners`, `license_instances`, `license_nodes`, `license_resources` | `$tariff->*Limit()` one by one |
 | `limits_version` | `Order::LIMITS_VERSION` (2.0) |
-| `license_term_months` | `$offer->termMonths` (12 или `null` у апгрейда) |
+| `license_term_months` | `$offer->termMonths` (12, or `null` for an upgrade) |
 | `amount`, `currency` | `$offer->price`, `$offer->currency` |
-| `purchase_stage`, `created_by`, `license_before` | ставятся мимо `$fillable` |
+| `purchase_stage`, `created_by`, `license_before` | set outside `$fillable` |
 
-`license_before` — снимок лицензии ДО покупки (`licenseSnapshot()`, `:614-628`): тип, тариф, статус,
-все пять величин и срок. Это АУДИТ, логика его не читает.
+`license_before` is a snapshot of the license BEFORE the purchase (`licenseSnapshot()`, `:614-628`):
+type, tariff, status, all five values and the term. This is an AUDIT trail, the logic never reads it.
 
-`resume()`/`sells()` (`:99-170`) возвращают живой черновик того же человека под то же намерение.
-`sells()` сверяет тип покупки, тариф, сумму, валюту и пять величин против каталога; эпоху не
-сверяет — отсюда открытый вопрос о черновике прежней эпохи.
+`resume()`/`sells()` (`:99-170`) return a live draft of the same person under the same intent.
+`sells()` checks purchase type, tariff, amount, currency and the five values against the catalog;
+it does not check the epoch — hence the open question about a draft from a previous epoch.
 
-## Исполнение: что применяется к лицензии
+## Fulfillment: what gets applied to the license
 
-`OrderCompletion::complete()` — две двери: обычная доставка события (`OrderService`) и решение
-человека по инциденту (`BillingIncidents`). Сторожа: пропавшая лицензия, открытый инцидент,
-`processed_at` под замком строки.
+`OrderCompletion::complete()` — two doors: the regular event delivery (`OrderService`) and a human
+decision on an incident (`BillingIncidents`). Guards: a missing license, an open incident,
+`processed_at` under a row lock.
 
-`applyToLicense()` (`:115-127`) — сердце этапа:
+`applyToLicense()` (`:115-127`) — the heart of the stage:
 
 ```php
 $this->licenses->applyPurchase(
     $license,
     LicenseTariff::from($order->license_tariff),
-    $order->license_instances,     // ← единственная величина из снимка
+    $order->license_instances,     // ← the only value coming from the snapshot
     $order->license_term_months,
     $order->purchase_type === PurchaseType::Renewal,
     $order->creator,
 );
 ```
 
-`LicenseManager::applyPurchase()` превращает это в `$limits = ['limit_instances' => $instances]`
-(`:73`) и зовёт `takeMoney()`, где три двери:
+`LicenseManager::applyPurchase()` turns this into `$limits = ['limit_instances' => $instances]`
+(`:73`) and calls `takeMoney()`, where there are three doors:
 
-| Условие | Действие | Что делает с величинами |
+| Condition | Action | What it does with the values |
 |---|---|---|
-| `termMonths === null` | `LicenseUpgrade` | `$tariff->limits($limits)` — ПЕРЕЗАПИСЬ из каталога |
-| `renewal === true` | `LicenseRenew` | величины не трогает вовсе (правило объявлено в коде) |
-| иначе | `LicenseSubscribe` | `$tariff->limits($limits)` — ПЕРЕЗАПИСЬ из каталога |
+| `termMonths === null` | `LicenseUpgrade` | `$tariff->limits($limits)` — OVERWRITE from the catalog |
+| `renewal === true` | `LicenseRenew` | doesn't touch the values at all (the rule is stated in the code) |
+| otherwise | `LicenseSubscribe` | `$tariff->limits($limits)` — OVERWRITE from the catalog |
 
-Дальше общий низ: `LicenseAction::applyLicenseChanges()` пишет колонки, дописывает
-`limits_version = 2.0` (правило этапа 2) и кладёт диф в журнал; `LicenseKeyManager::syncKeys()`
-добивает число ключей до `limit_instances`, излишек не срезает.
+Then a shared bottom layer: `LicenseAction::applyLicenseChanges()` writes the columns, appends
+`limits_version = 2.0` (the rule from stage 2) and puts the diff in the journal;
+`LicenseKeyManager::syncKeys()` tops keys up to `limit_instances`, it doesn't trim a surplus.
 
-⚠️ Из этого следует вся боль этапа: **купленные ноды, ресурсы, места и раннеры до лицензии не
-доезжают** — доезжает только тариф и число инстансов. Пока каталог и есть конфигурация, это
-незаметно; с повеличинным тарифом это молчаливая потеря покупки.
+⚠️ This is where all the stage's pain comes from: **purchased nodes, resources, seats and runners
+never reach the license** — only the tariff and the instance count do. As long as the catalog is
+the configuration, this goes unnoticed; with a per-value tariff it's a silent loss of the purchase.
 
-Рядом те же величины пишут `LicenseChangePlan` (админская смена плана,
-`ChangeLicensePlanRequest::LIMITS` пять ключей) и `TrialStart` (выдача пробы) — оба через тот же
-`limits($overrides)`.
+Nearby, the same values are written by `LicenseChangePlan` (admin plan change,
+`ChangeLicensePlanRequest::LIMITS`, five keys) and `TrialStart` (trial issuance) — both through the
+same `limits($overrides)`.
 
-## Где величины живут
+## Where the values live
 
-| Слой | Имена | Кто пишет |
+| Layer | Names | Who writes |
 |---|---|---|
-| Лицензия | `licenses.limit_users/runners/instances/nodes/resources` + `limits_version` | только действия `Modules/License/app/Actions/**` |
-| Заказ | `billing_orders.license_*` + `limits_version` + `license_before` | `OrderCheckout::store()`, демо — `InvoiceLedger` |
-| Провод | `users`, `runners`, `instances`, `nodes`, `resources` | ресурсы чтения и `CreateOrderRequest` |
-| Токен движка | claim `users`, `nodes`, `resources`, `runners`, `uis` | `SubscriptionLicenseToken` |
+| License | `licenses.limit_users/runners/instances/nodes/resources` + `limits_version` | only actions in `Modules/License/app/Actions/**` |
+| Order | `billing_orders.license_*` + `limits_version` + `license_before` | `OrderCheckout::store()`, demo — `InvoiceLedger` |
+| Wire | `users`, `runners`, `instances`, `nodes`, `resources` | read resources and `CreateOrderRequest` |
+| Engine token | claim `users`, `nodes`, `resources`, `runners`, `uis` | `SubscriptionLicenseToken` |
 
-## Что будем править и почему
+## What we'll change and why
 
-**1. Каталог перестаёт быть источником конфигурации.** `LicenseTariff` остаётся справочником
-уровней (community / pro / enterprise) и тем, что от уровня действительно зависит, но пять величин
-для pro должны приходить из ВЫБОРА клиента, а не из кейса енама. Отсюда: ступени инфраструктуры и
-надбавки в конфиг, `nodesLimit()`/`resourcesLimit()`/`instancesLimit()` перестают быть константами
-кейса.
+**1. The catalog stops being the source of configuration.** `LicenseTariff` remains the reference
+for tiers (community / pro / enterprise) and for what genuinely depends on the tier, but the five
+values for pro must come from the client's CHOICE, not from the enum case. Hence: infrastructure
+tiers and surcharges move into config, and `nodesLimit()`/`resourcesLimit()`/`instancesLimit()`
+stop being constants of the case.
 
-**2. Оффер учится нести конфигурацию и её цену.** `TariffOffer` сегодня адресуется кейсом
-(`purchaseTariff`), цена берётся из `LicenseTariffPrice` по этому кейсу. Нужна либо ступень как
-отдельная ось оффера, либо кейс `custom` с ценой, посчитанной калькулятором. Затрагивает
-`TariffResolver::makeOffer()`, `LicenseTariffPrice`, `TariffOfferResource` и витрину.
+**2. The offer learns to carry a configuration and its price.** `TariffOffer` today is addressed
+by case (`purchaseTariff`), and the price is taken from `LicenseTariffPrice` for that case. What's
+needed is either a tier as a separate axis of the offer, or a `custom` case with a price computed
+by a calculator. This touches `TariffResolver::makeOffer()`, `LicenseTariffPrice`, `TariffOfferResource` and the storefront.
 
-**3. Сравнение конфигураций вместо `rank()`.** `purchaseTypeFor()` различает продление и апгрейд
-через равенство кейсов и `isAbove()`. Пять величин одним числом не сравниваются: нужен предикат
-«покрывает ли новая конфигурация старую» и правило смешанного случая (нод больше, мест меньше).
-Тот же `rank()` держит запрет понижения и порядок витрины.
+**3. Comparing configurations instead of `rank()`.** `purchaseTypeFor()` distinguishes renewal from
+upgrade via case equality and `isAbove()`. Five values can't be compared as a single number: we
+need a predicate "does the new configuration cover the old one" and a rule for the mixed case (more
+nodes, fewer seats). The same `rank()` still holds the downgrade ban and the storefront order.
 
-**4. Сверка витрины идёт по конфигурации.** `mismatches()` сравнивает
-`$offer->purchaseTariff->limits()` с интентом — то есть каталог с каталогом. Сравнивать придётся
-конфигурацию оффера с конфигурацией интента; строгое сравнение массивов оставить — оно ловит
-расхождение витрины и сервера.
+**4. Storefront reconciliation goes by configuration.** `mismatches()` compares
+`$offer->purchaseTariff->limits()` against the intent — that is, catalog against catalog. It will
+have to compare the offer's configuration against the intent's configuration; keep the strict array
+comparison — it catches a mismatch between the storefront and the server.
 
-**5. Заказ пишет то, что купили.** `store()` берёт величины у тарифа поштучно — заменить на
-величины оффера/конфигурации. Колонки под это уже есть, менять схему не нужно.
+**5. The order writes what was actually bought.** `store()` takes values from the tariff one by one
+— replace this with the offer's/configuration's values. The columns for this already exist, no schema change is needed.
 
-**6. Оплата применяет СНИМОК, а не справочник.** `applyToLicense()` передаёт одну величину —
-должен передавать все пять; `LicenseManager::applyPurchase()` принимает `?int $instances` — должен
-принимать массив величин и класть его в `$tariff->limits($overrides)` целиком. Это же закрывает два
-известных дефекта: перезапись договорных инстансов покупкой
-(`work/audit/problems/2026-09-04-purchase-resets-contract-instances.md`) и стирание нод с ресурсами
-при админской смене плана.
+**6. Payment applies the SNAPSHOT, not the catalog.** `applyToLicense()` passes a single value — it
+must pass all five; `LicenseManager::applyPurchase()` accepts `?int $instances` — it must accept an
+array of values and put it into `$tariff->limits($overrides)` whole. This also closes two known
+defects: a purchase overwriting contractual instances
+(`work/audit/problems/2026-09-04-purchase-resets-contract-instances.md`) and nodes and resources
+being wiped on an admin plan change.
 
-**7. Продление остаётся без величин.** `LicenseRenew` их не трогает намеренно; при повеличинной
-модели это правило надо подтвердить ЯВНО — иначе продление законсервирует старую конфигурацию, а
-клиент будет думать, что купил новую.
+**7. Renewal stays without values.** `LicenseRenew` deliberately doesn't touch them; under a
+per-value model this rule needs to be confirmed EXPLICITLY — otherwise a renewal will freeze the
+old configuration while the client thinks they bought a new one.
 
-**8. Ключи следуют за инстансами.** `syncKeys()` чеканит ключи до `limit_instances`; с тремя
-инстансами в Pro это заработает само, но проверить надо — сегодня у платного всегда единица.
+**8. Keys follow instances.** `syncKeys()` mints keys up to `limit_instances`; with three instances
+on Pro this will work on its own, but it needs checking — today a paid tier always has exactly one.
 
-**9. Формы и витрина.** `AdminLicenseEditor::REQUIRED_LIMIT_KEYS` держит три величины из пяти
-именно потому, что каталог по нодам и ресурсам молчит: с ценой от величин список обязан стать
-полным. Клиентский экран Plan показывает три величины и фиксированный список тарифов — там
-появляется калькулятор.
+**9. Forms and the storefront.** `AdminLicenseEditor::REQUIRED_LIMIT_KEYS` holds three of the five
+values precisely because the catalog stays silent on nodes and resources: once price depends on the
+values, the list has to become complete. The client-facing Plan screen shows three values and a
+fixed list of tariffs — that's where the calculator appears.
 
-## Чего этап НЕ трогает
+## What the stage does NOT touch
 
-Токен и его claim'ы (форма контракта с движком уже готова), журнал лицензии и его оси, эпоху
-лимитов (правило этапа 2 работает как есть), подписки и рекуррентные платежи Paddle, енфорсмент на
-стороне движка — claim `resources` `pro_impl` по-прежнему не читает.
+The token and its claims (the contract shape with the engine is already in place), the license
+journal and its axes, the limits epoch (the rule from stage 2 works as is), Paddle subscriptions and
+recurring payments, engine-side enforcement — the `resources` claim is still not read by `pro_impl`.
 
-## Ловушки, за которые уже платили
+## Traps already paid for
 
-- **Строгое сравнение массивов лимитов** в `mismatches()` и `sells()`: разный СОСТАВ ключей = 409 на
-  каждой покупке. Менять состав только одним заходом по всей цепочке.
-- **Цену считает ровно одно место** — каталог; чекаут её не пересчитывает. Второй расчёт разойдётся
-  с витриной, это болезнь легаси, названная в докблоке `OrderCheckout`.
-- **Заказ в полёте переживает выкладку** только потому, что величины берутся из справочника в момент
-  оплаты. Как только источником станет снимок — заказ, оформленный до смены модели, начнёт применять
-  СВОЙ состав величин; ровно за этим и заведена `limits_version` у заказа.
-- **`applyPurchase()` держит правило «апгрейда с триала не бывает»** и кидает
-  `TrialAlreadyRunningException` — при переделке сигнатуры его нельзя потерять.
+- **Strict array comparison of limits** in `mismatches()` and `sells()`: a different SET of keys =
+  409 on every purchase. Change the set only in one pass across the whole chain.
+- **Exactly one place computes the price** — the catalog; checkout does not recompute it. A second
+  computation would drift from the storefront; this is a legacy ailment, named in the `OrderCheckout` docblock.
+- **An in-flight order survives a deploy** only because the values are taken from the catalog at the
+  moment of payment. As soon as the snapshot becomes the source — an order placed before the model
+  change will start applying ITS OWN set of values; that's exactly why the order has `limits_version`.
+- **`applyPurchase()` holds the rule "no upgrading from a trial"** and throws
+  `TrialAlreadyRunningException` — it must not be lost when the signature is reworked.

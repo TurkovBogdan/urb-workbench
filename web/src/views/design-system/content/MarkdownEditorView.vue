@@ -25,19 +25,19 @@ const body = ref(SAMPLE)
 // гоняются круговым проходом ниже, — но сесть в ячейку и потрогать колонки посреди тела на две
 // сотни строк неудобно. Здесь всё на экране разом: выравнивание по трём колонкам, пустая
 // ячейка, `|` внутри кода и код сущности в ячейке.
-const TABLE_SAMPLE = `| Конструкция | Правка | Печать обратно |
+const TABLE_SAMPLE = `| Construct | Editable | Printed back |
 | --- | :---: | ---: |
-| Заголовок | да | одна строка |
-| Таблица | да | шапка, разделитель, ряды |
-| Картинка | нет |  |
-| Экранирование | \`a \\| b\` | AREA@0123456789 |
+| Heading | yes | single line |
+| Table | yes | header, separator, rows |
+| Image | no |  |
+| Escaping | \`a \\| b\` | AREA@0123456789 |
 `
 
 const tableBody = ref(TABLE_SAMPLE)
 
 // Простой режим: то, чем правят короткое поле — название этапа, подпись, однострочную заметку.
 // Предел взят маленьким нарочно, чтобы до красного счётчика доходило за пару фраз.
-const SIMPLE_SAMPLE = 'Короткое поле: **жирный** и *курсив* есть, всего остального — нет.'
+const SIMPLE_SAMPLE = 'Short field: **bold** and *italic* are supported, nothing else is.'
 
 const simpleBody = ref(SIMPLE_SAMPLE)
 const SIMPLE_LIMIT = 120
