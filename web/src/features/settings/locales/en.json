@@ -1,0 +1,189 @@
+{
+  "nav": "Settings",
+  "page": {
+    "title": "Module settings",
+    "description": "Parameters of the modules in this build. Changes take effect after saving. No module declares configurable parameters right now — the page stays empty until one does."
+  },
+  "action": {
+    "discard": "Discard",
+    "save": "Save"
+  },
+  "error": {
+    "save_failed": "Some settings couldn't be saved — see the field errors."
+  },
+  "module": {
+    "no_fields": "This module has no user settings."
+  },
+  "language": {
+    "title": "Interface language",
+    "description": "Applied immediately, saved in this browser"
+  },
+  "interface": {
+    "group": {
+      "app": {
+        "title": "Interface",
+        "description": "How the app itself looks and behaves: interface language, theme and font."
+      },
+      "document": {
+        "title": "Document appearance",
+        "description": "How the reading zone is set — bodies of tasks, plan stages and journal entries. The interface around it is not affected."
+      },
+      "code": {
+        "title": "Code block appearance",
+        "description": "Code blocks inside document bodies: what they are set in and how they read next to the text."
+      },
+      "diagram": {
+        "title": "Diagrams",
+        "description": "Diagrams inside document bodies: what the labels are set in, how the diagram sits in the text and how tall it may be."
+      }
+    },
+    "page": {
+      "title": "Interface settings",
+      "description": "How the app looks. Stored on the server and applied immediately — no need to save."
+    },
+    "sync": {
+      "failed": "Couldn't save the interface settings — we'll try again."
+    },
+    "language": {
+      "label": "Language",
+      "description": "Interface language: labels, messages, date format. Text written in tasks is not translated."
+    },
+    "theme": {
+      "label": "Theme",
+      "description": "Light or dark scheme. “System” switches along with the operating system setting."
+    },
+    "font": {
+      "interface": {
+        "label": "Interface font",
+        "description": "Navigation, tables, forms, page titles — text that is scanned."
+      },
+      "reading": {
+        "label": "Text font",
+        "description": "Bodies of tasks, plan stages and journal entries — text that is read through."
+      },
+      "heading": {
+        "label": "Heading font",
+        "description": "Typeface for headings of every level. By default it is the text font; a separate typeface makes sense when headings should read as a different voice rather than as large text."
+      },
+      "mono": {
+        "label": "Code font",
+        "description": "Code blocks, inline code and technical labels — everywhere letters must sit on a grid."
+      },
+      "diagram": {
+        "label": "Diagram font",
+        "description": "Labels inside diagrams. The layout measures block widths with Inter metrics — with another typeface a long label may not fit."
+      }
+    },
+    "diagram": {
+      "theme": {
+        "label": "Diagram palette",
+        "description": "“System” draws the diagram in the app's colors and switches along with its theme. A ready-made palette brings its own background and stays the same whether the app is light or dark."
+      },
+      "align": {
+        "label": "Diagram position",
+        "description": "Text is limited by the reading column, diagrams are not. Aligned left, a diagram lines up with the paragraphs."
+      },
+      "height": {
+        "label": "Diagram height",
+        "description": "Height cap inside a document body: a taller diagram is scaled down. It is examined in full screen anyway — by double click.",
+        "unlimited": "No limit"
+      }
+    },
+    "size": {
+      "reading": {
+        "label": "Text size",
+        "description": "Base size of the reading zone. Headings, code and tables inside it scale along."
+      },
+      "code": {
+        "label": "Code block font size",
+        "description": "Listing size in document bodies. Monospace looks larger than text at the same size, so the block usually sits one step lower. Line numbers and padding inside the block follow."
+      }
+    },
+    "weight": {
+      "reading": {
+        "label": "Text weight",
+        "description": "Weight of the text in the reading zone. Headings and emphasis inside keep their own weight. Not every typeface has weights lighter than regular — there 100–300 render as 400."
+      },
+      "heading": {
+        "label": "Heading weight",
+        "description": "Weight of headings of every level. Sections read through the contrast with the text weight — the smaller it is, the more even the page and the harder it is to find where a section starts."
+      }
+    },
+    "measure": {
+      "reading": {
+        "label": "Paragraph width",
+        "description": "Limit of the text column. Tables, code blocks and images are not bound by it — they take the full width.",
+        "unlimited": "No limit"
+      }
+    },
+    "code": {
+      "variant": {
+        "label": "Code block style",
+        "description": "What surrounds the listing: the language label and buttons. A one-line block is not affected — it is always drawn as a command strip without a header."
+      },
+      "line_numbers": {
+        "label": "Line numbers in code blocks",
+        "description": "How a listing opens in a document body. The button in the block's own header stays: it turns numbers on or off in one listing without touching this setting."
+      }
+    },
+    "preview": {
+      "title": "Preview"
+    },
+    "nav": "Interface",
+    "option": {
+      "theme": {
+        "dark": { "label": "Dark", "note": "The app's default scheme." },
+        "light": { "label": "Light", "note": "The same set of colors, turned onto a light background." },
+        "system": { "label": "System", "note": "Follows the operating system setting and switches along with it." }
+      },
+      "code_variant": {
+        "icon": { "label": "Header with icons", "note": "Language label on the left, line-number and copy icons on the right." },
+        "accent": { "label": "Header with a button", "note": "The same language label, but copying is a visible labelled button." },
+        "minimal": { "label": "No header", "note": "Just highlighted code: no language, no buttons. Copy by selecting." }
+      },
+      "diagram_align": {
+        "left": { "label": "Left", "note": "The diagram lines up with the text around it." },
+        "center": { "label": "Center", "note": "More prominent, but a narrow diagram drifts away from the text column." }
+      },
+      "diagram_theme": {
+        "system": { "label": "System", "note": "The app's colors: the diagram switches along with its theme." },
+        "zinc-light": { "note": "Light, colorless: black on white." },
+        "zinc-dark": { "note": "Dark, colorless." },
+        "github-light": { "note": "Light, blue accent." },
+        "github-dark": { "note": "Dark, blue accent." },
+        "tokyo-night": { "note": "Dark, cool blue." },
+        "tokyo-night-storm": { "note": "The same palette on a lighter background." },
+        "tokyo-night-light": { "note": "A light version of the same palette." },
+        "catppuccin-mocha": { "note": "Dark, lilac accent." },
+        "catppuccin-latte": { "note": "Light, lilac accent." },
+        "nord": { "note": "Dark, muted blue." },
+        "nord-light": { "note": "Light, muted blue." },
+        "dracula": { "note": "Dark, purple accent." },
+        "solarized-light": { "note": "Light, warm paper background." },
+        "solarized-dark": { "note": "Dark, blue-green background." },
+        "one-dark": { "note": "Dark, the Atom editor palette." }
+      },
+      "font": {
+        "onest": { "note": "A grotesque built around Cyrillic. The app's default font." },
+        "golos": { "note": "Drawn for reading Russian text rather than for interfaces. The family has no italics." },
+        "ibm-plex-sans": { "note": "Cyrillic drawn by Alexandra Samulenkova. The only one here with Bulgarian letterforms." },
+        "pt-sans": { "note": "Made for the languages of Russia: the widest Cyrillic coverage and a true italic." },
+        "commissioner": { "note": "A humanist grotesque; Cyrillic consulted by Maria Doreuli." },
+        "geologica": { "note": "Wide proportions and open apertures — what helps readers with low vision." },
+        "literata": { "note": "A screen serif for long reading (the Google Play Books typeface)." },
+        "pt-serif": { "note": "A serif from the same family as PT Sans; experts rate its Cyrillic even higher." },
+        "source-serif": { "note": "A screen serif with an optical size axis; better Cyrillic than its Source Sans pair." },
+        "lora": { "note": "A calligraphic serif; the widest set of localized Cyrillic letterforms." },
+        "piazzolla": { "note": "Optical size axis 8–30 pt: letterforms adapt to the type size." },
+        "spectral": { "note": "The Google Docs serif; Cyrillic drawn by Ilya Ruderman and Yury Ostromentsky." },
+        "jetbrains-mono": { "note": "Drawn for reading code: wide spacing, a distinct zero and letter O." },
+        "ibm-plex-mono": { "note": "The monospace pair to IBM Plex Sans — if the interface is set in it too." },
+        "martian-mono": { "note": "The only monospace with a width axis. It has no Serbian or Macedonian letters." },
+        "system-mono": { "label": "System monospace", "note": "Consolas, Menlo or a system substitute — nothing is downloaded." },
+        "system": { "label": "System sans", "note": "The operating system font — nothing is downloaded." },
+        "system-serif": { "label": "System serif", "note": "Georgia or a system substitute — nothing is downloaded." },
+        "reading": { "label": "Same as text", "note": "Headings are set in the text font and change along with it." }
+      }
+    }
+  }
+}

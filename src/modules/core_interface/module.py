@@ -34,7 +34,7 @@ _LOG = get_logger(LOG_CHANNEL)
 class CoreInterfaceModule(Module):
     name: ClassVar[str] = "core_interface"
     description: ClassVar[str] = (
-        "Настройки интерфейса пользователя: тема, гарнитуры, оформление документа и схем."
+        "User interface settings: language, theme, typefaces, document and diagram appearance."
     )
     migrations_dir = _HERE / "migrations" / "versions"
     internal_router = internal_router

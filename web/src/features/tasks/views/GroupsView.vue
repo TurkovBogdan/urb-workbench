@@ -7,12 +7,14 @@
 // в боковой панели, и своего выбора пространств не заводит — второй такой выбор разошёлся бы с
 // первым на первом же переключении.
 //
-// Удалённые лежат в том же списке под тумблером, а не на отдельной странице: они приезжают тем же
-// запросом с флагом.
-import { computed, onActivated, onMounted, ref } from 'vue'
+// Удалённые лежат в том же списке под переключателем в панели поиска, а не на отдельной странице:
+// они приезжают тем же запросом с флагом.
+import { computed, onActivated, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   IconArchiveOff,
+  IconCheck,
+  IconCopy,
   IconDotsVertical,
   IconFlame,
   IconPencil,
@@ -28,7 +30,11 @@ import SectionError from '@/components/SectionError.vue'
 import { colorVarsByName } from '@/shared/colors'
 import IconSwatch from '@/components/IconSwatch.vue'
 import { fmtDateTime } from '@/shared/utils/date'
+import { useChangeSubscription } from '@/composables/useChangeSubscription'
+import { useClipboard } from '@/composables/useClipboard'
+import type { Change } from '@/stores/changes'
 
+import GroupFilters from '../components/GroupFilters.vue'
 import GroupFormDialog from '../components/GroupFormDialog.vue'
 import { deleteGroup, purgeGroup, type GroupListRow } from '../api'
 import { useGroupsStore } from '../stores/groups.store'
@@ -37,17 +43,33 @@ import { useWorkspaceContextStore } from '@/features/workspace/stores/workspace-
 const { t } = useI18n()
 const store = useGroupsStore()
 const context = useWorkspaceContextStore()
+const { copy, isCopied } = useClipboard()
 
-// Страница живёт в KeepAlive и между переходами не размонтируется: `onMounted` отрабатывает
-// первый показ, `onActivated` — каждое возвращение, иначе список остался бы вчерашним.
-onMounted(store.load)
+// Страница живёт в KeepAlive и между переходами не размонтируется. `onActivated` срабатывает и на
+// первый показ, и на каждое возвращение, иначе список остался бы вчерашним; второй вызов из
+// `onMounted` дал бы при первом показе два одинаковых запроса подряд.
 onActivated(store.load)
 
 const workspace = computed(() => context.currentWorkspace?.code ?? '')
 
-const showDeleted = computed({
-  get: () => store.includeDeleted,
-  set: (value: boolean) => { store.showDeleted(value) },
+// ── Живое обновление ──────────────────────────────────────────────────────────
+// Раздел перечитывается сам, когда группы меняет кто-то другой. Задачи слушаются тоже: карточка
+// несёт их счётчик, а он меняется от заведения, переноса и удаления задачи. «Своё» — всё из
+// текущего пространства (`refs`) или коды уже показанных групп. Массовая операция (удаление и
+// возврат ветки задач, снос группы) приходит без `refs`, и чья она — не узнать: такую берём.
+function concernsGroups(change: Change): boolean {
+  if (change.ids.length === 0 || change.refs.length === 0) return true
+  if (workspace.value && change.refs.includes(workspace.value)) return true
+  const known = new Set(store.items.map((group) => group.code))
+  return [...change.ids, ...change.refs].some((code) => known.has(code))
+}
+
+useChangeSubscription({
+  entities: ['tasks.group', 'tasks.task'],
+  match: concernsGroups,
+  onChange: () => void store.load(),
+  onResync: () => void store.load(),
+  reloadsOnReturn: true,
 })
 
 const editing = ref<GroupListRow | null>(null)
@@ -114,14 +136,6 @@ async function purge() {
       :description="t('tasks.group.list.description')"
     >
       <template #actions>
-        <VSwitch
-          v-model="showDeleted"
-          :label="t('tasks.group.list.show_deleted')"
-          color="primary"
-          density="compact"
-          hide-details
-          class="deleted-switch"
-        />
         <VBtn variant="text" :disabled="store.loading" @click="store.load">
           <template #prepend><IconRefresh :size="16" :class="{ 'icon-spin': store.loading }" /></template>
           {{ t('tasks.action.refresh') }}
@@ -132,6 +146,12 @@ async function purge() {
         </VBtn>
       </template>
     </PageHeader>
+
+    <!-- Панель поиска — своя карточка НАД списком, та же анатомия, что у списка задач
+         (`filter-panel` + карточки под ней). Без пространства искать негде, и её нет. -->
+    <VCard v-if="!store.noWorkspace" variant="outlined" rounded="lg" class="filter-panel mb-3">
+      <GroupFilters />
+    </VCard>
 
     <!-- Пространств нет вовсе: группам негде лежать, и предлагать завести группу здесь значило бы
          вести в отказ. Ведём туда, где заводят пространство. -->
@@ -160,14 +180,26 @@ async function purge() {
       </VBtn>
     </div>
 
+    <!-- Группы есть, но поиск не оставил ни одной: выход — снять поиск, а не заводить группу. -->
+    <div v-else-if="store.isFilteredOut" class="groups-empty">
+      <p class="groups-empty__title">{{ t('tasks.group.list.nothing_found') }}</p>
+      <VBtn variant="text" size="small" @click="store.query = ''">
+        {{ t('tasks.group.list.clear_search') }}
+      </VBtn>
+    </div>
+
+    <!-- Карточка живой группы открывает её правку — то же окно, что пункт меню. Удалённую
+         править нельзя (409), поэтому она не кликабельна вовсе: обработчика у неё нет, и Vuetify
+         не рисует ей вид ссылки. -->
     <div v-else class="group-grid">
       <VCard
-        v-for="group in store.items"
+        v-for="group in store.visible"
         :key="group.code"
         variant="flat"
         class="group-card color-tones"
         :class="{ 'group-card--deleted': group.deleted_at }"
         :style="colorVarsByName(group.color)"
+        v-on="group.deleted_at ? {} : { click: () => edit(group) }"
       >
         <header class="group-card__header">
           <IconSwatch :icon="group.icon" :color="group.color" :width="34" />
@@ -177,6 +209,19 @@ async function purge() {
             {{ t('tasks.group.card.deleted') }}
           </VChip>
 
+          <!-- Код — то, чем группу называют агенту и в MCP, поэтому копия под рукой, а не только
+               в меню. `.stop` — копирование не должно заодно открывать правку карточки. -->
+          <VBtn
+            icon
+            variant="text"
+            class="group-card__action"
+            :title="t('common.action.copy_code')"
+            @click.stop="copy(group.code)"
+          >
+            <IconCheck v-if="isCopied(group.code)" :size="16" :stroke-width="1.6" />
+            <IconCopy v-else :size="16" :stroke-width="1.6" />
+          </VBtn>
+
           <VMenu location="bottom end" :offset="4">
             <template #activator="{ props: menu }">
               <VBtn
@@ -185,6 +230,7 @@ async function purge() {
                 variant="text"
                 class="group-card__action"
                 :title="t('tasks.group.card.actions')"
+                @click.stop
               >
                 <IconDotsVertical :size="16" :stroke-width="1.6" />
               </VBtn>
@@ -194,6 +240,10 @@ async function purge() {
                  удалённой — возврат и снос. Править удалённую бэк не даёт (409), и показывать
                  пункт, который заведомо откажет, значит врать кнопкой. -->
             <VList density="compact">
+              <!-- Копия кода не зависит от состояния: код у удалённой группы тот же. -->
+              <VListItem :prepend-icon="IconCopy" @click="copy(group.code)">
+                <VListItemTitle>{{ t('common.action.copy_code') }}</VListItemTitle>
+              </VListItem>
               <template v-if="!group.deleted_at">
                 <VListItem :prepend-icon="IconPencil" @click="edit(group)">
                   <VListItemTitle>{{ t('tasks.group.card.edit') }}</VListItemTitle>
@@ -227,7 +277,6 @@ async function purge() {
         <footer class="group-card__footer">
           <span class="group-card__count">{{ group.task_count }}</span>
           <span class="group-card__count-label">{{ t('tasks.group.card.tasks') }}</span>
-          <span class="group-card__sort">{{ t('tasks.group.card.sort') }}: {{ group.sort }}</span>
           <span class="group-card__updated">
             {{ fmtDateTime(group.updated_at) }}
             <VTooltip activator="parent" location="top">
@@ -268,16 +317,8 @@ async function purge() {
 </template>
 
 <style scoped>
-/* Подпись тумблера приглушена, когда он выключен, — так же, как у пространств: полная
-   насыщенность читалась бы как включённое состояние. */
-.deleted-switch {
-  flex: none;
-  margin-right: 8px;
-}
-
-.deleted-switch :deep(.v-selection-control:not(.v-selection-control--dirty) .v-label) {
-  opacity: var(--v-medium-emphasis-opacity);
-}
+/* Та же рамка панели, что у списка задач: 12px по кругу, своего отступа панель не добавляет. */
+.filter-panel { padding: 10px 12px; }
 
 .groups-empty {
   display: flex;
@@ -393,12 +434,6 @@ async function purge() {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--text-muted);
-}
-
-.group-card__sort {
-  margin-left: 8px;
-  font-size: 11px;
-  color: var(--text-faint);
 }
 
 .group-card__updated {

@@ -9,7 +9,7 @@
 // АДРЕС. Список живёт на `/tasks/list`, задача — на своей странице (`/tasks/task/TASK@…`), и клик
 // по строке уводит туда. Набор фильтров в адрес не вынесен: это рабочая поза человека, и каждая
 // буква в поиске писала бы запись в историю браузера.
-import { computed, onActivated, onMounted, ref, watch, type Component } from 'vue'
+import { computed, onActivated, ref, watch, type Component } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { IconList, IconPlus, IconRefresh } from '@tabler/icons-vue'
@@ -17,14 +17,17 @@ import { IconList, IconPlus, IconRefresh } from '@tabler/icons-vue'
 import PageLayout from '@/layout/templates/PageLayout.vue'
 import PageHeader from '@/layout/components/PageHeader.vue'
 import SectionError from '@/components/SectionError.vue'
+import { useChangeSubscription } from '@/composables/useChangeSubscription'
+import type { Change } from '@/stores/changes'
 
+import GroupFormDialog from '../components/GroupFormDialog.vue'
 import TaskFilters from '../components/TaskFilters.vue'
 import TaskFormDialog from '../components/TaskFormDialog.vue'
 import TaskListTable from '../components/TaskListTable.vue'
 import { useTasksStore } from '../stores/tasks.store'
 import { useWorkspaceContextStore } from '@/features/workspace/stores/workspace-context.store'
 import type { TaskListFormat } from '../stores/tasks.store'
-import type { TaskDetail, TaskListRow } from '../api'
+import type { GroupRow, TaskDetail, TaskListRow } from '../api'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -42,12 +45,35 @@ const formatView = computed(
   () => (FORMATS.find((item) => item.code === store.format) ?? FORMATS[0]).view,
 )
 
-// Страница живёт в KeepAlive и между переходами не размонтируется: `onMounted` отрабатывает
-// первый показ, `onActivated` — каждое возвращение, иначе список остался бы вчерашним.
-onMounted(store.load)
+// Страница живёт в KeepAlive и между переходами не размонтируется. `onActivated` срабатывает и на
+// первый показ, и на каждое возвращение, иначе список остался бы вчерашним; второй вызов из
+// `onMounted` дал бы при первом показе два одинаковых запроса подряд.
 onActivated(store.load)
 
 const workspace = computed(() => context.currentWorkspace?.code ?? '')
+
+// ── Живое обновление ──────────────────────────────────────────────────────────
+// Список сам перечитывается по ленте изменений, когда его задачи, их места или группы меняет
+// кто-то другой. «Своё» — всё из текущего пространства: задача и группа несут его код в `refs`,
+// а ребро дерева — только коды задач, и узнаётся по уже известным. Когда перечитать, решает стор
+// (`reloadForChanges`): посреди своего жеста он откладывает перечитку до его конца.
+function concernsList(change: Change): boolean {
+  if (change.ids.length === 0) return true
+  if (workspace.value && change.refs.includes(workspace.value)) return true
+  const known = new Set([
+    ...store.items.map((task) => task.code),
+    ...store.groups.map((group) => group.code),
+  ])
+  return [...change.ids, ...change.refs].some((code) => known.has(code))
+}
+
+useChangeSubscription({
+  entities: ['tasks.task', 'tasks.link', 'tasks.group'],
+  match: concernsList,
+  onChange: () => store.reloadForChanges(),
+  onResync: () => store.reloadForChanges(),
+  reloadsOnReturn: true,
+})
 
 // ── Переход к задаче ──────────────────────────────────────────────────────────
 
@@ -110,6 +136,18 @@ function onSaved(code: string) {
   void store.load()
   if (parent.value) openTask(code)
 }
+
+// ── Форма группы ──────────────────────────────────────────────────────────────
+// То же окно, что на странице групп, — правку зовут из шапки карточки в списке. Живёт оно здесь,
+// а не внутри списка: окон на странице одно на сущность, и формат показа (доска будет второй) не
+// должен возить их с собой.
+const editingGroup = ref<GroupRow | null>(null)
+const groupFormOpen = ref(false)
+
+function editGroup(group: GroupRow) {
+  editingGroup.value = group
+  groupFormOpen.value = true
+}
 </script>
 
 <template>
@@ -121,8 +159,10 @@ function onSaved(code: string) {
       <template #actions>
         <!-- Формат показа — не фильтр: он не сужает выдачу, а меняет то, как она нарисована,
              и место ему в шапке страницы, а не в панели фильтров. `mandatory` — снять формат
-             нельзя, какой-то из них всегда включён. -->
+             нельзя, какой-то из них всегда включён. Пока формат один, выбирать не из чего, и
+             переключателя нет — он вернётся сам вместе со вторым форматом в `FORMATS`. -->
         <VBtnToggle
+          v-if="FORMATS.length > 1"
           v-model="store.format"
           mandatory
           density="comfortable"
@@ -175,6 +215,7 @@ function onSaved(code: string) {
         @create="create"
         @edit="edit"
         @add-child="addChild"
+        @edit-group="editGroup"
       />
     </template>
 
@@ -185,6 +226,15 @@ function onSaved(code: string) {
       :parent="parent"
       @saved="onSaved"
     />
+
+    <!-- Правка группы меняет и её карточку, и раскладку секций, поэтому список перечитывается
+         целиком — тем же способом, что и после правки задачи. -->
+    <GroupFormDialog
+      v-model="groupFormOpen"
+      :workspace="workspace"
+      :group="editingGroup"
+      @saved="store.load"
+    />
   </PageLayout>
 </template>
 
@@ -193,9 +243,10 @@ function onSaved(code: string) {
    соседние кнопки — про её содержимое. */
 .format-toggle { margin-right: 4px; }
 
-/* Общая для страниц-списков рамка панели: 12px по кругу. Внутри строка поиска и фильтров
-   держит свои отступы сама. */
-.filter-panel { padding: 6px 12px; }
+/* Общая для страниц-списков рамка панели: 12px по кругу — ОДИН отступ на двоих, внутри панель
+   своего не добавляет. Пока отступ держали оба, слева набегало 24px: вдвое больше, чем у
+   заголовка страницы и у строк списка под ней, и панель выглядела сдвинутой вправо. */
+.filter-panel { padding: 10px 12px; }
 
 .tasks-empty {
   display: flex;

@@ -7,6 +7,7 @@
 // смонтируется компонент. Разворачивать ради этого порядок инициализации дороже, чем
 // посчитать координаты: у ProseMirror они берутся прямо из view.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { Editor } from '@tiptap/core'
 import {
   IconBold, IconItalic, IconStrikethrough, IconCode, IconLink, IconQuote,
@@ -16,6 +17,8 @@ import {
 import type { Feature, FeatureSet } from '../modes'
 
 const props = defineProps<{ editor: Editor | undefined; tick: number; features: FeatureSet }>()
+
+const { t } = useI18n()
 
 // Панель показывает то, что СРАБОТАЕТ. Кнопка выключенной возможности — не «серая», её нет:
 // узла или метки нет в схеме, и нажатие не сделало бы ничего.
@@ -192,50 +195,50 @@ function applyRef(): void {
         <!-- Тип блока: то же, что «Aa ∨» — один список вместо ряда кнопок H1/H2/H3 -->
         <VMenu v-if="showBlockMenu" location="bottom start">
           <template #activator="{ props: menu }">
-            <button v-bind="menu" class="bubble__btn bubble__btn--wide" title="Тип блока">
+            <button v-bind="menu" class="bubble__btn bubble__btn--wide" :title="t('common.editor.toolbar.block_type')">
               <span class="bubble__label">{{ blockLabel }}</span>
               <IconChevronDown :size="13" />
             </button>
           </template>
           <VList density="compact" nav>
             <VListItem :active="!is('heading') && !is('quote')" @click="setBlock('paragraph')">
-              <VListItemTitle>Текст</VListItemTitle>
+              <VListItemTitle>{{ t('common.editor.slash.paragraph') }}</VListItemTitle>
             </VListItem>
             <template v-if="has('heading')">
               <VListItem :active="is('heading', { level: 1 })" @click="setBlock(1)">
-                <VListItemTitle>Заголовок 1</VListItemTitle>
+                <VListItemTitle>{{ t('common.editor.slash.h1') }}</VListItemTitle>
               </VListItem>
               <VListItem :active="is('heading', { level: 2 })" @click="setBlock(2)">
-                <VListItemTitle>Заголовок 2</VListItemTitle>
+                <VListItemTitle>{{ t('common.editor.slash.h2') }}</VListItemTitle>
               </VListItem>
               <VListItem :active="is('heading', { level: 3 })" @click="setBlock(3)">
-                <VListItemTitle>Заголовок 3</VListItemTitle>
+                <VListItemTitle>{{ t('common.editor.slash.h3') }}</VListItemTitle>
               </VListItem>
             </template>
             <VListItem v-if="has('quote')" :active="is('quote')" @click="setBlock('quote')">
-              <VListItemTitle>Цитата</VListItemTitle>
+              <VListItemTitle>{{ t('common.editor.slash.quote') }}</VListItemTitle>
             </VListItem>
           </VList>
         </VMenu>
 
         <span v-if="showBlockMenu && showMarks" class="bubble__sep" />
 
-        <button v-if="has('bold')" class="bubble__btn" :class="{ 'is-on': is('bold') }" title="Полужирный" @click="chain()?.toggleBold().run()">
+        <button v-if="has('bold')" class="bubble__btn" :class="{ 'is-on': is('bold') }" :title="t('common.editor.toolbar.bold')" @click="chain()?.toggleBold().run()">
           <IconBold :size="16" />
         </button>
-        <button v-if="has('italic')" class="bubble__btn" :class="{ 'is-on': is('italic') }" title="Курсив" @click="chain()?.toggleItalic().run()">
+        <button v-if="has('italic')" class="bubble__btn" :class="{ 'is-on': is('italic') }" :title="t('common.editor.toolbar.italic')" @click="chain()?.toggleItalic().run()">
           <IconItalic :size="16" />
         </button>
-        <button v-if="has('strike')" class="bubble__btn" :class="{ 'is-on': is('strike') }" title="Зачёркнутый" @click="chain()?.toggleStrike().run()">
+        <button v-if="has('strike')" class="bubble__btn" :class="{ 'is-on': is('strike') }" :title="t('common.editor.toolbar.strike')" @click="chain()?.toggleStrike().run()">
           <IconStrikethrough :size="16" />
         </button>
-        <button v-if="has('code')" class="bubble__btn" :class="{ 'is-on': is('code') }" title="Код" @click="chain()?.toggleCode().run()">
+        <button v-if="has('code')" class="bubble__btn" :class="{ 'is-on': is('code') }" :title="t('common.editor.toolbar.code')" @click="chain()?.toggleCode().run()">
           <IconCode :size="16" />
         </button>
 
         <VMenu v-if="has('link')" v-model="linkMenu" location="bottom" :close-on-content-click="false">
           <template #activator="{ props: menu }">
-            <button v-bind="menu" class="bubble__btn" :class="{ 'is-on': is('link') }" title="Ссылка" @click="openLink">
+            <button v-bind="menu" class="bubble__btn" :class="{ 'is-on': is('link') }" :title="t('common.editor.toolbar.link')" @click="openLink">
               <IconLink :size="16" />
             </button>
           </template>
@@ -250,36 +253,36 @@ function applyRef(): void {
               @keydown.enter.prevent="applyLink"
             />
             <div class="d-flex justify-end mt-2 ga-2">
-              <VBtn size="small" variant="text" @click="linkHref = ''; applyLink()">Убрать</VBtn>
-              <VBtn size="small" color="primary" @click="applyLink">Применить</VBtn>
+              <VBtn size="small" variant="text" @click="linkHref = ''; applyLink()">{{ t('common.editor.toolbar.unlink') }}</VBtn>
+              <VBtn size="small" color="primary" @click="applyLink">{{ t('common.editor.toolbar.apply') }}</VBtn>
             </div>
           </VCard>
         </VMenu>
 
-        <button v-if="has('quote')" class="bubble__btn" :class="{ 'is-on': is('quote') }" title="Цитата" @click="setBlock('quote')">
+        <button v-if="has('quote')" class="bubble__btn" :class="{ 'is-on': is('quote') }" :title="t('common.editor.slash.quote')" @click="setBlock('quote')">
           <IconQuote :size="16" />
         </button>
-        <button v-if="showMarks" class="bubble__btn" title="Сбросить форматирование" @click="chain()?.unsetAllMarks().run()">
+        <button v-if="showMarks" class="bubble__btn" :title="t('common.editor.toolbar.clear_formatting')" @click="chain()?.unsetAllMarks().run()">
           <IconClearFormatting :size="16" />
         </button>
 
         <!-- Списки: тоже один выпадающий, как «☰ ∨» на образце -->
         <VMenu v-if="has('list')" location="bottom">
           <template #activator="{ props: menu }">
-            <button v-bind="menu" class="bubble__btn bubble__btn--wide" :class="{ 'is-on': !!listKind() }" title="Список">
+            <button v-bind="menu" class="bubble__btn bubble__btn--wide" :class="{ 'is-on': !!listKind() }" :title="t('common.editor.toolbar.list')">
               <component :is="listIcon" :size="16" />
               <IconChevronDown :size="13" />
             </button>
           </template>
           <VList density="compact" nav>
             <VListItem :active="listKind() === 'bullet'" @click="chain()?.toggleFlatList({ ordered: false, checked: null }).run()">
-              <VListItemTitle>Маркированный</VListItemTitle>
+              <VListItemTitle>{{ t('common.editor.toolbar.bullet') }}</VListItemTitle>
             </VListItem>
             <VListItem :active="listKind() === 'ordered'" @click="chain()?.toggleFlatList({ ordered: true, checked: null }).run()">
-              <VListItemTitle>Нумерованный</VListItemTitle>
+              <VListItemTitle>{{ t('common.editor.toolbar.ordered') }}</VListItemTitle>
             </VListItem>
             <VListItem :active="listKind() === 'task'" @click="chain()?.toggleFlatList({ ordered: false, checked: false }).run()">
-              <VListItemTitle>Чек-лист</VListItemTitle>
+              <VListItemTitle>{{ t('common.editor.slash.taskList') }}</VListItemTitle>
             </VListItem>
           </VList>
         </VMenu>
@@ -288,7 +291,7 @@ function applyRef(): void {
 
         <VMenu v-if="has('entityRef')" v-model="refMenu" location="bottom end" :close-on-content-click="false">
           <template #activator="{ props: menu }">
-            <button v-bind="menu" class="bubble__btn" title="Ссылка на сущность">
+            <button v-bind="menu" class="bubble__btn" :title="t('common.editor.toolbar.entity_ref')">
               <IconHash :size="16" />
             </button>
           </template>
@@ -304,7 +307,7 @@ function applyRef(): void {
               @keydown.enter.prevent="applyRef"
             />
             <div class="d-flex justify-end mt-2">
-              <VBtn size="small" color="primary" @click="applyRef">Вставить</VBtn>
+              <VBtn size="small" color="primary" @click="applyRef">{{ t('common.editor.toolbar.insert') }}</VBtn>
             </div>
           </VCard>
         </VMenu>

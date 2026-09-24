@@ -8,13 +8,14 @@
 // A bundled family must have a matching @font-face in styles/fonts.scss; the system
 // entries deliberately have none — they resolve to whatever the OS provides.
 
+// A family name is a proper noun and stays here. The note under the option — the reason to pick
+// it — and the label of the system entries, which are descriptions rather than names, come from
+// the dictionary by code (`composables/useAppearanceOptions.ts`).
 export interface FontOption {
   code: string
-  label: string
+  label?: string
   // The complete CSS font-family value, fallbacks included.
   stack: string
-  // Shown under the option as the reason to pick it.
-  note: string
 }
 
 const SANS_FALLBACK = 'system-ui, -apple-system, "Segoe UI", sans-serif'
@@ -25,126 +26,105 @@ const ONEST: FontOption = {
   code: 'onest',
   label: 'Onest',
   stack: `'Onest', ${SANS_FALLBACK}`,
-  note: 'Гротеск с кириллицей в основе. Шрифт приложения по умолчанию.',
 }
 
 const GOLOS: FontOption = {
   code: 'golos',
   label: 'Golos Text',
   stack: `'Golos Text', ${SANS_FALLBACK}`,
-  note: 'Нарисован под чтение русского текста, а не под интерфейс. Курсива в семействе нет.',
 }
 
 const IBM_PLEX_SANS: FontOption = {
   code: 'ibm-plex-sans',
   label: 'IBM Plex Sans',
   stack: `'IBM Plex Sans', ${SANS_FALLBACK}`,
-  note: 'Кириллицу рисовала Александра Самуленкова. Единственный здесь с болгарскими начертаниями.',
 }
 
 const PT_SANS: FontOption = {
   code: 'pt-sans',
   label: 'PT Sans',
   stack: `'PT Sans', ${SANS_FALLBACK}`,
-  note: 'Сделан под языки России: самое широкое покрытие кириллицы и настоящий курсив.',
 }
 
 const COMMISSIONER: FontOption = {
   code: 'commissioner',
   label: 'Commissioner',
   stack: `'Commissioner', ${SANS_FALLBACK}`,
-  note: 'Гуманистический гротеск, кириллицу консультировала Мария Дореули.',
 }
 
 const GEOLOGICA: FontOption = {
   code: 'geologica',
   label: 'Geologica',
   stack: `'Geologica', ${SANS_FALLBACK}`,
-  note: 'Широкие пропорции и открытые апертуры — то, что помогает слабовидящим читателям.',
 }
 
 const LITERATA: FontOption = {
   code: 'literata',
   label: 'Literata',
   stack: `'Literata', ${SERIF_FALLBACK}`,
-  note: 'Экранная антиква для длинного чтения (шрифт Google Play Books).',
 }
 
 const PT_SERIF: FontOption = {
   code: 'pt-serif',
   label: 'PT Serif',
   stack: `'PT Serif', ${SERIF_FALLBACK}`,
-  note: 'Антиква той же семьи, что PT Sans; её кириллицу эксперты считают ещё удачнее.',
 }
 
 const SOURCE_SERIF: FontOption = {
   code: 'source-serif',
   label: 'Source Serif',
   stack: `'Source Serif', ${SERIF_FALLBACK}`,
-  note: 'Экранная антиква с оптической осью; кириллица лучше, чем у парного Source Sans.',
 }
 
 const LORA: FontOption = {
   code: 'lora',
   label: 'Lora',
   stack: `'Lora', ${SERIF_FALLBACK}`,
-  note: 'Каллиграфическая антиква; самый широкий набор локализованных начертаний кириллицы.',
 }
 
 const PIAZZOLLA: FontOption = {
   code: 'piazzolla',
   label: 'Piazzolla',
   stack: `'Piazzolla', ${SERIF_FALLBACK}`,
-  note: 'Оптическая ось 8–30 pt: рисунок знака подстраивается под кегль набора.',
 }
 
 const SPECTRAL: FontOption = {
   code: 'spectral',
   label: 'Spectral',
   stack: `'Spectral', ${SERIF_FALLBACK}`,
-  note: 'Антиква Google Docs; кириллицу рисовали Илья Рудерман и Юрий Остроменцкий.',
 }
 
 const JETBRAINS_MONO: FontOption = {
   code: 'jetbrains-mono',
   label: 'JetBrains Mono',
   stack: `'JetBrains Mono', ${MONO_FALLBACK}`,
-  note: 'Нарисован под чтение кода: широкие пробелы, различимые ноль и буква O.',
 }
 
 const IBM_PLEX_MONO: FontOption = {
   code: 'ibm-plex-mono',
   label: 'IBM Plex Mono',
   stack: `'IBM Plex Mono', ${MONO_FALLBACK}`,
-  note: 'Моноширинная пара к IBM Plex Sans — если интерфейс набран им же.',
 }
 
 const MARTIAN_MONO: FontOption = {
   code: 'martian-mono',
   label: 'Martian Mono',
   stack: `'Martian Mono', ${MONO_FALLBACK}`,
-  note: 'Единственный моноширинный с осью ширины. Сербских и македонских букв в нём нет.',
 }
 
 const SYSTEM_MONO: FontOption = {
   code: 'system-mono',
-  label: 'Системный моноширинный',
   stack: MONO_FALLBACK,
-  note: 'Consolas, Menlo или их замена из системы — ничего не загружается.',
 }
 
 const SYSTEM_SANS: FontOption = {
   code: 'system',
-  label: 'Системный гротеск',
   stack: SANS_FALLBACK,
-  note: 'Шрифт операционной системы — ничего не загружается.',
 }
 
 const SYSTEM_SERIF: FontOption = {
   code: 'system-serif',
-  label: 'Системная антиква',
   stack: SERIF_FALLBACK,
-  note: 'Georgia или её замена из системы — ничего не загружается.',
 }
 
 export const INTERFACE_FONTS: FontOption[] = [
@@ -178,9 +158,7 @@ export const READING_FONTS: FontOption[] = [
 // тем, что выбрано сейчас, а в CSS значение подставляется без развилки в коде.
 const HEADING_AS_READING: FontOption = {
   code: 'reading',
-  label: 'Как шрифт текста',
   stack: 'var(--font-reading)',
-  note: 'Заголовки набраны тем же, чем текст, и меняются вместе с ним.',
 }
 
 // Заголовки берут либо шрифт текста, либо свой — набор тот же, что у зоны чтения: заголовок

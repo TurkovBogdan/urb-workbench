@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
-import { reactive, watch, computed } from 'vue'
-import { i18n, setLocale, type AppLocale } from '@/plugins/i18n'
+import { reactive, watch } from 'vue'
+import { setLocale } from '@/plugins/i18n'
+import { DEFAULT_LANGUAGE, appLocale, type AppLocale } from '@/constants/language'
 import { boolCodec, intCodec, persisted, strCodec, type Codec } from '@/shared/utils/persisted'
 import { synced } from '@/shared/utils/synced'
 import {
@@ -65,15 +66,19 @@ export const useSettingsStore = defineStore('settings', () => {
   // plain value and `settings.message.unsafe` reads a real boolean — while each underlying
   // ref keeps its own persistence watcher.
   const locale = reactive({
-    // language is a façade over i18n (it bootstraps before Pinia and owns the
-    // `app.locale` key); the setter routes through setLocale so Vuetify follows.
-    language: computed<AppLocale>({
-      get: () => i18n.global.locale.value as AppLocale,
-      set: (v) => setLocale(v),
+    // Repaired on read: an unknown code would reach vue-i18n and every string would render as
+    // its key path.
+    language: synced<AppLocale>('interface_language', DEFAULT_LANGUAGE, {
+      parse: appLocale,
+      serialize: (v) => v,
     }),
     timezone: persisted('app.timezone', AUTO, strCodec),
     dateFormat: persisted('app.date_format', AUTO, strCodec),
   })
+
+  // `immediate` applies the cached choice while the store is created in main.ts — before the
+  // first paint; the value hydrated from the backend later arrives through the same watcher.
+  watch(() => locale.language, (language) => setLocale(language), { immediate: true })
 
   const ui = reactive({
     sidebarCollapsed: synced('interface_sidebar_collapsed', false, boolCodec),

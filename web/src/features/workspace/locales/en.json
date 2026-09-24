@@ -1,0 +1,58 @@
+{
+  "nav": "Workspaces",
+  "switcher": {
+    "label": "Workspace",
+    "search": "Search workspaces",
+    "loading": "Loading workspaces…",
+    "empty": "No workspaces yet",
+    "empty_action": "Create the first one"
+  },
+  "list": {
+    "title": "Workspaces",
+    "description": "The top level of data: modules arrange their content by workspace.",
+    "add": "New workspace",
+    "refresh": "Refresh",
+    "show_deleted": "Show deleted",
+    "empty": "No workspaces yet",
+    "empty_hint": "Create the first one — zones and tasks will appear in it."
+  },
+  "card": {
+    "updated_at": "Last change",
+    "actions": "Actions",
+    "deleted": "Deleted",
+    "edit": "Edit",
+    "delete": "Delete",
+    "restore": "Restore",
+    "purge": "Delete forever"
+  },
+  "form": {
+    "create_title": "New workspace",
+    "title": "Edit workspace",
+    "name": "Name",
+    "description": "Short description",
+    "look": "Icon and color",
+    "left": "{count} left"
+  },
+  "delete": {
+    "title": "Delete workspace",
+    "empty": "The workspace is empty. Delete it?",
+    "with_content": "It contains {content}. The content stays in place and comes back with the workspace.",
+    "reversible": "Deletion can be undone: the workspace goes to the deleted list, where it can be restored.",
+    "submit": "Delete"
+  },
+  "purge": {
+    "title": "Delete forever",
+    "empty": "The workspace is empty. The row will be removed from the database for good.",
+    "with_content": "Everything inside the workspace will be physically removed with it — {content}. It can't be restored.",
+    "confirm_hint": "To confirm, type the workspace name.",
+    "confirm_label": "Workspace name",
+    "submit": "Delete forever"
+  },
+  "error": {
+    "workspace": {
+      "not_found": "Workspace not found",
+      "deleted": "The workspace is deleted — restore it first",
+      "not_deleted": "The workspace isn't deleted — nothing to restore"
+    }
+  }
+}

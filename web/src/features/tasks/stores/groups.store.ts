@@ -19,10 +19,23 @@ export const useGroupsStore = defineStore('tasks-groups', () => {
   const loading = ref(true)
   const error = ref<unknown>(null)
   const includeDeleted = ref(false)
+  const query = ref('')
 
   const workspace = computed(() => context.current)
   const noWorkspace = computed(() => context.loaded && !context.currentWorkspace)
   const isEmpty = computed(() => items.value.length === 0)
+
+  // Поиск — на клиенте: групп в пространстве единицы, и все они уже загружены. Ищется по названию
+  // и описанию, без регистра; `toLocaleLowerCase` сворачивает и кириллицу.
+  const visible = computed(() => {
+    const needle = query.value.trim().toLocaleLowerCase()
+    if (!needle) return items.value
+    return items.value.filter((group) =>
+      `${group.title}\n${group.description}`.toLocaleLowerCase().includes(needle),
+    )
+  })
+  /** Группы есть, но поиск не оставил ни одной. */
+  const isFilteredOut = computed(() => !isEmpty.value && visible.value.length === 0)
 
   async function load() {
     // Набор пространств может быть ещё не загружен: раздел открывают и прямой ссылкой, не только
@@ -71,5 +84,18 @@ export const useGroupsStore = defineStore('tasks-groups', () => {
     await load()
   }
 
-  return { items, loading, error, includeDeleted, isEmpty, noWorkspace, load, showDeleted, restore }
+  return {
+    items,
+    visible,
+    query,
+    loading,
+    error,
+    includeDeleted,
+    isEmpty,
+    isFilteredOut,
+    noWorkspace,
+    load,
+    showDeleted,
+    restore,
+  }
 })

@@ -12,6 +12,7 @@ const PAGES: Record<string, string> = {
   'action-panel':  'responsive/ActionPanelView',
   buttons:         'controls/ButtonsView',
   'button-group':  'controls/ButtonGroupView',
+  'copy-chip':     'controls/CopyChipView',
   selects:         'controls/SelectsView',
   inputs:          'controls/InputsView',
   'search-field':  'controls/SearchFieldView',
@@ -56,6 +57,7 @@ const PAGES: Record<string, string> = {
   'section-header': 'structure/SectionHeaderView',
   kanban:          'interface/KanbanView',
   'edge-scroller': 'interface/EdgeScrollerView',
+  'counter-button': 'special/CounterButtonView',
   'research-card': 'project/ResearchCardView',
   'group-select':  'project/GroupSelectView',
 }

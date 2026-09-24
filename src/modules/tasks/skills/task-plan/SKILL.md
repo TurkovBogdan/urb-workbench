@@ -46,6 +46,9 @@ me" becomes a real question. On anything shorter the prose plan answers it alrea
 As soon as a step needs its own acceptance — someone else has to look at it and say yes — it is
 not a stage but a subtask. Create it with `task_create(parent_code=…)`.
 
+The tree is one level deep: a subtask has no subtasks of its own. If the task you are running is
+itself a subtask, the new piece goes next to it — under the same parent — not under it.
+
 **Numbers order the plan, they do not count it.** Deleting a stage leaves a gap, and the gap is
 fine. Do not renumber to close it: you refer to "the third stage" in the journal, and a silent
 shift makes those references false.

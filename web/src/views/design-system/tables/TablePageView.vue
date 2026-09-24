@@ -22,10 +22,10 @@ interface Row {
 }
 
 const ROWS: Row[] = [
-  { code: 'RESEARCH@8c1f…', title: 'Ubuntu 26.04 LTS: первичная настройка', areas: 6, sources: 27, updated: '27.08.2026 23:48' },
-  { code: 'RESEARCH@2a0d…', title: 'Типографика и система отступов', areas: 8, sources: 11, updated: '27.08.2026 08:22' },
-  { code: 'RESEARCH@8913…', title: 'Движок рендера Markdown для фронта', areas: 7, sources: 9, updated: '27.08.2026 08:22' },
-  { code: 'RESEARCH@c176…', title: 'Глобальные экраны ошибок портала', areas: 4, sources: 0, updated: '27.08.2026 08:21' },
+  { code: 'RESEARCH@8c1f…', title: 'Ubuntu 26.04 LTS: initial setup', areas: 6, sources: 27, updated: '27.08.2026 23:48' },
+  { code: 'RESEARCH@2a0d…', title: 'Typography and the spacing system', areas: 8, sources: 11, updated: '27.08.2026 08:22' },
+  { code: 'RESEARCH@8913…', title: 'Markdown render engine for the frontend', areas: 7, sources: 9, updated: '27.08.2026 08:22' },
+  { code: 'RESEARCH@c176…', title: 'Global error screens for the portal', areas: 4, sources: 0, updated: '27.08.2026 08:21' },
 ]
 
 const headers = [
@@ -44,10 +44,10 @@ const filtered = computed(() => {
   return needle ? ROWS.filter((row) => row.title.toLowerCase().includes(needle)) : ROWS
 })
 
-const anatomySnippet = `<!-- Панель фильтров ВНУТРИ карточки таблицы: строки своих рамок не имеют,
-     поэтому панель и строки живут в одной карточке, отбитые линейкой. -->
+const anatomySnippet = `<!-- The filter panel sits INSIDE the table card: rows have no frame of their own,
+     so the panel and the rows live in one card, separated by a divider. -->
 <VCard variant="outlined" rounded="lg">
-  <div class="filter-panel">…поля фильтров…</div>
+  <div class="filter-panel">…filter fields…</div>
   <VDivider />
 
   <VDataTable
@@ -73,11 +73,11 @@ const anatomySnippet = `<!-- Панель фильтров ВНУТРИ карт
   />
 </VCard>`
 
-const gridSnippet = `<!-- Плитки: карточка сама себе рамка, и общая карточка вокруг дала бы рамку в рамке.
-     Поэтому у панели и у постраничности СВОИ карточки, а сетка лежит на полотне. -->
-<VCard variant="outlined" rounded="lg" class="filter-panel mb-3">…поля фильтров…</VCard>
+const gridSnippet = `<!-- Tiles: each card is its own frame, and a wrapping card would give a frame inside a frame.
+     So the panel and the pagination get THEIR OWN cards, and the grid sits on bare canvas. -->
+<VCard variant="outlined" rounded="lg" class="filter-panel mb-3">…filter fields…</VCard>
 
-<div class="cards__grid">…плитки…</div>
+<div class="cards__grid">…tiles…</div>
 
 <VCard variant="outlined" rounded="lg" class="mt-3">
   <TablePaginationBar … :divider="false" />

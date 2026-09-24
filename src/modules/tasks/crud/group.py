@@ -11,6 +11,7 @@ from sqlalchemy import delete as sa_delete, func, select, update
 
 from src.core.database import session_scope, write_scope
 from src.core.utils.date import utc_now
+from src.modules.core_changes import DELETED, UPDATED, mark_changes
 from src.modules.tasks.codes import new_code
 from src.modules.tasks.constants import (
     COLOR_MAX,
@@ -243,14 +244,17 @@ async def group_delete(code: str, *, hard: bool = False) -> bool:
         row = await s.get(TasksGroup, code)
         if row is None:
             return False
+        # Массовые операторы объектов не дают — ленте изменений код называем сами.
         if hard:
             await s.execute(sa_delete(TasksGroup).where(TasksGroup.code == code))
+            mark_changes(s, "tasks.group", DELETED, [code])
         else:
             await s.execute(
                 update(TasksGroup)
                 .where(TasksGroup.code == code, TasksGroup.deleted_at.is_(None))
                 .values(deleted_at=utc_now())
             )
+            mark_changes(s, "tasks.group", UPDATED, [code])
     return True
 
 

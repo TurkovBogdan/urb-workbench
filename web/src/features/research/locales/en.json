@@ -1,0 +1,31 @@
+{
+  "group": {
+    "select": {
+      "label": "Group",
+      "all": "All groups",
+      "search": "Group name",
+      "loading": "Loading groups…",
+      "empty": "No groups yet"
+    },
+    "ungrouped": {
+      "title": "No group"
+    }
+  },
+  "action": {
+    "rename": "Rename"
+  },
+  "research": {
+    "action": {
+      "actions": "Actions",
+      "open_card": "Open card",
+      "open_group": "Open group",
+      "set_group": "Set group",
+      "move_group": "Change group",
+      "unset_group": "Remove from group",
+      "delete": "Delete research",
+      "copy": "Copy code",
+      "copied": "Code copied",
+      "download_pdf": "Download PDF"
+    }
+  }
+}

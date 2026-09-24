@@ -9,6 +9,7 @@
 // новый, как в любом текстовом процессоре. Колонки и выравнивание иначе недостижимы, поэтому
 // они здесь и есть главная причина панели существовать.
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { Editor } from '@tiptap/core'
 import {
   IconAlignLeft, IconAlignCenter, IconAlignRight, IconAlignJustified,
@@ -18,6 +19,8 @@ import {
 import { activeColumnAlign, activeTable, type ColumnAlign } from '../blocks'
 
 const props = defineProps<{ editor: Editor | undefined; tick: number }>()
+
+const { t } = useI18n()
 
 const MARGIN = 6
 
@@ -89,19 +92,19 @@ function setAlign(value: ColumnAlign): void {
   <Teleport to="body">
     <div v-show="spot" class="table-bar" :style="style" @mousedown="hold">
       <VCard elevation="8" rounded="lg" class="table-bar__card">
-        <button class="table-bar__btn" title="Колонка справа" @click="chain()?.addColumnAfter().run()">
+        <button class="table-bar__btn" :title="t('common.editor.table.column_after')" @click="chain()?.addColumnAfter().run()">
           <IconColumnInsertRight :size="16" />
         </button>
-        <button class="table-bar__btn" title="Удалить колонку" @click="chain()?.deleteColumn().run()">
+        <button class="table-bar__btn" :title="t('common.editor.table.column_delete')" @click="chain()?.deleteColumn().run()">
           <IconColumnRemove :size="16" />
         </button>
 
         <span class="table-bar__sep" />
 
-        <button class="table-bar__btn" title="Ряд ниже" @click="chain()?.addRowAfter().run()">
+        <button class="table-bar__btn" :title="t('common.editor.table.row_after')" @click="chain()?.addRowAfter().run()">
           <IconRowInsertBottom :size="16" />
         </button>
-        <button class="table-bar__btn" title="Удалить ряд" @click="chain()?.deleteRow().run()">
+        <button class="table-bar__btn" :title="t('common.editor.table.row_delete')" @click="chain()?.deleteRow().run()">
           <IconRowRemove :size="16" />
         </button>
 
@@ -110,24 +113,24 @@ function setAlign(value: ColumnAlign): void {
         <button
           class="table-bar__btn"
           :class="{ 'is-on': align === null }"
-          title="Выравнивание по умолчанию"
+          :title="t('common.editor.table.align_default')"
           @click="setAlign(null)"
         >
           <IconAlignJustified :size="16" />
         </button>
-        <button class="table-bar__btn" :class="{ 'is-on': align === 'left' }" title="По левому краю" @click="setAlign('left')">
+        <button class="table-bar__btn" :class="{ 'is-on': align === 'left' }" :title="t('common.editor.table.align_left')" @click="setAlign('left')">
           <IconAlignLeft :size="16" />
         </button>
-        <button class="table-bar__btn" :class="{ 'is-on': align === 'center' }" title="По центру" @click="setAlign('center')">
+        <button class="table-bar__btn" :class="{ 'is-on': align === 'center' }" :title="t('common.editor.table.align_center')" @click="setAlign('center')">
           <IconAlignCenter :size="16" />
         </button>
-        <button class="table-bar__btn" :class="{ 'is-on': align === 'right' }" title="По правому краю" @click="setAlign('right')">
+        <button class="table-bar__btn" :class="{ 'is-on': align === 'right' }" :title="t('common.editor.table.align_right')" @click="setAlign('right')">
           <IconAlignRight :size="16" />
         </button>
 
         <span class="table-bar__sep" />
 
-        <button class="table-bar__btn table-bar__btn--danger" title="Удалить таблицу" @click="chain()?.deleteTable().run()">
+        <button class="table-bar__btn table-bar__btn--danger" :title="t('common.editor.table.delete')" @click="chain()?.deleteTable().run()">
           <IconTrash :size="16" />
         </button>
       </VCard>

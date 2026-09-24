@@ -44,7 +44,7 @@ async def patch_settings(body: InterfaceSettingsPatch) -> InterfaceSettingsOut:
         if (reason := registry.rejection(key, value)) is not None
     }
     if refusals:
-        raise ApiError.validation("Настройки не приняты", fields=refusals)
+        raise ApiError.validation("Settings rejected", fields=refusals)
     await crud.upsert_many(body.values)
     return await _settings_out()
 
@@ -60,7 +60,7 @@ async def reset_settings(body: InterfaceSettingsReset) -> InterfaceSettingsOut:
     unknown = registry.unknown_keys(body.keys)
     if unknown:
         raise ApiError.validation(
-            "Настройки не приняты", fields={key: "неизвестная настройка" for key in unknown}
+            "Settings rejected", fields={key: registry.UNKNOWN_SETTING for key in unknown}
         )
     await crud.delete_many(body.keys)
     return await _settings_out()

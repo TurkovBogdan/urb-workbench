@@ -7,51 +7,46 @@ import {
   deleteTask,
   listGroups,
   listTasks,
+  reorderGroup as reorderGroupRequest,
   reorderTask,
   restoreTask,
+  searchTasks,
   type GroupRow,
   type TaskListRow,
 } from '../api'
+import { isTerminal } from '../labels'
+import { byListOrder, childrenIndex, moveInRow, type MovePlace } from '../tree'
+import { anyScope, MIN_DEEP_QUERY_LENGTH, NO_SCOPES, type TaskSearchScopes } from '../search'
 import { useWorkspaceContextStore } from '@/features/workspace/stores/workspace-context.store'
 
 /**
- * Строка списка: задача и её глубина в ветке. Ноль — верхний уровень, дальше подзадачи.
+ * Узел ветки: задача, её глубина и её дети.
  *
- * Дерево разворачивается в плоский ряд ЗДЕСЬ, а не в разметке: рекурсивный компонент строки
- * ради отступа в 20px означал бы, что каждая строка знает про своих детей, — а знать ей нужно
- * ровно одно, на какой она глубине.
+ * Дерево остаётся деревом, а не разворачивается в плоский ряд, и причина в перетаскивании:
+ * sortable заводится НА КОНТЕЙНЕР, а ряд соседей у подзадачи — дети её родителя. Плоский список
+ * строк такого контейнера не даёт вовсе, поэтому переставить подзадачу среди сестёр было нечем.
+ *
+ * `depth` и `last` остаются здесь, а не считаются разметкой: по ним рисуется отступ и загиб
+ * направляющей, и строке по-прежнему не нужно знать ничего, кроме своего места.
  */
-export interface TaskRowNode {
+export interface TaskNode {
   task: TaskListRow
   depth: number
   /** Последний ребёнок у своего родителя: по нему рисуется загиб направляющей, а не сквозная линия. */
   last: boolean
-}
-
-/**
- * Ветка: задача верхнего уровня и её строки — она сама плюс всё, что под ней.
- *
- * Строки сгруппированы веткой, а не лежат одним рядом, потому что перетаскивают именно ветку:
- * задача уезжает вместе со своими подзадачами, и им незачем быть отдельными соседями в разметке —
- * перестановка тогда рвала бы их от родителя.
- */
-export interface TaskBranch {
-  root: TaskListRow
-  rows: TaskRowNode[]
+  children: TaskNode[]
 }
 
 /** Секция списка: группа, её задачи верхнего уровня и их ветки. */
 export interface TaskSection {
   group: GroupRow | null
   tasks: TaskListRow[]
-  branches: TaskBranch[]
+  /** Ветки секции: по узлу на каждую задачу верхнего уровня, дети — внутри узла. */
+  branches: TaskNode[]
 }
 
 /** Формат показа списка. Второй (доска) появится значением здесь, а не веткой в разметке. */
 export type TaskListFormat = 'list'
-
-/** Значение фильтра группы: `null` — все, `''` — только задачи вне групп (секция «Без группы»). */
-export type GroupFilter = string | null
 
 // Список задач ТЕКУЩЕГО пространства, разложенный по группам.
 //
@@ -88,13 +83,82 @@ export const useTasksStore = defineStore('tasks-tasks', () => {
 
   // ── Фильтры ─────────────────────────────────────────────────────────────────
   const query = ref('')
-  const statusFilter = ref<string | null>(null)
+  // Статус — НАБОР, приоритет — одно значение. Разница не в прихоти: «покажи работу и проверки» —
+  // обычная поза, а «покажи горящее и замороженное разом» не значит ничего.
+  const statusFilter = ref<string[]>([])
   const priorityFilter = ref<string | null>(null)
-  const typeFilter = ref<string | null>(null)
-  const groupFilter = ref<GroupFilter>(null)
+  // Фильтров группы и типа нет. Группы список и так показывает карточками, и каждую можно свернуть;
+  // тип же меняет только набор полей на странице задачи и в списке не отвечает ни на один вопрос,
+  // ради которого его сужают.
+
+  // Завершённое спрятано УМОЛЧАНИЕМ, а не фильтром: список отвечает на вопрос «что делать», и
+  // сделанное в этом ответе только занимает место. Поэтому же оно не входит в `clearFilters` как
+  // «показать всё» — сброс возвращает умолчание, а не снимает его.
+  const hideFinished = ref(true)
+
+  // Явный выбор статуса сильнее умолчания: человек, отметивший «Выполнено», получил бы пустой
+  // список, если бы скрытие продолжало работать поверх его выбора.
+  const hideFinishedApplies = computed(
+    () => hideFinished.value && !statusFilter.value.some(isTerminal),
+  )
+
+  // ── Глубина поиска ──────────────────────────────────────────────────────────
+  // Заголовок и цель ищутся здесь же, по уже приехавшему списку. Постановки, плана и журнала в
+  // строке нет вовсе — за них отвечает ручка поиска, и она возвращает только коды: пересечение
+  // с уже имеющимся списком дешевле второй копии тех же карточек.
+  const searchScopes = ref<TaskSearchScopes>({ ...NO_SCOPES })
+  /** Коды из последнего глубокого запроса; `null` — его не было (нет запроса или областей). */
+  const deepCodes = ref<Set<string> | null>(null)
 
   const page = ref(1)
   const pageSize = ref(DEFAULT_PAGE_SIZE)
+
+  // ── Свёрнутые группы ────────────────────────────────────────────────────────
+  // Карта ЯВНЫХ решений человека по карточкам групп и по веткам задач — одна на обе, потому что
+  // коды групп (`GROUP@…`) и задач (`TASK@…`) не пересекаются. «Без группы» держит пустую строку —
+  // ровно так же, как фильтр группы. Чего в карте нет, то решает умолчание: пустая группа приходит
+  // свёрнутой, ветка задачи — раскрытой.
+  //
+  // Умолчание считается на месте, а не проставляется записью каждой пустой карточке: иначе группу
+  // пришлось бы разворачивать самим в тот момент, когда в неё перетащили первую задачу, — то есть
+  // держать в двух местах правило, которое и так выражается одной строкой.
+  //
+  // Пока только на время жизни страницы: где это хранить между заходами — `TASK@de5205ec30`.
+  const folded = ref<Record<string, boolean>>({})
+
+  function isCollapsed(code: string | null, empty = false): boolean {
+    return folded.value[code ?? ''] ?? empty
+  }
+
+  /** Свернуть или развернуть карточку группы. Новый объект, а не мутация: за ссылкой следят. */
+  function toggleCollapsed(code: string | null, empty = false) {
+    const key = code ?? ''
+    folded.value = { ...folded.value, [key]: !isCollapsed(key, empty) }
+  }
+
+  // ── Жест в процессе ─────────────────────────────────────────────────────────
+  // Строку сейчас держат в руке. Нужно тому, что должно на это время затихнуть: подсказки кнопок
+  // и глифов, всплывающие под курсором, пока он едет над строками, — жест они не поясняют, а
+  // закрывают цель. Ставят и снимают флаг сами sortable (`TaskRows`, `TaskSubtree`).
+  const dragging = ref(false)
+
+  // Признак жеста вешается на `body`, а не на список: подсказки Vuetify телепортированы в корень
+  // документа. Здесь, а не в компоненте списка, — строки перетаскивают и на странице задачи, и
+  // признак нужен там же. Правило, которое по нему гасит подсказки, — в `styles/main.scss`.
+  watch(dragging, (on) => document.body.classList.toggle('tasks-dragging', on))
+
+  /**
+   * Код последней задачи верхнего уровня группы — после неё встаёт брошенная на шапку карточки.
+   *
+   * Считается по ВСЕМ задачам стора, а не по странице: при разбивке на страницы последняя
+   * строка карточки на экране — не последняя в ряду группы.
+   */
+  function lastRootOf(group: string | null): string | null {
+    const row = items.value
+      .filter((task) => task.parent_code === null && task.group_code === group)
+      .sort(byListOrder)
+    return row.length ? row[row.length - 1].code : null
+  }
 
   /** Пространств нет вовсе — задачам просто негде лежать, и список тут ни при чём. */
   const noWorkspace = computed(() => context.loaded && !context.currentWorkspace)
@@ -111,22 +175,44 @@ export const useTasksStore = defineStore('tasks-tasks', () => {
   const hasActiveFilters = computed(
     () =>
       query.value.trim() !== '' ||
-      statusFilter.value !== null ||
-      priorityFilter.value !== null ||
-      typeFilter.value !== null ||
-      groupFilter.value !== null,
+      statusFilter.value.length > 0 ||
+      priorityFilter.value !== null,
   )
+
+  /**
+   * Задача завершена И под ней не осталось живой работы.
+   *
+   * Второе условие — не украшение: спрятав выполненного родителя, мы унесли бы с экрана и
+   * незакрытую подзадачу под ним (в списке она показывается веткой, а не сама по себе).
+   */
+  function finishedAndIdle(task: TaskListRow): boolean {
+    if (!hideFinishedApplies.value || !isTerminal(task.status)) return false
+    return !hasLiveDescendant(task)
+  }
+
+  function hasLiveDescendant(task: TaskListRow): boolean {
+    return (childrenByParent.value.get(task.code) ?? []).some(
+      (child) => !isTerminal(child.status) || hasLiveDescendant(child),
+    )
+  }
 
   function matches(task: TaskListRow): boolean {
     const needle = query.value.trim().toLowerCase()
-    if (needle && !task.title.toLowerCase().includes(needle)) return false
-    if (statusFilter.value !== null && task.status !== statusFilter.value) return false
+    if (needle && !matchesQuery(task, needle)) return false
+    if (statusFilter.value.length && !statusFilter.value.includes(task.status)) return false
     if (priorityFilter.value !== null && task.priority !== priorityFilter.value) return false
-    if (typeFilter.value !== null && task.type !== typeFilter.value) return false
-    // Пустая строка — «только вне групп»: у секции «Без группы» кода нет, и спросить про неё
-    // иначе нечем. `null` — фильтра нет вовсе.
-    if (groupFilter.value !== null && (task.group_code ?? '') !== groupFilter.value) return false
+    if (finishedAndIdle(task)) return false
     return true
+  }
+
+  /**
+   * Совпадение по запросу: основа — заголовок и цель, их видно в строке; глубже — коды из
+   * ручки поиска. Одно ИЛИ другое: включённая область ничего не сужает, она добавляет стог.
+   */
+  function matchesQuery(task: TaskListRow, needle: string): boolean {
+    if (task.title.toLowerCase().includes(needle)) return true
+    if (task.description.toLowerCase().includes(needle)) return true
+    return deepCodes.value?.has(task.code) ?? false
   }
 
   /**
@@ -137,9 +223,47 @@ export const useTasksStore = defineStore('tasks-tasks', () => {
    * ветки при этом не рисуются: подзадача, попавшая под условие, не должна пропадать вместе с
    * родителем, который под него не попал, а показанная веткой — тянуть на экран весь свой род.
    */
-  const filtered = computed(() =>
-    (hasActiveFilters.value ? items.value : roots.value).filter(matches),
-  )
+  const filtered = computed(() => {
+    if (!hasActiveFilters.value) return roots.value.filter(matches)
+    return items.value
+      .filter(matches)
+      .sort((left, right) => (layoutOrder.value.get(left.code) ?? 0) - (layoutOrder.value.get(right.code) ?? 0))
+  })
+
+  /**
+   * Место каждой задачи в ПОЛНОЙ раскладке: группы по своему порядку, внутри группы — ряд
+   * корней, под каждым корнем — его ветка сверху вниз.
+   *
+   * Нужно это плоской выдаче под фильтром. Сортировать её одним `sort`, как приходит с бэка,
+   * нельзя: у корня это место в ряду СВОЕЙ группы (`crud/link.py::_siblings`), у подзадачи —
+   * место среди детей своего родителя, и числа из разных рядов между собой не значат ничего.
+   * Карточкам списка это безразлично — внутри карточки ряд один, — а одному ряду нет.
+   *
+   * Считается обходом, а не сравнением пар: порядок ветки — это обход дерева, и выразить его
+   * функцией сравнения двух строк без общего предка всё равно не выйдет.
+   */
+  const layoutOrder = computed(() => {
+    const index = new Map<string, number>()
+    let place = 0
+    const walk = (task: TaskListRow) => {
+      index.set(task.code, place++)
+      for (const child of childrenByParent.value.get(task.code) ?? []) walk(child)
+    }
+    const order = [...roots.value].sort(
+      (left, right) =>
+        groupRank(right.group_code) - groupRank(left.group_code) ||
+        right.sort - left.sort ||
+        (left.code < right.code ? -1 : 1),
+    )
+    order.forEach(walk)
+    return index
+  })
+
+  /** Место группы в раскладке; «Без группы» — ниже всех названных, как и в секциях. */
+  function groupRank(code: string | null): number {
+    if (!code) return Number.NEGATIVE_INFINITY
+    return groups.value.find((group) => group.code === code)?.sort ?? 0
+  }
 
   const total = computed(() => filtered.value.length)
   const pageCount = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
@@ -151,12 +275,26 @@ export const useTasksStore = defineStore('tasks-tasks', () => {
   })
 
   const isEmpty = computed(() => items.value.length === 0)
+
+  /**
+   * Умолчание прячет что-то ПРЯМО СЕЙЧАС — в пространстве есть завершённые задачи.
+   *
+   * Не то же самое, что «умолчание включено»: оно включено всегда, и считать по нему значило бы
+   * объявлять пустое пространство «спрятанным фильтрами» — с кнопкой сброса, которая ничего не
+   * меняет, потому что сброс возвращает ровно это же умолчание.
+   */
+  const finishedHidden = computed(
+    () => hideFinishedApplies.value && items.value.some((task) => isTerminal(task.status)),
+  )
+
   /**
    * Строк нет, но не потому, что задач нет: их спрятали фильтры — и ответ человеку другой.
-   * Считаем по НАБРАННЫМ фильтрам, а не по «в базе что-то есть»: пустой список при снятых
-   * фильтрах — это «заведите первую», и предлагать сбросить там нечего.
+   * Считаем по тому, что РЕАЛЬНО сужает выдачу: пустой список без единого фильтра — это
+   * «заведите первую», и предлагать сбросить там нечего.
    */
-  const isFilteredOut = computed(() => hasActiveFilters.value && total.value === 0)
+  const isFilteredOut = computed(
+    () => (hasActiveFilters.value || finishedHidden.value) && total.value === 0,
+  )
 
   /**
    * Раскладка по группам: секция на КАЖДУЮ группу пространства плюс «Без группы».
@@ -172,8 +310,14 @@ export const useTasksStore = defineStore('tasks-tasks', () => {
    * неразобранного, а названные группы — то, ради чего группы и заводят, — уезжали бы вниз. Она
    * же — цель «вынуть из группы», поэтому показывается и пустой.
    *
-   * Исключение одно: ОТОБРАННАЯ группа показывается в одиночку. Человек сузил список до неё, и
-   * соседние карточки — ровно то, что он попросил убрать с глаз.
+   * Исключение — СУЖЕННАЯ выдача: отобранная группа показывается в одиночку, а при любом другом
+   * наборе фильтров пустые секции уходят все. Человек ищет, а не раскладывает: цель для переноса
+   * ему сейчас не нужна (веток с фильтрами не рисуют вовсе), и десяток пустых карточек вокруг
+   * единственной находки — ровно то, что он просил убрать с глаз.
+   *
+   * Порядок: сначала группы с задачами, следом «Без группы» — если в ней что-то лежит, — и только
+   * потом пустые. Неразложенное — это работа, и стоять ниже пустых целей для переноса она не
+   * должна; пустой же остаток возвращается в самый низ, к таким же пустым.
    */
   const sections = computed<TaskSection[]>(() => {
     // Строк на странице нет — нет и секций: иначе под сообщением «задач пока нет» висел бы ещё и
@@ -190,7 +334,7 @@ export const useTasksStore = defineStore('tasks-tasks', () => {
       if (bucket) bucket.push(task)
       else byGroup.set(task.group_code, [task])
     }
-    const picked = groupFilter.value !== null
+    const picked = hasActiveFilters.value
     const filled: TaskSection[] = []
     const empty: TaskSection[] = []
     for (const group of groups.value) {
@@ -198,24 +342,16 @@ export const useTasksStore = defineStore('tasks-tasks', () => {
       if (tasks) filled.push({ group, tasks, branches: branchesOf(tasks) })
       else if (!picked) empty.push({ group, tasks: [], branches: [] })
     }
-    const out = [...filled, ...empty]
-    if (loose.length || !picked || !out.length) {
-      out.push({ group: null, tasks: loose, branches: branchesOf(loose) })
-    }
+    const unfiled: TaskSection = { group: null, tasks: loose, branches: branchesOf(loose) }
+    const out = [...filled]
+    if (loose.length) out.push(unfiled)
+    out.push(...empty)
+    // Пустой остаток — такая же цель для переноса, как пустая группа, и место ему там же, внизу.
+    if (!loose.length && (!picked || !out.length)) out.push(unfiled)
     return out
   })
 
-  /** Дети каждой задачи в порядке выдачи — индекс на одну сборку дерева, а не поиск по списку. */
-  const childrenByParent = computed(() => {
-    const index = new Map<string, TaskListRow[]>()
-    for (const task of items.value) {
-      if (!task.parent_code) continue
-      const bucket = index.get(task.parent_code)
-      if (bucket) bucket.push(task)
-      else index.set(task.parent_code, [task])
-    }
-    return index
-  })
+  const childrenByParent = computed(() => childrenIndex(items.value))
 
   /**
    * Корни секции → ветки: корень и следом его потомки с глубинами. Ветки раскрыты всегда —
@@ -225,21 +361,26 @@ export const useTasksStore = defineStore('tasks-tasks', () => {
    * С активными фильтрами ветки не строятся вовсе (см. `filtered`): на экране плоский список
    * совпадений, где родство ничего не добавляет.
    */
-  function branchesOf(roots: TaskListRow[]): TaskBranch[] {
-    if (hasActiveFilters.value) {
-      return roots.map((task) => ({ root: task, rows: [{ task, depth: 0, last: true }] }))
-    }
-
-    return roots.map((root) => {
-      const rows: TaskRowNode[] = []
-      const walk = (task: TaskListRow, depth: number, last: boolean) => {
-        rows.push({ task, depth, last })
-        const children = childrenByParent.value.get(task.code) ?? []
-        children.forEach((child, index) => walk(child, depth + 1, index === children.length - 1))
+  function branchesOf(roots: TaskListRow[]): TaskNode[] {
+    const walk = (task: TaskListRow, depth: number, last: boolean): TaskNode => {
+      // С фильтрами ветка обрывается на корне: на экране плоский список совпадений.
+      if (hasActiveFilters.value) return { task, depth, last, children: [] }
+      // Скрытое умолчанием прячется и внутри ветки, иначе выполненная подзадача исчезала бы
+      // из списка верхнего уровня и оставалась под родителем — одна задача в двух состояниях.
+      // Вместе с ней уходит и всё под ней: живого там нет по самому условию.
+      const children = (childrenByParent.value.get(task.code) ?? []).filter(
+        (child) => !finishedAndIdle(child),
+      )
+      return {
+        task,
+        depth,
+        last,
+        children: children.map((child, index) =>
+          walk(child, depth + 1, index === children.length - 1),
+        ),
       }
-      walk(root, 0, true)
-      return { root, rows }
-    })
+    }
+    return roots.map((root) => walk(root, 0, true))
   }
 
   async function load() {
@@ -283,14 +424,71 @@ export const useTasksStore = defineStore('tasks-tasks', () => {
     page.value = 1
   }
 
-  function clearFilters() {
-    query.value = ''
-    statusFilter.value = null
-    priorityFilter.value = null
-    typeFilter.value = null
-    groupFilter.value = null
+  /**
+   * Снять умолчание.
+   *
+   * Отдельно от `clearFilters`, потому что это его противоположность: сброс возвращает умолчание,
+   * а здесь его как раз выключают — иначе из выдачи, спрятанной умолчанием, выхода бы не было.
+   */
+  function showFinished() {
+    hideFinished.value = false
     resetPage()
   }
+
+  function clearFilters() {
+    query.value = ''
+    statusFilter.value = []
+    priorityFilter.value = null
+    searchScopes.value = { ...NO_SCOPES }
+    // Скрытие завершённого возвращается ВКЛЮЧЁННЫМ: это умолчание списка, а не набранный фильтр,
+    // и «сбросить всё» означает вернуться к обычному виду, а не показать вообще всё.
+    hideFinished.value = true
+    resetPage()
+  }
+
+  // ── Глубокий поиск ──────────────────────────────────────────────────────────
+
+  let deepTimer: ReturnType<typeof setTimeout> | undefined
+  /** Номер последнего запроса: ответ на отменённый набор приходит позже и затирал бы свежий. */
+  let deepRun = 0
+
+  async function runDeepSearch() {
+    const needle = query.value.trim()
+    const workspace = context.currentWorkspace?.code
+    if (!workspace || !anyScope(searchScopes.value) || needle.length < MIN_DEEP_QUERY_LENGTH) {
+      deepCodes.value = null
+      return
+    }
+    const run = ++deepRun
+    try {
+      const codes = await searchTasks(
+        {
+          workspace,
+          query: needle,
+          in_brief: searchScopes.value.inBrief,
+          in_plan: searchScopes.value.inPlan,
+          in_journal: searchScopes.value.inJournal,
+        },
+        { report: false },
+      )
+      if (run === deepRun) deepCodes.value = new Set(codes)
+    } catch {
+      // Отказ глубокого поиска не гасит выдачу: основа (заголовок и цель) ищется на месте и
+      // продолжает работать, а тост о сбое покажет клиент.
+      if (run === deepRun) deepCodes.value = null
+    }
+  }
+
+  /**
+   * Запрос придержан: глубокий поиск читает тела всего пространства, и посылать его на каждую
+   * букву значило бы платить за набор слова шестью запросами подряд.
+   */
+  function scheduleDeepSearch() {
+    clearTimeout(deepTimer)
+    deepTimer = setTimeout(() => void runDeepSearch(), 250)
+  }
+
+  watch([query, searchScopes], scheduleDeepSearch, { deep: true })
 
   // Страница могла уехать за конец выдачи: фильтр сузил список, пока человек стоял на третьей.
   watch(pageCount, (count) => {
@@ -299,17 +497,19 @@ export const useTasksStore = defineStore('tasks-tasks', () => {
 
   // Смена пространства — это другой список, а не другой фильтр: старые карточки убираются сразу,
   // чтобы на время запроса на экране не стояли задачи из пространства, которое уже не выбрано.
-  // Фильтр группы снимается вместе с ними: группы у каждого пространства свои, и код чужой
-  // группы оставил бы список пустым без видимой причины.
   watch(
     () => context.current,
     () => {
       groups.value = []
       items.value = []
-      groupFilter.value = null
+      // Коды глубокого поиска и свёрнутых карточек — из прежнего пространства: в новом они
+      // ничему не соответствуют.
+      deepCodes.value = null
+      folded.value = {}
       resetPage()
       loading.value = true
       void load()
+      void runDeepSearch()
     },
   )
 
@@ -339,31 +539,120 @@ export const useTasksStore = defineStore('tasks-tasks', () => {
   }
 
   /**
-   * Перетащили строку: новое место среди соседей и, если её тянули в чужую карточку, новая
-   * группа.
+   * Перетащили карточку группы: рядом с какой она теперь стоит.
    *
-   * Список перечитывается целиком, а не правится на месте: перестановка перенумеровывает ВЕСЬ ряд
-   * соседей, и держать эту арифметику второй раз на клиенте значило бы разойтись с базой на
-   * первом же несовпадении.
+   * Позиция названа соседкой (`after` — встать под ней, `before` — над ней), потому что `sort` на
+   * экране не виден вовсе. Список перечитывается целиком, как и после перестановки задачи: ряд
+   * перенумеровывается на бэке, и вторая копия этой арифметики здесь разошлась бы с базой.
+   *
+   * Порядок секций на экране при этом не повторяет `sort` буквально — пустые группы уходят вниз
+   * (см. `sections`), поэтому перенос пустой карточки вверх сохранится, но её места не изменит.
    */
-  async function reorder(code: string, afterCode: string | null, groupCode?: string | null) {
+  async function reorderGroup(code: string, place: { after?: string | null; before?: string | null }) {
     try {
-      await reorderTask(code, {
-        after_code: afterCode,
-        ...(groupCode === undefined ? {} : { group_code: groupCode }),
+      await reorderGroupRequest(code, {
+        ...(place.after !== undefined ? { after_code: place.after } : {}),
+        ...(place.before !== undefined ? { before_code: place.before } : {}),
       })
     } catch {
-      // см. выше
+      // см. ниже: об отказе уже сказал тост клиента, а ответ на него — свежий список.
     }
     await load()
   }
 
+  // ── Перестановка задач: сразу на экране, следом в базе ───────────────────────
+
+  /** Применить перемещение к задачам стора — до ответа бэка (правило ряда — `tree.ts::moveInRow`). */
+  function applyMove(code: string, afterCode: string | null, place: MovePlace) {
+    const next = moveInRow(items.value, code, afterCode, place)
+    if (next) items.value = next
+  }
+
+  // Запросы перестановки идут ЦЕПОЧКОЙ, в порядке жестов: два быстрых броска подряд иначе ушли бы
+  // параллельно, и бэк мог бы применить их в обратном порядке.
+  let moveChain: Promise<void> = Promise.resolve()
+  let movesInFlight = 0
+
+  /**
+   * Перетащили строку: новое место среди соседей, а если её тянули в чужую карточку или из ветки
+   * наверх — ещё и новая группа и новый родитель.
+   *
+   * Порядок действий: стор меняется сразу, запрос уходит следом, список перечитывается после
+   * ответа. Раньше было наоборот — и полсекунды строка стояла на старом месте: библиотека
+   * откатывает перестановку в DOM ещё до `onEnd`, а новый порядок появлялся только после
+   * перечитки. Перечитка осталась, но теперь это сверка: если бэк согласен, на экране не меняется
+   * ничего, а если нет (отказ, устаревший список) — побеждает бэк.
+   *
+   * Перечитывается один раз, когда цепочка опустела: ответ на первый из двух жестов, пришедший
+   * посреди второго, откатил бы второй на экране.
+   */
+  function reorder(
+    code: string,
+    afterCode: string | null,
+    place: MovePlace = {},
+  ): Promise<void> {
+    applyMove(code, afterCode, place)
+    movesInFlight += 1
+    moveChain = moveChain
+      .then(() =>
+        reorderTask(code, {
+          after_code: afterCode,
+          // Ключа нет — поле не трогаем; `null` — снять группу или открепить от родителя. Различие
+          // выражается наличием ключа, и здесь оно ровно такое же, как в теле запроса.
+          ...('group' in place ? { group_code: place.group } : {}),
+          ...('parent' in place ? { parent_code: place.parent } : {}),
+        }),
+      )
+      .then(
+        () => undefined,
+        () => undefined, // об отказе уже сказал тост клиента; ответ на него — сверка ниже
+      )
+      .then(async () => {
+        movesInFlight -= 1
+        if (movesInFlight === 0) {
+          // Сверка после своих перестановок заодно покрывает и отложенную чужую правку.
+          liveReloadWaiting = false
+          await load()
+        }
+      })
+    return moveChain
+  }
+
+  // ── Живое обновление: чужие правки из ленты изменений ─────────────────────────
+  // Список перечитывается сам, когда задачи, их места или группы меняет кто-то другой: агент через
+  // MCP, другая вкладка. Своё эхо сюда не доходит — его отсевает лента (`stores/changes.ts`).
+  //
+  // Перечитка ЖДЁТ, пока идёт свой жест: строку держат в руке — подменить под ней список значит
+  // выдернуть цель броска; своя перестановка в полёте — перечитка обогнала бы её ответ и на миг
+  // вернула бы строку на старое место. Отложенное делается, когда жест кончился, а цепочка
+  // перестановок и так кончается сверкой.
+  let liveReloadWaiting = false
+
+  function reloadForChanges(): void {
+    if (dragging.value || movesInFlight > 0) {
+      liveReloadWaiting = true
+      return
+    }
+    liveReloadWaiting = false
+    void load().then(() => {
+      // Коды глубокого поиска считались по прежним телам — чужая правка могла их поменять.
+      if (query.value.trim() && anyScope(searchScopes.value)) void runDeepSearch()
+    })
+  }
+
+  watch(dragging, (on) => {
+    if (!on && liveReloadWaiting && movesInFlight === 0) reloadForChanges()
+  })
+
   return {
     groups, items, loading, error, includeDeleted, format,
-    query, statusFilter, priorityFilter, typeFilter, groupFilter,
+    query, statusFilter, priorityFilter,
+    hideFinished, hideFinishedApplies, searchScopes,
     page, pageSize,
     roots, filtered, total, pageCount, pageItems,
-    isEmpty, isFilteredOut, hasActiveFilters, noWorkspace, sections,
-    load, showDeleted, resetPage, clearFilters, remove, restore, reorder,
+    isEmpty, isFilteredOut, hasActiveFilters, finishedHidden, noWorkspace, sections,
+    folded, isCollapsed, toggleCollapsed, dragging, lastRootOf,
+    load, showDeleted, showFinished, resetPage, clearFilters, remove, restore, reorder,
+    reorderGroup, reloadForChanges,
   }
 })

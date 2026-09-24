@@ -20,6 +20,7 @@ from sqlalchemy import delete as sa_delete, func, select
 
 from src.core.database import session_scope, write_scope
 from src.core.utils.date import utc_now
+from src.modules.core_changes import DELETED, mark_changes
 from src.modules.tasks.codes import new_code
 from src.modules.tasks.constants import (
     BODY_MAX,
@@ -229,6 +230,8 @@ async def stage_delete(code: str) -> bool:
         if row is None:
             return False
         await s.execute(sa_delete(TasksStage).where(TasksStage.code == code))
+        # Массовый оператор объектов не даёт — ленте изменений код называем сами.
+        mark_changes(s, "tasks.stage", DELETED, [code])
     return True
 
 

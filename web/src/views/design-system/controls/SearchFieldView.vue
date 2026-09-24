@@ -32,9 +32,9 @@ const panelQuery = ref('')
 const panelScopes = ref<string[]>(['areas', 'notes'])
 const group = ref<string | null>(null)
 const groupOptions = [
-  { title: 'Laravel и PHP', value: 'laravel' },
-  { title: 'Фронтенд', value: 'frontend' },
-  { title: 'Инфраструктура', value: 'infra' },
+  { title: 'Laravel and PHP', value: 'laravel' },
+  { title: 'Frontend', value: 'frontend' },
+  { title: 'Infrastructure', value: 'infra' },
 ]
 
 // Обе модели в тех же кавычках, в каких уходят наружу: текст — строка, области — массив ключей.
@@ -49,14 +49,14 @@ const usageSnippet = `<SearchField
   :label="t('research.research.filter.query')"
 />
 
-<!-- Набор объявляется рядом с фильтром: ключ уходит в запрос, подпись — в подсказку. -->
+<!-- The set is declared next to the filter: the key goes into the request, the label into the hint. -->
 const SEARCH_SCOPES: SearchScope[] = [
   { key: 'areas', icon: IconFileText, label: t('research.research.filter.scope_areas') },
   { key: 'notes', icon: IconNote, label: t('research.research.filter.scope_notes') },
 ]`
 
-const reloadSnippet = `// Область меняет стог, а не сам запрос: перезапрашивать имеет смысл только тогда,
-// когда запрос непустой — иначе выдача та же самая.
+const reloadSnippet = `// The scope changes the stack, not the query itself: reloading only makes sense
+// when the query is non-empty — otherwise the results are the same.
 watch(() => store.searchScopes, () => {
   if (!queryInput.value) return
   store.resetPage()
@@ -99,7 +99,7 @@ watch(() => store.searchScopes, () => {
               />
               <p class="ds-value">{{ t('design-system.section.search-field.plain_note') }}</p>
             </div>
-            <span class="ds-spec">без :scopes</span>
+            <span class="ds-spec">no :scopes</span>
           </div>
 
           <!-- Пояснение под полем меняется вместе с областью: одной подписи на оба состояния не

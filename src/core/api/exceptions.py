@@ -1,6 +1,6 @@
 """Единые exception-handler'ы: любой нативный «зоопарк» FastAPI → ``ErrorBody``.
 
-Сводит к одному формату ``{error, code?, fields?}``:
+Сводит к одному формату ``{error, code?, params?, fields?}``:
 - ``ApiError``               — наш бизнес-класс (несёт status/code/fields);
 - ``HTTPException``          — голый ``raise HTTPException(404, "...")`` по модулям
                                (detail-строка → ``error``; detail-объект → message/code);
@@ -38,8 +38,9 @@ def register_exception_handlers(app: FastAPI) -> None:
         if isinstance(detail, dict):
             message = str(detail.get("error") or detail.get("message") or detail)
             code = detail.get("code")
+            params = detail.get("params") if isinstance(detail.get("params"), dict) else None
             fields = detail.get("fields") if isinstance(detail.get("fields"), dict) else None
-            body = ErrorBody(error=message, code=code, fields=fields)
+            body = ErrorBody(error=message, code=code, params=params, fields=fields)
         else:
             body = ErrorBody(error=str(detail))
         return _json(exc.status_code, body)
@@ -52,7 +53,7 @@ def register_exception_handlers(app: FastAPI) -> None:
             parts = [str(p) for p in err.get("loc", ()) if p not in ("body", "query", "path")]
             key = ".".join(parts) or "_"
             fields.setdefault(key, err.get("msg", "invalid"))
-        body = ErrorBody(error="Ошибка валидации", code="validation_error", fields=fields)
+        body = ErrorBody(error="Validation failed", code="validation_error", fields=fields)
         return _json(422, body)
 
     @app.exception_handler(Exception)
@@ -60,7 +61,7 @@ def register_exception_handlers(app: FastAPI) -> None:
         _LOG.exception(
             "unhandled error on %s %s: %s", request.method, request.url.path, exc
         )
-        return _json(500, ErrorBody(error="Внутренняя ошибка сервера", code="internal_error"))
+        return _json(500, ErrorBody(error="Internal server error", code="internal_error"))
 
 
 __all__ = ["register_exception_handlers"]

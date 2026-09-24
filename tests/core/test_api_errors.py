@@ -25,6 +25,10 @@ async def client():
     async def _api_error():
         raise ApiError.conflict("email занят", code="email_taken", fields={"email": "занят"})
 
+    @app.get("/api-error-params")
+    async def _api_error_params():
+        raise ApiError.not_found("Task TASK@abc not found", code="tasks.task.not_found", params={"code": "TASK@abc"})
+
     @app.get("/http-exc")
     async def _http_exc():
         raise HTTPException(status_code=404, detail="task not registered")
@@ -46,13 +50,31 @@ async def test_api_error_maps_to_envelope(client):
     r = await client.get("/api-error")
     assert r.status_code == 409
     body = r.json()
-    assert body == {"error": "email занят", "code": "email_taken", "fields": {"email": "занят"}}
+    assert body == {"error": "email занят", "code": "email_taken", "params": None, "fields": {"email": "занят"}}
+
+
+async def test_api_error_carries_params_for_the_client_text(client):
+    r = await client.get("/api-error-params")
+
+    assert r.status_code == 404
+    assert r.json() == {
+        "error": "Task TASK@abc not found",
+        "code": "tasks.task.not_found",
+        "params": {"code": "TASK@abc"},
+        "fields": None,
+    }
+
+
+async def test_default_texts_are_english(client):
+    assert ApiError.not_found().message == "Not found"
+    assert ApiError.conflict().message == "Conflict"
+    assert ApiError.validation().message == "Validation failed"
 
 
 async def test_http_exception_string_detail_to_error(client):
     r = await client.get("/http-exc")
     assert r.status_code == 404
-    assert r.json() == {"error": "task not registered", "code": None, "fields": None}
+    assert r.json() == {"error": "task not registered", "code": None, "params": None, "fields": None}
 
 
 async def test_validation_error_collects_fields(client):
@@ -66,4 +88,4 @@ async def test_validation_error_collects_fields(client):
 async def test_unhandled_exception_is_500(client):
     r = await client.get("/boom")
     assert r.status_code == 500
-    assert r.json() == {"error": "Внутренняя ошибка сервера", "code": "internal_error", "fields": None}
+    assert r.json() == {"error": "Internal server error", "code": "internal_error", "params": None, "fields": None}

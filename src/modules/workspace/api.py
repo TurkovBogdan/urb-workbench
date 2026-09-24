@@ -46,6 +46,7 @@ from src.modules.workspace.constants import (
     WORKSPACE_CODE_PREFIX,
 )
 from src.modules.workspace.crud import workspace as workspace_crud
+from src.modules.workspace.errors import WORKSPACE_DELETED, WORKSPACE_NOT_DELETED, WORKSPACE_NOT_FOUND
 from src.modules.workspace.dto import (
     WorkspaceCounterRow,
     WorkspaceListRow,
@@ -110,7 +111,7 @@ async def _require(code: str) -> Workspace:
     """
     row = await workspace_crud.workspace_get(code, include_deleted=True)
     if row is None:
-        raise ApiError.not_found("Пространство не найдено")
+        raise ApiError.not_found("Workspace not found", code=WORKSPACE_NOT_FOUND)
     return row
 
 
@@ -172,7 +173,7 @@ async def update_workspace(code: str, payload: WorkspaceBody) -> WorkspaceRow:
     bare = _code(code)
     existing = await _require(bare)
     if existing.deleted_at is not None:
-        raise ApiError.conflict("Пространство удалено — сначала восстановите его")
+        raise ApiError.conflict("Workspace is deleted — restore it first", code=WORKSPACE_DELETED)
     row = await workspace_crud.workspace_update(
         bare,
         title=payload.title,
@@ -181,7 +182,7 @@ async def update_workspace(code: str, payload: WorkspaceBody) -> WorkspaceRow:
         icon=payload.icon,
     )
     if row is None:
-        raise ApiError.not_found("Пространство не найдено")
+        raise ApiError.not_found("Workspace not found", code=WORKSPACE_NOT_FOUND)
     return WorkspaceRow.model_validate(row)
 
 
@@ -193,7 +194,7 @@ async def delete_workspace(code: str) -> Response:
     совпадает с желаемым — пространство удалено.
     """
     if not await workspace_crud.workspace_delete(_code(code)):
-        raise ApiError.not_found("Пространство не найдено")
+        raise ApiError.not_found("Workspace not found", code=WORKSPACE_NOT_FOUND)
     return Response(status_code=204)
 
 
@@ -208,7 +209,7 @@ async def restore_workspace(code: str) -> WorkspaceRow:
     bare = _code(code)
     existing = await _require(bare)
     if existing.deleted_at is None:
-        raise ApiError.conflict("Пространство не удалено — восстанавливать нечего")
+        raise ApiError.conflict("Workspace is not deleted — nothing to restore", code=WORKSPACE_NOT_DELETED)
     await workspace_crud.workspace_restore(bare)
     return WorkspaceRow.model_validate(await _require(bare))
 
@@ -222,7 +223,7 @@ async def purge_workspace(code: str) -> Response:
     вызова. Отметки времени после этого не остаётся — восстанавливать нечего и неоткуда.
     """
     if not await workspace_crud.workspace_delete(_code(code), hard=True):
-        raise ApiError.not_found("Пространство не найдено")
+        raise ApiError.not_found("Workspace not found", code=WORKSPACE_NOT_FOUND)
     return Response(status_code=204)
 
 

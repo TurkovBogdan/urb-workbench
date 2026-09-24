@@ -11,7 +11,7 @@ import {
   IconLayoutBottombarExpand, IconToggleLeft, IconPaperclip,
   IconMessages, IconMail, IconChevronDown, IconUsersGroup, IconMoodSmile,
   IconMoodSad, IconHeading, IconPalette, IconBrush, IconLayoutList, IconLayoutNavbar,
-  IconSearch, IconFileText, IconFolders, IconLayoutSidebar,
+  IconSearch, IconFileText, IconFolders, IconLayoutSidebar, IconSubtask, IconCopy,
 } from '@tabler/icons-vue'
 import type { TablerIcon } from '@/shared/nav'
 import PageLayout from '@/layout/templates/PageLayout.vue'
@@ -44,6 +44,7 @@ const groups: Group[] = [
     pages: [
       { slug: 'buttons',      icon: IconClick },
       { slug: 'button-group', icon: IconLayoutColumns },
+      { slug: 'copy-chip',    icon: IconCopy },
       { slug: 'selects',      icon: IconSelector },
       { slug: 'inputs',       icon: IconForms },
       { slug: 'search-field', icon: IconSearch },
@@ -118,6 +119,14 @@ const groups: Group[] = [
     pages: [
       { slug: 'kanban',        icon: IconLayoutKanban },
       { slug: 'edge-scroller', icon: IconArrowsHorizontal },
+    ],
+  },
+  // Специальные — узкие компоненты, собранные под одну задачу интерфейса, а не общие кирпичи
+  // вроде кнопки или поля. Предметной области они при этом не знают, в отличие от проектных.
+  {
+    key: 'special',
+    pages: [
+      { slug: 'counter-button', icon: IconSubtask },
     ],
   },
   // Проектные — то, что живёт в `features/` и знает про домен (исследования, полки). Остальные

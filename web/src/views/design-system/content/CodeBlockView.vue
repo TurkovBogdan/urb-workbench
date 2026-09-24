@@ -124,7 +124,7 @@ LIMIT 20;`,
             <CodeBlock :code="python" lang="python" variant="accent" />
           </div>
           <div class="variant-item">
-            <span class="ds-tag">compact — однострочный код, копирование по наведению</span>
+            <span class="ds-tag">compact — single-line code, copy on hover</span>
             <CodeBlock code="uv run pytest --core" lang="bash" variant="compact" />
           </div>
         </div>

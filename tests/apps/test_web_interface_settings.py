@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -132,6 +133,13 @@ def test_document_column_repeats_the_page_groups_field_for_field():
     }
 
 
+def test_language_matches_the_registry():
+    language = _source(CONSTANTS / "language.ts")
+
+    assert _codes(language, "LANGUAGE_OPTIONS") == _options("interface_language")
+    assert _string(language, "DEFAULT_LANGUAGE") == _default("interface_language")
+
+
 def test_theme_matches_the_registry():
     theme = _source(CONSTANTS / "theme.ts")
 
@@ -169,3 +177,47 @@ def test_diagram_layout_matches_the_registry():
 # Раскладка списка исследований сверялась здесь же, пока была настройкой интерфейса. Ключ
 # `interface_list_research_view` снят вместе с разделом (2026-09-20): набор значений остался
 # только во фронте (`constants/lists.ts`), сверять его теперь не с чем.
+
+
+# Подписи вариантов живут в словаре по коду (`composables/useAppearanceOptions.ts`), а в константах
+# остались только коды и имена собственные. Промах здесь тихий: `vue-i18n` рисует путь ключа, и
+# вариант выглядит в списке как `settings.interface.option.font.lora.note`.
+_OPTION_SOURCES = {
+    "theme": ("theme.ts", "THEME_OPTIONS"),
+    "code_variant": ("code.ts", "CODE_VARIANTS"),
+    "diagram_align": ("diagrams.ts", "DIAGRAM_ALIGNS"),
+    "diagram_theme": ("diagrams.ts", "DIAGRAM_THEMES"),
+}
+_OPTION = re.compile(r"\{\s*code: ('[^']*'|\w+)(,\s*label: '[^']*')?")
+
+
+def _option_strings() -> dict:
+    strings = json.loads((WEB_SRC / "features" / "settings" / "locales" / "ru.json").read_text(encoding="utf-8"))
+    return strings["interface"]["option"]
+
+
+def _declared_options(kind: str) -> dict[str, bool]:
+    """Код варианта → есть ли у него собственная подпись в константах."""
+    if kind == "font":
+        source = _source(CONSTANTS / "fonts.ts")
+        return {
+            code: bool(label)
+            for code, label in re.findall(r": FontOption = \{\s*code: '([^']+)',(\s*label: '[^']*')?", source)
+        }
+    path, name = _OPTION_SOURCES[kind]
+    source = _source(CONSTANTS / path)
+    body = re.search(rf"{name}(?:: [\w\[\]]+)? = \[(.*?)\n\]", source, re.S).group(1)
+    return {
+        code.strip("'") if code.startswith("'") else _string(source, code): bool(label)
+        for code, label in _OPTION.findall(body)
+    }
+
+
+@pytest.mark.parametrize("kind", [*_OPTION_SOURCES, "font"])
+def test_every_option_has_its_words_in_the_dictionary(kind: str):
+    strings = _option_strings()[kind]
+    declared = _declared_options(kind)
+
+    assert declared
+    assert {code for code in declared if "note" not in strings.get(code, {})} == set()
+    assert {code for code, own in declared.items() if not own and "label" not in strings.get(code, {})} == set()

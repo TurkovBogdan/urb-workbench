@@ -13,18 +13,18 @@ const levels = [1, 2, 3, 4] as const
 
 const loadingDemo = ref(true)
 
-const usageSnippet = `<!-- Секция внутри страницы: уровень задаёт и тег <h*>, и кегль -->
+const usageSnippet = `<!-- A section inside a page: the level sets both the <h*> tag and the font size -->
 <SectionHeader :title="t('research.research.detail.areas')" :count="areas.length" />
 
-<!-- Правый слот — кнопка или бейдж рядом с заголовком -->
-<SectionHeader title="Источники" :count="12">
+<!-- Right slot — a button or a badge next to the title -->
+<SectionHeader title="Sources" :count="12">
   <template #right>
-    <VBtn variant="text" size="small" :prepend-icon="IconRefresh">Обновить</VBtn>
+    <VBtn variant="text" size="small" :prepend-icon="IconRefresh">Refresh</VBtn>
   </template>
 </SectionHeader>
 
-<!-- Шапка страницы собрана поверх того же компонента: PageHeader = кнопка «назад» + уровень 1 -->
-<PageHeader title="Исследование" back-to="/research/researches" :loading="store.loading" />`
+<!-- The page header is built on top of the same component: PageHeader = a "back" button + level 1 -->
+<PageHeader title="Research" back-to="/research/researches" :loading="store.loading" />`
 </script>
 
 <template>

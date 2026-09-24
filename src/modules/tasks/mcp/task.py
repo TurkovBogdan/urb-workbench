@@ -234,9 +234,11 @@ def register(mcp: "FastMCP") -> None:
         not say. `constraints` says what must not be touched. `criteria` lists conditions that
         can be checked one by one — without them, "done" gets decided by whoever ran the work.
 
-        Subtask: pass `parent_code`. File it under a theme with `group_code` — groups_list says
-        what the themes are and where their boundaries run. A new task starts in `backlog`;
-        move it with task_status when you actually pick it up.
+        Subtask: pass `parent_code`. The tree is one level deep — the parent must be a top-level
+        task, and a subtask sits in its parent's group, so leave `group_code` out for one. File
+        a top-level task under a theme with `group_code` — groups_list says what the themes are
+        and where their boundaries run. A new task starts in `backlog`; move it with
+        task_status when you actually pick it up.
 
         Args:
             title: Short name — the line this task is found by in a list.
@@ -252,7 +254,7 @@ def register(mcp: "FastMCP") -> None:
                 a standard task refuses stages and says so.
             priority: burning / high / normal / low / frozen. Default normal.
             group_code: A GROUP@ code from groups_list; omit to leave it unfiled.
-            parent_code: A TASK@ code to make this a subtask of it.
+            parent_code: A TASK@ code of a top-level task to make this a subtask of it.
             deadline_at: Hard deadline, `YYYY-MM-DD HH:MM:SS` in UTC.
         """
         active = await require_active()
@@ -297,12 +299,20 @@ def register(mcp: "FastMCP") -> None:
         type: str | None = None,
         priority: str | None = None,
         group_code: str | None = None,
+        parent_code: str | None = None,
         deadline_at: datetime | None = None,
     ) -> AgentTaskRow:
         """Update a task — only the fields you pass; anything you omit keeps its value.
 
-        Use it to refile a task under another group, to re-rank it, to raise its type when a
-        one-liner turns out to need a plan, or to fill in a brief on a task you created.
+        Use it to refile a task under another group, to move it under another parent or out to
+        the top level, to re-rank it, to raise its type when a one-liner turns out to need a
+        plan, or to fill in a brief on a task you created.
+
+        The tree is one level deep: a subtask has no subtasks. So the new parent must be a
+        top-level task, and a task that has subtasks cannot become one — move its subtasks out
+        first, then move it. A subtask sits in its parent's group: moving under a parent takes
+        that group, and a subtask's group is changed by refiling its parent, whose subtasks
+        follow. A move lands at the end of the new row; the order within a row is the person's.
 
         Two things are not here. The plan is text — body_set and its neighbours own it. Status
         moves through task_status, which also stamps when the work started.
@@ -314,7 +324,11 @@ def register(mcp: "FastMCP") -> None:
 
         Args:
             task_code: The task to change — a TASK@ code.
-            group_code: A GROUP@ code, or an empty string to take it out of its group.
+            group_code: A GROUP@ code, or an empty string to take it out of its group. With
+                parent_code="" it files the task as it leaves its branch — one call.
+            parent_code: A TASK@ code of a live top-level task to move this under — an
+                unfinished one, unless this task is finished too — or an empty string to make
+                it a top-level task in the group it already had.
             type: simple / standard / extended — raising it to extended is how a task that
                 turned out to need steps gets them.
             priority: burning / high / normal / low / frozen.
@@ -344,6 +358,9 @@ def register(mcp: "FastMCP") -> None:
         group_bare = bare_code(group_code, GROUP_CODE_PREFIX)
         if group_bare:
             await require_scope(GROUP_CODE_PREFIX, group_bare)
+        parent_bare = bare_code(parent_code, TASK_CODE_PREFIX)
+        if parent_bare:
+            await require_scope(TASK_CODE_PREFIX, parent_bare)
         row = await task_crud.task_update(
             bare,
             title=title,
@@ -354,6 +371,7 @@ def register(mcp: "FastMCP") -> None:
             type=type,
             priority=priority,
             group_code="" if group_code == "" else group_bare,
+            parent_code="" if parent_code == "" else parent_bare,
             deadline_at=deadline_at if deadline_at is not None else task_crud.KEEP,
         )
         if row is None:

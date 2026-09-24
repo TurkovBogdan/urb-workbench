@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 from src.core.module import Module
+from src.modules.core_changes import CoreChangesModule
 from src.modules.core_interface import CoreInterfaceModule
 from src.modules.core_mcp import CoreMcpModule
 from src.modules.core_monitoring import CoreMonitoringModule
@@ -24,7 +25,8 @@ def build_modules() -> list[Module]:
     + рестарт), ``core_interface`` — настройки интерфейса пользователя (тема,
     гарнитуры, оформление документа и схем), ``core_monitoring`` — раздел задач (список +
     запуски + логи, только чтение), ``core_mcp`` — интроспекция модулей, поднятых как MCP-серверы
-    (только чтение), ``workspace`` — рабочие пространства (общий уровень изоляции данных)
+    (только чтение), ``core_changes`` — лента изменений данных для живого обновления интерфейса,
+    ``workspace`` — рабочие пространства (общий уровень изоляции данных)
     и ``tasks`` — хранилище задач внутри пространства (группы, дерево задач, план и журнал).
     Новый модуль — добавить инстанс в список.
 
@@ -38,6 +40,8 @@ def build_modules() -> list[Module]:
         CoreInterfaceModule(),
         CoreMonitoringModule(),
         CoreMcpModule(),
+        # Раньше модулей данных: они объявляют в нём свои сущности из своего ``configure()``.
+        CoreChangesModule(),
         WorkspaceModule(),
         TasksModule(),
     ]

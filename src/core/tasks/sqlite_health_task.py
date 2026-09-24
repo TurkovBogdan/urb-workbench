@@ -25,9 +25,10 @@ class SqliteHealthTask(CoreTaskBase):
     MODULE = "core"
     CODE = "sqlite_health"
     NAME = "SQLite health"
+    # Английский запасной текст: интерфейс показывает перевод из словаря по (MODULE, CODE).
     DESCRIPTION = (
-        "Раз в час: размер файла-спутника WAL относительно базы (голодание чекпойнта "
-        "ничем больше себя не выдаёт), quick_check и foreign_key_check."
+        "Hourly: size of the WAL companion file relative to the database (checkpoint "
+        "starvation shows no other sign), quick_check and foreign_key_check."
     )
     SCHEDULE = "17 * * * *"
     TTL = 300
@@ -36,19 +37,19 @@ class SqliteHealthTask(CoreTaskBase):
     async def handle(ctx: TaskContext) -> None:
         database_file = get_config().sqlite_file
         if database_file is None or not database_file.exists():
-            await ctx.info("провайдер не файловый sqlite — проверять нечего")
+            await ctx.info("provider is not a file-based sqlite — nothing to check")
             return
 
         database_bytes = database_file.stat().st_size
         wal_bytes = _companion_size(database_file)
         await ctx.info(
-            "база %.1f МБ, журнал %.1f МБ",
+            "database %.1f MB, journal %.1f MB",
             database_bytes / 1024 / 1024,
             wal_bytes / 1024 / 1024,
         )
         if database_bytes and wal_bytes > database_bytes * _WAL_SHARE_TO_WARN:
             await ctx.warn(
-                "журнал разросся до %.0f%% размера базы — чекпойнт не доводит работу до конца",
+                "journal grew to %.0f%% of the database size — the checkpoint doesn't finish its work",
                 wal_bytes / database_bytes * 100,
             )
 
@@ -60,7 +61,7 @@ class SqliteHealthTask(CoreTaskBase):
         if pages != "ok":
             await ctx.error("quick_check: %s", pages)
         if violations:
-            await ctx.error("нарушений ссылочной целостности: %d", len(violations))
+            await ctx.error("foreign key violations: %d", len(violations))
 
 
 def _companion_size(database_file: Path) -> int:

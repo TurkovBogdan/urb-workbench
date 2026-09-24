@@ -1,0 +1,46 @@
+{
+  "nav": "Version and update",
+  "page": {
+    "title": "About",
+    "description": "Installed version, branch state and update"
+  },
+  "installed": {
+    "title": "Installed",
+    "version": "Version",
+    "release_date": "Release date",
+    "build": "Build",
+    "branch": "Update branch",
+    "unknown": "unknown",
+    "dirty": "there are uncommitted changes",
+    "branch_mismatch": "branch {branch} is checked out in the working directory"
+  },
+  "upstream": {
+    "title": "Available on branch {branch}",
+    "version": "Version",
+    "commit": "Commit",
+    "distance": "Behind by",
+    "behind": "{n} commit | {n} commits",
+    "ahead": "ahead by {n}: the update won't be able to fast-forward the branch",
+    "unknown": "couldn't determine",
+    "up_to_date": "the installation is on the latest commit of the branch",
+    "check": "Check",
+    "unavailable": "Couldn't query the remote"
+  },
+  "refusal": {
+    "dirty_tree": "The working directory has uncommitted changes — the update will refuse to run",
+    "branch_mismatch": "The wrong branch is checked out — the update fast-forwards its own branch, it doesn't move the installation to another one",
+    "platform_unsupported": "Updating from the app doesn't work on Windows — update the installation manually (see README)"
+  },
+  "update": {
+    "title": "Update",
+    "description": "Runs update.sh: stops the processes, fast-forwards the branch, syncs dependencies, copies the database, runs migrations and starts everything again.",
+    "run": "Update",
+    "confirm_title": "Start the update?",
+    "confirm_text": "The installation will be stopped and started again. It takes a few minutes, and the interface will be unavailable meanwhile.",
+    "confirm_ok": "Start",
+    "started": "Update started, pid {pid}",
+    "waiting": "The installation is restarting. The page will reload by itself as soon as the backend responds.",
+    "timeout": "The backend didn't respond in time. See the log: {log}",
+    "unchanged": "The installation stayed on the same version — the update refused to run. See the log: {log}"
+  }
+}

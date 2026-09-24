@@ -3,23 +3,14 @@
 
 export type DiagramAlign = 'left' | 'center'
 
+// Label and note come from the dictionary by code (`composables/useAppearanceOptions.ts`).
 export interface DiagramAlignOption {
   code: DiagramAlign
-  label: string
-  note: string
 }
 
 export const DIAGRAM_ALIGNS: DiagramAlignOption[] = [
-  {
-    code: 'left',
-    label: 'По левому краю',
-    note: 'Схема встаёт на ту же вертикаль, что и текст вокруг.',
-  },
-  {
-    code: 'center',
-    label: 'По центру',
-    note: 'Схема заметнее, но узкая отрывается от колонки текста.',
-  },
+  { code: 'left' },
+  { code: 'center' },
 ]
 
 export const DEFAULT_DIAGRAM_ALIGN: DiagramAlign = 'left'
@@ -35,29 +26,30 @@ export const DEFAULT_DIAGRAM_ALIGN: DiagramAlign = 'left'
 // откатывается к системным цветам.
 export const SYSTEM_DIAGRAM_THEME = 'system'
 
+// A palette name is a proper noun and stays here; the note — and the label of `system`, which is
+// not a palette — come from the dictionary by code (`composables/useAppearanceOptions.ts`).
 export interface DiagramThemeOption {
   code: string
-  label: string
-  note: string
+  label?: string
 }
 
 export const DIAGRAM_THEMES: DiagramThemeOption[] = [
-  { code: SYSTEM_DIAGRAM_THEME, label: 'Системная', note: 'Цвета приложения: схема переключается вместе с его темой.' },
-  { code: 'zinc-light', label: 'Zinc Light', note: 'Светлая, без цвета: чёрным по белому.' },
-  { code: 'zinc-dark', label: 'Zinc Dark', note: 'Тёмная, без цвета.' },
-  { code: 'github-light', label: 'GitHub Light', note: 'Светлая, синий акцент.' },
-  { code: 'github-dark', label: 'GitHub Dark', note: 'Тёмная, синий акцент.' },
-  { code: 'tokyo-night', label: 'Tokyo Night', note: 'Тёмная, холодная синева.' },
-  { code: 'tokyo-night-storm', label: 'Tokyo Night Storm', note: 'Та же палитра на фоне посветлее.' },
-  { code: 'tokyo-night-light', label: 'Tokyo Night Light', note: 'Светлый вариант той же палитры.' },
-  { code: 'catppuccin-mocha', label: 'Catppuccin Mocha', note: 'Тёмная, сиреневый акцент.' },
-  { code: 'catppuccin-latte', label: 'Catppuccin Latte', note: 'Светлая, сиреневый акцент.' },
-  { code: 'nord', label: 'Nord', note: 'Тёмная, приглушённый голубой.' },
-  { code: 'nord-light', label: 'Nord Light', note: 'Светлая, приглушённый голубой.' },
-  { code: 'dracula', label: 'Dracula', note: 'Тёмная, фиолетовый акцент.' },
-  { code: 'solarized-light', label: 'Solarized Light', note: 'Светлая, тёплый бумажный фон.' },
-  { code: 'solarized-dark', label: 'Solarized Dark', note: 'Тёмная, сине-зелёный фон.' },
-  { code: 'one-dark', label: 'One Dark', note: 'Тёмная, палитра редактора Atom.' },
+  { code: SYSTEM_DIAGRAM_THEME },
+  { code: 'zinc-light', label: 'Zinc Light' },
+  { code: 'zinc-dark', label: 'Zinc Dark' },
+  { code: 'github-light', label: 'GitHub Light' },
+  { code: 'github-dark', label: 'GitHub Dark' },
+  { code: 'tokyo-night', label: 'Tokyo Night' },
+  { code: 'tokyo-night-storm', label: 'Tokyo Night Storm' },
+  { code: 'tokyo-night-light', label: 'Tokyo Night Light' },
+  { code: 'catppuccin-mocha', label: 'Catppuccin Mocha' },
+  { code: 'catppuccin-latte', label: 'Catppuccin Latte' },
+  { code: 'nord', label: 'Nord' },
+  { code: 'nord-light', label: 'Nord Light' },
+  { code: 'dracula', label: 'Dracula' },
+  { code: 'solarized-light', label: 'Solarized Light' },
+  { code: 'solarized-dark', label: 'Solarized Dark' },
+  { code: 'one-dark', label: 'One Dark' },
 ]
 
 export const DEFAULT_DIAGRAM_THEME = SYSTEM_DIAGRAM_THEME

@@ -11,10 +11,8 @@ class HeartbeatTask(CoreTaskBase):
     MODULE = "core"
     CODE = "heartbeat"
     NAME = "Heartbeat"
-    DESCRIPTION = (
-        "Маркер живого планировщика: каждую минуту пишет успешный запуск "
-        "в core_tasks."
-    )
+    # Английский запасной текст: интерфейс показывает перевод из словаря по (MODULE, CODE).
+    DESCRIPTION = "A sign the scheduler is alive: records a successful run in core_tasks every minute."
     SCHEDULE = "* * * * *"
     TTL = 30
 

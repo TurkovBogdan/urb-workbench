@@ -178,7 +178,13 @@ const editor = useEditor({
     // а не только в пустом документе. Текст функцией, а не строкой: так он берётся из словаря
     // при каждой отрисовке и переживёт смену языка, а не застынет на том, что было при
     // создании редактора.
-    Placeholder.configure({ placeholder: () => props.placeholder ?? t('common.editor.placeholder') }),
+    // Своя подсказка по умолчанию — про команды через «/», но только там, где меню по слэшу
+    // есть: в поле без него (простой режим) она обещала бы то, чего нет.
+    Placeholder.configure({
+      placeholder: () =>
+        props.placeholder ??
+        t(has('slash') ? 'common.editor.placeholder' : 'common.editor.placeholder_plain'),
+    }),
     // Вставка обязана знать состав наравне с загрузкой: через буфер в поле и попадает то,
     // чего его схема не знает.
     MarkdownPaste.configure({ features }),
@@ -187,7 +193,11 @@ const editor = useEditor({
     ...(has('handle')
       ? [
           DragSource,
-          BlockMoves.configure({ onAnnounce: (message) => { announcement.value = message } }),
+          BlockMoves.configure({
+            onAnnounce: (position, total) => {
+              announcement.value = t('common.editor.move.announce', { position, total })
+            },
+          }),
         ]
       : []),
     ...(has('entityRef') ? [EntityRef] : []),
@@ -280,7 +290,7 @@ function move(target: 'up' | 'down' | 'start' | 'end'): void {
         role="button"
         tabindex="0"
         aria-haspopup="menu"
-        aria-label="Переместить блок"
+        :aria-label="t('common.editor.move.handle')"
         :aria-expanded="moveMenu"
         :on-node-change="onHandleNode"
         @click="openMoveMenu"
@@ -292,16 +302,16 @@ function move(target: 'up' | 'down' | 'start' | 'end'): void {
 
       <VMenu v-if="has('handle')" v-model="moveMenu" :target="moveAt" location="bottom start">
         <VList density="compact" nav>
-          <VListItem @click="move('start')"><VListItemTitle>В начало документа</VListItemTitle></VListItem>
+          <VListItem @click="move('start')"><VListItemTitle>{{ t('common.editor.move.start') }}</VListItemTitle></VListItem>
           <VListItem @click="move('up')">
-            <VListItemTitle>Переместить вверх</VListItemTitle>
+            <VListItemTitle>{{ t('common.editor.move.up') }}</VListItemTitle>
             <template #append><span class="editor__hint">Alt ↑</span></template>
           </VListItem>
           <VListItem @click="move('down')">
-            <VListItemTitle>Переместить вниз</VListItemTitle>
+            <VListItemTitle>{{ t('common.editor.move.down') }}</VListItemTitle>
             <template #append><span class="editor__hint">Alt ↓</span></template>
           </VListItem>
-          <VListItem @click="move('end')"><VListItemTitle>В конец документа</VListItemTitle></VListItem>
+          <VListItem @click="move('end')"><VListItemTitle>{{ t('common.editor.move.end') }}</VListItemTitle></VListItem>
         </VList>
       </VMenu>
 

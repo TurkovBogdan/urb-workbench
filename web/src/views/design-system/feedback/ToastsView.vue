@@ -9,15 +9,15 @@ const { t } = useI18n()
 
 const levels: ToastLevel[] = ['success', 'info', 'warn', 'error']
 
-const usageSnippet = `// Отказ запроса всплывает САМ: клиент API зовёт pushToast через errorText (api/client/internal.ts).
-// Руками — только то, чего клиент не знает: успех операции и предупреждения интерфейса.
+const usageSnippet = `// Request failures surface ON THEIR OWN: the API client calls pushToast via errorText (api/client/internal.ts).
+// By hand — only what the client doesn't know: operation success and interface warnings.
 import { pushToast } from '@/composables/useToasts'
 
-pushToast('Настройки сохранены', 'success')
-pushToast('Поиск уже выполняется', 'warn')
+pushToast('Settings saved', 'success')
+pushToast('Search is already running', 'warn')
 
-// timeout: 0 — сообщение висит, пока его не закроют
-pushToast('Сервер перезапускается…', 'info', 0)`
+// timeout: 0 — the message stays until it's dismissed
+pushToast('Server is restarting…', 'info', 0)`
 </script>
 
 <template>

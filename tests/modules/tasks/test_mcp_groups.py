@@ -277,8 +277,8 @@ async def test_regroup_refuses_a_batch_past_the_cap(call, bound):
         )
 
 
-async def test_regroup_leaves_subtasks_where_they_were(call, bound):
-    """Раскладка — не дерево: переложенный эпик детей за собой не тащит."""
+async def test_regroup_takes_the_subtasks_along(call, bound):
+    """Подзадача — часть эпика и лежит в его группе: переложенный эпик уводит её за собой."""
     group = await group_crud.group_create(workspace_code=bound.code, title="Биллинг")
     epic = await task_crud.task_create(workspace_code=bound.code, title="Тарификация")
     child = await task_crud.task_create(
@@ -289,7 +289,44 @@ async def test_regroup_leaves_subtasks_where_they_were(call, bound):
         "tasks_regroup", group_code=f"GROUP@{group.code}", task_codes=[f"TASK@{epic.code}"]
     )
 
+    assert (await task_crud.task_get(child.code)).group_code == group.code
+
+
+async def test_regroup_refuses_a_subtask_named_without_its_parent(call, bound):
+    """Подзадачу в чужую группу не кладут — и пачка не ложится ни одной строкой."""
+    group = await group_crud.group_create(workspace_code=bound.code, title="Биллинг")
+    epic = await task_crud.task_create(workspace_code=bound.code, title="Тарификация")
+    child = await task_crud.task_create(
+        workspace_code=bound.code, title="Миграция", parent_code=epic.code
+    )
+    loose = await task_crud.task_create(workspace_code=bound.code, title="Отдельная")
+
+    with pytest.raises(ToolError, match=f"'{child.code}' \\(a subtask of '{epic.code}'\\)"):
+        await call(
+            "tasks_regroup",
+            group_code=f"GROUP@{group.code}",
+            task_codes=[f"TASK@{loose.code}", f"TASK@{child.code}"],
+        )
+
+    assert (await task_crud.task_get(loose.code)).group_code is None
     assert (await task_crud.task_get(child.code)).group_code is None
+
+
+async def test_regroup_takes_a_subtask_that_travels_with_its_parent(call, bound):
+    group = await group_crud.group_create(workspace_code=bound.code, title="Биллинг")
+    epic = await task_crud.task_create(workspace_code=bound.code, title="Тарификация")
+    child = await task_crud.task_create(
+        workspace_code=bound.code, title="Миграция", parent_code=epic.code
+    )
+
+    await call(
+        "tasks_regroup",
+        group_code=f"GROUP@{group.code}",
+        task_codes=[f"TASK@{child.code}", f"TASK@{epic.code}"],
+    )
+
+    assert (await task_crud.task_get(epic.code)).group_code == group.code
+    assert (await task_crud.task_get(child.code)).group_code == group.code
 
 
 async def test_regroup_refuses_a_code_of_the_wrong_type(call, bound):

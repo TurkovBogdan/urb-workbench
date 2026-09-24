@@ -10,5 +10,10 @@
   },
   "select": {
     "label": "MCP-сервер"
+  },
+  "error": {
+    "server": {
+      "not_found": "MCP-сервер {code} не найден"
+    }
   }
 }

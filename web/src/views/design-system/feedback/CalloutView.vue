@@ -8,13 +8,13 @@ import CodeBlock from '@/components/CodeBlock.vue'
 
 const { t } = useI18n()
 
-const usageSnippet = `<!-- Пояснение под полем формы (описание выбранного движка поиска) -->
+const usageSnippet = `<!-- Hint under a form field (description of the selected search engine) -->
 <VSelect v-model="engine" :items="engineOptions" hide-details="auto" />
 <Callout dense :icon="IconInfoCircle">{{ engineDescription }}</Callout>
 
-<!-- С зачином, для заметки уровня страницы -->
-<Callout tone="warn" title="Движок выключен" :icon="IconAlertTriangle">
-  Поиск этим движком вернёт ошибку, пока он выключен в настройках коннекторов.
+<!-- With a lead-in, for a page-level note -->
+<Callout tone="warn" title="Engine disabled" :icon="IconAlertTriangle">
+  Search with this engine will return an error while it's disabled in the connector settings.
 </Callout>`
 </script>
 

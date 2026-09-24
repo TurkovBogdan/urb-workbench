@@ -20,7 +20,7 @@ from src.modules.core_mcp.api import router as mcp_router
 
 class CoreMcpModule(Module):
     name: ClassVar[str] = "core_mcp"
-    description: ClassVar[str] = "Интроспекция поднятых MCP-серверов: их инструменты и конфиг подключения."
+    description: ClassVar[str] = "Introspection of the running MCP servers: their tools and connection config."
     migrations_dir = None
     config_cls = None
     settings_schema = None

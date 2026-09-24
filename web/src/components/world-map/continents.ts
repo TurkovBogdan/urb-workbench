@@ -1,16 +1,8 @@
 // Mapping from ISO 3166-1 numeric code → continent code (2-char). Self-contained static data.
 // Countries with disputed classification follow mainstream cartographic convention.
 
-export const CONTINENT_LABELS: Record<string, string> = {
-  AF: 'Африка',
-  AS: 'Азия',
-  EU: 'Европа',
-  NA: 'Сев. Америка',
-  OC: 'Океания',
-  SA: 'Юж. Америка',
-}
-
-export const ALL_CONTINENTS = Object.keys(CONTINENT_LABELS)
+// Names come from the dictionary: `common.continent.<code>`.
+export const ALL_CONTINENTS = ['AF', 'AS', 'EU', 'NA', 'OC', 'SA']
 
 // prettier-ignore
 const ENTRIES: ReadonlyArray<readonly [string, string]> = [

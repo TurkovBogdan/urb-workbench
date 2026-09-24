@@ -14,16 +14,16 @@ const { t } = useI18n()
 
 const loadingDemo = ref(true)
 
-const listSnippet = `<!-- Страница списка: имя раздела, что в нём лежит, действия над списком.
-     Возврата нет — в раздел приходят из меню, а не из другой страницы. -->
+const listSnippet = `<!-- List page: the section's name, what it holds, actions on the list.
+     No back button — you arrive at a section from the menu, not from another page. -->
 <PageHeader :title="t('research.research.list.title')" :description="t('research.research.list.description')">
   <template #actions>
-    <VBtn variant="text" :disabled="store.loading" @click="store.load">…Обновить…</VBtn>
+    <VBtn variant="text" :disabled="store.loading" @click="store.load">…Refresh…</VBtn>
   </template>
 </PageHeader>`
 
-const detailSnippet = `<!-- Вложенный раздел: тот же список, но внутри чего-то — полка с её
-     исследованиями. Отсюда возврат: сюда пришли с родительской страницы, а не из меню. -->
+const detailSnippet = `<!-- Nested section: the same list, but inside something — a group with its
+     research. Hence the back button: you arrived here from the parent page, not the menu. -->
 <PageHeader :title="title" :loading="store.loading" back-to="/research/groups">
   <template v-if="group" #description>{{ description }}</template>
   <template #actions>…</template>
@@ -103,7 +103,7 @@ const detailSnippet = `<!-- Вложенный раздел: тот же спи�
           <div class="ds-row">
             <span class="ds-tag">description</span>
             <p class="ds-part">{{ t('design-system.section.page-header.part.description') }}</p>
-            <span class="ds-spec">только у списков</span>
+            <span class="ds-spec">list only</span>
           </div>
           <div class="ds-row">
             <span class="ds-tag">actions</span>

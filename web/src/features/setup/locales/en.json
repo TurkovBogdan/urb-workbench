@@ -1,0 +1,40 @@
+{
+  "nav": "Server",
+  "page": {
+    "title": "Server settings",
+    "description": "Basic server parameters: database, address and ports, background jobs. The server restarts after saving."
+  },
+  "action": {
+    "refresh": "Refresh",
+    "apply": "Save and restart"
+  },
+  "status": {
+    "restarting": "The server is restarting with the new configuration…"
+  },
+  "error": {
+    "restart_timeout": "The server didn't come back within 30 seconds — check the process manually."
+  },
+  "group": {
+    "database": "Database",
+    "server": "Server",
+    "worker": "Background jobs",
+    "update": "Update"
+  },
+  "field": {
+    "DB_PROVIDER": { "label": "Database provider", "description": "postgres — an external server (full-featured); sqlite — a local file, nothing to install" },
+    "DB_PATH": { "label": "SQLite file", "description": "Path to the database file; empty — runtime/<profile>/app.sqlite3" },
+    "DB_HOST": { "label": "Database host", "description": "PostgreSQL server address" },
+    "DB_PORT": { "label": "Database port", "description": "PostgreSQL port (usually 5432)" },
+    "DB_NAME": { "label": "Database name", "description": "Name of the database" },
+    "DB_USER": { "label": "Database user", "description": "PostgreSQL user name" },
+    "DB_PASSWORD": { "label": "Database password", "description": "PostgreSQL user password" },
+    "DB_SSL": { "label": "Database TLS", "description": "Encrypted connection with certificate verification (verify-full)" },
+    "SERVER_HOST": { "label": "Server host", "description": "Address the backend listens on (127.0.0.1 — local only)" },
+    "SERVER_PORT": { "label": "Server port", "description": "HTTP server port (the app opens on it)" },
+    "SERVER_VITE_PORT": { "label": "Vite port (development)", "description": "Frontend dev server port; needed only for local development" },
+    "WORKER_ENABLED": { "label": "Background jobs", "description": "Run the scheduler and job execution in this same process" },
+    "WORKER_TICK_SECONDS": { "label": "Scheduler interval, s", "description": "How often to check the job queue" },
+    "WORKER_MAX_CONCURRENT_RUNS": { "label": "Concurrent jobs", "description": "Maximum number of jobs running at once" },
+    "UPDATE_BRANCH": { "label": "Update branch", "description": "Branch the installation updates to (origin/<branch>); the update fast-forwards and refuses to run if the checkout is on another branch" }
+  }
+}

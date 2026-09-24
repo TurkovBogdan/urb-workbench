@@ -18,7 +18,7 @@ const SAMPLE_CODE = 'RESEARCH@bc854947af58733bd93c3d'
 
 // Колонку страница не рисует — она её заполняет: рамка (`DetailShell`) стоит на маршруте-родителе
 // и переживает переход с артефакта на артефакт.
-const snippet = `// routes.ts — деталки дети общей рамки
+const snippet = `// routes.ts — detail pages are children of the shared shell
 {
   path: '/research',
   component: () => import('@/layout/templates/DetailShell.vue'),
@@ -47,8 +47,8 @@ const templateSnippet = `<template>
   <div>
     <SectionError v-if="store.error" :error="store.error" />
 
-    <!-- Имя артефакта принадлежит артефакту, поэтому стоит над содержимым, а не в колонке.
-         Действия — у правого края этой же строки, на всех деталках в одном месте. -->
+    <!-- The artifact's name belongs to the artifact, so it sits above the content, not in the rail.
+         Actions sit at the right edge of the same row, in the same place on every detail page. -->
     <DetailHead :code="store.research.code" :loading="store.loading" @refresh="reload">
       <template #above><GroupLink v-bind="shelf" /></template>
       <TitleEditor variant="title" :heading="1" :title="store.research.title" … />
@@ -125,39 +125,39 @@ const SAMPLE_PARENT = '/design-system/detail-nav'
             <span class="ds-spec">320px + minmax(0, 1fr)</span>
           </div>
           <div class="ds-row">
-            <span class="ds-tag">назад</span>
+            <span class="ds-tag">back</span>
             <p class="ds-part">{{ t('design-system.section.detail-nav.part.back') }}</p>
-            <span class="ds-spec">история → parent</span>
+            <span class="ds-spec">history → parent</span>
           </div>
           <div class="ds-row">
-            <span class="ds-tag">оформление</span>
+            <span class="ds-tag">appearance</span>
             <p class="ds-part">{{ t('design-system.section.detail-nav.part.appearance') }}</p>
-            <span class="ds-spec">карточка под панелью</span>
+            <span class="ds-spec">card under the panel</span>
           </div>
           <div class="ds-row">
             <span class="ds-tag">parent</span>
             <p class="ds-part">{{ t('design-system.section.detail-nav.part.parent') }}</p>
-            <span class="ds-spec">один уровень вверх</span>
+            <span class="ds-spec">one level up</span>
           </div>
           <div class="ds-row">
             <span class="ds-tag">code</span>
             <p class="ds-part">{{ t('design-system.section.detail-nav.part.code') }}</p>
-            <span class="ds-spec">шапка + колонка</span>
+            <span class="ds-spec">head + rail</span>
           </div>
           <div class="ds-row">
             <span class="ds-tag">DetailHead</span>
             <p class="ds-part">{{ t('design-system.section.detail-nav.part.head') }}</p>
-            <span class="ds-spec">надпись над карточками</span>
+            <span class="ds-spec">label above cards</span>
           </div>
           <div class="ds-row">
-            <span class="ds-tag">обновить</span>
+            <span class="ds-tag">refresh</span>
             <p class="ds-part">{{ t('design-system.section.detail-nav.part.refresh') }}</p>
-            <span class="ds-spec">правый край первой строки</span>
+            <span class="ds-spec">right edge of the first row</span>
           </div>
           <div class="ds-row">
             <span class="ds-tag">more</span>
             <p class="ds-part">{{ t('design-system.section.detail-nav.part.more') }}</p>
-            <span class="ds-spec">слот, иначе кнопки нет</span>
+            <span class="ds-spec">slot, otherwise no button</span>
           </div>
         </div>
       </section>

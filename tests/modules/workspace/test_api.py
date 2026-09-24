@@ -201,7 +201,8 @@ async def test_get_of_a_missing_workspace_is_404(client):
     response = await client.get(f"{BASE}/{'0' * CODE_LEN}")
 
     assert response.status_code == 404
-    assert response.json()["error"]
+    assert response.json()["error"] == "Workspace not found"
+    assert response.json()["code"] == "workspace.workspace.not_found"
 
 
 async def test_a_foreign_code_prefix_is_a_bad_request(client):

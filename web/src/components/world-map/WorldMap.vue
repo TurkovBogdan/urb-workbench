@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, shallowRef, onMounted, onBeforeUnmount, getCurrentInstance } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { geoPath, geoNaturalEarth1, geoMercator, geoEqualEarth, geoCentroid, type ExtendedFeature } from 'd3-geo'
 import { feature } from 'topojson-client'
 import type { GeometryCollection, Topology } from 'topojson-specification'
@@ -44,11 +45,14 @@ const props = withDefaults(defineProps<Props>(), {
   stroke: 'var(--border)',
   showBadges: false,
   badgeMinValue: 0,
-  formatValue: (v: number) => v.toLocaleString('ru-RU'),
   height: 480,
   visibleContinents: () => ALL_CONTINENTS,
   visibleCountries: () => [],
 })
+
+// No default in withDefaults: it is hoisted out of setup and can't see the active locale.
+const { locale } = useI18n()
+const formatNumber = (value: number): string => props.formatValue?.(value) ?? value.toLocaleString(locale.value)
 
 const emit = defineEmits<{
   (e: 'country-click', payload: { entry: Iso3166Entry | null; numeric: string; value: number | null }): void
@@ -277,7 +281,7 @@ const centroids = computed(() => {
       x,
       y,
       value: d.value,
-      label: d.label ?? props.formatValue(d.value),
+      label: d.label ?? formatNumber(d.value),
     })
   }
   return rows
@@ -341,7 +345,7 @@ const legendStops = computed(() => {
   return ticks.map((t) => ({
     value: t * max,
     color: interpolate(t),
-    label: props.formatValue(Math.round(t * max)),
+    label: formatNumber(Math.round(t * max)),
   }))
 })
 </script>
@@ -411,9 +415,9 @@ const legendStops = computed(() => {
             {{ tooltip.entry?.name ?? tooltip.topoName ?? '—' }}
           </div>
           <div class="world-map__tooltip-row">
-            <span class="world-map__tooltip-key">Значение</span>
+            <span class="world-map__tooltip-key">{{ $t('common.chart.value') }}</span>
             <span class="world-map__tooltip-val">
-              {{ tooltip.value !== null ? formatValue(tooltip.value) : '—' }}
+              {{ tooltip.value !== null ? formatNumber(tooltip.value) : '—' }}
             </span>
           </div>
           <div v-if="tooltip.entry" class="world-map__tooltip-row">

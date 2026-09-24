@@ -6,10 +6,10 @@ import { errorText } from '@/api/errorText'
 import {
   deleteTask,
   getTask,
+  patchTask,
   purgeTask,
   restoreTask,
   setTaskStatus,
-  updateTask,
   type TaskDetail,
   type TaskUpdateBody,
 } from '../api'
@@ -54,8 +54,9 @@ export const useTaskDetailStore = defineStore('tasks-task-detail', () => {
   }
 
   /**
-   * Правка полей карточки. Бэк принимает карточку ЦЕЛИКОМ (не переданное поле стирается), поэтому
-   * изменённые поля накладываются на то, что уже показано, и уезжают все вместе.
+   * Правка полей карточки — ТОЛЬКО названных (`PATCH`). Остальные поля на бэк не уезжают вовсе:
+   * пока страница открыта, их мог поменять агент, и полная карточка, собранная из того, что
+   * страница когда-то загрузила, откатила бы его правку.
    *
    * Ответ кладём в `task`: вместе с полями он несёт новую отметку изменения, и перечитывать
    * задачу отдельным запросом после каждой правки незачем. Отказ не откатывает поля на экране —
@@ -65,26 +66,12 @@ export const useTaskDetailStore = defineStore('tasks-task-detail', () => {
     const row = task.value
     if (!row) return false
 
-    const body: TaskUpdateBody = {
-      title: row.title,
-      description: row.description,
-      context: row.context,
-      constraints: row.constraints,
-      criteria: row.criteria,
-      body: row.body,
-      type: row.type,
-      priority: row.priority,
-      group_code: row.group_code,
-      deadline_at: row.deadline_at,
-      ...fields,
-    }
-
     saving.value = true
     saveError.value = null
     try {
       // `report: false` — о неудавшейся правке говорит сама карточка, рядом с полями: тост о
       // запросе, которого человек не запускал руками, читается как сбой неизвестно чего.
-      task.value = await updateTask(row.code, body, { report: false })
+      task.value = await patchTask(row.code, fields, { report: false })
       return true
     } catch (e) {
       saveError.value = errorText(e)

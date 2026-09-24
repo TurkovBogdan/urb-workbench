@@ -13,5 +13,28 @@
   },
   "error": {
     "restart_timeout": "Сервер не вернулся за 30 секунд — проверьте процесс вручную."
+  },
+  "group": {
+    "database": "База данных",
+    "server": "Сервер",
+    "worker": "Фоновые задачи",
+    "update": "Обновление"
+  },
+  "field": {
+    "DB_PROVIDER": { "label": "Провайдер БД", "description": "postgres — внешний сервер (полноценный); sqlite — локальный файл, без установки" },
+    "DB_PATH": { "label": "Файл SQLite", "description": "Путь к файлу БД; пусто — runtime/<профиль>/app.sqlite3" },
+    "DB_HOST": { "label": "Хост БД", "description": "Адрес сервера PostgreSQL" },
+    "DB_PORT": { "label": "Порт БД", "description": "Порт PostgreSQL (обычно 5432)" },
+    "DB_NAME": { "label": "Имя базы", "description": "Название базы данных" },
+    "DB_USER": { "label": "Пользователь БД", "description": "Имя пользователя PostgreSQL" },
+    "DB_PASSWORD": { "label": "Пароль БД", "description": "Пароль пользователя PostgreSQL" },
+    "DB_SSL": { "label": "TLS для БД", "description": "Шифрованное соединение с проверкой сертификата (verify-full)" },
+    "SERVER_HOST": { "label": "Хост сервера", "description": "Адрес, на котором слушает бэкенд (127.0.0.1 — только локально)" },
+    "SERVER_PORT": { "label": "Порт сервера", "description": "Порт HTTP-сервера (на нём открывается приложение)" },
+    "SERVER_VITE_PORT": { "label": "Порт Vite (разработка)", "description": "Порт dev-сервера фронта; нужен только при локальной разработке" },
+    "WORKER_ENABLED": { "label": "Фоновые задачи", "description": "Запускать планировщик и выполнение задач в этом же процессе" },
+    "WORKER_TICK_SECONDS": { "label": "Интервал планировщика, с", "description": "Как часто проверять очередь задач" },
+    "WORKER_MAX_CONCURRENT_RUNS": { "label": "Параллельных задач", "description": "Максимум одновременно выполняемых задач" },
+    "UPDATE_BRANCH": { "label": "Ветка обновления", "description": "Ветка, до которой обновляется установка (origin/<ветка>); обновление делает fast-forward и откажется работать, если checkout стоит на другой ветке" }
   }
 }

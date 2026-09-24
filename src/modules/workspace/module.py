@@ -36,7 +36,7 @@ _HERE = Path(__file__).resolve().parent
 class WorkspaceModule(Module):
     name: ClassVar[str] = "workspace"
     description: ClassVar[str] = (
-        "Рабочие пространства: верхний уровень изоляции данных для модулей поверх."
+        "Workspaces: the top level of data isolation for the modules above."
     )
     migrations_dir = _HERE / "migrations" / "versions"
     internal_router = router

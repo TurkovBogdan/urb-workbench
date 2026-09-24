@@ -68,7 +68,15 @@ def bare_code(value: str | None, prefix: str) -> str | None:
             f"This is a wrong argument, not a missing row — pass the {prefix}@ code of the "
             "entity you mean (or its bare form)."
         )
-    return strip_prefix(value)
+    # Пустой хвост нельзя пропустить дальше: «пусто» в CRUD значит «снять» (вынести в корень,
+    # убрать из группы), и обрезанный код молча превращался бы в эту операцию.
+    hash_part = value.partition("@")[2] if actual else value
+    if not hash_part or "@" in hash_part:
+        raise ValueError(
+            f"{value!r} is not a {prefix}@ code — expected {prefix}@ followed by the code "
+            "itself, exactly as a tool returned it. To clear the field, pass an empty string."
+        )
+    return hash_part
 
 
 def tagged(prefix: str, value: str | None) -> str | None:

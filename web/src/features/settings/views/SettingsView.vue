@@ -8,6 +8,7 @@ import PageHeader from '@/layout/components/PageHeader.vue'
 import MarkdownRenderer from '@/components/markdown/renderer/MarkdownRenderer.vue'
 import SettingField from '@/components/settings/SettingField.vue'
 import type { FieldDescriptor } from '@/shared/settings-fields'
+import { errorText } from '@/api/errorText'
 import { useSettingLabels } from '../labels'
 import { listModules, putValue, type ModulePayload } from '../api'
 
@@ -114,7 +115,7 @@ async function load() {
     modules.value = list
     for (const m of list) snapshot(m.module, m.values)
   } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e)
+    error.value = errorText(e)
   } finally {
     refreshing.value = false
   }
@@ -147,7 +148,7 @@ async function saveAll() {
         fieldErrors[m.module][f.key] = null
       } catch (e) {
         hadError = true
-        fieldErrors[m.module][f.key] = e instanceof Error ? e.message : String(e)
+        fieldErrors[m.module][f.key] = errorText(e)
       }
     }
   }

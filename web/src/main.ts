@@ -7,6 +7,7 @@ import vuetify from './plugins/vuetify'
 import { useSettingsStore } from './stores/settings'
 import { startSettingsSync } from './shared/utils/settings-sync'
 import { setShellError } from './composables/useShellError'
+import { useChangesStore } from './stores/changes'
 import './styles/fonts.scss'
 import './styles/main.scss'
 import './styles/layout.scss'
@@ -43,4 +44,7 @@ useSettingsStore()
 void router.isReady().then(() => {
   app.mount('#app')
   void startSettingsSync()
+  // Лента изменений данных — тоже после монтирования: соединение долгое и первым кадром
+  // ничего не красит. Что пришло, тихо показывает индикатор в углу (`ChangesIndicator`).
+  useChangesStore().connect()
 })

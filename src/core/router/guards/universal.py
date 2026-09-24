@@ -24,7 +24,7 @@ async def guard_allow_all(request: Request) -> None:
 
 
 async def guard_deny_all(request: Request) -> None:
-    raise ApiError.unauthorized("Маршрут закрыт (нет guard)")
+    raise ApiError.unauthorized("Route is closed (no guard)", code="route_closed")
 
 
 __all__ = ["guard_allow_all", "guard_deny_all"]

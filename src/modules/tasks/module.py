@@ -46,12 +46,59 @@ from fastapi import FastAPI
 
 from src.core.config import Config
 from src.core.module import Module
+from src.modules.core_changes import ChangeEntity, Code, register_entity
 from src.modules.tasks import models  # noqa: F401 — регистрирует модели в Base.metadata
 from src.modules.tasks.api import router
 from src.modules.tasks.mcp import mcp_server
 from src.modules.tasks.crud import group as group_crud
 from src.modules.tasks.crud import task as task_crud
+from src.modules.tasks.constants import (
+    GROUP_CODE_PREFIX,
+    NOTE_CODE_PREFIX,
+    STAGE_CODE_PREFIX,
+    TASK_CODE_PREFIX,
+)
+from src.modules.workspace.constants import WORKSPACE_CODE_PREFIX
 from src.modules.workspace.stats import WorkspaceCounter, register_counter
+
+# Что из модуля видно ленте изменений (``core_changes``). Имена — публичный контракт с фронтом
+# (``web/src/features/tasks``): переименование здесь — смена адреса, а не внутренняя правка.
+# Ссылки — ровно те, по которым экран узнаёт «это про меня»: список — по пространству и группе,
+# страница задачи — по своей задаче, у записи журнала — ещё и по этапу.
+CHANGE_ENTITIES = (
+    ChangeEntity(
+        "tasks.task",
+        models.TasksTask,
+        id=Code("code", TASK_CODE_PREFIX),
+        refs=(Code("workspace_code", WORKSPACE_CODE_PREFIX), Code("group_code", GROUP_CODE_PREFIX)),
+    ),
+    # Ребро дерева: место задачи среди соседей и её родитель. Кода своего у ребра нет — оно
+    # названо задачей, чьё место описывает.
+    ChangeEntity(
+        "tasks.link",
+        models.TasksLink,
+        id=Code("task_code", TASK_CODE_PREFIX),
+        refs=(Code("parent_code", TASK_CODE_PREFIX),),
+    ),
+    ChangeEntity(
+        "tasks.group",
+        models.TasksGroup,
+        id=Code("code", GROUP_CODE_PREFIX),
+        refs=(Code("workspace_code", WORKSPACE_CODE_PREFIX),),
+    ),
+    ChangeEntity(
+        "tasks.stage",
+        models.TasksStage,
+        id=Code("code", STAGE_CODE_PREFIX),
+        refs=(Code("task_code", TASK_CODE_PREFIX),),
+    ),
+    ChangeEntity(
+        "tasks.note",
+        models.TasksNote,
+        id=Code("code", NOTE_CODE_PREFIX),
+        refs=(Code("task_code", TASK_CODE_PREFIX), Code("stage_code", STAGE_CODE_PREFIX)),
+    ),
+)
 
 _HERE = Path(__file__).resolve().parent
 
@@ -59,7 +106,7 @@ _HERE = Path(__file__).resolve().parent
 class TasksModule(Module):
     name: ClassVar[str] = "tasks"
     description: ClassVar[str] = (
-        "Задачи: группы и дерево задач с приоритетами и сроками внутри пространства."
+        "Tasks: groups and a task tree with priorities and deadlines inside a workspace."
     )
     migrations_dir = _HERE / "migrations" / "versions"
     internal_router = router
@@ -70,7 +117,8 @@ class TasksModule(Module):
     mcp_servers = {"workbench": mcp_server}
 
     def configure(self, app: FastAPI, config: Config) -> None:
-        """Объявить пространству, что мы в нём держим, — и чем это считать.
+        """Объявить пространству, что мы в нём держим, — и чем это считать; ленте изменений — что
+        из этого видно фронту (``CHANGE_ENTITIES``).
 
         Группы идут раньше задач (``sort``): в карточке сначала читается раскладка, потом её
         наполнение. Ключи подписей наши — переименование «группы» правится там же, где живёт
@@ -92,6 +140,8 @@ class TasksModule(Module):
                 sort=500,
             )
         )
+        for entity in CHANGE_ENTITIES:
+            register_entity(entity)
 
 
 __all__ = ["TasksModule"]

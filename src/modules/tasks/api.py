@@ -53,7 +53,7 @@ from fastapi import APIRouter, Query, Response
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from src.core.api import ApiError
-from src.modules.tasks.codes import bare_code
+from src.modules.tasks.codes import bare_code, tagged
 from src.modules.tasks.constants import (
     COLOR_MAX,
     DESCRIPTION_MAX,
@@ -73,7 +73,17 @@ from src.modules.tasks.crud import link as link_crud
 from src.modules.tasks.crud import note as note_crud
 from src.modules.tasks.crud import stage as stage_crud
 from src.modules.tasks.crud import task as task_crud
-from src.modules.tasks.errors import TaskRuleError
+from src.modules.tasks.errors import (
+    GROUP_DELETED,
+    GROUP_NOT_DELETED,
+    GROUP_NOT_FOUND,
+    NOTE_NOT_FOUND,
+    STAGE_NOT_FOUND,
+    TASK_DELETED,
+    TASK_NOT_DELETED,
+    TASK_NOT_FOUND,
+    TaskRuleError,
+)
 from src.modules.tasks.dto import (
     GroupListRow,
     GroupRow,
@@ -86,6 +96,7 @@ from src.modules.tasks.dto import (
 from src.modules.tasks.models.task import TasksTask
 from src.modules.workspace.constants import WORKSPACE_CODE_PREFIX
 from src.modules.workspace.crud import workspace as workspace_crud
+from src.modules.workspace.errors import WORKSPACE_NOT_FOUND
 from src.modules.workspace.models.workspace import Workspace
 
 router = APIRouter()
@@ -141,7 +152,7 @@ async def _require_workspace(code: str) -> Workspace:
     """
     row = await workspace_crud.workspace_get(code, include_deleted=True)
     if row is None:
-        raise ApiError.not_found("Пространство не найдено")
+        raise ApiError.not_found("Workspace not found", code=WORKSPACE_NOT_FOUND)
     return row
 
 
@@ -179,7 +190,7 @@ async def _require_group(code: str):
     """Группа любого состояния или 404 — по той же причине, что и у пространства."""
     row = await group_crud.group_get(code, include_deleted=True)
     if row is None:
-        raise ApiError.not_found("Группа не найдена")
+        raise ApiError.not_found("Group not found", code=GROUP_NOT_FOUND)
     return row
 
 
@@ -240,7 +251,7 @@ async def update_group(code: str, payload: GroupBody) -> GroupRow:
     bare = _group_code(code)
     existing = await _require_group(bare)
     if existing.deleted_at is not None:
-        raise ApiError.conflict("Группа удалена — сначала восстановите её")
+        raise ApiError.conflict("Group is deleted — restore it first", code=GROUP_DELETED)
     row = await group_crud.group_update(
         bare,
         title=payload.title,
@@ -250,7 +261,31 @@ async def update_group(code: str, payload: GroupBody) -> GroupRow:
         sort=payload.sort,
     )
     if row is None:
-        raise ApiError.not_found("Группа не найдена")
+        raise ApiError.not_found("Group not found", code=GROUP_NOT_FOUND)
+    return GroupRow.model_validate(row)
+
+
+@router.post("/groups/{code}/reorder")
+async def reorder_group(code: str, payload: GroupReorderBody) -> GroupRow:
+    """Переставить группу относительно соседней — так раскладку двигают мышью.
+
+    Позиция названа соседкой, а не числом: на экране видно, между какими карточками группа легла,
+    а её ``sort`` не виден вовсе. Перенумеровывает ряд сам CRUD.
+    """
+    bare = _group_code(code)
+    await _require_group(bare)
+    try:
+        row = await group_crud.group_reorder(
+            bare,
+            after=_bare(payload.after_code, GROUP_CODE_PREFIX),
+            before=_bare(payload.before_code, GROUP_CODE_PREFIX),
+        )
+    except ValueError as error:
+        # Сюда приходит и «передай ровно одну точку отсчёта», и «соседка из чужого пространства»:
+        # всё это чинится правкой вызова, а не поиском пропажи, — поэтому 400, а не 404.
+        raise ApiError.bad_request(str(error)) from error
+    if row is None:
+        raise ApiError.not_found("Group not found", code=GROUP_NOT_FOUND)
     return GroupRow.model_validate(row)
 
 
@@ -262,7 +297,7 @@ async def delete_group(code: str) -> Response:
     том виде, в каком её сняли, — задачи не пришлось раскладывать заново.
     """
     if not await group_crud.group_delete(_group_code(code)):
-        raise ApiError.not_found("Группа не найдена")
+        raise ApiError.not_found("Group not found", code=GROUP_NOT_FOUND)
     return Response(status_code=204)
 
 
@@ -272,7 +307,7 @@ async def restore_group(code: str) -> GroupRow:
     bare = _group_code(code)
     existing = await _require_group(bare)
     if existing.deleted_at is None:
-        raise ApiError.conflict("Группа не удалена — восстанавливать нечего")
+        raise ApiError.conflict("Group is not deleted — nothing to restore", code=GROUP_NOT_DELETED)
     await group_crud.group_restore(bare)
     return GroupRow.model_validate(await _require_group(bare))
 
@@ -284,7 +319,7 @@ async def purge_group(code: str) -> Response:
     То есть снос группы — не снос работы: задачи уходят в секцию «Без группы», а не в корзину.
     """
     if not await group_crud.group_delete(_group_code(code), hard=True):
-        raise ApiError.not_found("Группа не найдена")
+        raise ApiError.not_found("Group not found", code=GROUP_NOT_FOUND)
     return Response(status_code=204)
 
 
@@ -350,6 +385,34 @@ class TaskUpdateBody(_Body):
     deadline_at: datetime | None = None
 
 
+class TaskPatchBody(_Body):
+    """Частичная правка карточки: меняются только переданные поля, остальные не трогаются.
+
+    Нужна странице задачи, которая сохраняет поле, как только из него ушли. Полная замена
+    (``TaskUpdateBody``) отправляла бы вместе с ним все прочие поля в том виде, в каком страница
+    их когда-то загрузила, — и откатывала бы то, что тем временем записал агент.
+
+    «Не передано» и ``null`` различаются по ``model_fields_set``: у группы и срока ``null`` значит
+    «снять», а отсутствие ключа — «не трогать». У текстовых полей ``null`` не принимается —
+    «пусто» у них пустая строка.
+    """
+
+    title: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=TITLE_MAX)
+    ] | None = None
+    description: Annotated[
+        str, StringConstraints(strip_whitespace=True, max_length=DESCRIPTION_MAX)
+    ] | None = None
+    context: str | None = None
+    constraints: str | None = None
+    criteria: str | None = None
+    body: str | None = None
+    type: str | None = None
+    priority: str | None = None
+    group_code: str | None = None
+    deadline_at: datetime | None = None
+
+
 class TaskStatusBody(_Body):
     """Один статус — и ничего больше: у перехода нет других параметров."""
 
@@ -369,8 +432,23 @@ class TaskMoveBody(_Body):
     sort: int | None = None
 
 
+class GroupReorderBody(_Body):
+    """Одно перетаскивание группы: соседка, относительно которой она встала.
+
+    Ровно одна из двух точек отсчёта — как и в CRUD. Две сразу противоречили бы друг другу, а ни
+    одной означало бы «переставь куда-нибудь»; в обоих случаях ответ 400, а не молчаливый выбор за
+    вызывающего.
+
+    Номера позиции здесь нет намеренно: ``sort`` — внутренняя механика раскладки, и тому, кто
+    тянет карточку мышью, попасть в него нечем.
+    """
+
+    after_code: str | None = None
+    before_code: str | None = None
+
+
 class TaskReorderBody(_Body):
-    """Одно перетаскивание: где строка теперь стоит и в какой она группе.
+    """Одно перетаскивание: где строка теперь стоит, в какой она группе и чья она.
 
     ``after_code`` — задача, ПОСЛЕ которой лёг переезжающий (пусто — в начало ряда). Позиция
     названа соседом, а не номером: у списка на экране свои фильтры и страницы, и номер строки в
@@ -380,10 +458,15 @@ class TaskReorderBody(_Body):
     читается по ``model_fields_set``: перетаскивание внутри одной группы не должно ничего знать
     про группы, а перетаскивание в «Без группы» обязано уметь её снять, и одним ``None`` эти два
     случая не различить.
+
+    ``parent_code`` устроен так же: ключа нет — родителя не трогаем, ``null`` — открепить, то
+    есть сделать задачу корнем. Это второй жест списка: подзадачу вытаскивают из ветки в карточку
+    группы, и она перестаёт быть подзадачей.
     """
 
     after_code: str | None = None
     group_code: str | None = None
+    parent_code: str | None = None
 
 
 async def _require_task(code: str) -> TasksTask:
@@ -395,7 +478,7 @@ async def _require_task(code: str) -> TasksTask:
     """
     row = await task_crud.task_get(code, include_deleted=True)
     if row is None:
-        raise ApiError.not_found("Задача не найдена")
+        raise ApiError.not_found("Task not found", code=TASK_NOT_FOUND)
     return row
 
 
@@ -406,7 +489,7 @@ def _live(row: TasksTask) -> None:
     операция сейчас не её.
     """
     if row.deleted_at is not None:
-        raise ApiError.conflict("Задача удалена — сначала восстановите её")
+        raise ApiError.conflict("Task is deleted — restore it first", code=TASK_DELETED)
 
 
 async def _rows(rows: list[TasksTask], *, include_deleted: bool) -> list[TaskListRow]:
@@ -519,6 +602,38 @@ async def list_tasks(
     return await _rows(rows, include_deleted=include_deleted)
 
 
+@router.get("/tasks/search")
+async def search_tasks(
+    workspace: str = Query(..., description="Код пространства (``WORKSPACE@…`` или голый)"),
+    query: str = Query(..., description="Что искать — подстрока без учёта регистра"),
+    in_brief: bool = Query(False, description="Искать в постановке: контекст, границы, критерии"),
+    in_plan: bool = Query(False, description="Искать в плане задачи и в телах её этапов"),
+    in_journal: bool = Query(False, description="Искать в записях журнала"),
+) -> list[str]:
+    """Коды задач, у которых запрос нашёлся в телах — в названных областях.
+
+    Это вторая половина поиска по списку, а не замена ему: заголовок и цель есть в каждой
+    строке, и по ним ищет сам клиент — мгновенно и без круга по сети. Сюда он ходит только за
+    тем, чего в строке нет, и пересекает ответ со своим списком. Поэтому и отдаются коды:
+    карточки у спрашивающего уже есть.
+
+    Стоит ВЫШЕ ``GET /tasks/{code}``: маршруты разбираются по порядку объявления, и ниже этот
+    адрес уехал бы в деталь задачи с кодом ``search``.
+    """
+    bare = _code(workspace)
+    await _require_workspace(bare)
+    found = await task_crud.task_search_codes(
+        bare,
+        query,
+        in_brief=in_brief,
+        in_plan=in_plan,
+        in_journal=in_journal,
+    )
+    # Коды уезжают в той же форме, в какой приходят в списке (``TASK@…``): пересекать их
+    # предстоит именно с ним, а два вида одного кода дали бы пустое пересечение молча.
+    return [tagged(TASK_CODE_PREFIX, code) for code in found]
+
+
 @router.post("/tasks", status_code=201)
 async def create_task(payload: TaskCreateBody) -> TaskDetail:
     """Завести задачу (вместе с её ребром дерева) и вернуть её целиком.
@@ -580,7 +695,42 @@ async def update_task(code: str, payload: TaskUpdateBody) -> TaskDetail:
     except ValueError as error:
         raise ApiError.bad_request(str(error)) from error
     if row is None:
-        raise ApiError.not_found("Задача не найдена")
+        raise ApiError.not_found("Task not found", code=TASK_NOT_FOUND)
+    return await _detail(row)
+
+
+@router.patch("/tasks/{code}")
+async def patch_task(code: str, payload: TaskPatchBody) -> TaskDetail:
+    """Поправить только переданные поля карточки. Статус и место в дереве — свои ручки."""
+    bare = _task_code(code)
+    _live(await _require_task(bare))
+    given = payload.model_fields_set
+    for field in ("title", "description", "context", "constraints", "criteria", "body", "type", "priority"):
+        if field in given and getattr(payload, field) is None:
+            raise ApiError.bad_request(f"{field} cannot be null — send an empty string to clear it")
+    try:
+        row = await task_crud.task_update(
+            bare,
+            title=payload.title,
+            description=payload.description,
+            context=payload.context,
+            constraints=payload.constraints,
+            criteria=payload.criteria,
+            body=payload.body,
+            type=payload.type,
+            priority=payload.priority,
+            # Для CRUD ``None`` — «не трогать», ``""`` — «снять группу».
+            group_code=(
+                (_bare(payload.group_code, GROUP_CODE_PREFIX) or "")
+                if "group_code" in given
+                else None
+            ),
+            deadline_at=payload.deadline_at if "deadline_at" in given else task_crud.KEEP,
+        )
+    except ValueError as error:
+        raise ApiError.bad_request(str(error)) from error
+    if row is None:
+        raise ApiError.not_found("Task not found", code=TASK_NOT_FOUND)
     return await _detail(row)
 
 
@@ -598,7 +748,7 @@ async def set_task_status(code: str, payload: TaskStatusBody) -> TaskDetail:
     except ValueError as error:
         raise ApiError.bad_request(str(error)) from error
     if row is None:
-        raise ApiError.not_found("Задача не найдена")
+        raise ApiError.not_found("Task not found", code=TASK_NOT_FOUND)
     return await _detail(row)
 
 
@@ -618,39 +768,45 @@ async def move_task(code: str, payload: TaskMoveBody) -> TaskDetail:
         # аргумент, а не пропавшая запись.
         raise ApiError.bad_request(str(error)) from error
     if link is None:
-        raise ApiError.not_found("Задача не найдена")
+        raise ApiError.not_found("Task not found", code=TASK_NOT_FOUND)
     return await _detail(await _require_task(bare))
 
 
 @router.post("/tasks/{code}/reorder")
 async def reorder_task(code: str, payload: TaskReorderBody) -> TaskDetail:
     """Перетаскивание строки списка: новое место среди соседей и, если её тянули в другую
-    карточку, новая группа.
+    карточку или из ветки наверх, новая группа и новый родитель.
 
-    Одно движение мышью — один запрос: смени мы группу отдельной ручкой, а порядок отдельной,
-    список успел бы показать задачу в новой группе на старом месте, и человек увидел бы
-    состояние, которого не просил. Порядок считается ПОСЛЕ смены группы — ряд соседей у корней
-    общий на пространство, и от группы он не зависит, но сосед из тела относится уже к новой
-    раскладке.
+    Одно движение мышью — один запрос: смени мы группу одной ручкой, родителя другой, а порядок
+    третьей, список успел бы показать задачу в новой группе на старом месте, и человек увидел бы
+    состояние, которого не просил.
 
-    Удалённую не двигаем: править её нельзя нигде, и порядок — то же самое правило.
+    Родитель, группа и позиция — одна транзакция (``task_crud.task_reorder``): неверный сосед
+    откатывает и перенос, и человек не видит ошибку при уже переехавшей задаче.
     """
     bare = _task_code(code)
     _live(await _require_task(bare))
+    sent = payload.model_fields_set
     try:
-        if "group_code" in payload.model_fields_set:
-            # Пустая строка — единственная форма «группы нет» для CRUD: ``None`` там значит «не
-            # трогать» (см. ``task_update``).
-            await task_crud.task_update(
-                bare, group_code=_bare(payload.group_code, GROUP_CODE_PREFIX) or ""
-            )
-        row = await link_crud.link_reorder(
-            bare, after_code=_bare(payload.after_code, TASK_CODE_PREFIX)
+        # Пустая строка — единственная форма «нет» для CRUD: ``None`` там значит «не трогать».
+        row = await task_crud.task_reorder(
+            bare,
+            after_code=_bare(payload.after_code, TASK_CODE_PREFIX),
+            group_code=(
+                _bare(payload.group_code, GROUP_CODE_PREFIX) or ""
+                if "group_code" in sent
+                else None
+            ),
+            parent_code=(
+                _bare(payload.parent_code, TASK_CODE_PREFIX) or ""
+                if "parent_code" in sent
+                else None
+            ),
         )
     except ValueError as error:
         raise ApiError.bad_request(str(error)) from error
     if row is None:
-        raise ApiError.not_found("Задача не найдена")
+        raise ApiError.not_found("Task not found", code=TASK_NOT_FOUND)
     return await _detail(await _require_task(bare))
 
 
@@ -663,7 +819,7 @@ async def delete_task(code: str) -> Response:
     желаемым.
     """
     if not await task_crud.task_delete(_task_code(code)):
-        raise ApiError.not_found("Задача не найдена")
+        raise ApiError.not_found("Task not found", code=TASK_NOT_FOUND)
     return Response(status_code=204)
 
 
@@ -677,7 +833,7 @@ async def restore_task(code: str) -> TaskDetail:
     bare = _task_code(code)
     existing = await _require_task(bare)
     if existing.deleted_at is None:
-        raise ApiError.conflict("Задача не удалена — восстанавливать нечего")
+        raise ApiError.conflict("Task is not deleted — nothing to restore", code=TASK_NOT_DELETED)
     await task_crud.task_restore(bare)
     return await _detail(await _require_task(bare))
 
@@ -690,7 +846,7 @@ async def purge_task(code: str) -> Response:
     остались бы в базе вообще без места в дереве — невидимые из любого обхода.
     """
     if not await task_crud.task_delete(_task_code(code), hard=True):
-        raise ApiError.not_found("Задача не найдена")
+        raise ApiError.not_found("Task not found", code=TASK_NOT_FOUND)
     return Response(status_code=204)
 
 
@@ -733,7 +889,7 @@ async def _require_stage(code: str):
     """Этап или 404."""
     row = await stage_crud.stage_get(code)
     if row is None:
-        raise ApiError.not_found("Этап не найден")
+        raise ApiError.not_found("Stage not found", code=STAGE_NOT_FOUND)
     return row
 
 
@@ -781,7 +937,7 @@ async def update_stage(code: str, payload: StageBody) -> StageRow:
     except ValueError as error:
         raise ApiError.bad_request(str(error)) from error
     if row is None:
-        raise ApiError.not_found("Этап не найден")
+        raise ApiError.not_found("Stage not found", code=STAGE_NOT_FOUND)
     return StageRow.model_validate(row)
 
 
@@ -803,7 +959,7 @@ async def set_stage_status(code: str, payload: StageStatusBody) -> StageRow:
     except ValueError as error:
         raise ApiError.bad_request(str(error)) from error
     if row is None:
-        raise ApiError.not_found("Этап не найден")
+        raise ApiError.not_found("Stage not found", code=STAGE_NOT_FOUND)
     return StageRow.model_validate(row)
 
 
@@ -811,7 +967,7 @@ async def set_stage_status(code: str, payload: StageStatusBody) -> StageRow:
 async def delete_stage(code: str) -> Response:
     """Снести этап. Логического удаления у него нет: брошенный этап — это статус ``canceled``."""
     if not await stage_crud.stage_delete(_stage_code(code)):
-        raise ApiError.not_found("Этап не найден")
+        raise ApiError.not_found("Stage not found", code=STAGE_NOT_FOUND)
     return Response(status_code=204)
 
 
@@ -893,7 +1049,7 @@ async def resolve_note(code: str, payload: NoteResolutionBody) -> NoteRow:
     except ValueError as error:
         raise ApiError.bad_request(str(error)) from error
     if row is None:
-        raise ApiError.not_found("Запись не найдена")
+        raise ApiError.not_found("Journal entry not found", code=NOTE_NOT_FOUND)
     return NoteRow.model_validate(row)
 
 
@@ -901,7 +1057,7 @@ async def resolve_note(code: str, payload: NoteResolutionBody) -> NoteRow:
 async def delete_note(code: str) -> Response:
     """Снести запись физически — ручка человека, агенту её не отдают."""
     if not await note_crud.note_delete(_note_code(code)):
-        raise ApiError.not_found("Запись не найдена")
+        raise ApiError.not_found("Journal entry not found", code=NOTE_NOT_FOUND)
     return Response(status_code=204)
 
 

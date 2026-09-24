@@ -18,25 +18,25 @@ pytestmark = pytest.mark.db
 
 
 async def _branch(workspace_code: str):
-    """Ветка из трёх уровней: корень → ребёнок → внук."""
+    """Ветка: корень и две его подзадачи — глубже дерево не бывает."""
     root = await task_create(workspace_code=workspace_code, title="Эпик")
     child = await task_create(
         workspace_code=workspace_code, title="Задача", parent_code=root.code
     )
-    grandchild = await task_create(
-        workspace_code=workspace_code, title="Подзадача", parent_code=child.code
+    sibling = await task_create(
+        workspace_code=workspace_code, title="Соседняя задача", parent_code=root.code
     )
-    return root, child, grandchild
+    return root, child, sibling
 
 
 async def test_soft_delete_marks_the_whole_branch_with_one_stamp(db, workspace):
-    root, child, grandchild = await _branch(workspace.code)
+    root, child, sibling = await _branch(workspace.code)
 
     assert await task_delete(root.code) is True
 
     rows = [
         await task_get(code, include_deleted=True)
-        for code in (root.code, child.code, grandchild.code)
+        for code in (root.code, child.code, sibling.code)
     ]
     assert all(row.deleted_at is not None for row in rows)
     assert len({row.deleted_at for row in rows}) == 1
@@ -51,20 +51,20 @@ async def test_deleted_tasks_vanish_from_listings_by_default(db, workspace):
     assert len(await task_list_by_workspace(workspace.code, include_deleted=True)) == 3
     assert await task_get(child.code) is None
     assert await task_list_by_parent(root.code) == []
-    assert len(await task_list_by_parent(root.code, include_deleted=True)) == 1
+    assert len(await task_list_by_parent(root.code, include_deleted=True)) == 2
 
 
 async def test_restore_lifts_exactly_the_tasks_that_went_down_together(db, workspace):
-    """Потомок, удалённый раньше и отдельно, несёт свою отметку — и остаётся удалённым."""
-    root, child, grandchild = await _branch(workspace.code)
-    await task_delete(grandchild.code)
+    """Подзадача, удалённая раньше и отдельно, несёт свою отметку — и остаётся удалённой."""
+    root, child, sibling = await _branch(workspace.code)
+    await task_delete(sibling.code)
 
     await task_delete(root.code)
     assert await task_restore(root.code) is True
 
     assert await task_get(root.code) is not None
     assert await task_get(child.code) is not None
-    assert await task_get(grandchild.code) is None
+    assert await task_get(sibling.code) is None
 
 
 async def test_restore_of_a_live_task_reports_false(db, workspace):
@@ -75,11 +75,11 @@ async def test_restore_of_a_live_task_reports_false(db, workspace):
 
 async def test_hard_delete_takes_the_branch_and_its_tree_rows(db, workspace):
     """Иначе потомки остались бы в базе без строки связи — невидимые из любого обхода."""
-    root, child, grandchild = await _branch(workspace.code)
+    root, child, sibling = await _branch(workspace.code)
 
     assert await task_delete(root.code, hard=True) is True
 
-    for code in (root.code, child.code, grandchild.code):
+    for code in (root.code, child.code, sibling.code):
         assert await task_get(code, include_deleted=True) is None
         assert await link_get(code) is None
 

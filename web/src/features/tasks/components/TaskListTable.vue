@@ -22,16 +22,25 @@
 //
 // Одна задача — одна строка ровно в 36px: в списке ищут сверху вниз, а разноэтажные строки
 // приходится разглядывать. Поэтому ни описания, ни тела в строке нет — за ними открывают окно.
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { IconPlus } from '@tabler/icons-vue'
+import {
+  IconArrowDown,
+  IconArrowUp,
+  IconDotsVertical,
+  IconListCheck,
+  IconPencil,
+  IconPlus,
+} from '@tabler/icons-vue'
 
+import CounterButton from '@/components/CounterButton.vue'
 import IconSwatch from '@/components/IconSwatch.vue'
 import TablePaginationBar from '@/components/TablePaginationBar.vue'
 
+import GroupDropZone from './GroupDropZone.vue'
 import TaskRows from './TaskRows.vue'
-import { useTasksStore } from '../stores/tasks.store'
-import type { TaskListRow } from '../api'
+import { useTasksStore, type TaskSection } from '../stores/tasks.store'
+import type { GroupRow, TaskListRow } from '../api'
 
 const props = defineProps<{
   /** Код задачи, на которую уходили со списка: вернувшись, человек видит свою строку отмеченной. */
@@ -44,6 +53,8 @@ const emit = defineEmits<{
   create: []
   edit: [task: TaskListRow]
   addChild: [task: TaskListRow]
+  /** Правка группы: окно формы одно на страницу, и держит его она, а не список. */
+  editGroup: [group: GroupRow]
 }>()
 
 const { t } = useI18n()
@@ -64,9 +75,84 @@ const childCounts = computed(() => {
 
 const showEmpty = computed(() => !store.loading && store.total === 0)
 
-/** Ветку переставили — перестановку ведёт стор: он же перечитывает список после ответа. */
-async function move(payload: { code: string; after: string | null; group?: string | null }) {
-  await store.reorder(payload.code, payload.after, payload.group)
+// ── Свёрнутость ───────────────────────────────────────────────────────────────
+// Умолчание зависит от того, есть ли в карточке работа: пустая приходит свёрнутой — она стоит на
+// экране как цель перетаскивания, а не как содержимое. Явный выбор человека сильнее умолчания, и
+// хранит его стор; здесь только передаём ему, какое умолчание действует для этой секции.
+
+function collapsed(section: TaskSection): boolean {
+  return store.isCollapsed(section.group?.code ?? null, !section.tasks.length)
+}
+
+function toggleFold(section: TaskSection) {
+  store.toggleCollapsed(section.group?.code ?? null, !section.tasks.length)
+}
+
+/**
+ * Порядок меняют только на ПОЛНОЙ выдаче.
+ *
+ * Сужённый список — это выборка, а не раскладка: ветки в нём не рисуются, соседи по группе на
+ * экране не все, и «поставить после видимого соседа» означало бы не то, что человек видит. Гаснет
+ * всё разом — перетаскивание строк, их ручки и пункты перестановки в меню строк и карточек.
+ */
+const reorderable = computed(() => !store.hasActiveFilters)
+
+// ── Перестановка групп ────────────────────────────────────────────────────────
+// Только пунктами меню карточки, без жеста: ручка у каждой карточки и второй sortable на странице
+// перегружали список ради действия, которое делают редко (решение в `TASK@717492e127`).
+//
+// «Выше» — встать над соседкой сверху, «Ниже» — под соседкой снизу. Считается по секциям на
+// экране, мимо «Без группы»: её в раскладке групп не существует.
+//
+// Шаг не выходит за свой блок. Пустые карточки на экране стоят ниже непустых независимо от `sort`
+// (см. `sections` в сторе), поэтому «Ниже» у последней заполненной группы записало бы новый
+// порядок, ничего при этом не изменив на экране, — шаг, который выглядит сломанным. На границе
+// блока пункт меню гаснет, и это честнее: там двигаться действительно некуда.
+
+function blockOf(code: string): string[] {
+  const own = store.sections.find((section) => section.group?.code === code)
+  if (!own) return []
+  const empty = !own.tasks.length
+  return store.sections
+    .filter((section) => !!section.group && !section.tasks.length === empty)
+    .map((section) => section.group!.code)
+}
+
+function shiftTarget(code: string, direction: -1 | 1): string | undefined {
+  const order = blockOf(code)
+  const at = order.indexOf(code)
+  if (at === -1) return undefined
+  const target = at + direction
+  if (target < 0 || target >= order.length) return undefined
+  return order[target]
+}
+
+function canShift(code: string, direction: -1 | 1): boolean {
+  return shiftTarget(code, direction) !== undefined
+}
+
+function shift(code: string, direction: -1 | 1) {
+  const target = shiftTarget(code, direction)
+  if (!target) return
+  void store.reorderGroup(code, direction === -1 ? { before: target } : { after: target })
+}
+
+/**
+ * Строку переставили — перестановку ведёт стор: он же перечитывает список после ответа.
+ *
+ * Группа и родитель едут дальше ТОЛЬКО если их назвали: ключ без значения означает «не трогать»,
+ * и потерять это различие здесь значило бы снять группу при обычной перестановке.
+ */
+async function move(payload: {
+  code: string
+  after: string | null
+  group?: string | null
+  parent?: string | null
+}) {
+  await store.reorder(payload.code, payload.after, {
+    ...('group' in payload ? { group: payload.group } : {}),
+    ...('parent' in payload ? { parent: payload.parent } : {}),
+  })
 }
 
 function onPageChange(page: number) {
@@ -97,8 +183,14 @@ function onPageSizeChange(size: number) {
       <div class="task-list__state">
         <template v-if="store.isFilteredOut">
           <p class="task-list__state-title">{{ t('tasks.task.list.nothing_found') }}</p>
-          <VBtn variant="text" size="small" @click="store.clearFilters">
+          <!-- Выход из пустой выдачи должен что-то менять. Если фильтров не набрано и всё
+               спрятало умолчание, «сбросить фильтры» вернуло бы ровно это же умолчание — здесь
+               помогает только снять его. -->
+          <VBtn v-if="store.hasActiveFilters" variant="text" size="small" @click="store.clearFilters">
             {{ t('tasks.task.list.clear_filters') }}
+          </VBtn>
+          <VBtn v-else variant="text" size="small" @click="store.showFinished">
+            {{ t('tasks.task.list.show_finished') }}
           </VBtn>
         </template>
         <template v-else>
@@ -131,7 +223,13 @@ function onPageSizeChange(size: number) {
            отступы держит она сама; своя разметка повторяла бы её приблизительно.
            Знак взят у карточки группы на её собственной странице: один и тот же предмет должен
            узнаваться в обоих списках. У «Без группы» знака нет — там нейтральная точка: это не
-           тема наравне с остальными, а остаток неразложенного. -->
+           тема наравне с остальными, а остаток неразложенного.
+           Шапка же — цель броска (`GroupDropZone`): у свёрнутой и у пустой карточки ряда строк
+           нет, и задачу, брошенную на шапку, группа принимает в конец своего ряда. -->
+      <GroupDropZone
+        :group="section.group?.code ?? ''"
+        :after="store.lastRootOf(section.group?.code ?? null)"
+      >
       <VCardItem class="task-group__head">
         <template #prepend>
           <IconSwatch
@@ -143,26 +241,84 @@ function onPageSizeChange(size: number) {
           <span v-else class="task-group__dot" />
         </template>
 
+        <!-- Сразу за именем — счёт задач и стрелка сворачивания, та же кнопка, что у строки задачи
+             с подзадачами. Значок свой, а не «подзадачи» строки: иначе группа читалась бы задачей с
+             подзадачами. Ноль показывается: у группы это ответ, а не отсутствие счёта. -->
         <VCardTitle class="task-group__title">
           {{ section.group ? section.group.title : t('tasks.task.list.no_group') }}
-          <span class="task-group__count">{{ section.tasks.length }}</span>
+          <CounterButton
+            class="task-group__fold"
+            :icon="IconListCheck"
+            :count="section.tasks.length"
+            :folded="collapsed(section)"
+            :label="t(collapsed(section) ? 'tasks.task.list.expand_group' : 'tasks.task.list.collapse_group')"
+            @toggle="toggleFold(section)"
+          />
         </VCardTitle>
         <VCardSubtitle v-if="section.group?.description">{{ section.group.description }}</VCardSubtitle>
+
+        <!-- У «Без группы» меню нет: за ней не стоит строки в базе, править и двигать нечего. -->
+        <template #append>
+          <VMenu v-if="section.group" location="bottom end">
+            <template #activator="{ props: menu }">
+              <VBtn
+                v-bind="menu"
+                variant="text"
+                size="x-small"
+                icon
+                class="task-group__more"
+                :aria-label="t('tasks.group.card.actions')"
+              >
+                <IconDotsVertical :size="16" :stroke-width="1.7" />
+              </VBtn>
+            </template>
+
+            <VList density="compact" class="task-group__menu">
+              <VListItem :prepend-icon="IconPencil" @click="emit('editGroup', section.group)">
+                <VListItemTitle>{{ t('tasks.group.card.edit') }}</VListItemTitle>
+              </VListItem>
+
+              <!-- Те же две перестановки без мыши: WCAG 2.2 SC 2.5.7 просит альтернативу жесту
+                   одним указателем, а меню, открываемое с клавиатуры, закрывает и SC 2.1.1.
+                   На сужённой выдаче их нет — как нет и самого жеста. -->
+              <template v-if="reorderable">
+                <VListItem
+                  :prepend-icon="IconArrowUp"
+                  :disabled="!canShift(section.group.code, -1)"
+                  @click="shift(section.group.code, -1)"
+                >
+                  <VListItemTitle>{{ t('tasks.group.card.move_up') }}</VListItemTitle>
+                </VListItem>
+                <VListItem
+                  :prepend-icon="IconArrowDown"
+                  :disabled="!canShift(section.group.code, 1)"
+                  @click="shift(section.group.code, 1)"
+                >
+                  <VListItemTitle>{{ t('tasks.group.card.move_down') }}</VListItemTitle>
+                </VListItem>
+              </template>
+            </VList>
+          </VMenu>
+        </template>
       </VCardItem>
+      </GroupDropZone>
 
-      <VDivider />
+      <template v-if="!collapsed(section)">
+        <VDivider />
 
-      <TaskRows
-        :section="section"
-        :open-code="props.openCode"
-        :child-counts="childCounts"
-        @open="emit('open', $event)"
-        @edit="emit('edit', $event)"
-        @add-child="emit('addChild', $event)"
-        @remove="store.remove($event)"
-        @restore="store.restore($event)"
-        @move="move"
-      />
+        <TaskRows
+          :section="section"
+          :open-code="props.openCode"
+          :child-counts="childCounts"
+          :reorderable="reorderable"
+          @open="emit('open', $event)"
+          @edit="emit('edit', $event)"
+          @add-child="emit('addChild', $event)"
+          @remove="store.remove($event)"
+          @restore="store.restore($event)"
+          @move="move"
+        />
+      </template>
     </VCard>
 
     <!-- Полоса постраничности — общая на все карточки групп и потому стоит под ними, а не внутри
@@ -243,7 +399,7 @@ function onPageSizeChange(size: number) {
 }
 
 /* Кегль и вес — свои: ванильный `VCardTitle` набран под заголовок карточки-страницы, а это
-   имя группы над списком. Счёт стоит в той же строке, поэтому строка — flex. */
+   имя группы над списком. Кнопка ветки стоит в той же строке, поэтому строка — flex. */
 .task-group__title {
   display: flex;
   align-items: center;
@@ -255,11 +411,29 @@ function onPageSizeChange(size: number) {
   color: var(--text);
 }
 
-.task-group__count {
-  font-family: var(--font-mono);
-  font-weight: 400;
-  font-size: 11px;
+/* Вид кнопки ветки — её собственный (`CounterButton`); шапка задаёт только место: отрицательный
+   отступ прячет поле кнопки, и значок стоит от имени там же, где у строки задачи. Проявляет
+   кнопку наведение на карточку — но переменная ставится на шапку, а не на всю карточку: иначе
+   она протекла бы в строки задач, и под курсором проявились бы и их кнопки. */
+.task-group__fold { margin-inline-start: -4px; }
+
+.task-group:hover .task-group__head { --counter-button-color: var(--text-muted); }
+
+/* Меню приглушено постоянно и проявляется под курсором: звать к себе ему незачем. */
+.task-group__more {
   color: var(--text-faint);
+  opacity: 0.7;
+  transition: opacity 120ms ease, color 120ms ease;
+}
+
+.task-group:hover .task-group__more {
+  opacity: 1;
+  color: var(--text-muted);
+}
+
+.task-group__head :deep(.v-card-item__append) {
+  display: flex;
+  align-items: center;
 }
 
 /* Описание группы — одна строка под именем и тише его: это подпись к карточке, а не текст, который

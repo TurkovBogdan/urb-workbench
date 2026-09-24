@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { errorText } from '@/api/errorText'
 import { fetchTasks, type TaskInfo } from '../api'
 
 export interface TaskGroup {
@@ -90,7 +91,7 @@ export const useTasksStore = defineStore('core-tasks', () => {
       loadedAt.value = Date.now()
       writeCache({ tasks: tasks.value, loadedAt: loadedAt.value })
     } catch (e) {
-      error.value = e instanceof Error ? e.message : String(e)
+      error.value = errorText(e)
     } finally {
       refreshing.value = false
       loading.value = false

@@ -18,38 +18,40 @@
 // Рамка — общий `PageLayout` с общей шапкой страницы; колонки навигации, как у деталок
 // исследования, здесь нет: у задачи нет длинного документа, по разделам которого стоило бы
 // водить оглавлением, а выход наверх — это кнопка «назад» в шапке.
-import { computed, onActivated, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onActivated, onBeforeUnmount, onDeactivated, reactive, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import {
   IconArchiveOff,
   IconArrowUp,
   IconCalendarEvent,
-  IconCode,
   IconDotsVertical,
   IconFlame,
-  IconPencil,
   IconPlus,
+  IconRefresh,
   IconTrash,
 } from '@tabler/icons-vue'
 
 import PageLayout from '@/layout/templates/PageLayout.vue'
 import PageHeader from '@/layout/components/PageHeader.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
-import CopyCodeButton from '@/components/CopyCodeButton.vue'
+import CopyChip from '@/components/CopyChip.vue'
 import { MarkdownEditor } from '@/components/markdown/editor'
 import SectionError from '@/components/SectionError.vue'
 import SectionHeader from '@/components/SectionHeader.vue'
 import IconSwatch from '@/components/IconSwatch.vue'
 import VSelectSearch from '@/components/VSelectSearch.vue'
+import { useChangeSubscription } from '@/composables/useChangeSubscription'
 import { fmtDateTime, fmtRelative } from '@/shared/utils/date'
+import type { Change } from '@/stores/changes'
 
-import TaskCard from '../components/TaskCard.vue'
+import TaskFieldConflictDialog from '../components/TaskFieldConflictDialog.vue'
 import TaskFormDialog from '../components/TaskFormDialog.vue'
 import TaskJournal from '../components/TaskJournal.vue'
 import TaskPrioritySelect from '../components/TaskPrioritySelect.vue'
 import TaskStages from '../components/TaskStages.vue'
 import TaskStatusSelect from '../components/TaskStatusSelect.vue'
+import TaskSubtasksPanel from '../components/TaskSubtasksPanel.vue'
 import { listGroups, type GroupRow, type TaskDetail, type TaskListRow, type TaskUpdateBody } from '../api'
 import { deadlineDay, formatDay, formatDeadline, parseDay } from '../dates'
 import { TASK_BRIEF_FEATURES, TASK_DOCUMENT_FEATURES } from '../editor'
@@ -80,24 +82,48 @@ const code = computed(() => String(route.params.code ?? ''))
 const task = computed(() => store.task)
 const deleted = computed(() => Boolean(task.value?.deleted_at))
 
-// Страница живёт в KeepAlive: `onMounted` отрабатывает первый показ, `onActivated` — каждое
-// возвращение (задачу могли поправить из списка, пока страница лежала в кеше).
-onMounted(() => void store.load(code.value))
-onActivated(() => void store.load(code.value))
+// Страница живёт в KeepAlive, и `onActivated` срабатывает и на первый показ, и на каждое
+// возвращение (задачу могли поправить из списка, пока страница лежала в кеше). Второй вызов из
+// `onMounted` дал бы при первом показе два одинаковых запроса подряд.
+let active = false
 
-// Уехавшая страница уносит свой `watch` с собой не сразу, и параметр чужого маршрута прилетел бы
-// сюда же: сверяемся с именем маршрута, а не только с кодом.
+onActivated(() => {
+  active = true
+  void store.load(code.value)
+  void loadGroups()
+})
+
+onDeactivated(() => { active = false })
+
+// Переход с задачи на задачу, пока страница на экране: KeepAlive держит один экземпляр, и
+// активации не будет. Возвращение с другой страницы меняет параметр ДО активации — его грузит
+// `onActivated`, а здесь он дал бы второй такой же запрос. Уехавшая страница уносит свой `watch`
+// не сразу, и параметр чужого маршрута прилетел бы сюда же: сверяемся и с именем маршрута.
 watch(
   () => route.params.code,
   (value) => {
-    if (route.name !== ROUTE_NAME || !value) return
+    if (!active || route.name !== ROUTE_NAME || !value) return
     void store.load(String(value))
   },
 )
 
 // ── Черновик полей ────────────────────────────────────────────────────────────
-// Правка ведёт СВОЮ копию значений: карточка в сторе остаётся тем, что лежит в базе, и ответ
-// сервера (её же, чужой правкой) черновик не трогает.
+// Правка ведёт СВОЮ копию значений (`draft`), а рядом хранит, от какой версии карточки она взята
+// (`base`). Три версии поля — моя, `base` и свежая из базы — нужны потому, что карточку меняют и
+// без этой страницы: агент через MCP, другая вкладка. Каждый раз, когда карточка в сторе
+// меняется (перечитка по ленте изменений, «Обновить», возвращение на страницу, ответ на своё
+// сохранение), она СЛИВАЕТСЯ с черновиком (`merge`):
+//
+// - в базе поле не менялось → черновик как есть (что бы человек в нём ни набрал);
+// - менялось, а человек его не трогал → черновик берёт значение из базы;
+// - менялось, и человек его правил → побеждает база: агент уже записал своё и на него
+//   рассчитывает. Набранное человеком не пропадает молча — оно показано в окне конфликта, чтобы
+//   его можно было скопировать (`conflicts`).
+//
+// Сохраняется только то, чем черновик отличается от `base` (`pending`), и только эти поля
+// уезжают на бэк (`PATCH`). Раньше «что поменялось» считалось от свежей карточки: после её
+// перечитки несохранённый черновик отличался от неё во ВСЕХ полях, которые менял агент, и первое
+// же сохранение откатывало его правки.
 const draft = reactive({
   title: '',
   description: '',
@@ -111,23 +137,139 @@ const draft = reactive({
   deadlineAt: null as Date | null,
 })
 
-watch(() => task.value?.code, (loaded) => {
-  const row = task.value
-  draft.title = row?.title ?? ''
-  draft.description = row?.description ?? ''
-  draft.context = row?.context ?? ''
-  draft.constraints = row?.constraints ?? ''
-  draft.criteria = row?.criteria ?? ''
-  draft.body = row?.body ?? ''
-  draft.type = row?.type ?? TASK_TYPES[0]
-  draft.priority = row?.priority ?? 'normal'
-  draft.groupCode = row?.group_code ?? null
-  draft.deadlineAt = parseDay(row?.deadline_at ?? null)
-  // Задача открывается редактором всегда: исходник — запасной выход, а не режим по умолчанию.
-  contextSource.value = false
-  bodySource.value = false
-  if (loaded) void loadGroups()
+/** Поля черновика, которые сливаются и сохраняются. Срок сравнивается по ДНЮ (`deadline`). */
+const FIELDS = [
+  'title', 'description', 'context', 'constraints', 'criteria', 'body',
+  'type', 'priority', 'groupCode', 'deadline',
+] as const
+type Field = (typeof FIELDS)[number]
+type Snapshot = Record<Field, string | null>
+
+/**
+ * Поля карточки в той форме, в какой их сравнивают с черновиком. Срок — днём, а не моментом: в
+ * базе у него есть время суток, а поле выбирает только день.
+ */
+function snapshotOf(row: TaskDetail | null): Snapshot {
+  return {
+    title: row?.title ?? '',
+    description: row?.description ?? '',
+    context: row?.context ?? '',
+    constraints: row?.constraints ?? '',
+    criteria: row?.criteria ?? '',
+    body: row?.body ?? '',
+    type: row?.type ?? TASK_TYPES[0],
+    priority: row?.priority ?? 'normal',
+    groupCode: row?.group_code ?? null,
+    deadline: deadlineDay(row?.deadline_at ?? null),
+  }
+}
+
+/** Значение поля черновика в той же форме. Заголовок и цель уезжают обрезанными — так и сравниваем. */
+function draftValue(field: Field): string | null {
+  switch (field) {
+    case 'deadline': return formatDay(draft.deadlineAt)
+    case 'title': return draft.title.trim()
+    case 'description': return draft.description.trim()
+    default: return draft[field]
+  }
+}
+
+/** Положить в черновик значение поля из карточки. */
+function takeFromRow(field: Field, row: TaskDetail | null): void {
+  switch (field) {
+    case 'deadline': draft.deadlineAt = parseDay(row?.deadline_at ?? null); return
+    case 'groupCode': draft.groupCode = row?.group_code ?? null; return
+    default: draft[field] = (snapshotOf(row)[field] ?? '') as string
+  }
+}
+
+/** Версия карточки, от которой взят черновик. После своего сохранения — то, что отправили. */
+let base: Snapshot = snapshotOf(null)
+
+watch(task, (next, prev) => {
+  if (!next || !prev || next.code !== prev.code) {
+    fillDraft()
+    if (next) void loadGroups()
+    return
+  }
+  merge(next)
 })
+
+/** Черновик = карточка как она в базе. Зовётся при смене задачи. */
+function fillDraft(): void {
+  const row = task.value
+  for (const field of FIELDS) takeFromRow(field, row)
+  base = snapshotOf(row)
+  conflicts.value = []
+}
+
+// ── Конфликт: поле, которое человек правит, изменили в базе ─────────────────────
+interface FieldConflict {
+  field: Field
+  /** Что человек успел набрать — показывается в окне, чтобы скопировать нужное. */
+  mine: string
+}
+
+const conflicts = ref<FieldConflict[]>([])
+const conflictOpen = computed({
+  get: () => conflicts.value.length > 0,
+  set: (open: boolean) => { if (!open) conflicts.value = [] },
+})
+
+/** Подпись поля в окне конфликта — та же, что у поля на странице. */
+const FIELD_LABELS: Record<Field, string> = {
+  title: 'tasks.task.form.name',
+  description: 'tasks.task.detail.description',
+  context: 'tasks.task.detail.context',
+  constraints: 'tasks.task.detail.constraints',
+  criteria: 'tasks.task.detail.criteria',
+  body: 'tasks.task.detail.body',
+  type: 'tasks.task.detail.type',
+  priority: 'tasks.task.detail.priority',
+  groupCode: 'tasks.task.detail.group',
+  deadline: 'tasks.task.form.deadline_at',
+}
+
+/** Набранное человеком — словами, а не кодами: тип, приоритет и группа показаны названиями. */
+function conflictText(conflict: FieldConflict): string {
+  switch (conflict.field) {
+    case 'type': return t(`tasks.task.type.${conflict.mine}`)
+    case 'priority': return t(`tasks.task.priority.${conflict.mine}`)
+    case 'groupCode':
+      return groups.value.find((group) => group.code === conflict.mine)?.title ?? conflict.mine
+    default: return conflict.mine
+  }
+}
+
+const conflictItems = computed(() =>
+  conflicts.value.map((conflict) => ({
+    label: t(FIELD_LABELS[conflict.field]),
+    text: conflictText(conflict),
+  })),
+)
+
+// Карточка могла уже лежать в сторе к моменту первого монтирования (страницу пересоздали, а стор
+// жив): `watch` выше срабатывает только на СМЕНУ карточки, и без этого черновик остался бы пустым.
+if (task.value) fillDraft()
+
+/** Слить свежую карточку с черновиком — правила в шапке раздела «Черновик полей». */
+function merge(row: TaskDetail): void {
+  const remote = snapshotOf(row)
+  const found: FieldConflict[] = []
+  for (const field of FIELDS) {
+    if (remote[field] === base[field]) continue
+    const mine = draftValue(field)
+    if (mine === base[field] || mine === remote[field]) {
+      takeFromRow(field, row)
+      continue
+    }
+    found.push({ field, mine: mine ?? '' })
+    takeFromRow(field, row)
+  }
+  base = remote
+  // Окно показывает все столкновения, накопленные до его закрытия, — новое не стирает прежнее.
+  if (found.length) conflicts.value = [...conflicts.value, ...found]
+}
 
 /**
  * Что показывать при этом типе задачи.
@@ -139,41 +281,28 @@ watch(() => task.value?.code, (loaded) => {
 const layout = computed(() => typeLayout(draft.type))
 
 /**
- * Чем черновик разошёлся с карточкой. Отправляем только разницу: бэк принимает карточку целиком,
- * но собирает её стор — здесь же важно не слать запрос, когда человек прошёл по полям, ничего
- * не изменив.
+ * Чем черновик разошёлся с `base` — и только это уедет на бэк. Прошёл по полям, ничего не
+ * изменив, — запроса нет вовсе.
  *
- * Дата сравнивается по ДНЮ: в базе у срока есть время суток, и, приведи мы обе стороны к
+ * Срок сравнивается по ДНЮ: в базе у него есть время суток, и, приведи мы обе стороны к
  * «23:59:59», правка соседнего поля молча переносила бы чужой срок на конец дня.
  */
-function pending(): Partial<TaskUpdateBody> {
-  const row = task.value
-  if (!row) return {}
-
-  const changes: Partial<TaskUpdateBody> = {}
-  const title = draft.title.trim()
-  // Пустой заголовок не сохраняется: без него строка неразличима в списке — поле остаётся
-  // пустым на экране, а в базе продолжает жить прежнее имя.
-  if (title && title !== row.title) changes.title = title
-
-  const description = draft.description.trim()
-  if (description !== row.description) changes.description = description
-  if (draft.context !== row.context) changes.context = draft.context
-  if (draft.constraints !== row.constraints) changes.constraints = draft.constraints
-  if (draft.criteria !== row.criteria) changes.criteria = draft.criteria
-  if (draft.body !== row.body) changes.body = draft.body
-  if (draft.type !== row.type) changes.type = draft.type
-  if (draft.priority !== row.priority) changes.priority = draft.priority
-  if (draft.groupCode !== row.group_code) changes.group_code = draft.groupCode
-
-  // Сравниваем ДНИ, а не моменты: в базе у срока есть время суток, и, приведи мы обе стороны к
-  // «23:59:59», правка соседнего поля молча переносила бы чужой срок на конец дня. День берётся
-  // в поясе показа — том же, в котором его выбирали в поле.
-  if (formatDay(draft.deadlineAt) !== deadlineDay(row.deadline_at)) {
-    changes.deadline_at = formatDeadline(draft.deadlineAt)
+function pending(): { body: Partial<TaskUpdateBody>; fields: Field[] } {
+  const body: Partial<TaskUpdateBody> = {}
+  const fields: Field[] = []
+  if (!task.value) return { body, fields }
+  for (const field of FIELDS) {
+    const value = draftValue(field)
+    if (value === base[field]) continue
+    // Пустой заголовок не сохраняется: без него строка неразличима в списке — поле остаётся
+    // пустым на экране, а в базе продолжает жить прежнее имя.
+    if (field === 'title' && !value) continue
+    fields.push(field)
+    if (field === 'groupCode') body.group_code = draft.groupCode
+    else if (field === 'deadline') body.deadline_at = formatDeadline(draft.deadlineAt)
+    else body[field] = value ?? ''
   }
-
-  return changes
+  return { body, fields }
 }
 
 let timer: ReturnType<typeof setTimeout> | null = null
@@ -184,15 +313,30 @@ function stopTimer(): void {
   timer = null
 }
 
-/** Отправить накопленное. Зовётся по уходу из поля, по смене выбора и перед уходом со страницы. */
+/** Последнее сохранение в полёте: перечитка по ленте ждёт его, чтобы не обогнать свой же ответ. */
+let saving: Promise<unknown> = Promise.resolve()
+
+/**
+ * Отправить накопленное. Зовётся по уходу из поля, по смене выбора и перед уходом со страницы.
+ *
+ * `base` отправленных полей сдвигается на отправленное ДО ответа: пока запрос в полёте, человек
+ * может печатать дальше, и ответ со «своим же» значением не должен выглядеть чужой правкой.
+ * Отказ возвращает прежнюю `base` — поле снова числится несохранённым и уедет следующим разом.
+ */
 async function commit(): Promise<void> {
   stopTimer()
   if (deleted.value) return
 
-  const changes = pending()
-  if (Object.keys(changes).length === 0) return
+  const { body, fields } = pending()
+  if (fields.length === 0) return
 
-  await store.patch(changes)
+  const before = { ...base }
+  for (const field of fields) base[field] = draftValue(field)
+  const request = store.patch(body)
+  saving = request
+  if (!(await request)) {
+    for (const field of fields) base[field] = before[field]
+  }
 }
 
 /** Набор продолжается: отправляем не на каждую букву, а когда человек остановился. */
@@ -280,29 +424,93 @@ const updatedAt = computed(() => {
 })
 
 // ── Длинные тексты ────────────────────────────────────────────────────────────
-// Правка идёт свёрстанной: поле — тот же документ, что и на чтении, одной типографикой. Поэтому
-// прежней пары «предпросмотр ↔ правка» больше нет — нечего переключать, это одно и то же.
+// Правка идёт свёрстанной: поле — тот же документ, что и на чтении, одной типографикой, и
+// переключать нечего — ни «предпросмотр ↔ правка», ни «редактор ↔ исходник». Исходник убран
+// решением постановщика: поле всегда в редакторе.
 //
-// Переключатель остался, но значит другое: РЕДАКТОР ↔ ИСХОДНИК. Он нужен не для красоты, а как
-// запасной выход. Редактор переносит не всё (`UNSUPPORTED` в мосте): картинку он выбросит, блок
-// внутри пункта списка — тоже. Пока это так, у человека обязан быть способ добраться до текста
-// как он есть и починить руками то, чего редактор не выражает.
-//
-// Границы и критерии обходятся без него: там короткие перечни, и переключатель над тремя
-// строками стоил бы больше, чем экономил.
-const contextSource = ref(false)
-const bodySource = ref(false)
+// ⚠️ Цена решения: редактор переносит не всё (`UNSUPPORTED` в мосте) — картинку, сноску, сырой
+// HTML и блок внутри пункта списка он выбросит, если такое поле ПРАВИТЬ. Пока поле не тронуто,
+// оно не уходит на бэк вовсе (см. `pending`), и написанное агентом цело.
 
 /** Этап или запись журнала изменились — перечитываем задачу: списки едут внутри её ответа. */
 function reloadTask(): void {
   void store.load(code.value)
 }
 
+/**
+ * Кнопка «Обновить»: перечитать всё, что связано с задачей, — карточку (этапы, журнал, родитель и
+ * дети едут в её ответе), ветку подзадач и справочник групп.
+ *
+ * Сначала уезжает набранное, потом перечитка; свежая карточка сливается с черновиком сама
+ * (`merge`), так что поля показывают то, что в базе сейчас.
+ */
+const refreshing = ref(false)
+
+async function refresh(): Promise<void> {
+  refreshing.value = true
+  try {
+    await commit()
+    await Promise.all([store.load(code.value), subtasks.value?.reload(), loadGroups()])
+  } finally {
+    refreshing.value = false
+  }
+}
+
+// ── Живое обновление ──────────────────────────────────────────────────────────
+// Страница подписана на ленту изменений (`useChangeSubscription`) и перечитывает задачу сама,
+// когда её меняет кто-то другой: агент через MCP, другая вкладка. Своё эхо сюда не доходит.
+// Перечитка ждёт своё сохранение в полёте — иначе её ответ мог бы обогнать ответ на него.
+
+/** Изменение касается этой страницы? Коды — в той же форме, что в карточке (`TASK@…`). */
+function concernsThisTask(change: Change): boolean {
+  const row = task.value
+  if (!row) return false
+  // Массовая операция без названных кодов — не знаем, что задела, значит, могла и нас.
+  if (change.ids.length === 0) return true
+  const touches = (codes: (string | null | undefined)[]) =>
+    codes.some((one) => one && (change.ids.includes(one) || change.refs.includes(one)))
+  switch (change.entity) {
+    case 'tasks.task':
+      return [row.code, row.parent_code, ...row.children.map((child) => child.code)]
+        .some((one) => one && change.ids.includes(one))
+    case 'tasks.link':
+    case 'tasks.stage':
+    case 'tasks.note':
+      return touches([row.code])
+    case 'tasks.group':
+      return touches([row.group_code, row.workspace_code])
+    default:
+      return false
+  }
+}
+
+async function reloadLive(): Promise<void> {
+  await saving
+  await store.load(code.value)
+}
+
+useChangeSubscription({
+  entities: ['tasks.task', 'tasks.link', 'tasks.stage', 'tasks.note', 'tasks.group'],
+  match: concernsThisTask,
+  onChange: (changes) => {
+    if (changes.some((change) => change.entity !== 'tasks.group')) void reloadLive()
+    if (changes.some((change) => change.entity === 'tasks.group')) void loadGroups()
+  },
+  onResync: () => {
+    void reloadLive()
+    void loadGroups()
+  },
+  reloadsOnReturn: true,
+})
+
 // ── Переходы и действия ───────────────────────────────────────────────────────
 
 const purgeOpen = ref(false)
 const formOpen = ref(false)
 const parent = ref<TaskDetail | TaskListRow | null>(null)
+// Правится из этой страницы только подзадача — строкой ветки; сама задача правится на месте.
+const editing = ref<TaskListRow | null>(null)
+const subtasks = ref<InstanceType<typeof TaskSubtasksPanel> | null>(null)
 
 /** Путь соседней задачи: переход между задачами — обычная смена адреса, с записью в историю. */
 function taskPath(target: string): string {
@@ -315,16 +523,29 @@ function goTask(target: string) {
   void router.push(taskPath(target))
 }
 
-function addChild() {
-  parent.value = task.value
+/** Подзадача — открытой задачи или, из меню строки ветки, одной из её подзадач. */
+function addChild(under?: TaskListRow) {
+  editing.value = null
+  parent.value = under ?? task.value
+  formOpen.value = true
+}
+
+function editChild(child: TaskListRow) {
+  editing.value = child
+  parent.value = null
   formOpen.value = true
 }
 
 /**
- * Заведённая подзадача открывается сразу — её ради этого и заводили. Если сохранение было правкой
- * самой задачи, перечитываем её на месте.
+ * Заведённая подзадача открывается сразу — её ради этого и заводили. Правленная из ветки остаётся
+ * на месте: человек правил её строку, а не уходил к ней, — перечитывается ветка. Если сохранение
+ * было правкой самой задачи, перечитываем её на месте.
  */
 function onSaved(saved: string) {
+  if (editing.value) {
+    void subtasks.value?.reload()
+    return
+  }
   if (saved !== code.value) {
     void router.push(taskPath(saved))
     return
@@ -371,13 +592,15 @@ async function purge() {
       </template>
 
       <template v-if="task" #description>
-        <span class="task-page__code">
-          <CopyCodeButton :code="task.code" icon /><span>{{ task.code }}</span>
-        </span>
+        <CopyChip :text="task.code" :hint="t('common.action.copy_code')" class="task-page__code" />
       </template>
 
       <template v-if="task" #actions>
-        <VBtn variant="text" :disabled="deleted" @click="addChild">
+        <VBtn variant="text" :disabled="refreshing" @click="refresh">
+          <template #prepend><IconRefresh :size="16" :class="{ 'icon-spin': refreshing }" /></template>
+          {{ t('common.action.refresh') }}
+        </VBtn>
+        <VBtn variant="text" :disabled="deleted" @click="addChild()">
           <template #prepend><IconPlus :size="16" /></template>
           {{ t('tasks.task.card.add_child') }}
         </VBtn>
@@ -432,16 +655,19 @@ async function purge() {
             {{ task.parent.title }}
           </button>
 
-          <!-- Цель получила такой же заголовок секции, как соседи: поднятая метка поля пропала
-               вместе с рамкой, а без подписи верхняя карточка читалась абзацем ниоткуда.
-               Длинная подсказка осталась там, где она и нужна, — в пустом поле. -->
+          <!-- У каждой карточки текста — заголовок и под ним подзаголовок: ЧТО писать в этом поле.
+               Подсказка стоит в шапке, а не в пустом поле, потому что нужна не только пустому:
+               заполненная карточка без неё не говорит, чего от неё ждали. Пустое поле показывает
+               свою подсказку редактора — как добавить блок командой через «/». -->
           <VCard variant="outlined" rounded="lg" class="task-page__card">
-            <SectionHeader :title="t('tasks.task.detail.description')" />
+            <SectionHeader
+              :title="t('tasks.task.detail.description')"
+              :description="t('tasks.task.detail.hint.description')"
+            />
             <!-- Цель — одна-две фразы, поэтому простой режим: абзац, жирный, курсив. Заголовку
                  или таблице в цели взяться неоткуда, и схема их просто не знает. -->
             <MarkdownEditor
               :model-value="draft.description"
-              :placeholder="t('tasks.task.form.description')"
               :aria-label="t('tasks.task.detail.description')"
               :max-length="TASK_DESCRIPTION_MAX"
               :readonly="deleted"
@@ -456,36 +682,12 @@ async function purge() {
           <!-- Контекст есть у любой задачи, даже простой: это «что надо знать, чтобы взяться», и
                без него простая карточка превращается в одну строку заголовка. -->
           <VCard variant="outlined" rounded="lg" class="task-page__card">
-            <SectionHeader :title="t('tasks.task.detail.context')">
-              <template #right>
-                <VBtn variant="text" size="small" @click="contextSource = !contextSource">
-                  <template #prepend>
-                    <component :is="contextSource ? IconPencil : IconCode" :size="16" />
-                  </template>
-                  {{ contextSource ? t('tasks.task.detail.editor') : t('tasks.task.detail.source') }}
-                </VBtn>
-              </template>
-            </SectionHeader>
-
-            <VTextarea
-              v-if="contextSource"
-              :model-value="draft.context"
-              :placeholder="t('tasks.task.form.context_hint')"
-              :aria-label="t('tasks.task.detail.context')"
-              :maxlength="TASK_CONTEXT_MAX"
-              :disabled="deleted"
-              variant="plain"
-              rows="4"
-              auto-grow
-              hide-details
-              class="task-page__source"
-              @update:model-value="(value) => { draft.context = value; schedule() }"
-              @blur="commit"
+            <SectionHeader
+              :title="t('tasks.task.detail.context')"
+              :description="t('tasks.task.detail.hint.context')"
             />
             <MarkdownEditor
-              v-else
               :model-value="draft.context"
-              :placeholder="t('tasks.task.form.context_hint')"
               :aria-label="t('tasks.task.detail.context')"
               :max-length="TASK_CONTEXT_MAX"
               :readonly="deleted"
@@ -500,10 +702,12 @@ async function purge() {
           <!-- Границы и требования к сдаче — постановка стандартной задачи. У простой их нет:
                там нечего сдавать по критериям, и пустые поля только занимали бы экран. -->
           <VCard v-if="layout.brief" variant="outlined" rounded="lg" class="task-page__card">
-            <SectionHeader :title="t('tasks.task.detail.constraints')" />
+            <SectionHeader
+              :title="t('tasks.task.detail.constraints')"
+              :description="t('tasks.task.detail.hint.constraints')"
+            />
             <MarkdownEditor
               :model-value="draft.constraints"
-              :placeholder="t('tasks.task.form.constraints_hint')"
               :aria-label="t('tasks.task.detail.constraints')"
               :max-length="TASK_CONSTRAINTS_MAX"
               :readonly="deleted"
@@ -516,10 +720,12 @@ async function purge() {
           </VCard>
 
           <VCard v-if="layout.brief" variant="outlined" rounded="lg" class="task-page__card">
-            <SectionHeader :title="t('tasks.task.detail.criteria')" />
+            <SectionHeader
+              :title="t('tasks.task.detail.criteria')"
+              :description="t('tasks.task.detail.hint.criteria')"
+            />
             <MarkdownEditor
               :model-value="draft.criteria"
-              :placeholder="t('tasks.task.form.criteria_hint')"
               :aria-label="t('tasks.task.detail.criteria')"
               :max-length="TASK_CRITERIA_MAX"
               :readonly="deleted"
@@ -532,36 +738,12 @@ async function purge() {
           </VCard>
 
           <VCard v-if="layout.plan" variant="outlined" rounded="lg" class="task-page__card">
-            <SectionHeader :title="t('tasks.task.detail.body')">
-              <template #right>
-                <VBtn variant="text" size="small" @click="bodySource = !bodySource">
-                  <template #prepend>
-                    <component :is="bodySource ? IconPencil : IconCode" :size="16" />
-                  </template>
-                  {{ bodySource ? t('tasks.task.detail.editor') : t('tasks.task.detail.source') }}
-                </VBtn>
-              </template>
-            </SectionHeader>
-
-            <VTextarea
-              v-if="bodySource"
-              :model-value="draft.body"
-              :placeholder="t('tasks.task.form.body_hint')"
-              :aria-label="t('tasks.task.form.body')"
-              :maxlength="BODY_MAX"
-              :disabled="deleted"
-              variant="plain"
-              rows="6"
-              auto-grow
-              hide-details
-              class="task-page__source"
-              @update:model-value="(value) => { draft.body = value; schedule() }"
-              @blur="commit"
+            <SectionHeader
+              :title="t('tasks.task.detail.body')"
+              :description="t('tasks.task.detail.hint.body')"
             />
             <MarkdownEditor
-              v-else
               :model-value="draft.body"
-              :placeholder="t('tasks.task.form.body_hint')"
               :aria-label="t('tasks.task.form.body')"
               :max-length="BODY_MAX"
               :readonly="deleted"
@@ -601,24 +783,24 @@ async function purge() {
           <section>
             <SectionHeader :title="t('tasks.task.detail.children')" :count="task.children.length">
               <template #right>
-                <VBtn variant="text" size="small" :disabled="deleted" @click="addChild">
+                <VBtn variant="text" size="small" :disabled="deleted" @click="addChild()">
                   <template #prepend><IconPlus :size="16" /></template>
                   {{ t('tasks.task.card.add_child') }}
                 </VBtn>
               </template>
             </SectionHeader>
 
-            <!-- Подзадачи остаются карточками, а не строками таблицы: их единицы, колонок им не
-                 из чего набрать, и каждая открывает СВОЮ страницу — тем же путём, что и строка списка. -->
-            <div v-if="task.children.length" class="task-page__children">
-              <TaskCard
-                v-for="child in task.children"
-                :key="child.code"
-                :task="child"
-                @open="goTask(child.code)"
-              />
-            </div>
-            <p v-else class="task-page__empty">{{ t('tasks.task.detail.no_children') }}</p>
+            <!-- Ветка под задачей — тем же видом, что в общем списке, со своим поиском и
+                 переключателями; каждая строка открывает СВОЮ страницу. -->
+            <TaskSubtasksPanel
+              ref="subtasks"
+              :task-code="task.code"
+              :workspace="task.workspace_code"
+              :deleted="deleted"
+              @open="goTask"
+              @edit="editChild"
+              @add-child="addChild"
+            />
           </section>
         </div>
 
@@ -748,10 +930,14 @@ async function purge() {
       </div>
     </div>
 
+    <!-- Поле, которое человек правил, тем временем изменили в базе: на странице уже версия из
+         базы, а набранное — здесь, чтобы его можно было скопировать. -->
+    <TaskFieldConflictDialog v-model="conflictOpen" :items="conflictItems" />
+
     <TaskFormDialog
       v-model="formOpen"
       :workspace="task?.workspace_code ?? ''"
-      :task="null"
+      :task="editing"
       :parent="parent"
       @saved="onSaved"
     />
@@ -905,48 +1091,11 @@ async function purge() {
   line-height: 28px;
 }
 
-/* Кнопка стоит ПЕРЕД кодом и вплотную к нему: зазор ей заменяют собственные поля иконочной
-   коробки (22px на значок в 15px), и своего ряду не нужно. Отрицательное поле слева выводит эту
-   же коробку из отбивки строки — код продолжает стоять по левому краю заголовка над ним, а не
-   съезжает на ширину кнопки. */
+/* Плашка кода: отрицательное поле слева выводит её собственную отбивку из строки — значок
+   копирования стоит по левому краю заголовка над ним, а подложка под курсором выступает за край,
+   как у кнопки. */
 .task-page__code {
-  display: inline-flex;
-  align-items: center;
-  gap: 0;
-  margin-inline-start: -3px;
-}
-
-/* Исходник — запасной выход, и выглядеть он должен исходником: моноширинный, мельче прозы,
-   без меры строки. Так видно, что правишь текст как он есть, а не документ.
-   Типографика достаётся и скрытой мерке (`v-textarea__sizer` — тот же класс поля): именно ею
-   Vuetify считает высоту набранного, и мерка, набранная другим кеглем, дала бы высоту не от
-   этого текста. */
-.task-page__source :deep(.v-field__input) {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  line-height: 1.6;
-}
-
-/* `min-height` возвращает `auto-grow` на место: высоту набранного Vuetify кладёт в
-   `--v-input-control-height` и применяет её именно этим свойством, а общее для всех полей
-   `min-height: 36px` из main.scss лежит ВНЕ слоёв и перебивает его — поле осталось бы ростом в
-   свои `rows` и прокручивало бы текст внутри себя.
-   🔴 Мерка из этого правила ИСКЛЮЧЕНА. Vuetify держит её в `height: 0; min-height: 0`, а наша
-   высота (тоже вне слоёв) перебила бы и этот сброс: мерка получила бы упор в текущую высоту
-   поля, её `scrollHeight` вернулся бы не меньше упора, и каждый пересчёт добавлял бы поле к
-   самому себе. На широком экране это незаметно, а на узком, где текст переносится, поле за
-   несколько пересчётов вырастает на весь экран. */
-.task-page__source :deep(.v-field__input:not(.v-textarea__sizer)) {
-  min-height: var(--v-input-control-height);
-}
-
-.task-page__empty {
-  margin: 0;
-  padding: 14px;
-  border: 1px dashed var(--border);
-  border-radius: 10px;
-  font-size: 12px;
-  color: var(--text-faint);
+  margin-inline-start: -5px;
 }
 
 /* Строка состояния правки стоит над полями и молчит в покое — сообщением она становится только
@@ -1030,12 +1179,6 @@ async function purge() {
   margin: 2px 0 0;
   font-size: 12px;
   color: var(--text);
-}
-
-.task-page__children {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
 }
 
 .task-menu-danger :deep(.v-list-item-title) { color: var(--error); }

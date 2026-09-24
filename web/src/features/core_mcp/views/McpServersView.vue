@@ -6,6 +6,7 @@ import PageLayout from '@/layout/templates/PageLayout.vue'
 import PageHeader from '@/layout/components/PageHeader.vue'
 import McpInfoPanel from '../components/McpInfoPanel.vue'
 import { serverIcon } from '@/shared/mcp_tool_icons'
+import { errorText } from '@/api/errorText'
 import {
   listMcpServers,
   getMcpServer,
@@ -32,7 +33,7 @@ async function loadList() {
     if (!selected.value || !servers.value.some(s => s.code === selected.value))
       selected.value = servers.value[0]?.code ?? null
   } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e)
+    error.value = errorText(e)
   } finally {
     loading.value = false
   }
@@ -44,7 +45,7 @@ async function loadDetail(code: string) {
   try {
     detail.value = await getMcpServer(code)
   } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e)
+    error.value = errorText(e)
     detail.value = null
   } finally {
     detailLoading.value = false
