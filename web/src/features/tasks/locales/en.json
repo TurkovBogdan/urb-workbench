@@ -198,16 +198,20 @@
       "title": "Groups",
       "description": "Themes of the current workspace: the task list is arranged by them.",
       "add": "New group",
-      "show_deleted": "Show deleted",
       "empty": "No groups yet",
-      "empty_hint": "Create the first one — the task list will split into sections by it."
+      "empty_hint": "Create the first one — the task list will split into sections by it.",
+      "nothing_found": "Nothing found",
+      "clear_search": "Clear search"
+    },
+    "filter": {
+      "query": "Search by name and description",
+      "deleted": "Deleted"
     },
     "card": {
       "actions": "Actions",
       "move_up": "Move up",
       "move_down": "Move down",
       "tasks": "Tasks",
-      "sort": "Position",
       "updated_at": "Last change",
       "deleted": "Deleted",
       "edit": "Edit",
