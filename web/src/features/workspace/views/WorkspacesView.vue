@@ -9,7 +9,7 @@
 //
 // Удалённые лежат в том же списке, а не на отдельной странице: они приезжают тем же запросом с
 // флагом, и разводить их по адресам значило бы заводить второй список ради того же набора строк.
-import { computed, onActivated, onMounted, ref } from 'vue'
+import { computed, onActivated, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   IconArchiveOff,
@@ -37,9 +37,9 @@ import type { WorkspaceListRow } from '../api'
 const { t } = useI18n()
 const store = useWorkspacesStore()
 
-// Страница живёт в KeepAlive и между переходами не размонтируется: `onMounted` отрабатывает
-// первый показ, `onActivated` — каждое возвращение, иначе список остался бы вчерашним.
-onMounted(store.load)
+// Страница живёт в KeepAlive и между переходами не размонтируется. `onActivated` срабатывает и на
+// первый показ, и на каждое возвращение, иначе список остался бы вчерашним; второй вызов из
+// `onMounted` дал бы при первом показе два одинаковых запроса подряд.
 onActivated(store.load)
 
 const showDeleted = computed({

@@ -11,7 +11,9 @@ import { useChangesStore, type Change } from '@/stores/changes'
 //   последнего и уходят в `onChange` одной пачкой: агент делает пять вызовов подряд — экран
 //   перечитывается один раз; переподключение ленты — `onResync`;
 // - СКРЫТ (страница жива в `KeepAlive`, но не на экране) — свои изменения не обрабатываются, а
-//   только замечаются; при возвращении — одна перечитка (`onResync`), и только если было что;
+//   только замечаются; при возвращении — одна перечитка (`onResync`), и только если было что.
+//   Страница, которая при возвращении перечитывается и сама (`reloadsOnReturn`), вторую не
+//   получает: два одинаковых запроса подряд ничего не добавляют;
 // - СНЯТ (размонтирован) — ни одного обработчика в сторе не остаётся.
 //
 // Смена состояния сначала снимает все обработчики прежнего, потом ставит новые: утечь
@@ -30,6 +32,8 @@ export interface ChangeSubscription {
   onChange: (changes: Change[]) => void
   /** Перечитать всё: переподключение ленты или возвращение экрана после пропущенного. */
   onResync: () => void
+  /** Экран перечитывается сам в `onActivated` — пропущенное за время скрытия он покроет им. */
+  reloadsOnReturn?: boolean
 }
 
 type State = 'visible' | 'hidden' | 'disposed'
@@ -83,7 +87,7 @@ export function useChangeSubscription(spec: ChangeSubscription): void {
     ]
     if (missed) {
       missed = false
-      spec.onResync()
+      if (!spec.reloadsOnReturn) spec.onResync()
     }
   }
 

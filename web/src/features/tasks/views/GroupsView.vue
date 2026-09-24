@@ -9,7 +9,7 @@
 //
 // Удалённые лежат в том же списке под тумблером, а не на отдельной странице: они приезжают тем же
 // запросом с флагом.
-import { computed, onActivated, onMounted, ref } from 'vue'
+import { computed, onActivated, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   IconArchiveOff,
@@ -28,6 +28,8 @@ import SectionError from '@/components/SectionError.vue'
 import { colorVarsByName } from '@/shared/colors'
 import IconSwatch from '@/components/IconSwatch.vue'
 import { fmtDateTime } from '@/shared/utils/date'
+import { useChangeSubscription } from '@/composables/useChangeSubscription'
+import type { Change } from '@/stores/changes'
 
 import GroupFormDialog from '../components/GroupFormDialog.vue'
 import { deleteGroup, purgeGroup, type GroupListRow } from '../api'
@@ -38,12 +40,32 @@ const { t } = useI18n()
 const store = useGroupsStore()
 const context = useWorkspaceContextStore()
 
-// Страница живёт в KeepAlive и между переходами не размонтируется: `onMounted` отрабатывает
-// первый показ, `onActivated` — каждое возвращение, иначе список остался бы вчерашним.
-onMounted(store.load)
+// Страница живёт в KeepAlive и между переходами не размонтируется. `onActivated` срабатывает и на
+// первый показ, и на каждое возвращение, иначе список остался бы вчерашним; второй вызов из
+// `onMounted` дал бы при первом показе два одинаковых запроса подряд.
 onActivated(store.load)
 
 const workspace = computed(() => context.currentWorkspace?.code ?? '')
+
+// ── Живое обновление ──────────────────────────────────────────────────────────
+// Раздел перечитывается сам, когда группы меняет кто-то другой. Задачи слушаются тоже: карточка
+// несёт их счётчик, а он меняется от заведения, переноса и удаления задачи. «Своё» — всё из
+// текущего пространства (`refs`) или коды уже показанных групп. Массовая операция (удаление и
+// возврат ветки задач, снос группы) приходит без `refs`, и чья она — не узнать: такую берём.
+function concernsGroups(change: Change): boolean {
+  if (change.ids.length === 0 || change.refs.length === 0) return true
+  if (workspace.value && change.refs.includes(workspace.value)) return true
+  const known = new Set(store.items.map((group) => group.code))
+  return [...change.ids, ...change.refs].some((code) => known.has(code))
+}
+
+useChangeSubscription({
+  entities: ['tasks.group', 'tasks.task'],
+  match: concernsGroups,
+  onChange: () => void store.load(),
+  onResync: () => void store.load(),
+  reloadsOnReturn: true,
+})
 
 const showDeleted = computed({
   get: () => store.includeDeleted,

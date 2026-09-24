@@ -18,7 +18,7 @@
 // Рамка — общий `PageLayout` с общей шапкой страницы; колонки навигации, как у деталок
 // исследования, здесь нет: у задачи нет длинного документа, по разделам которого стоило бы
 // водить оглавлением, а выход наверх — это кнопка «назад» в шапке.
-import { computed, onActivated, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onActivated, onBeforeUnmount, onDeactivated, reactive, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import {
@@ -82,17 +82,27 @@ const code = computed(() => String(route.params.code ?? ''))
 const task = computed(() => store.task)
 const deleted = computed(() => Boolean(task.value?.deleted_at))
 
-// Страница живёт в KeepAlive: `onMounted` отрабатывает первый показ, `onActivated` — каждое
-// возвращение (задачу могли поправить из списка, пока страница лежала в кеше).
-onMounted(() => void store.load(code.value))
-onActivated(() => void store.load(code.value))
+// Страница живёт в KeepAlive, и `onActivated` срабатывает и на первый показ, и на каждое
+// возвращение (задачу могли поправить из списка, пока страница лежала в кеше). Второй вызов из
+// `onMounted` дал бы при первом показе два одинаковых запроса подряд.
+let active = false
 
-// Уехавшая страница уносит свой `watch` с собой не сразу, и параметр чужого маршрута прилетел бы
-// сюда же: сверяемся с именем маршрута, а не только с кодом.
+onActivated(() => {
+  active = true
+  void store.load(code.value)
+  void loadGroups()
+})
+
+onDeactivated(() => { active = false })
+
+// Переход с задачи на задачу, пока страница на экране: KeepAlive держит один экземпляр, и
+// активации не будет. Возвращение с другой страницы меняет параметр ДО активации — его грузит
+// `onActivated`, а здесь он дал бы второй такой же запрос. Уехавшая страница уносит свой `watch`
+// не сразу, и параметр чужого маршрута прилетел бы сюда же: сверяемся и с именем маршрута.
 watch(
   () => route.params.code,
   (value) => {
-    if (route.name !== ROUTE_NAME || !value) return
+    if (!active || route.name !== ROUTE_NAME || !value) return
     void store.load(String(value))
   },
 )
@@ -490,6 +500,7 @@ useChangeSubscription({
     void reloadLive()
     void loadGroups()
   },
+  reloadsOnReturn: true,
 })
 
 // ── Переходы и действия ───────────────────────────────────────────────────────
