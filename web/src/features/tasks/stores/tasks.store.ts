@@ -609,10 +609,40 @@ export const useTasksStore = defineStore('tasks-tasks', () => {
       )
       .then(async () => {
         movesInFlight -= 1
-        if (movesInFlight === 0) await load()
+        if (movesInFlight === 0) {
+          // Сверка после своих перестановок заодно покрывает и отложенную чужую правку.
+          liveReloadWaiting = false
+          await load()
+        }
       })
     return moveChain
   }
+
+  // ── Живое обновление: чужие правки из ленты изменений ─────────────────────────
+  // Список перечитывается сам, когда задачи, их места или группы меняет кто-то другой: агент через
+  // MCP, другая вкладка. Своё эхо сюда не доходит — его отсевает лента (`stores/changes.ts`).
+  //
+  // Перечитка ЖДЁТ, пока идёт свой жест: строку держат в руке — подменить под ней список значит
+  // выдернуть цель броска; своя перестановка в полёте — перечитка обогнала бы её ответ и на миг
+  // вернула бы строку на старое место. Отложенное делается, когда жест кончился, а цепочка
+  // перестановок и так кончается сверкой.
+  let liveReloadWaiting = false
+
+  function reloadForChanges(): void {
+    if (dragging.value || movesInFlight > 0) {
+      liveReloadWaiting = true
+      return
+    }
+    liveReloadWaiting = false
+    void load().then(() => {
+      // Коды глубокого поиска считались по прежним телам — чужая правка могла их поменять.
+      if (query.value.trim() && anyScope(searchScopes.value)) void runDeepSearch()
+    })
+  }
+
+  watch(dragging, (on) => {
+    if (!on && liveReloadWaiting && movesInFlight === 0) reloadForChanges()
+  })
 
   return {
     groups, items, loading, error, includeDeleted, format,
@@ -623,6 +653,6 @@ export const useTasksStore = defineStore('tasks-tasks', () => {
     isEmpty, isFilteredOut, hasActiveFilters, finishedHidden, noWorkspace, sections,
     folded, isCollapsed, toggleCollapsed, dragging, lastRootOf,
     load, showDeleted, showFinished, resetPage, clearFilters, remove, restore, reorder,
-    reorderGroup,
+    reorderGroup, reloadForChanges,
   }
 })

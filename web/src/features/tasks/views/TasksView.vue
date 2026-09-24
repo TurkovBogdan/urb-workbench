@@ -9,7 +9,7 @@
 // АДРЕС. Список живёт на `/tasks/list`, задача — на своей странице (`/tasks/task/TASK@…`), и клик
 // по строке уводит туда. Набор фильтров в адрес не вынесен: это рабочая поза человека, и каждая
 // буква в поиске писала бы запись в историю браузера.
-import { computed, onActivated, onMounted, ref, watch, type Component } from 'vue'
+import { computed, onActivated, ref, watch, type Component } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { IconList, IconPlus, IconRefresh } from '@tabler/icons-vue'
@@ -17,6 +17,8 @@ import { IconList, IconPlus, IconRefresh } from '@tabler/icons-vue'
 import PageLayout from '@/layout/templates/PageLayout.vue'
 import PageHeader from '@/layout/components/PageHeader.vue'
 import SectionError from '@/components/SectionError.vue'
+import { useChangeSubscription } from '@/composables/useChangeSubscription'
+import type { Change } from '@/stores/changes'
 
 import GroupFormDialog from '../components/GroupFormDialog.vue'
 import TaskFilters from '../components/TaskFilters.vue'
@@ -43,12 +45,35 @@ const formatView = computed(
   () => (FORMATS.find((item) => item.code === store.format) ?? FORMATS[0]).view,
 )
 
-// Страница живёт в KeepAlive и между переходами не размонтируется: `onMounted` отрабатывает
-// первый показ, `onActivated` — каждое возвращение, иначе список остался бы вчерашним.
-onMounted(store.load)
+// Страница живёт в KeepAlive и между переходами не размонтируется. `onActivated` срабатывает и на
+// первый показ, и на каждое возвращение, иначе список остался бы вчерашним; второй вызов из
+// `onMounted` дал бы при первом показе два одинаковых запроса подряд.
 onActivated(store.load)
 
 const workspace = computed(() => context.currentWorkspace?.code ?? '')
+
+// ── Живое обновление ──────────────────────────────────────────────────────────
+// Список сам перечитывается по ленте изменений, когда его задачи, их места или группы меняет
+// кто-то другой. «Своё» — всё из текущего пространства: задача и группа несут его код в `refs`,
+// а ребро дерева — только коды задач, и узнаётся по уже известным. Когда перечитать, решает стор
+// (`reloadForChanges`): посреди своего жеста он откладывает перечитку до его конца.
+function concernsList(change: Change): boolean {
+  if (change.ids.length === 0) return true
+  if (workspace.value && change.refs.includes(workspace.value)) return true
+  const known = new Set([
+    ...store.items.map((task) => task.code),
+    ...store.groups.map((group) => group.code),
+  ])
+  return [...change.ids, ...change.refs].some((code) => known.has(code))
+}
+
+useChangeSubscription({
+  entities: ['tasks.task', 'tasks.link', 'tasks.group'],
+  match: concernsList,
+  onChange: () => store.reloadForChanges(),
+  onResync: () => store.reloadForChanges(),
+  reloadsOnReturn: true,
+})
 
 // ── Переход к задаче ──────────────────────────────────────────────────────────
 
