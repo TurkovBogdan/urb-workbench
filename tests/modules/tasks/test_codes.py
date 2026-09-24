@@ -76,6 +76,14 @@ def test_bare_code_refuses_a_foreign_prefix_by_naming_both_types():
 
 
 @pytest.mark.pure
+@pytest.mark.parametrize("value", ["TASK@", f"TASK@TASK@{BARE}", f"@{BARE}@"])
+def test_bare_code_refuses_a_prefix_with_no_single_code_after_it(value):
+    """Пустой хвост в CRUD значит «снять»: обрезанный код молча выносил задачу в корень."""
+    with pytest.raises(ValueError, match="is not a TASK@ code"):
+        bare_code(value, TASK_CODE_PREFIX)
+
+
+@pytest.mark.pure
 def test_prefixed_field_serialises_with_the_prefix_only_in_json():
     class Row(BaseModel):
         code: prefixed(TASK_CODE_PREFIX)

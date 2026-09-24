@@ -244,8 +244,9 @@ def register(mcp: "FastMCP") -> None:
         through.
 
         Filing is not the tree. A group says what the work is ABOUT; a parent says what it is
-        PART OF. Regrouping an epic leaves its subtasks exactly where they were — pass them too
-        if that is what you meant.
+        PART OF — and a part is about the same thing as the whole, so a subtask sits in its
+        parent's group. Regrouping an epic takes its subtasks along; a subtask named without its
+        parent is refused — file the parent instead.
 
         Args:
             group_code: A GROUP@ code from groups_list, or an empty string to take these tasks
