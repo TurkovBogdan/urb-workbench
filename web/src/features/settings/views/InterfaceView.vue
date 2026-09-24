@@ -18,7 +18,7 @@ import {
   READING_SIZES,
   READING_WEIGHTS,
 } from '@/constants/fonts'
-import { LANGUAGE_OPTIONS } from '@/constants/language'
+import { LANGUAGE_OPTIONS, flagUrl } from '@/constants/language'
 import { PREVIEWS } from '../previews'
 
 // Оформление приложения. В отличие от `/settings/modules` кнопки сохранения здесь нет: выбор
@@ -108,7 +108,19 @@ const measureOptions = computed(() =>
             variant="outlined"
             density="comfortable"
             hide-details="auto"
-          />
+          >
+            <template #selection="{ item }">
+              <img v-if="flagUrl(item.flag)" :src="flagUrl(item.flag)" alt="" class="language-flag" />
+              <span>{{ item.label }}</span>
+            </template>
+            <template #item="{ props: itemProps, item }">
+              <VListItem v-bind="itemProps">
+                <template #prepend>
+                  <img v-if="flagUrl(item.flag)" :src="flagUrl(item.flag)" alt="" class="language-flag" />
+                </template>
+              </VListItem>
+            </template>
+          </VSelect>
           <p class="setting__desc">{{ t('settings.interface.language.description') }}</p>
         </div>
 
@@ -409,5 +421,13 @@ const measureOptions = computed(() =>
   font-size: 12px;
   line-height: 1.4;
   color: var(--text-muted);
+}
+
+.language-flag {
+  width: 20px;
+  height: 20px;
+  margin-inline-end: 10px;
+  flex: 0 0 auto;
+  vertical-align: middle;
 }
 </style>
