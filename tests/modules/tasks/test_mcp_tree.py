@@ -85,8 +85,8 @@ async def test_a_parent_from_another_workspace_is_refused_by_the_fence(call, bou
     assert (await link_crud.link_get(loose.code)).parent_code is None
 
 
-async def test_a_task_a_person_set_can_still_be_moved(call, bound):
-    """Место в дереве — раскладка, а не постановка: запрет на бриф его не касается."""
+async def test_a_task_a_person_set_can_be_moved(call, bound):
+    """Задачу, поставленную человеком, агент переносит в дереве так же, как свою."""
     epic = await task_crud.task_create(workspace_code=bound.code, title="Эпик")
     theirs = await task_crud.task_create(
         workspace_code=bound.code, title="Поставил человек", created_by=ACTOR_HUMAN

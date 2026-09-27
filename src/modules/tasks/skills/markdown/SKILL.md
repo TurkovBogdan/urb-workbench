@@ -37,15 +37,28 @@ flowchart LR
 ````
 
 Recognised types: `flowchart` (and `graph`), `sequenceDiagram`, `classDiagram`, `stateDiagram`
-(and `stateDiagram-v2`), `erDiagram`.
+(and `stateDiagram-v2`), `erDiagram`, `xychart-beta`.
 
 Reach for one where the point *is* a structure — a pipeline, a state machine, a data schema, a
 call flow. A diagram of three boxes that a sentence already said is worse than the sentence.
 
 ## Length
 
-The limit refuses rather than trims, and the refusal names how much over you are. This matters
-for plans specifically: the file list sits at the end, so trimming would remove the part worth
-keeping.
+A body edited through `body_set` and its neighbours, and the body passed to `stage_add`, is
+refused rather than trimmed when it goes over, and the refusal names how much over you are.
+This matters for plans specifically: the file list sits at the end, so trimming would remove
+the part worth keeping. Limits: plan and stage body 8192, journal entry body 2048.
 
-If a plan is pressing the limit, the detail belongs in stages — that is what they are for.
+If a plan is pressing the limit, the detail belongs in stages (an extended task) or a subtask.
+
+Every other text field is cut at its limit **without a word**. Stay under these, and read the
+task back when a field was long:
+
+| Field | Limit |
+|---|---|
+| title (task, stage, entry, group) | 128 |
+| goal `description`, stage and group `description` | 512 |
+| `context` | 4048 |
+| `constraints`, `criteria` | 1024 |
+| entry body passed to `note_add` | 2048 |
+| `evidence`, `resolution` | 1024 |

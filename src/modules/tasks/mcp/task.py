@@ -2,8 +2,8 @@
 
 Пять инструментов на четыре сценария: найти, прочитать целиком, завести, изменить, сдвинуть по
 жизненному циклу. Разводить их мельче незачем, сливать — некуда: у смены статуса своё правило
-(отметка фазы и недоступность терминальных значений), у правки своё (постановку чужой задачи
-трогать нельзя).
+(отметка фазы и недоступность терминальных значений), у правки своё (правится только то, что
+передано).
 
 Ни один из них не принимает пространства: оно у сессии (``workspace/mcp/session.py``), и код из
 чужого отвергается забором (``scope.py``).
@@ -152,7 +152,7 @@ def register(mcp: "FastMCP") -> None:
 
         This is the working view: what you need before touching the work, and nothing you would
         have to ask twice for. Read it before you start and after anyone else has been here —
-        the brief is the requester's, and it is the only place that says what "done" means here.
+        the brief is the only place that says what "done" means here.
 
         Closed journal entries are not included, only their count: they answer "how was this
         decided", which is a separate question — notes_list when you have it.
@@ -306,7 +306,7 @@ def register(mcp: "FastMCP") -> None:
 
         Use it to refile a task under another group, to move it under another parent or out to
         the top level, to re-rank it, to raise its type when a one-liner turns out to need a
-        plan, or to fill in a brief on a task you created.
+        plan, or to fill in or correct the brief.
 
         The tree is one level deep: a subtask has no subtasks. So the new parent must be a
         top-level task, and a task that has subtasks cannot become one — move its subtasks out
@@ -317,10 +317,10 @@ def register(mcp: "FastMCP") -> None:
         Two things are not here. The plan is text — body_set and its neighbours own it. Status
         moves through task_status, which also stamps when the work started.
 
-        The brief of a task a PERSON set — its title, goal, context, constraints and criteria —
-        is theirs, and this refuses to change it. If it is thin, wrong or contradicts itself,
-        say so where it will be read: note_add(type="decision") with the question, and carry on
-        with what is unambiguous.
+        The brief — title, goal, context, constraints and criteria — is editable on any task,
+        whoever set it. On a task a person set, the brief is still their statement of what
+        "done" means: when you change it, record what changed and why with
+        note_add(type="decision"), so the change is visible rather than silent.
 
         Args:
             task_code: The task to change — a TASK@ code.
@@ -336,25 +336,8 @@ def register(mcp: "FastMCP") -> None:
         """
         bare = _task_code(task_code)
         await require_scope(TASK_CODE_PREFIX, bare)
-        existing = await task_crud.task_get(bare)
-        if existing is None:
+        if await task_crud.task_get(bare) is None:
             raise ValueError(f"Task {task_code} does not exist (or is deleted).")
-        brief = {
-            "title": title,
-            "description": description,
-            "context": context,
-            "constraints": constraints,
-            "criteria": criteria,
-        }
-        touched = [field for field, value in brief.items() if value is not None]
-        if touched and existing.created_by != ACTOR_AGENT:
-            raise ValueError(
-                f"Task {task_code} was set by a person, and its brief is theirs: "
-                f"{', '.join(touched)} cannot be changed from here. A requirement you may "
-                "rewrite stops being a requirement. If the brief is thin, wrong or "
-                "contradictory, raise it with note_add(type='decision') and go on with what is "
-                "unambiguous."
-            )
         group_bare = bare_code(group_code, GROUP_CODE_PREFIX)
         if group_bare:
             await require_scope(GROUP_CODE_PREFIX, group_bare)

@@ -55,8 +55,9 @@ shift makes those references false.
 
 ## Ahead of you the plan is alive, behind you it is frozen
 
-A stage that has not started can be rewritten freely. A stage that is running or finished cannot
-— the tools refuse it.
+A stage that has not started can be rewritten freely. Once it is running or finished, its body
+refuses edits. The title, description and number are not blocked by the tools, but they fall
+under the same rule: do not re-word a step behind you.
 
 This is not tidiness. If the wording of a step can be adjusted after it has run, the gap between
 what was promised and what was done disappears — and that gap is the only reason to keep a plan

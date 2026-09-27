@@ -288,7 +288,8 @@ def _fits(text: str, holder: _Holder, code: str) -> str:
             f"This would make {holder.what} of {code} {len(text)} characters long, and the "
             f"limit is {holder.limit} — {len(text) - holder.limit} too many. The limit refuses "
             "instead of trimming because the end of a plan is where the files are listed. "
-            "Shorten what is already there, or move the detail into a stage."
+            "Shorten what is already there; a plan's detail that does not fit belongs in "
+            "stages (an extended task) or in a subtask."
         )
     return text
 
