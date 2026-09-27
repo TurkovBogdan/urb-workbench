@@ -12,7 +12,15 @@ from src.modules.core_mcp.api import _stdio_config
 def _server(code="research", *, pin_code=False, token="", workspace=""):
     return json.loads(
         _stdio_config(code, pin_code=pin_code, token=token, workspace=workspace)
-    )["mcpServers"][code]
+    )["mcpServers"][f"urb-{code}"]
+
+
+@pytest.mark.pure
+def test_stdio_config_names_the_server_with_the_brand_not_the_bare_code():
+    """В клиенте сервер стоит среди чужих — голое ``workbench`` не говорит, чей он."""
+    config = json.loads(_stdio_config("workbench", pin_code=False, token="", workspace=""))
+
+    assert list(config["mcpServers"]) == ["urb-workbench"]
 
 
 @pytest.mark.pure

@@ -27,6 +27,9 @@ from src.core.api import ApiError
 # `uv run --directory`, чтобы клиент со своим cwd всё равно попал в проект.
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
+# Голый код сервера («workbench») в списке MCP клиента не отличить от чужих серверов.
+_CLIENT_SERVER_NAME_PREFIX = "urb-"
+
 
 class McpToolInfo(BaseModel):
     name: str
@@ -118,7 +121,8 @@ def _stdio_config(code: str, pin_code: bool, token: str, workspace: str) -> str:
     server: dict[str, Any] = {"command": _uv_binary(), "args": args}
     if token:
         server["env"] = {"MCP_TOKEN": token}
-    return json.dumps({"mcpServers": {code: server}}, indent=2, ensure_ascii=False)
+    client_server_name = f"{_CLIENT_SERVER_NAME_PREFIX}{code}"
+    return json.dumps({"mcpServers": {client_server_name: server}}, indent=2, ensure_ascii=False)
 
 
 @router.get("/servers", response_model=list[McpServerSummary])
