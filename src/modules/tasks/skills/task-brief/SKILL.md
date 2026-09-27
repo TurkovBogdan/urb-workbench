@@ -76,9 +76,12 @@ ceremony costs more than it returns.
 
 ## Whose brief is it
 
-The brief belongs to whoever set the task. If you are running it and the brief is thin, wrong or
-self-contradictory, you do not fix it quietly — a requirement the executor may rewrite is not a
-requirement. Raise it: `note_add(type="decision")` with the question, and carry on with what is
-unambiguous.
+You may fill in and correct the brief of any task with `task_update`, including one a person
+set. A thin statement — a title and a goal — is often left on purpose for the executor to flesh
+out once the code has been read.
 
-A brief you wrote yourself, on a subtask you created, is yours to edit freely.
+On a task a person set, the brief is still their statement of what "done" means, so the edit
+must not be silent: record what changed and why with `note_add(type="decision")`. If the
+change is not a clarification but a different requirement, ask before making it.
+
+Write the brief into the task, never into a file of your own to be copied over later.

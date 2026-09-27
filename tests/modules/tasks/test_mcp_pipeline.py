@@ -19,7 +19,7 @@ pytestmark = pytest.mark.db
 
 @pytest.fixture
 async def brief(workspace):
-    """Задача, поставленная ЧЕЛОВЕКОМ: её бриф агенту править нельзя."""
+    """Задача, поставленная ЧЕЛОВЕКОМ: принимать работу по ней агенту нельзя."""
     return await task_crud.task_create(
         workspace_code=workspace.code,
         title="Перевести тарифы на новую схему",
@@ -123,16 +123,26 @@ async def test_the_whole_pipeline_holds_together(call, workspace, brief):
     assert handed["open_notes"] == 1 and handed["blocking_notes"] == 0
 
 
-async def test_the_brief_of_a_human_task_is_not_the_agents_to_rewrite(call, workspace, brief):
-    """Критерий, который исполнитель вправе переписать, перестаёт быть критерием."""
+async def test_the_agent_corrects_the_brief_of_a_human_task(call, workspace, brief):
+    """Запрет гнал агента в обход — бриф в файл, перенос руками человека; правка законна."""
     await call("workspace_use", workspace_code=workspace.code)
 
-    with pytest.raises(ToolError, match="brief is theirs"):
-        await call("task_update", task_code=f"TASK@{brief.code}", criteria="1. Как получится")
+    await call(
+        "task_update",
+        task_code=f"TASK@{brief.code}",
+        context="Смотреть src/billing/tariff.py и src/billing/invoice.py",
+        criteria="1. `pytest tests/billing -q` зелёный",
+    )
+
+    stored = await task_crud.task_get(brief.code)
+    assert stored.context == "Смотреть src/billing/tariff.py и src/billing/invoice.py"
+    assert stored.criteria == "1. `pytest tests/billing -q` зелёный"
+    assert stored.title == brief.title and stored.constraints == brief.constraints
+    assert stored.created_by == ACTOR_HUMAN
 
 
 async def test_the_agent_writes_the_brief_of_its_own_subtask(call, workspace, brief):
-    """Своя постановка — своя: запрет про чужую волю, а не про поле."""
+    """Подзадачу агент заводит сам и тут же ставит ей критерии."""
     await call("workspace_use", workspace_code=workspace.code)
     child = await call(
         "task_create", title="Подзадача", description="Часть работы",

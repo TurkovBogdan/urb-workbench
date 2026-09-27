@@ -77,9 +77,9 @@ def register(mcp: "FastMCP") -> None:
         fine — do not renumber to close it: you refer to "the third stage" in the journal, and a
         silent shift would make those references false.
 
-        A stage that has not started can be rewritten freely; once it is running, the plan
-        behind you is frozen — changing it is a new entry in the journal and a new stage after
-        it.
+        A stage that has not started can be rewritten freely. Once it is running, its body
+        refuses edits, and the rest is frozen by convention: changing a step behind you is a
+        new entry in the journal and a new stage after it, not a re-worded title.
 
         Args:
             task_code: The task this stage belongs to — a TASK@ code. Stages belong to
