@@ -63,7 +63,6 @@
       "status": "Status",
       "status_more": "{count} more",
       "priority": "Priority",
-      "reset": "Reset",
       "finished": "Finished",
       "deleted": "Deleted",
       "scope": {
@@ -195,8 +194,8 @@
   },
   "group": {
     "list": {
-      "title": "Groups",
-      "description": "Themes of the current workspace: the task list is arranged by them.",
+      "title": "Task groups",
+      "description": "Split tasks into thematic sets or functional parts",
       "add": "New group",
       "empty": "No groups yet",
       "empty_hint": "Create the first one — the task list will split into sections by it.",
@@ -211,7 +210,7 @@
       "actions": "Actions",
       "move_up": "Move up",
       "move_down": "Move down",
-      "tasks": "Tasks",
+      "tasks": "task | tasks",
       "updated_at": "Last change",
       "deleted": "Deleted",
       "edit": "Edit",
@@ -224,16 +223,36 @@
       "title": "Edit group",
       "name": "Name",
       "description": "Short description",
-      "sort": "Position in the list",
+      "sort": "Sort",
+      "sort_hint": "The higher the number, the higher in the list",
       "look": "Icon and color"
     },
     "delete": {
-      "title": "Delete group",
-      "text": "Tasks inside: {count}. They stay in place and return to the group together with it — deletion can be undone."
+      "title": "Delete task group",
+      "empty": "The group has no tasks — deleting it costs nothing.",
+      "reversible": "Deletion can be undone: the group goes to the deleted list, where it can be restored.",
+      "reversible_without_tasks": "Deletion can be undone: the group goes to the deleted list, where it can be restored. The tasks will not come back to it.",
+      "has_tasks": "The group has no tasks. | The group has {n} task — what should happen to it? | The group has {n} tasks — what should happen to them?",
+      "choice": "What to do with the group's tasks",
+      "ungroup": {
+        "title": "Take the group off the task | Take the group off the tasks",
+        "description": "The task moves to \"No group\" and is otherwise unchanged. | The tasks move to \"No group\" and are otherwise unchanged."
+      },
+      "move": {
+        "title": "Move to another group",
+        "description": "The task and its subtasks move to the chosen group, at the end of its list. | The tasks and their subtasks move to the chosen group, at the end of its list.",
+        "no_targets": "There are no other groups in this workspace — nowhere to move them.",
+        "target": "Move to"
+      },
+      "delete": {
+        "title": "Delete the task | Delete the tasks",
+        "description": "The task and its subtasks go to the trash. Restored, it returns to \"No group\". | The tasks and their subtasks go to the trash. Each can be restored and returns to \"No group\"."
+      },
+      "confirm": "Delete"
     },
     "purge": {
       "title": "Delete forever",
-      "text": "The group will be removed from the database for good. The tasks inside ({count}) outlive it and move to the “No group” section."
+      "text": "The group is empty and will be removed from the database for good. | The group will be removed from the database for good. The {n} task inside outlives it and moves to the “No group” section. | The group will be removed from the database for good. The {n} tasks inside outlive it and move to the “No group” section."
     }
   },
   "workspace": {
@@ -246,7 +265,8 @@
     "group": {
       "not_found": "Group not found",
       "deleted": "The group is deleted — restore it first",
-      "not_deleted": "The group isn't deleted — nothing to restore"
+      "not_deleted": "The group isn't deleted — nothing to restore",
+      "has_tasks": "The group has tasks — choose what to do with them"
     },
     "task": {
       "not_found": "Task not found",

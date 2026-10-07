@@ -32,7 +32,7 @@ degrades to a plain code block, silently — you will not be told.
 ````
 ```mermaid
 flowchart LR
-  A[Схема] --> B[Пересчёт] --> C[Миграция]
+  A[Schema] --> B[Recalculation] --> C[Migration]
 ```
 ````
 
@@ -57,7 +57,8 @@ task back when a field was long:
 | Field | Limit |
 |---|---|
 | title (task, stage, entry, group) | 128 |
-| goal `description`, stage and group `description` | 512 |
+| goal `description`, stage `description` | 512 |
+| group `description` | 128 — refused over it, not cut |
 | `context` | 4048 |
 | `constraints`, `criteria` | 1024 |
 | entry body passed to `note_add` | 2048 |

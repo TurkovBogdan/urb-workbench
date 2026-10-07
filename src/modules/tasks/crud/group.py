@@ -1,8 +1,9 @@
-"""CRUD ``TasksGroup`` — группы задач в пространстве. Каждая функция владеет своей сессией.
+"""CRUD for ``TasksGroup`` — task groups within a workspace. Each function owns its session.
 
-Согласованность пространства проверяется здесь, на записи: группа заводится только в живом
-пространстве, и ссылка на несуществующее пространство — ``ValueError`` с внятным текстом, а не
-``IntegrityError`` из недр драйвера. FK в схеме остаётся страховкой на случай записи мимо CRUD.
+Workspace consistency is checked here, on write: a group is created only in a live workspace, and
+a reference to a missing workspace is a ``ValueError`` with a clear message rather than an
+``IntegrityError`` from the depths of the driver. The FK in the schema stays as a safety net for
+writes that bypass the CRUD.
 """
 
 from __future__ import annotations
@@ -15,19 +16,20 @@ from src.modules.core_changes import DELETED, UPDATED, mark_changes
 from src.modules.tasks.codes import new_code
 from src.modules.tasks.constants import (
     COLOR_MAX,
-    DESCRIPTION_MAX,
+    GROUP_DESCRIPTION_MAX,
     ICON_MAX,
     SORT_DEFAULT,
     SORT_STEP,
     TITLE_MAX,
 )
+from src.modules.tasks.crud.task import release_group_tasks
 from src.modules.tasks.models.group import TasksGroup
-from src.modules.tasks.text import clip
+from src.modules.tasks.text import clip, fit
 from src.modules.workspace.models.workspace import Workspace
 
 
 async def _require_workspace(s, workspace_code: str) -> None:
-    """Живое пространство или отказ: ссылка на удалённое — такая же ошибка, как на пропавшее."""
+    """A live workspace, or refuse: a reference to a deleted one is as wrong as to a missing one."""
     stmt = select(Workspace.code).where(
         Workspace.code == workspace_code, Workspace.deleted_at.is_(None)
     )
@@ -39,11 +41,11 @@ async def _require_workspace(s, workspace_code: str) -> None:
 
 
 async def _sort_at_end(s, workspace_code: str) -> int:
-    """Позиция ниже всех живых групп пространства; в пустом — ``SORT_DEFAULT``.
+    """A position below every live group in the workspace; in an empty one — ``SORT_DEFAULT``.
 
-    Считается в той же транзакции, что и вставка: разойтись с чужой одновременной записью
-    значение не успеет, а совпадение двух ``sort`` порядок всё равно не ломает — его разводит
-    тайбрейк по названию.
+    Computed in the same transaction as the insert: the value has no time to drift from a
+    concurrent write, and two equal ``sort`` values do not break the order anyway — the title
+    tie-break separates them.
     """
     stmt = select(func.min(TasksGroup.sort)).where(
         TasksGroup.workspace_code == workspace_code, TasksGroup.deleted_at.is_(None)
@@ -61,11 +63,11 @@ async def group_create(
     icon: str | None = None,
     sort: int | None = None,
 ) -> TasksGroup:
-    """Завести группу; ``sort=None`` — в конец списка, число — на точную позицию.
+    """Create a group; ``sort=None`` — at the end of the list, a number — at that exact position.
 
-    Умолчание именно «в конец», а не ``SORT_DEFAULT``: у новой группы с тем же ``sort``, что у
-    половины соседей, позиция определяется тайбрейком по названию, то есть случайна с точки
-    зрения заводившего. Интерфейс шлёт число сам и этой ветки не касается.
+    The default is "at the end" rather than ``SORT_DEFAULT`` on purpose: a new group sharing its
+    ``sort`` with half its siblings gets its position from the title tie-break, which is random
+    from the creator's point of view. The UI sends a number itself and never takes this branch.
     """
     async with write_scope() as s:
         await _require_workspace(s, workspace_code)
@@ -73,7 +75,7 @@ async def group_create(
             code=new_code(),
             workspace_code=workspace_code,
             title=clip(title, TITLE_MAX),
-            description=clip(description, DESCRIPTION_MAX),
+            description=fit(description, GROUP_DESCRIPTION_MAX, "group description"),
             color=clip(color, COLOR_MAX),
             icon=clip(icon, ICON_MAX),
             sort=await _sort_at_end(s, workspace_code) if sort is None else sort,
@@ -85,19 +87,19 @@ async def group_create(
 
 
 async def group_find_by_title(workspace_code: str, title: str) -> TasksGroup | None:
-    """Живая группа пространства с таким названием, без учёта регистра; иначе ``None``.
+    """The workspace's live group with this title, case-insensitive; otherwise ``None``.
 
-    Нужна не схеме, а тому, кто заводит группу вслепую: уникального индекса на паре
-    «пространство + название» нет, и без этой проверки в одной раскладке заводятся «Биллинг» и
-    «биллинг». Регистр игнорируется, потому что различать их — значит спорить с человеком,
-    который считает это одним словом.
+    Not needed by the schema but by whoever creates a group blind: there is no unique index on
+    the "workspace + title" pair, and without this check one layout ends up with both "Billing"
+    and "billing". Case is ignored because telling them apart means arguing with a person who
+    sees them as one word.
 
-    **Регистр сворачивается в Python, а не в SQL**, и это не вкус. ``lower()`` у SQLite складывает
-    только ASCII: «Биллинг» остаётся «Биллинг», и запрос не находит ничего. На PostgreSQL та же
-    функция кириллицу свернёт — то есть ``func.lower`` дал бы провайдерам РАЗНОЕ поведение на
-    русских названиях, причём на dev-провайдере проверка просто молча не срабатывала бы. Цена —
-    чтение групп пространства целиком; их единицы, и вызывающий читает тот же список следующей
-    строкой.
+    **Case is folded in Python, not in SQL**, and that is not taste. SQLite's ``lower()`` folds
+    ASCII only: a Cyrillic title stays as it was, and the query finds nothing. On PostgreSQL the
+    same function does fold Cyrillic — so ``func.lower`` would give the providers DIFFERENT
+    behaviour on Russian titles, and on the dev provider the check would simply never fire,
+    silently. The price is reading the workspace's groups in full; there are only a handful, and
+    the caller reads the same list on the next line.
     """
     wanted = title.strip().casefold()
     stmt = select(TasksGroup).where(
@@ -119,7 +121,7 @@ async def group_get(code: str, *, include_deleted: bool = False) -> TasksGroup |
 async def group_list_by_workspace(
     workspace_code: str, *, include_deleted: bool = False
 ) -> list[TasksGroup]:
-    """Группы пространства: больший ``sort`` выше, дальше по названию (и по коду — для стабильности)."""
+    """The workspace's groups: higher ``sort`` on top, then by title (and by code, for stability)."""
     stmt = (
         select(TasksGroup)
         .where(TasksGroup.workspace_code == workspace_code)
@@ -140,10 +142,10 @@ async def group_update(
     icon: str | None = None,
     sort: int | None = None,
 ) -> TasksGroup | None:
-    """Обновить переданные поля группы (``None`` = не трогать; ``sort=0`` — валидная позиция).
+    """Update the given group fields (``None`` = leave as is; ``sort=0`` is a valid position).
 
-    Пространство группы не меняется: перенести группу между пространствами значит утащить за
-    собой все её задачи, а это другая операция, и её никто не заказывал.
+    A group's workspace never changes: moving a group between workspaces means dragging all its
+    tasks along, which is a different operation, and nobody asked for it.
     """
     async with write_scope() as s:
         row = await s.get(TasksGroup, code)
@@ -152,7 +154,7 @@ async def group_update(
         if title is not None:
             row.title = clip(title, TITLE_MAX)
         if description is not None:
-            row.description = clip(description, DESCRIPTION_MAX)
+            row.description = fit(description, GROUP_DESCRIPTION_MAX, "group description")
         if color is not None:
             row.color = clip(color, COLOR_MAX)
         if icon is not None:
@@ -167,19 +169,19 @@ async def group_update(
 async def group_reorder(
     code: str, *, after: str | None = None, before: str | None = None
 ) -> TasksGroup | None:
-    """Поставить группу прямо под (``after``) или прямо над (``before``) соседней.
+    """Place a group right below (``after``) or right above (``before``) a sibling.
 
-    Позиция задаётся соседом, а не числом: ``sort`` — внутренняя механика, и тому, кто двигает
-    группу, попасть в него нечем. Ровно одна из двух точек отсчёта обязательна.
+    The position is given by a sibling, not a number: ``sort`` is internal mechanics, and whoever
+    moves the group has no way to aim at it. Exactly one of the two reference points is required.
 
-    Список после вставки **перенумеровывается целиком** — сверху вниз с шагом ``SORT_STEP``, —
-    а записываются только строки, у которых значение реально изменилось. Групп в пространстве
-    единицы, поэтому дешёвая арифметика «поделить зазор пополам» не окупается: она добавляет
-    вторую ветку на случай кончившегося зазора, и эта ветка живёт непройденной до того дня,
-    когда сломается.
+    After the insert the list is **renumbered in full** — top to bottom in steps of
+    ``SORT_STEP`` — and only rows whose value actually changed are written. A workspace has a
+    handful of groups, so the cheap "split the gap in half" arithmetic does not pay off: it adds a
+    second branch for when the gap runs out, and that branch sits untested until the day it
+    breaks.
 
-    ``None`` — группы нет или она удалена; чужая, удалённая или несуществующая точка отсчёта —
-    ``ValueError`` с названием причины.
+    ``None`` — the group is missing or deleted; a reference point from another workspace, deleted
+    or missing — ``ValueError`` naming the reason.
     """
     if (after is None) == (before is None):
         raise ValueError(
@@ -233,22 +235,29 @@ async def group_reorder(
     return row
 
 
-async def group_delete(code: str, *, hard: bool = False) -> bool:
-    """Удалить группу: мягко (по умолчанию) или физически. ``True`` — строка существовала.
+async def group_delete(
+    code: str, *, hard: bool = False, tasks: str | None = None, target: str | None = None
+) -> bool:
+    """Delete a group: soft (default) or hard. ``True`` — the row existed.
 
-    Задачи группы переживают её в обоих случаях: при ``hard=True`` FK ``SET NULL`` просто снимает
-    у них разложенность. При мягком удалении ``group_code`` у задач остаётся — чтобы
-    ``group_restore`` вернул раскладку ровно в том виде, в каком её сняли.
+    The group's tasks outlive it either way. With ``hard=True`` the FK's ``SET NULL`` ungroups
+    them. A soft delete first takes every task off the group in the same transaction — ``tasks``
+    says how (``ungroup`` / ``move`` to ``target`` / ``delete``), and is required while the group
+    holds live tasks (``task_crud.release_group_tasks``). Tasks used to keep the reference so a
+    restore could bring the layout back, but nothing draws a deleted group, so they vanished from
+    the list; a restore now brings back the group alone.
     """
     async with write_scope() as s:
         row = await s.get(TasksGroup, code)
         if row is None:
             return False
-        # Массовые операторы объектов не дают — ленте изменений код называем сами.
+        # Bulk statements yield no objects — so we name the code to the change feed ourselves.
         if hard:
             await s.execute(sa_delete(TasksGroup).where(TasksGroup.code == code))
             mark_changes(s, "tasks.group", DELETED, [code])
         else:
+            if row.deleted_at is None:
+                await release_group_tasks(s, code, disposal=tasks, target=target)
             await s.execute(
                 update(TasksGroup)
                 .where(TasksGroup.code == code, TasksGroup.deleted_at.is_(None))
@@ -259,7 +268,7 @@ async def group_delete(code: str, *, hard: bool = False) -> bool:
 
 
 async def group_restore(code: str) -> bool:
-    """Снять отметку удаления. ``True`` — группа была удалена и поднята."""
+    """Clear the deletion mark. ``True`` — the group was deleted and is now restored."""
     async with write_scope() as s:
         row = await s.get(TasksGroup, code)
         if row is None or row.deleted_at is None:
@@ -272,11 +281,11 @@ async def group_restore(code: str) -> bool:
 async def group_count_by_workspace_codes(
     workspace_codes: list[str], *, include_deleted: bool = False
 ) -> dict[str, int]:
-    """``workspace_code → сколько в нём групп`` одним ``GROUP BY`` — для списка пространств.
+    """``workspace_code → number of its groups`` in one ``GROUP BY`` — for the workspace list.
 
-    Считается разом на весь список: карточек на экране десяток, и запрос на каждую дал бы
-    N+1 там, где хватает одной группировки. Пространства без групп в ответе нет — ноль
-    подставляет вызывающий, чтобы отличать «не считали» от «ничего не нашли».
+    Counted for the whole list at once: there are a dozen cards on screen, and a query per card
+    would be an N+1 where a single grouping suffices. A workspace without groups is absent from
+    the result — the caller fills in the zero, to tell "not counted" from "found nothing".
     """
     if not workspace_codes:
         return {}

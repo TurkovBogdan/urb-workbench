@@ -1,21 +1,22 @@
-"""ORM ``tasks_group`` — группа задач внутри пространства (биллинг, интерфейс, инфраструктура).
+"""ORM ``tasks_group`` — a group of tasks inside a workspace (billing, interface, infrastructure).
 
-Группа отвечает на вопрос «про какую часть дела эта задача», а не «в каком она состоянии»: это
-постоянная раскладка предметной области, а не колонка доски. Задача ссылается на группу
-колонкой ``tasks.group_code`` (nullable → ``NULL`` = задача вне групп); группы по умолчанию
-нет.
+A group answers "which part of the work is this task about", not "what state is it in": it is a
+standing layout of the subject area, not a board column. A task refers to its group through the
+``tasks.group_code`` column (nullable → ``NULL`` = the task is in no group); there is no default
+group.
 
-Слово взято то же, каким соседний модуль зовёт раскладку исследований (``research_group``):
-понятие одно — корзина верхнеуровневых сущностей с названием, описанием и оформлением, — и
-одинаковое имя избавляет агента от второго словаря. ``area`` не годилась ровно поэтому: в
-ресёче зона это часть одного исследования, а не корзина поверх многих.
+The word is the same one the neighbouring module uses for its research layout
+(``research_group``): the concept is one — a bucket of top-level entities with a title, a
+description and styling — and a shared name spares the agent a second vocabulary. ``area`` was
+rejected for exactly that reason: in research an area is part of a single study, not a bucket
+over many.
 
-``sort`` задаёт порядок групп в интерфейсе: **больший sort = выше**. Второй ключ сортировки
-обязателен, иначе группы с одинаковым ``sort`` (а по умолчанию он у всех один) меняются местами
-между запросами.
+``sort`` sets the order of groups in the interface: **higher sort = higher up**. A second sort
+key is mandatory, otherwise groups with equal ``sort`` (and by default they all share one) swap
+places between queries.
 
-FK на пространство — ``CASCADE``: группа вне пространства бессмысленна, физическое удаление
-пространства уносит её с собой. Обычный путь удаления — логический (``deleted_at``).
+The FK to the workspace is ``CASCADE``: a group outside a workspace is meaningless, so hard
+deleting the workspace takes it along. The usual deletion path is soft (``deleted_at``).
 """
 
 from __future__ import annotations
@@ -32,7 +33,7 @@ from src.core.utils.date import utc_now
 from src.modules.tasks.constants import (
     CODE_LEN,
     COLOR_MAX,
-    DESCRIPTION_MAX,
+    GROUP_DESCRIPTION_MAX,
     ICON_MAX,
     SORT_DEFAULT,
     TITLE_MAX,
@@ -41,8 +42,8 @@ from src.modules.tasks.constants import (
 
 class TasksGroup(SoftDeleteMixin, Base):
     __tablename__ = "tasks_group"
-    # Индекс на дочерней стороне FK: без него каждое удаление пространства читает таблицу групп
-    # целиком, и список групп пространства — тоже full scan.
+    # An index on the child side of the FK: without it every workspace deletion reads the whole
+    # groups table, and listing a workspace's groups is a full scan too.
     __table_args__ = (Index("ix_tasks_group_workspace_code", "workspace_code"),)
 
     code: Mapped[str] = mapped_column(String(CODE_LEN), primary_key=True)
@@ -56,7 +57,7 @@ class TasksGroup(SoftDeleteMixin, Base):
     )
     title: Mapped[str] = mapped_column(String(TITLE_MAX))
     description: Mapped[str] = mapped_column(
-        String(DESCRIPTION_MAX), default="", server_default=text("''")
+        String(GROUP_DESCRIPTION_MAX), default="", server_default=text("''")
     )
     color: Mapped[str] = mapped_column(
         String(COLOR_MAX), default="", server_default=text("''")

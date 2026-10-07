@@ -1,18 +1,17 @@
 <script setup lang="ts">
-// Группы текущего пространства: список карточек, одно окно формы на создание и правку,
-// подтверждение на каждое из двух удалений.
+// Groups of the current workspace: a list of cards, one form dialog for create and edit, a
+// confirmation for each of the two deletions.
 //
-// Группа — долгоживущая тема внутри пространства («биллинг», «интерфейс»), по ней список задач
-// разложен на секции. Отсюда и привязка: раздел показывает группы ТОГО пространства, что выбрано
-// в боковой панели, и своего выбора пространств не заводит — второй такой выбор разошёлся бы с
-// первым на первом же переключении.
+// A group is a long-lived topic inside a workspace ("billing", "interface"), and the task list is
+// split into sections by it. Hence the binding: the section shows the groups of the workspace
+// selected in the sidebar and has no workspace picker of its own — a second such picker would
+// diverge from the first at the very first switch.
 //
-// Удалённые лежат в том же списке под переключателем в панели поиска, а не на отдельной странице:
-// они приезжают тем же запросом с флагом.
+// Deleted groups sit in the same list behind a toggle in the search toolbar, not on a separate
+// page: they arrive with the same request plus a flag.
 import { computed, onActivated, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
-  IconArchiveOff,
   IconCheck,
   IconCopy,
   IconDotsVertical,
@@ -20,6 +19,7 @@ import {
   IconPencil,
   IconPlus,
   IconRefresh,
+  IconRestore,
   IconTrash,
 } from '@tabler/icons-vue'
 
@@ -36,7 +36,8 @@ import type { Change } from '@/stores/changes'
 
 import GroupFilters from '../components/GroupFilters.vue'
 import GroupFormDialog from '../components/GroupFormDialog.vue'
-import { deleteGroup, purgeGroup, type GroupListRow } from '../api'
+import GroupDeleteDialog from '../components/GroupDeleteDialog.vue'
+import { deleteGroup, purgeGroup, type GroupListRow, type GroupTaskDisposal } from '../api'
 import { useGroupsStore } from '../stores/groups.store'
 import { useWorkspaceContextStore } from '@/features/workspace/stores/workspace-context.store'
 
@@ -45,18 +46,19 @@ const store = useGroupsStore()
 const context = useWorkspaceContextStore()
 const { copy, isCopied } = useClipboard()
 
-// Страница живёт в KeepAlive и между переходами не размонтируется. `onActivated` срабатывает и на
-// первый показ, и на каждое возвращение, иначе список остался бы вчерашним; второй вызов из
-// `onMounted` дал бы при первом показе два одинаковых запроса подряд.
+// The page lives in KeepAlive and is not unmounted between navigations. `onActivated` fires both on
+// first display and on every return, otherwise the list would stay stale; a second call from
+// `onMounted` would send two identical requests in a row on first display.
 onActivated(store.load)
 
 const workspace = computed(() => context.currentWorkspace?.code ?? '')
 
-// ── Живое обновление ──────────────────────────────────────────────────────────
-// Раздел перечитывается сам, когда группы меняет кто-то другой. Задачи слушаются тоже: карточка
-// несёт их счётчик, а он меняется от заведения, переноса и удаления задачи. «Своё» — всё из
-// текущего пространства (`refs`) или коды уже показанных групп. Массовая операция (удаление и
-// возврат ветки задач, снос группы) приходит без `refs`, и чья она — не узнать: такую берём.
+// ── Live updates ──────────────────────────────────────────────────────────────
+// The section re-reads itself when someone else changes groups. Tasks are listened to as well:
+// the card carries their count, which changes when a task is created, moved or deleted. "Ours" is
+// anything from the current workspace (`refs`) or the codes of groups already shown. A bulk
+// operation (deleting and restoring a task branch, purging a group) arrives without `refs`, and
+// whose it is cannot be told: such a change is taken.
 function concernsGroups(change: Change): boolean {
   if (change.ids.length === 0 || change.refs.length === 0) return true
   if (workspace.value && change.refs.includes(workspace.value)) return true
@@ -100,14 +102,14 @@ function askPurge(group: GroupListRow) {
   purgeOpen.value = true
 }
 
-// Оба удаления закрывают окно только на успехе: на отказе оно остаётся открытым, а сообщение
-// показывает тост клиента — своего места под него у подтверждения нет.
-async function remove() {
+// Both deletions close the dialog only on success: on refusal it stays open and the message is
+// shown by the client's toast — the confirmation has no place of its own for it.
+async function remove(fate: { tasks?: GroupTaskDisposal; target?: string }) {
   const group = removing.value
   if (!group) return
   busy.value = true
   try {
-    await deleteGroup(group.code)
+    await deleteGroup(group.code, fate)
     deleteOpen.value = false
     await store.load()
   } finally {
@@ -147,14 +149,13 @@ async function purge() {
       </template>
     </PageHeader>
 
-    <!-- Панель поиска — своя карточка НАД списком, та же анатомия, что у списка задач
-         (`filter-panel` + карточки под ней). Без пространства искать негде, и её нет. -->
-    <VCard v-if="!store.noWorkspace" variant="outlined" rounded="lg" class="filter-panel mb-3">
-      <GroupFilters />
-    </VCard>
+    <!-- The search toolbar is its own card ABOVE the list, the same anatomy as the task list
+         (`FilterPanel` + cards below it). Without a workspace there is nowhere to search, so it
+         is absent. -->
+    <GroupFilters v-if="!store.noWorkspace" class="mb-3" />
 
-    <!-- Пространств нет вовсе: группам негде лежать, и предлагать завести группу здесь значило бы
-         вести в отказ. Ведём туда, где заводят пространство. -->
+    <!-- No workspaces at all: groups have nowhere to live, and offering to create a group here
+         would lead into a refusal. Point to where workspaces are created instead. -->
     <div v-if="store.noWorkspace" class="groups-empty">
       <p class="groups-empty__title">{{ t('tasks.task.list.no_workspace') }}</p>
       <p class="groups-empty__hint">{{ t('tasks.task.list.no_workspace_hint') }}</p>
@@ -180,7 +181,8 @@ async function purge() {
       </VBtn>
     </div>
 
-    <!-- Группы есть, но поиск не оставил ни одной: выход — снять поиск, а не заводить группу. -->
+    <!-- Groups exist but the search left none: the way out is clearing the search, not creating a
+         group. -->
     <div v-else-if="store.isFilteredOut" class="groups-empty">
       <p class="groups-empty__title">{{ t('tasks.group.list.nothing_found') }}</p>
       <VBtn variant="text" size="small" @click="store.query = ''">
@@ -188,9 +190,9 @@ async function purge() {
       </VBtn>
     </div>
 
-    <!-- Карточка живой группы открывает её правку — то же окно, что пункт меню. Удалённую
-         править нельзя (409), поэтому она не кликабельна вовсе: обработчика у неё нет, и Vuetify
-         не рисует ей вид ссылки. -->
+    <!-- A live group's card opens its edit dialog — the same one as the menu item. A deleted one
+         cannot be edited (409), so it is not clickable at all: it has no handler, and Vuetify does
+         not render it as a link. -->
     <div v-else class="group-grid">
       <VCard
         v-for="group in store.visible"
@@ -209,8 +211,8 @@ async function purge() {
             {{ t('tasks.group.card.deleted') }}
           </VChip>
 
-          <!-- Код — то, чем группу называют агенту и в MCP, поэтому копия под рукой, а не только
-               в меню. `.stop` — копирование не должно заодно открывать правку карточки. -->
+          <!-- The code is how the group is named to the agent and in MCP, so copying is at hand,
+               not only in the menu. `.stop` — copying must not also open the card's edit. -->
           <VBtn
             icon
             variant="text"
@@ -236,11 +238,11 @@ async function purge() {
               </VBtn>
             </template>
 
-            <!-- Набор действий зависит от состояния: у живой — правка и мягкое удаление, у
-                 удалённой — возврат и снос. Править удалённую бэк не даёт (409), и показывать
-                 пункт, который заведомо откажет, значит врать кнопкой. -->
+            <!-- The action set depends on state: a live group gets edit and soft delete, a
+                 deleted one gets restore and purge. The backend refuses to edit a deleted group
+                 (409), and showing an item that is bound to fail would make the button lie. -->
             <VList density="compact">
-              <!-- Копия кода не зависит от состояния: код у удалённой группы тот же. -->
+              <!-- Copying the code does not depend on state: a deleted group keeps its code. -->
               <VListItem :prepend-icon="IconCopy" @click="copy(group.code)">
                 <VListItemTitle>{{ t('common.action.copy_code') }}</VListItemTitle>
               </VListItem>
@@ -257,7 +259,7 @@ async function purge() {
                 </VListItem>
               </template>
               <template v-else>
-                <VListItem :prepend-icon="IconArchiveOff" @click="store.restore(group.code)">
+                <VListItem :prepend-icon="IconRestore" @click="store.restore(group.code)">
                   <VListItemTitle>{{ t('tasks.group.card.restore') }}</VListItemTitle>
                 </VListItem>
                 <VListItem
@@ -276,7 +278,7 @@ async function purge() {
 
         <footer class="group-card__footer">
           <span class="group-card__count">{{ group.task_count }}</span>
-          <span class="group-card__count-label">{{ t('tasks.group.card.tasks') }}</span>
+          <span class="group-card__count-label">{{ t('tasks.group.card.tasks', group.task_count) }}</span>
           <span class="group-card__updated">
             {{ fmtDateTime(group.updated_at) }}
             <VTooltip activator="parent" location="top">
@@ -294,13 +296,12 @@ async function purge() {
       @saved="store.load"
     />
 
-    <!-- Удаление группы не трогает её задачи, и об этом сказано прямо: иначе «внутри 12 задач»
-         читается как предупреждение, что исчезнут и они. -->
-    <ConfirmDialog
+    <!-- Deleting a group names what becomes of its tasks: left pointing at a deleted group they
+         would vanish from the list. -->
+    <GroupDeleteDialog
       v-model="deleteOpen"
-      :title="t('tasks.group.delete.title')"
-      :text="t('tasks.group.delete.text', { count: removing?.task_count ?? 0 })"
-      :confirm-label="t('tasks.group.card.delete')"
+      :group="removing"
+      :groups="store.items"
       :loading="busy"
       @confirm="remove"
     />
@@ -308,7 +309,7 @@ async function purge() {
     <ConfirmDialog
       v-model="purgeOpen"
       :title="t('tasks.group.purge.title')"
-      :text="t('tasks.group.purge.text', { count: purging?.task_count ?? 0 })"
+      :text="t('tasks.group.purge.text', purging?.task_count ?? 0)"
       :confirm-label="t('tasks.group.card.purge')"
       :loading="busy"
       @confirm="purge"
@@ -317,9 +318,6 @@ async function purge() {
 </template>
 
 <style scoped>
-/* Та же рамка панели, что у списка задач: 12px по кругу, своего отступа панель не добавляет. */
-.filter-panel { padding: 10px 12px; }
-
 .groups-empty {
   display: flex;
   flex-direction: column;
@@ -359,8 +357,8 @@ async function purge() {
   padding: 18px;
 }
 
-/* Удалённое приглушено целиком, а не помечено одной меткой: карточка в корзине не должна
-   соперничать за внимание с живыми в том же ряду. Наведение возвращает непрозрачность. */
+/* A deleted card is muted as a whole, not just marked with a label: a card in the trash must not
+   compete for attention with live ones in the same row. Hover restores the opacity. */
 .group-card--deleted { opacity: 0.55; }
 .group-card--deleted:hover { opacity: 1; }
 
@@ -380,8 +378,8 @@ async function purge() {
   color: var(--text);
 }
 
-/* Коробка задана здесь, а не пропсами `size`/`density`: у иконочной кнопки Vuetify считает
-   сторону как `--v-btn-height + 12px`, а density правит только высоту. */
+/* The box is set here, not via the `size`/`density` props: for an icon button Vuetify computes the
+   side as `--v-btn-height + 12px`, and density only changes the height. */
 .group-card__action {
   width: 26px;
   min-width: 26px;
@@ -395,8 +393,8 @@ async function purge() {
 .group-card__menu-danger :deep(.v-list-item-title) { color: var(--error); }
 .group-card__menu-danger :deep(.v-list-item__prepend) { color: var(--error); }
 
-/* Описание фиксировано на две строки: короткие резервируют высоту, длинные обрезаются
-   многоточием — карточки в ряду выравниваются по высоте. */
+/* The description is fixed at two lines: short ones reserve the height, long ones are cut with an
+   ellipsis — cards in a row line up in height. */
 .group-card__desc {
   margin: -6px 0 0;
   min-height: calc(1.5em * 2);
@@ -410,7 +408,7 @@ async function purge() {
   overflow: hidden;
 }
 
-/* Подвал прижат к низу карточки — карточки в ряду выравниваются по нижней границе. */
+/* The footer is pinned to the card bottom — cards in a row line up along their bottom edge. */
 .group-card__footer {
   display: flex;
   align-items: baseline;

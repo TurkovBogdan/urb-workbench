@@ -1,69 +1,77 @@
 <script setup lang="ts">
-// Формат «Список»: строки задач, разбитые заголовками зон, подзадачи — ветками под родителем.
+// The "List" format: task rows split by zone headings, subtasks as branches under their parent.
 //
-// Анатомия: карточка со строками и полосой постраничности. Панель поиска и фильтров стоит
-// ОТДЕЛЬНОЙ карточкой над списком (собирает её страница): поиск и фильтры правят то, что список
-// показывает, и принадлежат не ему, а экрану целиком.
+// Anatomy: a card with rows and a pagination bar. The search and filter panel is a SEPARATE card
+// above the list (the page assembles it): search and filters control what the list shows and
+// belong not to it but to the screen as a whole.
 //
-// ВЕТКИ И ПЕРЕТАСКИВАНИЕ живут в `TaskRows` — по компоненту на карточку группы: sortable заводится
-// на контейнер, а контейнеров столько же, сколько зон. Здесь остаётся карточка вокруг них.
+// BRANCHES AND DRAGGING live in `TaskRows` — one component per group card: a sortable is created
+// on a container, and there are as many containers as zones. What remains here is the card around
+// them.
 //
-// РАЗМЕТКА — НЕ ТАБЛИЦА. Колонок у списка больше нет: их шапка ничего не сообщала (сортировки по
-// колонкам здесь нет), а сетка из восьми колонок заставляла каждое поле держать свою ширину и
-// потому заполнять её хоть чем-нибудь — прочерком, словом, шильдиком. Сейчас строка читается
-// слева направо как фраза: состояние, важность, название, служебные пометки. Три зоны, а не
-// восемь ячеек, и метка, которой у задачи нет, просто отсутствует.
+// THE MARKUP IS NOT A TABLE. The list no longer has columns: their header said nothing (there is
+// no column sorting here), and an eight-column grid forced every field to keep its width and so to
+// fill it with something — a dash, a word, a badge. Now a row reads left to right like a phrase:
+// state, importance, title, auxiliary marks. Three zones rather than eight cells, and a mark the
+// task does not have is simply absent.
 //
-// ТИШЕ ЗАГОЛОВКА. В трекере строку ищут глазами по названию, всё остальное — пометки, и они
-// обязаны быть тише текста. Отсюда правило на весь файл: цвет несут только состояние и
-// срочность, остальное — глиф и приглушённые 12px. Цветных слов и тональных плашек в строке нет
-// вовсе: шильдик со словом «В тестировании» читается наравне с заголовком и отбирает у него
-// первый взгляд.
+// QUIETER THAN THE TITLE. In a tracker the eye finds a row by its title; everything else is marks,
+// and they must be quieter than the text. Hence the rule for the whole file: only state and
+// urgency carry color, the rest is a glyph and muted 12px. There are no colored words or tonal
+// pills in the row at all: a badge saying "In testing" reads on a par with the title and steals
+// the first glance from it.
 //
-// Одна задача — одна строка ровно в 36px: в списке ищут сверху вниз, а разноэтажные строки
-// приходится разглядывать. Поэтому ни описания, ни тела в строке нет — за ними открывают окно.
+// One task is one row of exactly 36px: a list is scanned top to bottom, and rows of uneven height
+// have to be examined. So the row has no description or body — the task is opened for those.
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   IconArrowDown,
   IconArrowUp,
+  IconCheck,
+  IconCopy,
   IconDotsVertical,
   IconListCheck,
   IconPencil,
   IconPlus,
+  IconTrash,
 } from '@tabler/icons-vue'
 
 import CounterButton from '@/components/CounterButton.vue'
 import IconSwatch from '@/components/IconSwatch.vue'
 import TablePaginationBar from '@/components/TablePaginationBar.vue'
+import { useClipboard } from '@/composables/useClipboard'
 
 import GroupDropZone from './GroupDropZone.vue'
 import TaskRows from './TaskRows.vue'
 import { useTasksStore, type TaskSection } from '../stores/tasks.store'
-import type { GroupRow, TaskListRow } from '../api'
+import type { GroupListRow, TaskListRow } from '../api'
 
 const props = defineProps<{
-  /** Код задачи, на которую уходили со списка: вернувшись, человек видит свою строку отмеченной. */
+  /** Code of the task the person went to from the list: on return they see their row marked. */
   openCode?: string | null
 }>()
 
 const emit = defineEmits<{
-  /** Открыть задачу: наружу едет код, а не строка, — адрес окна собирается из него. */
+  /** Open a task: the code goes out, not the row — the URL is built from it. */
   open: [code: string]
   create: []
   edit: [task: TaskListRow]
   addChild: [task: TaskListRow]
-  /** Правка группы: окно формы одно на страницу, и держит его она, а не список. */
-  editGroup: [group: GroupRow]
+  /** Edit a group: there is one form dialog per page, and the page holds it, not the list. */
+  editGroup: [group: GroupListRow]
+  /** Delete a group: the dialog asks what becomes of its tasks, and the page holds it too. */
+  removeGroup: [group: GroupListRow]
 }>()
 
 const { t } = useI18n()
 const store = useTasksStore()
+const { copy, isCopied } = useClipboard()
 
-// Сколько задач у каждого родителя — считаем по уже полученному списку, а не спрашиваем бэк:
-// в ответе лежат ВСЕ задачи пространства, и та же арифметика, что стоит за `has_children`, здесь
-// бесплатна. Счёт один на весь список: у каждой карточки группы свой компонент строк, и
-// пересчитывать одно и то же в каждом незачем.
+// How many tasks each parent has — counted from the list already received rather than asking the
+// backend: the response holds ALL tasks of the workspace, and the same arithmetic behind
+// `has_children` is free here. One count for the whole list: each group card has its own rows
+// component, and recounting the same thing in each is pointless.
 const childCounts = computed(() => {
   const counts = new Map<string, number>()
   for (const task of store.items) {
@@ -75,10 +83,10 @@ const childCounts = computed(() => {
 
 const showEmpty = computed(() => !store.loading && store.total === 0)
 
-// ── Свёрнутость ───────────────────────────────────────────────────────────────
-// Умолчание зависит от того, есть ли в карточке работа: пустая приходит свёрнутой — она стоит на
-// экране как цель перетаскивания, а не как содержимое. Явный выбор человека сильнее умолчания, и
-// хранит его стор; здесь только передаём ему, какое умолчание действует для этой секции.
+// ── Collapse state ────────────────────────────────────────────────────────────
+// The default depends on whether the card has work: an empty one arrives collapsed — it is on
+// screen as a drag target, not as content. The person's explicit choice beats the default, and
+// the store keeps it; here we only tell it which default applies to this section.
 
 function collapsed(section: TaskSection): boolean {
   return store.isCollapsed(section.group?.code ?? null, !section.tasks.length)
@@ -89,25 +97,26 @@ function toggleFold(section: TaskSection) {
 }
 
 /**
- * Порядок меняют только на ПОЛНОЙ выдаче.
+ * Order is changed only on the FULL results.
  *
- * Сужённый список — это выборка, а не раскладка: ветки в нём не рисуются, соседи по группе на
- * экране не все, и «поставить после видимого соседа» означало бы не то, что человек видит. Гаснет
- * всё разом — перетаскивание строк, их ручки и пункты перестановки в меню строк и карточек.
+ * A narrowed list is a selection, not the layout: branches are not drawn in it, not all group
+ * siblings are on screen, and "place after the visible neighbour" would mean something other than
+ * what the person sees. Everything switches off at once — row dragging, the handles, and the
+ * reorder items in the row and card menus.
  */
 const reorderable = computed(() => !store.hasActiveFilters)
 
-// ── Перестановка групп ────────────────────────────────────────────────────────
-// Только пунктами меню карточки, без жеста: ручка у каждой карточки и второй sortable на странице
-// перегружали список ради действия, которое делают редко (решение в `TASK@717492e127`).
+// ── Group reordering ──────────────────────────────────────────────────────────
+// Only via card menu items, no gesture: a handle on every card and a second sortable on the page
+// overloaded the list for an action done rarely (decision in `TASK@717492e127`).
 //
-// «Выше» — встать над соседкой сверху, «Ниже» — под соседкой снизу. Считается по секциям на
-// экране, мимо «Без группы»: её в раскладке групп не существует.
+// "Up" — land above the neighbour above, "Down" — below the neighbour below. Computed over the
+// sections on screen, skipping "No group": it does not exist in the group layout.
 //
-// Шаг не выходит за свой блок. Пустые карточки на экране стоят ниже непустых независимо от `sort`
-// (см. `sections` в сторе), поэтому «Ниже» у последней заполненной группы записало бы новый
-// порядок, ничего при этом не изменив на экране, — шаг, который выглядит сломанным. На границе
-// блока пункт меню гаснет, и это честнее: там двигаться действительно некуда.
+// A step does not leave its block. Empty cards are shown below non-empty ones regardless of `sort`
+// (see `sections` in the store), so "Down" on the last non-empty group would write a new order
+// while changing nothing on screen — a step that looks broken. At the block boundary the menu item
+// is disabled, which is more honest: there really is nowhere to move.
 
 function blockOf(code: string): string[] {
   const own = store.sections.find((section) => section.group?.code === code)
@@ -138,10 +147,10 @@ function shift(code: string, direction: -1 | 1) {
 }
 
 /**
- * Строку переставили — перестановку ведёт стор: он же перечитывает список после ответа.
+ * A row was reordered — the store runs the reorder: it also re-reads the list after the response.
  *
- * Группа и родитель едут дальше ТОЛЬКО если их назвали: ключ без значения означает «не трогать»,
- * и потерять это различие здесь значило бы снять группу при обычной перестановке.
+ * Group and parent are passed on ONLY if named: an absent key means "leave as is", and losing that
+ * distinction here would clear the group on an ordinary reorder.
  */
 async function move(payload: {
   code: string
@@ -167,8 +176,8 @@ function onPageSizeChange(size: number) {
 
 <template>
   <div class="task-list">
-    <!-- Обновление уже показанного списка — полоса поверху: подменять строки спиннером значило бы
-         убирать с экрана то, что человек в этот момент читает. -->
+    <!-- Refreshing a list already shown is a bar on top: replacing rows with a spinner would take
+         off screen what the person is reading at that moment. -->
     <VProgressLinear v-if="store.loading && store.total > 0" indeterminate height="2" class="task-list__progress" />
 
     <VCard v-if="store.loading && !store.total" variant="outlined" rounded="lg">
@@ -177,15 +186,15 @@ function onPageSizeChange(size: number) {
       </div>
     </VCard>
 
-    <!-- Пусто по двум разным причинам, и ответы у них разные: задач нет вовсе — зовём завести
-         первую; фильтры ничего не нашли — предлагаем их снять. -->
+    <!-- Empty for two different reasons with different answers: no tasks at all — invite creating
+         the first; the filters found nothing — offer to clear them. -->
     <VCard v-else-if="showEmpty" variant="outlined" rounded="lg">
       <div class="task-list__state">
         <template v-if="store.isFilteredOut">
           <p class="task-list__state-title">{{ t('tasks.task.list.nothing_found') }}</p>
-          <!-- Выход из пустой выдачи должен что-то менять. Если фильтров не набрано и всё
-               спрятало умолчание, «сбросить фильтры» вернуло бы ровно это же умолчание — здесь
-               помогает только снять его. -->
+          <!-- The way out of empty results must change something. If no filters are applied and
+               the default hid everything, "reset filters" would restore that very default — only
+               lifting it helps here. -->
           <VBtn v-if="store.hasActiveFilters" variant="text" size="small" @click="store.clearFilters">
             {{ t('tasks.task.list.clear_filters') }}
           </VBtn>
@@ -204,12 +213,12 @@ function onPageSizeChange(size: number) {
       </div>
     </VCard>
 
-    <!-- Группа = карточка. Секции идут БЕЗ `v-else`: на пустой странице их просто нет (см. стор),
-         и связывать их ветвлением с двумя состояниями означало бы держать один и тот же ответ в
-         двух местах.
-         Пустые карточки стоят внизу и приглушены: они здесь как цель переноса, а не как
-         содержимое, — задачу перетаскивают в чужую группу, и группы, которой нет на экране,
-         для жеста не существует. -->
+    <!-- Group = card. Sections come WITHOUT `v-else`: on an empty page there are simply none (see
+         the store), and tying them into a branch with the two states would keep the same answer
+         in two places.
+         Empty cards sit at the bottom and are muted: they are here as move targets, not content —
+         a task is dragged into another group, and a group not on screen does not exist for the
+         gesture. -->
     <VCard
       v-for="section in store.sections"
       :key="section.group?.code ?? 'no-group'"
@@ -218,14 +227,15 @@ function onPageSizeChange(size: number) {
       class="task-group"
       :class="{ 'task-group--empty': !section.tasks.length }"
     >
-      <!-- Шапка группы — штатная анатомия карточки (`VCardItem`): знак в `#prepend`, имя
-           заголовком, описание подзаголовком. Выравнивание знака с двумя строками текста и
-           отступы держит она сама; своя разметка повторяла бы её приблизительно.
-           Знак взят у карточки группы на её собственной странице: один и тот же предмет должен
-           узнаваться в обоих списках. У «Без группы» знака нет — там нейтральная точка: это не
-           тема наравне с остальными, а остаток неразложенного.
-           Шапка же — цель броска (`GroupDropZone`): у свёрнутой и у пустой карточки ряда строк
-           нет, и задачу, брошенную на шапку, группа принимает в конец своего ряда. -->
+      <!-- The group header is the stock card anatomy (`VCardItem`): the sign in `#prepend`, the
+           name as title, the description as subtitle. It handles aligning the sign with two lines
+           of text and the spacing itself; custom markup would only approximate it.
+           The sign is taken from the group card on its own page: the same thing must be
+           recognisable in both lists. "No group" has no sign — a neutral dot instead: it is not a
+           topic on a par with the others but the unsorted remainder.
+           The header is also a drop target (`GroupDropZone`): a collapsed or empty card has no
+           row of tasks, and a task dropped on the header is taken to the end of the group's
+           row. -->
       <GroupDropZone
         :group="section.group?.code ?? ''"
         :after="store.lastRootOf(section.group?.code ?? null)"
@@ -241,9 +251,10 @@ function onPageSizeChange(size: number) {
           <span v-else class="task-group__dot" />
         </template>
 
-        <!-- Сразу за именем — счёт задач и стрелка сворачивания, та же кнопка, что у строки задачи
-             с подзадачами. Значок свой, а не «подзадачи» строки: иначе группа читалась бы задачей с
-             подзадачами. Ноль показывается: у группы это ответ, а не отсутствие счёта. -->
+        <!-- Right after the name — the task count and the collapse arrow, the same button as on a
+             task row with subtasks. Its icon is its own, not the row's "subtasks" one: otherwise
+             the group would read as a task with subtasks. Zero is shown: for a group it is an
+             answer, not a missing count. -->
         <VCardTitle class="task-group__title">
           {{ section.group ? section.group.title : t('tasks.task.list.no_group') }}
           <CounterButton
@@ -257,8 +268,23 @@ function onPageSizeChange(size: number) {
         </VCardTitle>
         <VCardSubtitle v-if="section.group?.description">{{ section.group.description }}</VCardSubtitle>
 
-        <!-- У «Без группы» меню нет: за ней не стоит строки в базе, править и двигать нечего. -->
+        <!-- "No group" has no menu: there is no database row behind it, nothing to edit or move.
+             The code is how the group is named to the agent, so copying it is at hand rather than
+             only in the menu — the same button as on the groups page. -->
         <template #append>
+          <VBtn
+            v-if="section.group"
+            variant="text"
+            size="x-small"
+            icon
+            class="task-group__more"
+            :aria-label="t('common.action.copy_code')"
+            :title="t('common.action.copy_code')"
+            @click="copy(section.group.code)"
+          >
+            <IconCheck v-if="isCopied(section.group.code)" :size="16" :stroke-width="1.7" />
+            <IconCopy v-else :size="16" :stroke-width="1.7" />
+          </VBtn>
           <VMenu v-if="section.group" location="bottom end">
             <template #activator="{ props: menu }">
               <VBtn
@@ -274,13 +300,16 @@ function onPageSizeChange(size: number) {
             </template>
 
             <VList density="compact" class="task-group__menu">
+              <VListItem :prepend-icon="IconCopy" @click="copy(section.group.code)">
+                <VListItemTitle>{{ t('common.action.copy_code') }}</VListItemTitle>
+              </VListItem>
               <VListItem :prepend-icon="IconPencil" @click="emit('editGroup', section.group)">
                 <VListItemTitle>{{ t('tasks.group.card.edit') }}</VListItemTitle>
               </VListItem>
 
-              <!-- Те же две перестановки без мыши: WCAG 2.2 SC 2.5.7 просит альтернативу жесту
-                   одним указателем, а меню, открываемое с клавиатуры, закрывает и SC 2.1.1.
-                   На сужённой выдаче их нет — как нет и самого жеста. -->
+              <!-- The same two moves without a mouse: WCAG 2.2 SC 2.5.7 asks for a single-pointer
+                   alternative to a gesture, and a menu that opens from the keyboard covers
+                   SC 2.1.1 too. On narrowed results they are absent — as is the gesture itself. -->
               <template v-if="reorderable">
                 <VListItem
                   :prepend-icon="IconArrowUp"
@@ -297,6 +326,14 @@ function onPageSizeChange(size: number) {
                   <VListItemTitle>{{ t('tasks.group.card.move_down') }}</VListItemTitle>
                 </VListItem>
               </template>
+
+              <VListItem
+                :prepend-icon="IconTrash"
+                class="task-group__menu-danger"
+                @click="emit('removeGroup', section.group)"
+              >
+                <VListItemTitle>{{ t('tasks.group.card.delete') }}</VListItemTitle>
+              </VListItem>
             </VList>
           </VMenu>
         </template>
@@ -321,10 +358,10 @@ function onPageSizeChange(size: number) {
       </template>
     </VCard>
 
-    <!-- Полоса постраничности — общая на все карточки групп и потому стоит под ними, а не внутри
-         какой-то одной: страницами бьётся весь список, а не отдельная группа. Показывается, только
-         когда страниц больше одной: на списке из пяти задач «1–5 из 5» и выбор размера страницы —
-         это подпись под тем, что и так целиком на экране. -->
+    <!-- The pagination bar is shared by all group cards and so sits below them, not inside any one:
+         the whole list is paged, not a single group. It is shown only when there is more than one
+         page: on a list of five tasks, "1–5 of 5" and a page-size picker are a caption under
+         something that is entirely on screen anyway. -->
     <VCard v-if="store.pageCount > 1" variant="outlined" rounded="lg">
       <TablePaginationBar
         :page="store.page"
@@ -339,10 +376,10 @@ function onPageSizeChange(size: number) {
 </template>
 
 <style scoped>
-/* ── Карточка группы ───────────────────────────────────────────────────────────
-   Группа — своя карточка, а не заголовок посреди общего полотна: у неё есть имя, знак и то, о чём
-   она, и всё это принадлежит её задачам, а не списку целиком. Зазор между карточками больше
-   любого внутреннего: он и разделяет группы. */
+/* ── Group card ────────────────────────────────────────────────────────────────
+   A group is its own card, not a heading in the middle of a shared canvas: it has a name, a sign
+   and a subject, and all of that belongs to its tasks, not to the list as a whole. The gap between
+   cards is larger than any inner one: it is what separates the groups. */
 .task-list {
   position: relative;
   display: flex;
@@ -350,18 +387,18 @@ function onPageSizeChange(size: number) {
   gap: 12px;
 }
 
-/* Полоса обновления лежит НАД карточками и не раздвигает их: встань она строкой в колонку, каждый
-   перезапрос дёргал бы весь список на два пикселя вниз. */
+/* The progress bar lies OVER the cards and does not push them apart: as a row in the column, every
+   re-request would jolt the whole list two pixels down. */
 .task-list__progress {
   position: absolute;
   top: -6px;
   z-index: 1;
 }
 
-/* Группа без задач — цель для переноса, а не содержимое: её видно, но спорить за внимание с
-   группами, в которых есть работа, она не должна. Приглушение снимается под курсором: указатель
-   над карточкой — уже намерение, и в этот момент она перестаёт быть фоном. Гасится прозрачностью
-   целиком, а не цветом по частям: так ни один элемент шапки не выпадает из общего тона. */
+/* A group without tasks is a move target, not content: it is visible but must not compete for
+   attention with groups that have work. The muting lifts under the cursor: a pointer over the card
+   is already intent, and at that moment it stops being background. It is dimmed by opacity as a
+   whole, not by color piece by piece: that way no header element falls out of the common tone. */
 .task-group--empty {
   opacity: 0.5;
   transition: opacity 120ms ease;
@@ -371,15 +408,15 @@ function onPageSizeChange(size: number) {
   opacity: 1;
 }
 
-/* Отступы шапки ужаты против ванильных: `VCardItem` рассчитан на карточку-страницу, а здесь он
-   стоит над плотным списком в 36px на строку. */
+/* Header padding is tighter than vanilla: `VCardItem` is designed for a page-like card, while here
+   it sits above a dense list of 36px rows. */
 .task-group__head {
   padding: 10px 12px;
 }
 
-/* «Без группы» — не цвет, а его отсутствие: нейтральная точка вместо знака, иначе остаток выглядел
-   бы такой же названной группой, как соседние. Коробка та же, что у знака, — шапки соседних
-   карточек стоят по одной линии. */
+/* "No group" is not a color but its absence: a neutral dot instead of a sign, otherwise the
+   remainder would look like a named group just like its neighbours. The box is the same as the
+   sign's — headers of adjacent cards line up. */
 .task-group__dot {
   width: 28px;
   flex: none;
@@ -398,8 +435,8 @@ function onPageSizeChange(size: number) {
   background: var(--text-faint);
 }
 
-/* Кегль и вес — свои: ванильный `VCardTitle` набран под заголовок карточки-страницы, а это
-   имя группы над списком. Кнопка ветки стоит в той же строке, поэтому строка — flex. */
+/* Own font size and weight: vanilla `VCardTitle` is set for a page-like card title, while this is
+   a group name above a list. The branch button sits on the same line, hence the line is flex. */
 .task-group__title {
   display: flex;
   align-items: center;
@@ -411,15 +448,16 @@ function onPageSizeChange(size: number) {
   color: var(--text);
 }
 
-/* Вид кнопки ветки — её собственный (`CounterButton`); шапка задаёт только место: отрицательный
-   отступ прячет поле кнопки, и значок стоит от имени там же, где у строки задачи. Проявляет
-   кнопку наведение на карточку — но переменная ставится на шапку, а не на всю карточку: иначе
-   она протекла бы в строки задач, и под курсором проявились бы и их кнопки. */
+/* The branch button's look is its own (`CounterButton`); the header sets only its place: a
+   negative margin hides the button's padding, so the icon sits as far from the name as on a task
+   row. Hovering the card reveals the button — but the variable is set on the header, not the whole
+   card: otherwise it would leak into the task rows, and their buttons would show under the cursor
+   too. */
 .task-group__fold { margin-inline-start: -4px; }
 
 .task-group:hover .task-group__head { --counter-button-color: var(--text-muted); }
 
-/* Меню приглушено постоянно и проявляется под курсором: звать к себе ему незачем. */
+/* The menu is always muted and shows under the cursor: it has no reason to draw attention. */
 .task-group__more {
   color: var(--text-faint);
   opacity: 0.7;
@@ -431,13 +469,17 @@ function onPageSizeChange(size: number) {
   color: var(--text-muted);
 }
 
+/* As on the groups page: deleting is the one item that costs something, and it says so in color. */
+.task-group__menu-danger :deep(.v-list-item-title),
+.task-group__menu-danger :deep(.v-list-item__prepend) { color: var(--error); }
+
 .task-group__head :deep(.v-card-item__append) {
   display: flex;
   align-items: center;
 }
 
-/* Описание группы — одна строка под именем и тише его: это подпись к карточке, а не текст, который
-   читают. Длинное обрезается, а не переносится: шапки групп должны быть одной высоты. */
+/* The group description is one line under the name and quieter than it: a caption for the card,
+   not text to read. A long one is cut, not wrapped: group headers must be the same height. */
 .task-group__head :deep(.v-card-subtitle) {
   padding: 0;
   margin-top: 2px;

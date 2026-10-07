@@ -1,47 +1,49 @@
-"""HTTP-API модуля ``tasks`` (монтируется на ``/internal/workbench`` — см. ``module.py``).
+"""HTTP API of the ``tasks`` module (mounted at ``/internal/workbench`` — see ``module.py``).
 
-Две поверхности: **группы** (долгоживущие темы внутри пространства) и **задачи**. Само
-пространство живёт в модуле уровнем ниже (``workspace``) и своё API имеет там же — здесь его код
-только принимается параметром и проверяется.
+Two surfaces: **groups** (long-lived topics inside a workspace) and **tasks**. The workspace
+itself lives in the module one level down (``workspace``) and has its API there — here its code
+is only accepted as a parameter and checked.
 
-Ни одна выборка не ходит поперёк пространств — поэтому у списков групп и задач ``workspace``
-обязателен: без него «все задачи» означало бы смесь работы и личного в одном ответе.
+No query crosses workspaces — which is why ``workspace`` is required on the group and task lists:
+without it "all tasks" would mean work and personal mixed in one response.
 
-Набор ручек у групп и задач полный: список, создание, чтение, правка, мягкое удаление,
-восстановление и физическое удаление — с одной разницей: пространство группы задаётся при
-создании и правкой не меняется, потому что перенос группы утащил бы за собой все её задачи.
+Groups and tasks get the full set of endpoints: list, create, read, update, soft delete, restore
+and hard delete — with one difference: a group's workspace is set at creation and cannot be
+changed by an update, because moving a group would drag all its tasks along.
 
-**Статус задачи меняется отдельной ручкой** (``POST /tasks/{code}/status``), а общая правка его
-не принимает. Причина в том, что переход статуса — не запись значения в колонку: он ставит
-отметку фазы (начало, завершение, отмена), и её ставит ``task_update_status``. Разреши мы
-статус в общей правке — рядом появился бы второй путь смены, у которого отметку поставить
-некому, и «сделано» без ``completed_at`` уже ничем нельзя было бы объяснить.
+**Task status changes through a separate endpoint** (``POST /tasks/{code}/status``); the general
+update does not accept it. A status transition is not writing a value into a column: it stamps a
+phase mark (start, completion, cancellation), and ``task_update_status`` is what stamps it. Allow
+status in the general update and a second change path would appear next to it with nobody to
+stamp the mark — and "done" without ``completed_at`` could no longer be explained by anything.
 
-**Место задачи в дереве едет в её же строке** (``parent_code`` / ``sort``), хотя
-живёт в отдельной таблице: разделение нужно записи (перенос ветки не переписывает карточку), а
-читающему списку нужны обе половины сразу. Меняет их тоже отдельная ручка — ``move``: перенос
-это операция над деревом, а не правка поля карточки.
+**A task's place in the tree rides in the task's own row** (``parent_code`` / ``sort``), even
+though it lives in a separate table: the split serves writes (moving a branch does not rewrite
+the card), while a reading list needs both halves at once. They are also changed by a separate
+endpoint — ``move``: moving is an operation on the tree, not an edit of a card field.
 
-**Два удаления — две разные ручки, и это намеренно.** ``DELETE /groups/{code}`` (как и у задачи)
-ставит отметку: содержимое остаётся на месте, список без флага его не показывает, ``restore``
-возвращает всё как было. ``DELETE /groups/{code}/purge`` сносит строку физически. Спрятать второе
-под флагом первого значило бы, что необратимое отличается от обратимого одним символом в адресе.
+**Two deletions — two different endpoints, on purpose.** ``DELETE /groups/{code}`` (same for a
+task) sets a mark: the content stays in place, the list hides it without the flag, ``restore``
+brings everything back as it was. ``DELETE /groups/{code}/purge`` removes the row physically.
+Hiding the second behind a flag of the first would make the irreversible differ from the
+reversible by one character in the URL.
 
-**Счётчики содержимого пространства объявляются отсюда**, а не спрашиваются оттуда: карточке
-пространства нужны числа «сколько внутри групп и задач», но знать про группы и задачи модуль
-уровнем ниже не может. Мы регистрируем их в его реестре (``workspace.stats``) в ``module.py``.
+**Workspace content counters are declared from here**, not queried from there: the workspace card
+needs "how many groups and tasks inside", but the module one level down cannot know about groups
+and tasks. We register them in its registry (``workspace.stats``) in ``module.py``.
 
-**Незнакомое поле в теле — отказ, а не тишина.** Все модели входа стоят на ``extra="forbid"``
-(``_Body``): опечатка в имени поля раньше проезжала молча — ``parent`` вместо ``parent_code``
-давал 201 и задачу без родителя, и узнать об этом можно было только по тому, что задача не
-встала в ветку. Теперь такой запрос отвечает 422 с ``fields``, где ключ — само лишнее имя.
+**An unknown field in the body is a refusal, not silence.** Every input model sits on
+``extra="forbid"`` (``_Body``): a typo in a field name used to pass silently — ``parent`` instead
+of ``parent_code`` gave 201 and a task without a parent, and the only way to find out was that the
+task did not land in its branch. Now such a request answers 422 with ``fields``, keyed by the
+extra name itself.
 
-**Коды на входе принимаются в обеих формах** — ``WORKSPACE@<hash>`` и голый хеш: первую человек
-копирует из интерфейса, вторую модуль отдаёт сам изнутри. Чужой префикс (``GROUP@`` вместо
-``WORKSPACE@``) — не «не найдено», а перепутанный аргумент, и отвечаем мы на него 400 с
-названием обоих типов, а не 404, который увёл бы к мысли, что запись удалили.
+**Input codes are accepted in both forms** — ``WORKSPACE@<hash>`` and the bare hash: the person
+copies the first from the UI, the module hands out the second internally. A foreign prefix
+(``TASKGROUP@`` instead of ``WORKSPACE@``) is not "not found" but a mixed-up argument, and we
+answer it with 400 naming both types, not with a 404 that would suggest the record was deleted.
 
-Зона ``internal`` в чистом ядре открыта (``allow_all``), guard не нужен.
+The ``internal`` zone is open in the bare core (``allow_all``), no guard needed.
 """
 
 from __future__ import annotations
@@ -58,6 +60,8 @@ from src.modules.tasks.constants import (
     COLOR_MAX,
     DESCRIPTION_MAX,
     GROUP_CODE_PREFIX,
+    GROUP_DESCRIPTION_MAX,
+    GROUP_TASK_DISPOSALS,
     ICON_MAX,
     NOTE_CODE_PREFIX,
     SORT_DEFAULT,
@@ -103,25 +107,26 @@ router = APIRouter()
 
 
 class _Body(BaseModel):
-    """Общий предок всех тел запроса: незнакомое поле — отказ, а не тишина.
+    """Common ancestor of every request body: an unknown field is a refusal, not silence.
 
-    ``extra="forbid"`` стоит здесь, а не на каждой модели отдельно, ровно чтобы новая ручка не
-    могла завестись без него: молчаливое игнорирование лишнего поля — самая дорогая из мелких
-    ошибок контракта. Отправленный ``parent`` вместо ``parent_code`` отвечал 201 и создавал
-    задачу без родителя; разницу было видно только по тому, что задача не встала в ветку.
+    ``extra="forbid"`` sits here rather than on each model, precisely so a new endpoint cannot
+    be born without it: silently ignoring an extra field is the most expensive of the small
+    contract bugs. A ``parent`` sent instead of ``parent_code`` answered 201 and created a task
+    without a parent; the difference showed only in the task not landing in its branch.
 
-    На ответных DTO (``dto.py``) запрет не нужен и вреден: их собираем мы сами, а
-    ``from_attributes`` читает атрибуты ORM-строки, где лишнего не бывает.
+    On response DTOs (``dto.py``) the ban is unnecessary and harmful: we build them ourselves,
+    and ``from_attributes`` reads attributes of an ORM row, which never has extras.
     """
 
     model_config = ConfigDict(extra="forbid")
 
 
 def _bare(value: str | None, prefix: str) -> str | None:
-    """Голый код нужного типа; чужой тип — 400, а не 404.
+    """Bare code of the expected type; a foreign type is 400, not 404.
 
-    ``bare_code`` отличает «код другой сущности» от «кода нет»: первое чинится правкой вызова,
-    второе — нет, и путать их в ответе значит отправлять клиента искать несуществующую пропажу.
+    ``bare_code`` tells "a code of another entity" from "no code": the first is fixed by
+    correcting the call, the second is not, and mixing them up in the response sends the client
+    hunting for a loss that never happened.
     """
     try:
         return bare_code(value, prefix)
@@ -130,25 +135,25 @@ def _bare(value: str | None, prefix: str) -> str | None:
 
 
 def _code(value: str) -> str:
-    """Голый код пространства из сегмента адреса или из параметра ``workspace``."""
+    """Bare workspace code from a path segment or from the ``workspace`` parameter."""
     return _bare(value, WORKSPACE_CODE_PREFIX) or ""
 
 
 def _task_code(value: str) -> str:
-    """Голый код задачи из сегмента адреса."""
+    """Bare task code from a path segment."""
     return _bare(value, TASK_CODE_PREFIX) or ""
 
 
 async def _require_workspace(code: str) -> Workspace:
-    """Живое или удалённое пространство — или 404.
+    """A live or deleted workspace — or 404.
 
-    Пространство принадлежит модулю уровнем ниже (``workspace``), поэтому спрашиваем мы его
-    через его же CRUD, а не своим запросом к чужой таблице: у нас на неё есть FK, но не права
-    решать, что такое «существует» для чужой сущности.
+    The workspace belongs to the module one level down (``workspace``), so we ask through its
+    own CRUD rather than with our own query against someone else's table: we hold an FK to it,
+    but not the right to decide what "exists" means for another module's entity.
 
-    Удалённое ищется наравне с живым (``include_deleted=True``): группы и задачи удалённого
-    пространства показываются в интерфейсе, и «не найдено» означало бы, что ручка не видит того,
-    что человек прямо сейчас видит на экране.
+    A deleted one is looked up on par with a live one (``include_deleted=True``): groups and
+    tasks of a deleted workspace are shown in the UI, and "not found" would mean the endpoint
+    cannot see what the person is looking at on screen right now.
     """
     row = await workspace_crud.workspace_get(code, include_deleted=True)
     if row is None:
@@ -156,25 +161,25 @@ async def _require_workspace(code: str) -> Workspace:
     return row
 
 
-# ── группы ────────────────────────────────────────────────────────────────────
+# ── groups ────────────────────────────────────────────────────────────────────
 
 
 class GroupBody(_Body):
-    """Тело создания и правки группы — один набор полей на обе ручки.
+    """Body for creating and updating a group — one field set for both endpoints.
 
-    Пространства здесь нет намеренно: при создании оно приходит параметром запроса (группа
-    заводится ВНУТРИ него), а сменить его правкой нельзя вовсе — перенос группы утащил бы за
-    собой все её задачи, и это другая операция.
+    The workspace is absent on purpose: on create it comes as a query parameter (the group is
+    created INSIDE it), and an update cannot change it at all — moving a group would drag all its
+    tasks along, and that is a different operation.
 
-    ``sort`` — позиция среди соседей, больший выше. У него есть умолчание, поэтому форма, которой
-    порядок безразличен, может его не слать.
+    ``sort`` is the position among siblings, higher goes first. It has a default, so a form that
+    does not care about order may omit it.
     """
 
     title: Annotated[
         str, StringConstraints(strip_whitespace=True, min_length=1, max_length=TITLE_MAX)
     ]
     description: Annotated[
-        str, StringConstraints(strip_whitespace=True, max_length=DESCRIPTION_MAX)
+        str, StringConstraints(strip_whitespace=True, max_length=GROUP_DESCRIPTION_MAX)
     ] = ""
     color: str = Field(default="", max_length=COLOR_MAX)
     icon: str = Field(default="", max_length=ICON_MAX)
@@ -182,12 +187,12 @@ class GroupBody(_Body):
 
 
 def _group_code(value: str) -> str:
-    """Голый код группы из сегмента адреса."""
+    """Bare group code from a path segment."""
     return _bare(value, GROUP_CODE_PREFIX) or ""
 
 
 async def _require_group(code: str):
-    """Группа любого состояния или 404 — по той же причине, что и у пространства."""
+    """A group in any state, or 404 — for the same reason as the workspace."""
     row = await group_crud.group_get(code, include_deleted=True)
     if row is None:
         raise ApiError.not_found("Group not found", code=GROUP_NOT_FOUND)
@@ -196,13 +201,14 @@ async def _require_group(code: str):
 
 @router.get("/groups")
 async def list_groups(
-    workspace: str = Query(..., description="Код пространства (``WORKSPACE@…`` или голый)"),
-    include_deleted: bool = Query(False, description="Показать и удалённые группы"),
+    workspace: str = Query(..., description="Workspace code (``WORKSPACE@…`` or bare)"),
+    include_deleted: bool = Query(False, description="Include deleted groups too"),
 ) -> list[GroupListRow]:
-    """Группы пространства сверху вниз + сколько живых задач в каждой.
+    """A workspace's groups top to bottom + how many live tasks each holds.
 
-    Пространство обязательно: группа вне его не существует, а «все группы» смешали бы раскладки
-    разных пространств в один список, где одинаковые названия («Интерфейс») ничем не различить.
+    The workspace is required: a group does not exist outside one, and "all groups" would mix
+    the layouts of different workspaces into one list where identical titles ("Interface")
+    cannot be told apart.
     """
     bare = _code(workspace)
     await _require_workspace(bare)
@@ -220,9 +226,9 @@ async def list_groups(
 @router.post("/groups", status_code=201)
 async def create_group(
     payload: GroupBody,
-    workspace: str = Query(..., description="Код пространства, в котором заводится группа"),
+    workspace: str = Query(..., description="Code of the workspace the group is created in"),
 ) -> GroupRow:
-    """Завести группу в пространстве. Мёртвое пространство — отказ, и его называет CRUD."""
+    """Create a group in a workspace. A dead workspace is refused, and the refusal text is CRUD's."""
     bare = _code(workspace)
     await _require_workspace(bare)
     try:
@@ -241,13 +247,13 @@ async def create_group(
 
 @router.get("/groups/{code}")
 async def get_group(code: str) -> GroupRow:
-    """Одна группа — в том числе удалённая: её состояние видно по ``deleted_at``."""
+    """One group — deleted ones included: its state shows in ``deleted_at``."""
     return GroupRow.model_validate(await _require_group(_group_code(code)))
 
 
 @router.put("/groups/{code}")
 async def update_group(code: str, payload: GroupBody) -> GroupRow:
-    """Полная замена карточки группы; удалённая не правится — сначала ``restore`` (409)."""
+    """Full replacement of a group card; a deleted one is not editable — ``restore`` first (409)."""
     bare = _group_code(code)
     existing = await _require_group(bare)
     if existing.deleted_at is not None:
@@ -267,10 +273,10 @@ async def update_group(code: str, payload: GroupBody) -> GroupRow:
 
 @router.post("/groups/{code}/reorder")
 async def reorder_group(code: str, payload: GroupReorderBody) -> GroupRow:
-    """Переставить группу относительно соседней — так раскладку двигают мышью.
+    """Move a group relative to a sibling — this is how the layout is rearranged with the mouse.
 
-    Позиция названа соседкой, а не числом: на экране видно, между какими карточками группа легла,
-    а её ``sort`` не виден вовсе. Перенумеровывает ряд сам CRUD.
+    The position is named by a sibling, not a number: the screen shows which cards the group
+    landed between, while its ``sort`` is not visible at all. CRUD renumbers the siblings itself.
     """
     bare = _group_code(code)
     await _require_group(bare)
@@ -281,8 +287,8 @@ async def reorder_group(code: str, payload: GroupReorderBody) -> GroupRow:
             before=_bare(payload.before_code, GROUP_CODE_PREFIX),
         )
     except ValueError as error:
-        # Сюда приходит и «передай ровно одну точку отсчёта», и «соседка из чужого пространства»:
-        # всё это чинится правкой вызова, а не поиском пропажи, — поэтому 400, а не 404.
+        # Both "pass exactly one reference point" and "sibling from another workspace" land here:
+        # all of it is fixed by correcting the call, not by hunting for a loss — hence 400, not 404.
         raise ApiError.bad_request(str(error)) from error
     if row is None:
         raise ApiError.not_found("Group not found", code=GROUP_NOT_FOUND)
@@ -290,20 +296,37 @@ async def reorder_group(code: str, payload: GroupReorderBody) -> GroupRow:
 
 
 @router.delete("/groups/{code}", status_code=204)
-async def delete_group(code: str) -> Response:
-    """Мягкое удаление: задачи группы остаются на месте и держат ссылку на неё.
+async def delete_group(
+    code: str,
+    tasks: str | None = Query(
+        None, description="ungroup / move / delete — required while the group holds live tasks"
+    ),
+    target: str | None = Query(None, description="The group to move the tasks to (``move``)"),
+) -> Response:
+    """Soft delete, together with the fate of the group's tasks — one transaction.
 
-    Именно поэтому удаление группы обратимо без следа: ``restore`` возвращает раскладку ровно в
-    том виде, в каком её сняли, — задачи не пришлось раскладывать заново.
+    No task is left pointing at a deleted group: nothing draws one, and its tasks would vanish
+    from the list. A group with live tasks and no ``tasks`` is 409 (``tasks.group.has_tasks``);
+    a bad ``target`` is 400. ``restore`` later brings back the group alone.
     """
-    if not await group_crud.group_delete(_group_code(code)):
+    if tasks is not None and tasks not in GROUP_TASK_DISPOSALS:
+        raise ApiError.bad_request(f"tasks must be one of: {', '.join(GROUP_TASK_DISPOSALS)}")
+    try:
+        deleted = await group_crud.group_delete(
+            _group_code(code), tasks=tasks, target=_bare(target, GROUP_CODE_PREFIX)
+        )
+    except TaskRuleError as error:
+        raise ApiError.conflict(str(error), code=error.code) from error
+    except ValueError as error:
+        raise ApiError.bad_request(str(error)) from error
+    if not deleted:
         raise ApiError.not_found("Group not found", code=GROUP_NOT_FOUND)
     return Response(status_code=204)
 
 
 @router.post("/groups/{code}/restore")
 async def restore_group(code: str) -> GroupRow:
-    """Снять отметку удаления. Живую группу восстановить нельзя — 409, как и у пространства."""
+    """Clear the deletion mark. A live group cannot be restored — 409, same as a workspace."""
     bare = _group_code(code)
     existing = await _require_group(bare)
     if existing.deleted_at is None:
@@ -314,29 +337,29 @@ async def restore_group(code: str) -> GroupRow:
 
 @router.delete("/groups/{code}/purge", status_code=204)
 async def purge_group(code: str) -> Response:
-    """Физическое удаление группы. Задачи переживают её: FK ``SET NULL`` снимает разложенность.
+    """Hard delete of a group. Its tasks outlive it: the FK ``SET NULL`` ungroups them.
 
-    То есть снос группы — не снос работы: задачи уходят в секцию «Без группы», а не в корзину.
+    So purging a group is not purging the work: the tasks move to the "No group" section, not to
+    the trash.
     """
     if not await group_crud.group_delete(_group_code(code), hard=True):
         raise ApiError.not_found("Group not found", code=GROUP_NOT_FOUND)
     return Response(status_code=204)
 
 
-# ── задачи ────────────────────────────────────────────────────────────────────
+# ── tasks ─────────────────────────────────────────────────────────────────────
 
 
 class TaskCreateBody(_Body):
-    """Тело создания задачи: обязательны только пространство и заголовок.
+    """Body for creating a task: only the workspace and the title are required.
 
-    Всё остальное имеет умолчание на уровне колонки (``backlog`` / ``normal`` / ``simple``),
-    поэтому требовать его на входе значило бы заставлять клиента повторять то, что модуль и так
-    знает. Справочные значения здесь не проверяются — это делает CRUD, и его отказ называет
-    список допустимых; вторая копия перечислений в API разошлась бы с ним при первом же новом
-    статусе.
+    Everything else has a column-level default (``backlog`` / ``normal`` / ``simple``), so
+    requiring it on input would force the client to repeat what the module already knows.
+    Reference values are not checked here — CRUD does that, and its refusal lists the allowed
+    ones; a second copy of the enums in the API would drift from it at the very first new status.
 
-    ``created_by`` в теле нет: автора называет не клиент, а сама поверхность. Эта — человеческая
-    (её зовёт интерфейс), и любое значение отсюда было бы словом на веру.
+    The body has no ``created_by``: the author is named by the surface, not the client. This one
+    is the person's (the UI calls it), and any value from here would be taken on faith.
     """
 
     workspace: str
@@ -359,14 +382,14 @@ class TaskCreateBody(_Body):
 
 
 class TaskUpdateBody(_Body):
-    """Тело правки задачи — полная замена карточки: не переданное поле стирается.
+    """Body for updating a task — full replacement of the card: an omitted field is erased.
 
-    Замена, а не «поправь названное», ровно по тому же соображению, что и у пространства: форма
-    интерфейса всегда отправляет карточку целиком, и тогда единственный способ снять срок или
-    группу — отсутствие значения. Разреши мы частичную правку, «стереть» и «не трогать» стали бы
-    неразличимы, и однажды поставленная дата не снималась бы вовсе.
+    Replacement rather than "fix what is named", for the same reason as with the workspace: the UI
+    form always sends the whole card, so the only way to clear a deadline or a group is the absence
+    of a value. Allow partial updates and "erase" and "leave alone" would become
+    indistinguishable, and a deadline once set could never be cleared.
 
-    Статуса здесь нет — см. ``POST /tasks/{code}/status``.
+    There is no status here — see ``POST /tasks/{code}/status``.
     """
 
     title: Annotated[
@@ -386,15 +409,15 @@ class TaskUpdateBody(_Body):
 
 
 class TaskPatchBody(_Body):
-    """Частичная правка карточки: меняются только переданные поля, остальные не трогаются.
+    """Partial update of the card: only the fields sent change, the rest are left alone.
 
-    Нужна странице задачи, которая сохраняет поле, как только из него ушли. Полная замена
-    (``TaskUpdateBody``) отправляла бы вместе с ним все прочие поля в том виде, в каком страница
-    их когда-то загрузила, — и откатывала бы то, что тем временем записал агент.
+    The task page needs it: it saves a field as soon as focus leaves it. A full replacement
+    (``TaskUpdateBody``) would send every other field along with it as the page once loaded them
+    — and roll back whatever the agent wrote in the meantime.
 
-    «Не передано» и ``null`` различаются по ``model_fields_set``: у группы и срока ``null`` значит
-    «снять», а отсутствие ключа — «не трогать». У текстовых полей ``null`` не принимается —
-    «пусто» у них пустая строка.
+    "Not sent" and ``null`` are told apart by ``model_fields_set``: for the group and the deadline
+    ``null`` means "clear", while a missing key means "leave alone". Text fields do not accept
+    ``null`` — "empty" for them is the empty string.
     """
 
     title: Annotated[
@@ -414,18 +437,18 @@ class TaskPatchBody(_Body):
 
 
 class TaskStatusBody(_Body):
-    """Один статус — и ничего больше: у перехода нет других параметров."""
+    """One status and nothing else: a transition has no other parameters."""
 
     status: str
 
 
 class TaskMoveBody(_Body):
-    """Новое место задачи в дереве: под кем и на какой позиции.
+    """The task's new place in the tree: under whom and at what position.
 
-    Пустой ``parent_code`` — корень пространства, а не «не менять родителя»: перенос всегда
-    называет место целиком, и «оставить как есть» выражается тем, что ручку не зовут.
-    ``sort`` без значения ставит задачу в конец списка новых соседей — самый частый случай
-    («перенеси туда»), ради которого не хочется считать позиции на клиенте.
+    An empty ``parent_code`` is the workspace root, not "keep the parent": a move always names
+    the whole place, and "leave as is" is expressed by not calling the endpoint. ``sort`` without
+    a value puts the task at the end of its new siblings — the most common case ("move it
+    there"), for which nobody wants to compute positions on the client.
     """
 
     parent_code: str | None = None
@@ -433,14 +456,14 @@ class TaskMoveBody(_Body):
 
 
 class GroupReorderBody(_Body):
-    """Одно перетаскивание группы: соседка, относительно которой она встала.
+    """One group drag: the sibling it now sits next to.
 
-    Ровно одна из двух точек отсчёта — как и в CRUD. Две сразу противоречили бы друг другу, а ни
-    одной означало бы «переставь куда-нибудь»; в обоих случаях ответ 400, а не молчаливый выбор за
-    вызывающего.
+    Exactly one of the two reference points — same as in CRUD. Both at once would contradict each
+    other, and neither would mean "put it somewhere"; either way the answer is 400, not a silent
+    choice made for the caller.
 
-    Номера позиции здесь нет намеренно: ``sort`` — внутренняя механика раскладки, и тому, кто
-    тянет карточку мышью, попасть в него нечем.
+    There is no position number on purpose: ``sort`` is internal layout mechanics, and whoever
+    drags a card with the mouse has no way to hit it.
     """
 
     after_code: str | None = None
@@ -448,20 +471,20 @@ class GroupReorderBody(_Body):
 
 
 class TaskReorderBody(_Body):
-    """Одно перетаскивание: где строка теперь стоит, в какой она группе и чья она.
+    """One drag: where the row now stands, which group it is in and whose child it is.
 
-    ``after_code`` — задача, ПОСЛЕ которой лёг переезжающий (пусто — в начало ряда). Позиция
-    названа соседом, а не номером: у списка на экране свои фильтры и страницы, и номер строки в
-    нём не совпадает с номером среди соседей в базе.
+    ``after_code`` is the task the moved one landed AFTER (empty — first among its siblings). The
+    position is named by a sibling, not a number: the on-screen list has its own filters and
+    pages, and a row number there does not match the number among siblings in the database.
 
-    ``group_code`` отсутствует в теле — группу не трогаем; ``null`` — снять группу. Различие
-    читается по ``model_fields_set``: перетаскивание внутри одной группы не должно ничего знать
-    про группы, а перетаскивание в «Без группы» обязано уметь её снять, и одним ``None`` эти два
-    случая не различить.
+    ``group_code`` absent from the body — the group is left alone; ``null`` — clear the group.
+    The difference is read from ``model_fields_set``: a drag within one group must know nothing
+    about groups, while a drag into "No group" must be able to clear it, and a single ``None``
+    cannot tell the two cases apart.
 
-    ``parent_code`` устроен так же: ключа нет — родителя не трогаем, ``null`` — открепить, то
-    есть сделать задачу корнем. Это второй жест списка: подзадачу вытаскивают из ветки в карточку
-    группы, и она перестаёт быть подзадачей.
+    ``parent_code`` works the same way: no key — the parent is left alone, ``null`` — detach,
+    i.e. make the task a root. This is the list's second gesture: a subtask is pulled out of its
+    branch onto a group card and stops being a subtask.
     """
 
     after_code: str | None = None
@@ -470,11 +493,11 @@ class TaskReorderBody(_Body):
 
 
 async def _require_task(code: str) -> TasksTask:
-    """Задача любого состояния или 404.
+    """A task in any state, or 404.
 
-    Удалённая ищется наравне с живой: её показывает список с флагом, её восстанавливают и сносят
-    насовсем — во всех трёх сценариях «не найдено» означало бы, что ручка не видит того, что
-    человек прямо сейчас видит на экране.
+    A deleted one is looked up on par with a live one: the list shows it under a flag, it gets
+    restored and purged — in all three scenarios "not found" would mean the endpoint cannot see
+    what the person is looking at on screen right now.
     """
     row = await task_crud.task_get(code, include_deleted=True)
     if row is None:
@@ -483,27 +506,26 @@ async def _require_task(code: str) -> TasksTask:
 
 
 def _live(row: TasksTask) -> None:
-    """Операции над карточкой запрещены, пока задача в корзине: сначала ``restore``.
+    """Card operations are forbidden while the task is in the trash: ``restore`` first.
 
-    409, а не 404: запись существует и человек видит её в списке удалённых — просто эта
-    операция сейчас не её.
+    409, not 404: the record exists and the person sees it in the deleted list — this operation
+    just does not apply to it right now.
     """
     if row.deleted_at is not None:
         raise ApiError.conflict("Task is deleted — restore it first", code=TASK_DELETED)
 
 
 async def _rows(rows: list[TasksTask], *, include_deleted: bool) -> list[TaskListRow]:
-    """Задачи + их рёбра + признак ветки — в порядке дерева (больший ``sort`` выше).
+    """Tasks + their edges + a branch flag — in tree order (higher ``sort`` first).
 
-    Две подмешиваемые величины берутся одним запросом каждая (``link_map_by_task_codes`` и
-    ``link_child_count_by_parent_codes``), а не по запросу на карточку: список пространства
-    целиком помещается на экран, и N+1 здесь стоил бы ровно столько же строк кода, сколько
-    экономит.
+    The two mixed-in values are fetched with one query each (``link_map_by_task_codes`` and
+    ``link_child_count_by_parent_codes``), not one query per card: a workspace list fits on the
+    screen whole, and N+1 here would cost exactly as many lines of code as it saves.
 
-    Порядок наводится здесь, а не в CRUD: ``task_list_by_workspace`` сортирует по важности
-    (ответ на вопрос «за что взяться»), а списку нужен порядок ветки — тот, который человек
-    расставил руками. Разные вопросы к одной таблице, и второй вид сортировки — это сборка
-    ответа, а не другая выборка.
+    Ordering happens here, not in CRUD: ``task_list_by_workspace`` sorts by importance (the
+    answer to "what to pick up"), while the list needs branch order — the one the person arranged
+    by hand. Different questions to the same table, and the second kind of sort is assembling
+    the response, not a different query.
     """
     codes = [row.code for row in rows]
     links = await link_crud.link_map_by_task_codes(codes)
@@ -526,15 +548,16 @@ async def _rows(rows: list[TasksTask], *, include_deleted: bool) -> list[TaskLis
 
 
 async def _detail(row: TasksTask) -> TaskDetail:
-    """Задача целиком: её поля, тело, ребро, группа, родитель и дети.
+    """The whole task: its fields, body, edge, group, parent and children.
 
-    Дети удалённой задачи берутся вместе с удалёнными: мягкое удаление каскадно, и живых детей
-    у задачи в корзине не осталось — показать пустой список значило бы соврать, что ветка под
-    ней пуста, а человек смотрит на неё именно перед тем, как решить, восстанавливать или сносить.
+    Children of a deleted task are fetched including deleted ones: soft delete cascades, and a
+    task in the trash has no live children left — showing an empty list would lie that the
+    branch under it is empty, and the person looks at it precisely before deciding whether to
+    restore or purge.
 
-    Группа и родитель тоже ищутся вместе с удалёнными: удалённая группа задачи с неё не снимается
-    (см. ``group_delete``), и показать «Без группы» там, где разложенность на самом деле цела, —
-    значит соврать о том, что вернётся после восстановления группы.
+    The group and the parent are also looked up including deleted ones: a deleted group is not
+    cleared from the task (see ``group_delete``), and showing "No group" where the grouping is
+    actually intact would lie about what comes back once the group is restored.
     """
     deleted = row.deleted_at is not None
     link = await link_crud.link_get(row.code)
@@ -571,22 +594,22 @@ async def _detail(row: TasksTask) -> TaskDetail:
 
 @router.get("/tasks")
 async def list_tasks(
-    workspace: str = Query(..., description="Код пространства (``WORKSPACE@…`` или голый)"),
-    include_deleted: bool = Query(False, description="Показать и удалённые задачи"),
-    status: str | None = Query(None, description="Только задачи в этом статусе"),
+    workspace: str = Query(..., description="Workspace code (``WORKSPACE@…`` or bare)"),
+    include_deleted: bool = Query(False, description="Include deleted tasks too"),
+    status: str | None = Query(None, description="Only tasks in this status"),
     group: str | None = Query(
         None,
-        description="Только задачи этой группы; пустое значение — только задачи вне групп",
+        description="Only tasks of this group; an empty value means only ungrouped tasks",
     ),
 ) -> list[TaskListRow]:
-    """Плоский список задач пространства — в нём же едут рёбра дерева.
+    """A flat list of the workspace's tasks — the tree edges ride along in it.
 
-    Плоский, потому что раскладывает его клиент: секции у него по группам, а не по уровням
-    вложенности, и дерево, собранное на бэке, пришлось бы разбирать обратно. Родитель и позиция
-    при этом в каждой строке — их хватает, чтобы собрать любую раскладку, включая вложенную.
+    Flat, because the client lays it out: its sections are by group, not by nesting level, and a
+    tree assembled on the backend would have to be taken apart again. Parent and position are in
+    every row — enough to build any layout, nested included.
 
-    Пустое значение ``group`` — не «без фильтра», а «только вне групп»: секция «Без группы» в
-    списке существует, и спросить про неё иначе нечем. «Без фильтра» — это отсутствие параметра.
+    An empty ``group`` is not "no filter" but "ungrouped only": the list has a "No group" section,
+    and there is no other way to ask about it. "No filter" is the parameter's absence.
     """
     bare = _code(workspace)
     await _require_workspace(bare)
@@ -604,21 +627,21 @@ async def list_tasks(
 
 @router.get("/tasks/search")
 async def search_tasks(
-    workspace: str = Query(..., description="Код пространства (``WORKSPACE@…`` или голый)"),
-    query: str = Query(..., description="Что искать — подстрока без учёта регистра"),
-    in_brief: bool = Query(False, description="Искать в постановке: контекст, границы, критерии"),
-    in_plan: bool = Query(False, description="Искать в плане задачи и в телах её этапов"),
-    in_journal: bool = Query(False, description="Искать в записях журнала"),
+    workspace: str = Query(..., description="Workspace code (``WORKSPACE@…`` or bare)"),
+    query: str = Query(..., description="What to search for — a case-insensitive substring"),
+    in_brief: bool = Query(False, description="Search the brief: context, constraints, criteria"),
+    in_plan: bool = Query(False, description="Search the task plan and its stage bodies"),
+    in_journal: bool = Query(False, description="Search journal entries"),
 ) -> list[str]:
-    """Коды задач, у которых запрос нашёлся в телах — в названных областях.
+    """Codes of tasks whose bodies contain the query — in the named areas.
 
-    Это вторая половина поиска по списку, а не замена ему: заголовок и цель есть в каждой
-    строке, и по ним ищет сам клиент — мгновенно и без круга по сети. Сюда он ходит только за
-    тем, чего в строке нет, и пересекает ответ со своим списком. Поэтому и отдаются коды:
-    карточки у спрашивающего уже есть.
+    This is the second half of list search, not a replacement for it: the title and goal are in
+    every row, and the client searches those itself — instantly, with no network round trip. It
+    comes here only for what the row lacks and intersects the answer with its own list. Hence
+    codes are returned: the caller already has the cards.
 
-    Стоит ВЫШЕ ``GET /tasks/{code}``: маршруты разбираются по порядку объявления, и ниже этот
-    адрес уехал бы в деталь задачи с кодом ``search``.
+    Declared ABOVE ``GET /tasks/{code}``: routes are matched in declaration order, and below it
+    this URL would fall into the detail of a task coded ``search``.
     """
     bare = _code(workspace)
     await _require_workspace(bare)
@@ -629,17 +652,17 @@ async def search_tasks(
         in_plan=in_plan,
         in_journal=in_journal,
     )
-    # Коды уезжают в той же форме, в какой приходят в списке (``TASK@…``): пересекать их
-    # предстоит именно с ним, а два вида одного кода дали бы пустое пересечение молча.
+    # Codes go out in the same form the list carries them (``TASK@…``): that list is what they
+    # get intersected with, and two forms of one code would silently give an empty intersection.
     return [tagged(TASK_CODE_PREFIX, code) for code in found]
 
 
 @router.post("/tasks", status_code=201)
 async def create_task(payload: TaskCreateBody) -> TaskDetail:
-    """Завести задачу (вместе с её ребром дерева) и вернуть её целиком.
+    """Create a task (together with its tree edge) and return it whole.
 
-    Отвечаем деталью, а не строкой списка: создание из карточки родителя тут же открывает
-    созданное, и второй запрос за тем, что мы только что записали, был бы лишним кругом.
+    We answer with the detail, not a list row: creating from a parent's card immediately opens
+    the new task, and a second request for what we just wrote would be a wasted round trip.
     """
     try:
         row = await task_crud.task_create(
@@ -658,22 +681,23 @@ async def create_task(payload: TaskCreateBody) -> TaskDetail:
             deadline_at=payload.deadline_at,
         )
     except ValueError as error:
-        # ValueError тут — несуществующее пространство, чужая группа, чужой родитель или значение
-        # не из справочника. Всё это чинится правкой вызова, поэтому 400 с текстом CRUD (он
-        # называет и допустимые значения), а не 404: искомое не «пропало», его не бывает.
+        # A ValueError here is a nonexistent workspace, a foreign group, a foreign parent or a
+        # value outside the reference set. All of it is fixed by correcting the call, hence 400
+        # with CRUD's text (it also names the allowed values), not 404: what was asked for did not
+        # "go missing", it cannot exist.
         raise ApiError.bad_request(str(error)) from error
     return await _detail(row)
 
 
 @router.get("/tasks/{code}")
 async def get_task(code: str) -> TaskDetail:
-    """Одна задача — в том числе удалённая: её состояние видно по ``deleted_at``."""
+    """One task — deleted ones included: its state shows in ``deleted_at``."""
     return await _detail(await _require_task(_task_code(code)))
 
 
 @router.put("/tasks/{code}")
 async def update_task(code: str, payload: TaskUpdateBody) -> TaskDetail:
-    """Полная замена карточки. Статус и место в дереве сюда не входят — у них свои ручки."""
+    """Full card replacement. Status and tree place are excluded — each has its own endpoint."""
     bare = _task_code(code)
     _live(await _require_task(bare))
     try:
@@ -687,8 +711,8 @@ async def update_task(code: str, payload: TaskUpdateBody) -> TaskDetail:
             body=payload.body,
             type=payload.type,
             priority=payload.priority,
-            # Пустая строка — единственная форма «группы нет» для CRUD: ``None`` там значит «не
-            # трогать», а правка карточки обязана уметь снимать разложенность.
+            # An empty string is CRUD's only form of "no group": ``None`` there means "leave
+            # alone", and a card update must be able to ungroup.
             group_code=_bare(payload.group_code, GROUP_CODE_PREFIX) or "",
             deadline_at=payload.deadline_at,
         )
@@ -701,7 +725,7 @@ async def update_task(code: str, payload: TaskUpdateBody) -> TaskDetail:
 
 @router.patch("/tasks/{code}")
 async def patch_task(code: str, payload: TaskPatchBody) -> TaskDetail:
-    """Поправить только переданные поля карточки. Статус и место в дереве — свои ручки."""
+    """Update only the card fields sent. Status and tree place have their own endpoints."""
     bare = _task_code(code)
     _live(await _require_task(bare))
     given = payload.model_fields_set
@@ -719,7 +743,7 @@ async def patch_task(code: str, payload: TaskPatchBody) -> TaskDetail:
             body=payload.body,
             type=payload.type,
             priority=payload.priority,
-            # Для CRUD ``None`` — «не трогать», ``""`` — «снять группу».
+            # For CRUD ``None`` is "leave alone", ``""`` is "clear the group".
             group_code=(
                 (_bare(payload.group_code, GROUP_CODE_PREFIX) or "")
                 if "group_code" in given
@@ -736,10 +760,10 @@ async def patch_task(code: str, payload: TaskPatchBody) -> TaskDetail:
 
 @router.post("/tasks/{code}/status")
 async def set_task_status(code: str, payload: TaskStatusBody) -> TaskDetail:
-    """Сменить статус — и вместе с ним отметку фазы (начало, завершение, отмена).
+    """Change the status — and with it the phase mark (start, completion, cancellation).
 
-    Отдельная ручка, а не поле общей правки: отметку ставит только этот путь, и второй способ
-    записать ``status`` означал бы «сделано» без даты завершения.
+    A separate endpoint, not a field of the general update: only this path stamps the mark, and
+    a second way to write ``status`` would mean "done" without a completion date.
     """
     bare = _task_code(code)
     _live(await _require_task(bare))
@@ -754,7 +778,7 @@ async def set_task_status(code: str, payload: TaskStatusBody) -> TaskDetail:
 
 @router.post("/tasks/{code}/move")
 async def move_task(code: str, payload: TaskMoveBody) -> TaskDetail:
-    """Перенести задачу: новый родитель (пусто — корень) и позиция среди соседей."""
+    """Move a task: a new parent (empty — the root) and a position among siblings."""
     bare = _task_code(code)
     _live(await _require_task(bare))
     try:
@@ -764,8 +788,8 @@ async def move_task(code: str, payload: TaskMoveBody) -> TaskDetail:
             sort=payload.sort,
         )
     except ValueError as error:
-        # Петля в дереве, чужое пространство, несуществующий родитель — всё это неверный
-        # аргумент, а не пропавшая запись.
+        # A cycle in the tree, a foreign workspace, a nonexistent parent — all of it is a wrong
+        # argument, not a missing record.
         raise ApiError.bad_request(str(error)) from error
     if link is None:
         raise ApiError.not_found("Task not found", code=TASK_NOT_FOUND)
@@ -774,21 +798,21 @@ async def move_task(code: str, payload: TaskMoveBody) -> TaskDetail:
 
 @router.post("/tasks/{code}/reorder")
 async def reorder_task(code: str, payload: TaskReorderBody) -> TaskDetail:
-    """Перетаскивание строки списка: новое место среди соседей и, если её тянули в другую
-    карточку или из ветки наверх, новая группа и новый родитель.
+    """Drag of a list row: a new place among siblings and, if it was dragged onto another card or
+    up out of a branch, a new group and a new parent.
 
-    Одно движение мышью — один запрос: смени мы группу одной ручкой, родителя другой, а порядок
-    третьей, список успел бы показать задачу в новой группе на старом месте, и человек увидел бы
-    состояние, которого не просил.
+    One mouse gesture — one request: were the group changed by one endpoint, the parent by
+    another and the order by a third, the list could manage to show the task in its new group at
+    its old place, and the person would see a state they never asked for.
 
-    Родитель, группа и позиция — одна транзакция (``task_crud.task_reorder``): неверный сосед
-    откатывает и перенос, и человек не видит ошибку при уже переехавшей задаче.
+    Parent, group and position are one transaction (``task_crud.task_reorder``): a wrong sibling
+    rolls back the move too, so the person never sees an error next to an already moved task.
     """
     bare = _task_code(code)
     _live(await _require_task(bare))
     sent = payload.model_fields_set
     try:
-        # Пустая строка — единственная форма «нет» для CRUD: ``None`` там значит «не трогать».
+        # An empty string is CRUD's only form of "none": ``None`` there means "leave alone".
         row = await task_crud.task_reorder(
             bare,
             after_code=_bare(payload.after_code, TASK_CODE_PREFIX),
@@ -812,11 +836,11 @@ async def reorder_task(code: str, payload: TaskReorderBody) -> TaskDetail:
 
 @router.delete("/tasks/{code}", status_code=204)
 async def delete_task(code: str) -> Response:
-    """Мягкое удаление — вместе со всей веткой под задачей.
+    """Soft delete — together with the whole branch under the task.
 
-    Ветка уходит целиком потому же, почему целиком и восстанавливается: подзадача без родителя
-    не работа, а осколок. Повторное удаление уже удалённой не ошибка — результат совпадает с
-    желаемым.
+    The branch goes as a whole for the same reason it is restored as a whole: a subtask without
+    its parent is not work but a fragment. Deleting an already deleted task again is not an
+    error — the result matches what was wanted.
     """
     if not await task_crud.task_delete(_task_code(code)):
         raise ApiError.not_found("Task not found", code=TASK_NOT_FOUND)
@@ -825,10 +849,10 @@ async def delete_task(code: str) -> Response:
 
 @router.post("/tasks/{code}/restore")
 async def restore_task(code: str) -> TaskDetail:
-    """Поднять задачу и тех потомков, что ушли вместе с ней.
+    """Bring back the task and the descendants that went with it.
 
-    Живую восстановить нельзя: это не «уже хорошо», а признак того, что кнопку нажали не на той
-    строке, и молчаливое «ок» скрыло бы расхождение экрана с базой.
+    A live one cannot be restored: that is not "already fine" but a sign the button was pressed
+    on the wrong row, and a silent "ok" would hide the mismatch between screen and database.
     """
     bare = _task_code(code)
     existing = await _require_task(bare)
@@ -840,27 +864,28 @@ async def restore_task(code: str) -> TaskDetail:
 
 @router.delete("/tasks/{code}/purge", status_code=204)
 async def purge_task(code: str) -> Response:
-    """Физическое удаление задачи вместе со всей веткой под ней — восстанавливать будет нечего.
+    """Hard delete of the task with the whole branch under it — nothing will be left to restore.
 
-    Потомки перечисляются явно (это делает CRUD): каскад FK снёс бы только рёбра, а задачи-дети
-    остались бы в базе вообще без места в дереве — невидимые из любого обхода.
+    Descendants are enumerated explicitly (CRUD does it): an FK cascade would remove only the
+    edges, leaving the child tasks in the database with no place in the tree at all — invisible
+    to any traversal.
     """
     if not await task_crud.task_delete(_task_code(code), hard=True):
         raise ApiError.not_found("Task not found", code=TASK_NOT_FOUND)
     return Response(status_code=204)
 
 
-# ── этапы плана ───────────────────────────────────────────────────────────────
+# ── plan stages ───────────────────────────────────────────────────────────────
 
 
 class StageBody(_Body):
-    """Тело создания и правки этапа.
+    """Body for creating and updating a stage.
 
-    ``number`` не обязателен: не передан — этап встаёт следующим по счёту. Явное значение нужно
-    ровно для вставки в середину, и тогда хвост двигает вызывающий.
+    ``number`` is optional: when omitted the stage goes next in line. An explicit value is needed
+    exactly for inserting in the middle, and then the caller shifts the tail.
 
-    ``evidence`` сюда входит, а ``status`` — нет: закрытие этапа проверяет доказательство, и
-    делает это отдельная ручка.
+    ``evidence`` is included, ``status`` is not: closing a stage checks the evidence, and a
+    separate endpoint does that.
     """
 
     title: Annotated[
@@ -875,18 +900,18 @@ class StageBody(_Body):
 
 
 class StageStatusBody(_Body):
-    """Один статус — как и у задачи."""
+    """One status — same as for a task."""
 
     status: str
 
 
 def _stage_code(value: str) -> str:
-    """Голый код этапа из сегмента адреса."""
+    """Bare stage code from a path segment."""
     return _bare(value, STAGE_CODE_PREFIX) or ""
 
 
 async def _require_stage(code: str):
-    """Этап или 404."""
+    """A stage, or 404."""
     row = await stage_crud.stage_get(code)
     if row is None:
         raise ApiError.not_found("Stage not found", code=STAGE_NOT_FOUND)
@@ -895,7 +920,7 @@ async def _require_stage(code: str):
 
 @router.get("/tasks/{code}/stages")
 async def list_stages(code: str) -> list[StageRow]:
-    """Этапы задачи по номеру: план читается сверху вниз."""
+    """A task's stages by number: the plan reads top to bottom."""
     bare = _task_code(code)
     await _require_task(bare)
     rows = await stage_crud.stage_list_by_task(bare)
@@ -904,7 +929,7 @@ async def list_stages(code: str) -> list[StageRow]:
 
 @router.post("/tasks/{code}/stages", status_code=201)
 async def create_stage(code: str, payload: StageBody) -> StageRow:
-    """Завести этап в живой задаче."""
+    """Create a stage in a live task."""
     bare = _task_code(code)
     _live(await _require_task(bare))
     try:
@@ -922,7 +947,7 @@ async def create_stage(code: str, payload: StageBody) -> StageRow:
 
 @router.put("/stages/{code}")
 async def update_stage(code: str, payload: StageBody) -> StageRow:
-    """Полная замена карточки этапа. Статус сюда не входит — см. ``POST /stages/{code}/status``."""
+    """Full replacement of a stage card. Status is excluded — see ``POST /stages/{code}/status``."""
     bare = _stage_code(code)
     await _require_stage(bare)
     try:
@@ -943,18 +968,18 @@ async def update_stage(code: str, payload: StageBody) -> StageRow:
 
 @router.post("/stages/{code}/status")
 async def set_stage_status(code: str, payload: StageStatusBody) -> StageRow:
-    """Сменить статус этапа.
+    """Change a stage's status.
 
-    Закрытие требует доказательства: ``done`` с пустым ``evidence`` отвечает 400 — это и есть
-    шлюз, ради которого поле заведено отдельно от описания.
+    Closing requires evidence: ``done`` with an empty ``evidence`` answers 400 — that gate is
+    exactly why the field exists separately from the description.
     """
     bare = _stage_code(code)
     await _require_stage(bare)
     try:
         row = await stage_crud.stage_update_status(bare, payload.status)
     except TaskRuleError as error:
-        # Код правила едет в ответе рядом с текстом: интерфейс показывает свою формулировку, а
-        # агент читает ту же английскую фразу, что и в логах.
+        # The rule code rides in the response next to the text: the UI shows its own wording, and
+        # the agent reads the same English phrase as in the logs.
         raise ApiError.bad_request(str(error), code=error.code) from error
     except ValueError as error:
         raise ApiError.bad_request(str(error)) from error
@@ -965,19 +990,19 @@ async def set_stage_status(code: str, payload: StageStatusBody) -> StageRow:
 
 @router.delete("/stages/{code}", status_code=204)
 async def delete_stage(code: str) -> Response:
-    """Снести этап. Логического удаления у него нет: брошенный этап — это статус ``canceled``."""
+    """Hard delete a stage. It has no soft delete: an abandoned stage is the ``canceled`` status."""
     if not await stage_crud.stage_delete(_stage_code(code)):
         raise ApiError.not_found("Stage not found", code=STAGE_NOT_FOUND)
     return Response(status_code=204)
 
 
-# ── журнал ────────────────────────────────────────────────────────────────────
+# ── journal ───────────────────────────────────────────────────────────────────
 
 
 class NoteBody(_Body):
-    """Тело создания записи журнала: вид, предмет и, для факта, сразу разрешение.
+    """Body for creating a journal entry: kind, subject and, for a fact, the resolution up front.
 
-    ``stage_code`` привязывает запись к этапу; без него запись относится к задаче целиком.
+    ``stage_code`` ties the entry to a stage; without it the entry belongs to the task as a whole.
     """
 
     type: str
@@ -990,23 +1015,23 @@ class NoteBody(_Body):
 
 
 class NoteResolutionBody(_Body):
-    """Разрешение записи — то, чем она закрывается."""
+    """An entry's resolution — what it is closed with."""
 
     resolution: str
 
 
 def _note_code(value: str) -> str:
-    """Голый код записи из сегмента адреса."""
+    """Bare journal entry code from a path segment."""
     return _bare(value, NOTE_CODE_PREFIX) or ""
 
 
 @router.get("/tasks/{code}/notes")
 async def list_notes(
     code: str,
-    type: str | None = Query(None, description="Только записи этого вида"),
-    open_only: bool = Query(False, description="Только незакрытые записи"),
+    type: str | None = Query(None, description="Only entries of this kind"),
+    open_only: bool = Query(False, description="Only unresolved entries"),
 ) -> list[NoteRow]:
-    """Журнал задачи в порядке появления."""
+    """The task's journal in order of appearance."""
     bare = _task_code(code)
     await _require_task(bare)
     rows = await note_crud.note_list_by_task(bare, type=type, open_only=open_only)
@@ -1015,7 +1040,7 @@ async def list_notes(
 
 @router.post("/tasks/{code}/notes", status_code=201)
 async def create_note(code: str, payload: NoteBody) -> NoteRow:
-    """Добавить запись в журнал живой задачи."""
+    """Append an entry to a live task's journal."""
     bare = _task_code(code)
     _live(await _require_task(bare))
     try:
@@ -1034,17 +1059,17 @@ async def create_note(code: str, payload: NoteBody) -> NoteRow:
 
 @router.post("/notes/{code}/resolve")
 async def resolve_note(code: str, payload: NoteResolutionBody) -> NoteRow:
-    """Закрыть запись разрешением.
+    """Close an entry with a resolution.
 
-    Повторное закрытие отвечает 409: журнал дописываемый, и переписать разрешение задним числом
-    значило бы подогнать историю под результат. Передумали — новая запись.
+    Closing it again answers 409: the journal is append-only, and rewriting a resolution after the
+    fact would bend history to fit the outcome. Changed your mind — write a new entry.
     """
     bare = _note_code(code)
     try:
         row = await note_crud.note_resolve(bare, payload.resolution)
     except TaskRuleError as error:
-        # 409, а не 400: запись существует и в порядке — не сходится состояние, как и при правке
-        # удалённой строки.
+        # 409, not 400: the entry exists and is valid — it is the state that does not fit, as when
+        # editing a deleted row.
         raise ApiError.conflict(str(error), code=error.code) from error
     except ValueError as error:
         raise ApiError.bad_request(str(error)) from error
@@ -1055,7 +1080,7 @@ async def resolve_note(code: str, payload: NoteResolutionBody) -> NoteRow:
 
 @router.delete("/notes/{code}", status_code=204)
 async def delete_note(code: str) -> Response:
-    """Снести запись физически — ручка человека, агенту её не отдают."""
+    """Hard delete an entry — a person's endpoint, never exposed to the agent."""
     if not await note_crud.note_delete(_note_code(code)):
         raise ApiError.not_found("Journal entry not found", code=NOTE_NOT_FOUND)
     return Response(status_code=204)

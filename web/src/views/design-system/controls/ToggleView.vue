@@ -3,6 +3,16 @@ import PageLayout from '@/layout/templates/PageLayout.vue'
 import PageHeader from '@/layout/components/PageHeader.vue'
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import ChoiceCards, { type ChoiceCard } from '@/components/ChoiceCards.vue'
+
+const choice = ref<string | null>(null)
+const choiceTarget = ref<string | null>(null)
+const choiceItems: ChoiceCard[] = [
+  { value: 'ungroup', title: 'Ungroup', description: 'The tasks stay and land in "No group".' },
+  { value: 'move', title: 'Move', description: 'Picked, it shows its details below: the target.' },
+  { value: 'delete', title: 'Delete', description: 'The tasks go to the trash.' },
+  { value: 'archive', title: 'Disabled option', description: 'Skipped by the arrows; says why in its own text.', disabled: true },
+]
 
 // VCheckbox
 const cb_basic    = ref(true)
@@ -166,6 +176,35 @@ const { t } = useI18n()
             </VRadioGroup>
           </div>
           <span class="ds-spec">custom label slot</span>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ChoiceCards -->
+    <section class="ds-section">
+      <h6 class="mb-3">{{ t('design-system.section.toggle.choiceCards') }}</h6>
+      <div class="ds-card">
+
+        <div class="ds-row ds-row--start">
+          <span class="ds-tag" style="padding-top: 10px">cards</span>
+          <div class="ds-controls">
+            <ChoiceCards v-model="choice" :items="choiceItems" label="What to do with the tasks">
+              <template #details="{ item }">
+                <VSelect
+                  v-if="item.value === 'move'"
+                  v-model="choiceTarget"
+                  :items="['Billing', 'Interface']"
+                  label="Target group"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                  :chips="false"
+                />
+              </template>
+            </ChoiceCards>
+          </div>
+          <span class="ds-spec" style="padding-top: 10px">ChoiceCards + #details</span>
         </div>
 
       </div>

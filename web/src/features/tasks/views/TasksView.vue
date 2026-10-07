@@ -1,14 +1,14 @@
 <script setup lang="ts">
-// Задачи текущего пространства: плотный список с панелью фильтров.
+// Tasks of the current workspace: a dense list with a filter panel.
 //
-// Страница сама ничего не рисует, кроме шапки: строки показывает компонент ФОРМАТА, фильтры —
-// своя панель. Формат при этом хранится значением в сторе, а его разметка живёт в отдельном
-// компоненте (`FORMATS`): второй формат (доска) должен появиться строчкой в таблице ниже и новым
-// файлом рядом, а не ветвлением посреди этой разметки.
+// The page itself draws nothing but the header: rows are shown by the FORMAT component, filters by
+// their own panel. The format is stored as a value in the store, and its markup lives in a
+// separate component (`FORMATS`): a second format (a board) should appear as one line in the table
+// below plus a new file alongside, not as a branch in the middle of this markup.
 //
-// АДРЕС. Список живёт на `/tasks/list`, задача — на своей странице (`/tasks/task/TASK@…`), и клик
-// по строке уводит туда. Набор фильтров в адрес не вынесен: это рабочая поза человека, и каждая
-// буква в поиске писала бы запись в историю браузера.
+// URL. The list lives at `/tasks/list`, a task on its own page (`/tasks/task/TASK@…`), and a click
+// on a row navigates there. The filter set is not put into the URL: it is the person's working
+// posture, and every letter typed into the search would write an entry to the browser history.
 import { computed, onActivated, ref, watch, type Component } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -20,6 +20,7 @@ import SectionError from '@/components/SectionError.vue'
 import { useChangeSubscription } from '@/composables/useChangeSubscription'
 import type { Change } from '@/stores/changes'
 
+import GroupDeleteDialog from '../components/GroupDeleteDialog.vue'
 import GroupFormDialog from '../components/GroupFormDialog.vue'
 import TaskFilters from '../components/TaskFilters.vue'
 import TaskFormDialog from '../components/TaskFormDialog.vue'
@@ -27,7 +28,14 @@ import TaskListTable from '../components/TaskListTable.vue'
 import { useTasksStore } from '../stores/tasks.store'
 import { useWorkspaceContextStore } from '@/features/workspace/stores/workspace-context.store'
 import type { TaskListFormat } from '../stores/tasks.store'
-import type { GroupRow, TaskDetail, TaskListRow } from '../api'
+import {
+  deleteGroup,
+  type GroupListRow,
+  type GroupRow,
+  type GroupTaskDisposal,
+  type TaskDetail,
+  type TaskListRow,
+} from '../api'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -35,8 +43,9 @@ const router = useRouter()
 const store = useTasksStore()
 const context = useWorkspaceContextStore()
 
-// Форматы показа: значение в сторе → компонент и подпись кнопки. Вся ветка второго формата —
-// одна строка здесь плюс сам компонент; ни шапка, ни фильтры, ни окно задачи о нём не узнают.
+// Display formats: store value → component and button label. All a second format takes is one
+// line here plus the component itself; neither the header, the filters nor the task dialog will
+// know about it.
 const FORMATS: { code: TaskListFormat; label: string; icon: Component; view: Component }[] = [
   { code: 'list', label: 'tasks.task.list.format.list', icon: IconList, view: TaskListTable },
 ]
@@ -45,18 +54,19 @@ const formatView = computed(
   () => (FORMATS.find((item) => item.code === store.format) ?? FORMATS[0]).view,
 )
 
-// Страница живёт в KeepAlive и между переходами не размонтируется. `onActivated` срабатывает и на
-// первый показ, и на каждое возвращение, иначе список остался бы вчерашним; второй вызов из
-// `onMounted` дал бы при первом показе два одинаковых запроса подряд.
+// The page lives in KeepAlive and is not unmounted between navigations. `onActivated` fires both on
+// first display and on every return, otherwise the list would stay stale; a second call from
+// `onMounted` would send two identical requests in a row on first display.
 onActivated(store.load)
 
 const workspace = computed(() => context.currentWorkspace?.code ?? '')
 
-// ── Живое обновление ──────────────────────────────────────────────────────────
-// Список сам перечитывается по ленте изменений, когда его задачи, их места или группы меняет
-// кто-то другой. «Своё» — всё из текущего пространства: задача и группа несут его код в `refs`,
-// а ребро дерева — только коды задач, и узнаётся по уже известным. Когда перечитать, решает стор
-// (`reloadForChanges`): посреди своего жеста он откладывает перечитку до его конца.
+// ── Live updates ──────────────────────────────────────────────────────────────
+// The list re-reads itself from the change feed when someone else changes its tasks, their
+// positions or groups. "Ours" is anything from the current workspace: a task and a group carry its
+// code in `refs`, while a tree edge carries only task codes and is recognised by the ones already
+// known. When to re-read is decided by the store (`reloadForChanges`): in the middle of its own
+// gesture it postpones the re-read until the gesture ends.
 function concernsList(change: Change): boolean {
   if (change.ids.length === 0) return true
   if (workspace.value && change.refs.includes(workspace.value)) return true
@@ -75,14 +85,14 @@ useChangeSubscription({
   reloadsOnReturn: true,
 })
 
-// ── Переход к задаче ──────────────────────────────────────────────────────────
+// ── Navigating to a task ──────────────────────────────────────────────────────
 
 function taskPath(code: string): string {
   return `/tasks/task/${encodeURIComponent(code)}`
 }
 
-// Куда уходили со списка. Список лежит в KeepAlive и возвращается тем же, каким его оставили, —
-// отметка на строке говорит, откуда человек пришёл обратно.
+// Where the person went from the list. The list sits in KeepAlive and comes back exactly as it was
+// left — the mark on the row tells where the person came back from.
 const lastOpened = ref<string | null>(null)
 
 function openTask(code: string) {
@@ -90,9 +100,10 @@ function openTask(code: string) {
   void router.push(taskPath(code))
 }
 
-// Наследие модального окна: задачу открывал параметр запроса, и такие ссылки разосланы. Переводим
-// их на адрес страницы ЗАМЕНОЙ — шаг «назад» из задачи должен вести туда, откуда человек пришёл по
-// ссылке, а не на тот же список с параметром, который снова себя перенаправит.
+// A legacy of the modal dialog: a query parameter used to open the task, and such links have been
+// shared. They are redirected to the page URL with a REPLACE — "back" from the task must lead to
+// where the person followed the link from, not to the same list with a parameter that would
+// redirect itself again.
 watch(
   () => route.query.task,
   (value) => {
@@ -102,10 +113,10 @@ watch(
   { immediate: true },
 )
 
-// ── Форма задачи ──────────────────────────────────────────────────────────────
-// Создание и правка — одно окно: пустая карточка отличается от заполненной только тем, что
-// задачи у неё пока нет. Форма одна на всю страницу, откуда бы её ни позвали — из строки списка
-// или из карточки задачи: вторая копия разошлась бы с первой на первом же новом поле.
+// ── Task form ─────────────────────────────────────────────────────────────────
+// Create and edit are one dialog: an empty card differs from a filled one only in not having a
+// task yet. There is one form for the whole page, wherever it is called from — a list row or a
+// task card: a second copy would diverge from the first at the very first new field.
 const editing = ref<TaskDetail | TaskListRow | null>(null)
 const parent = ref<TaskDetail | TaskListRow | null>(null)
 const formOpen = ref(false)
@@ -129,24 +140,51 @@ function addChild(task: TaskDetail | TaskListRow) {
 }
 
 /**
- * Сохранение могло переставить что угодно — группу, статус, тело, — поэтому список перечитывается
- * целиком. Заведённая подзадача открывается сразу: её ради этого и заводили.
+ * Saving may have rearranged anything — group, status, body — so the list is re-read in full. A
+ * newly created subtask opens right away: that is what it was created for.
  */
 function onSaved(code: string) {
   void store.load()
   if (parent.value) openTask(code)
 }
 
-// ── Форма группы ──────────────────────────────────────────────────────────────
-// То же окно, что на странице групп, — правку зовут из шапки карточки в списке. Живёт оно здесь,
-// а не внутри списка: окон на странице одно на сущность, и формат показа (доска будет второй) не
-// должен возить их с собой.
+// ── Group form ────────────────────────────────────────────────────────────────
+// The same dialog as on the groups page — editing is called from the card header in the list. It
+// lives here, not inside the list: the page has one dialog per entity, and the display format (a
+// board will be the second) must not carry them around.
 const editingGroup = ref<GroupRow | null>(null)
 const groupFormOpen = ref(false)
 
 function editGroup(group: GroupRow) {
   editingGroup.value = group
   groupFormOpen.value = true
+}
+
+// ── Group deletion ────────────────────────────────────────────────────────────
+// The groups page's dialog, for the same reason as the form. The task count comes from the group
+// row, not from the rows on screen: the list may hide finished tasks or narrow them by filters, and
+// the backend counts every live one.
+const removingGroup = ref<GroupListRow | null>(null)
+const groupDeleteOpen = ref(false)
+const groupDeleting = ref(false)
+
+function askRemoveGroup(group: GroupListRow) {
+  removingGroup.value = group
+  groupDeleteOpen.value = true
+}
+
+// Closes only on success: on refusal the dialog stays open and the client's toast says why.
+async function removeGroup(fate: { tasks?: GroupTaskDisposal; target?: string }) {
+  const group = removingGroup.value
+  if (!group) return
+  groupDeleting.value = true
+  try {
+    await deleteGroup(group.code, fate)
+    groupDeleteOpen.value = false
+    await store.load()
+  } finally {
+    groupDeleting.value = false
+  }
 }
 </script>
 
@@ -157,10 +195,11 @@ function editGroup(group: GroupRow) {
       :description="t('tasks.task.list.description')"
     >
       <template #actions>
-        <!-- Формат показа — не фильтр: он не сужает выдачу, а меняет то, как она нарисована,
-             и место ему в шапке страницы, а не в панели фильтров. `mandatory` — снять формат
-             нельзя, какой-то из них всегда включён. Пока формат один, выбирать не из чего, и
-             переключателя нет — он вернётся сам вместе со вторым форматом в `FORMATS`. -->
+        <!-- The display format is not a filter: it does not narrow the results but changes how
+             they are drawn, so it belongs in the page header, not the filter panel. `mandatory` —
+             the format cannot be unset, one is always on. While there is only one format there is
+             nothing to choose, so there is no toggle — it will come back by itself with a second
+             format in `FORMATS`. -->
         <VBtnToggle
           v-if="FORMATS.length > 1"
           v-model="store.format"
@@ -189,9 +228,9 @@ function editGroup(group: GroupRow) {
 
     <SectionError v-if="store.error" :error="store.error" />
 
-    <!-- Пространств нет вовсе: задачам негде лежать, и ни фильтры, ни таблица здесь ничего не
-         значат — показывать их с пустыми списками значило бы предлагать сузить ничто. Ведём
-         туда, где заводят пространство. -->
+    <!-- No workspaces at all: tasks have nowhere to live, and neither the filters nor the table
+         mean anything here — showing them with empty lists would offer to narrow down nothing.
+         Point to where workspaces are created instead. -->
     <div v-else-if="store.noWorkspace" class="tasks-empty">
       <p class="tasks-empty__title">{{ t('tasks.task.list.no_workspace') }}</p>
       <p class="tasks-empty__hint">{{ t('tasks.task.list.no_workspace_hint') }}</p>
@@ -200,13 +239,11 @@ function editGroup(group: GroupRow) {
       </VBtn>
     </div>
 
-    <!-- Поиск и фильтры — своя карточка НАД списком, одна на все форматы: они правят то, что
-         показано, и принадлежат экрану, а не тому, кто рисует строки (та же анатомия, что у
-         остальных страниц-списков — `filter-panel` + карточка содержимого под ней). -->
+    <!-- Search and filters are their own card ABOVE the list, one for all formats: they control
+         what is shown and belong to the screen, not to whoever draws the rows (the same anatomy
+         as other list pages — `FilterPanel` + a content card below it). -->
     <template v-else>
-      <VCard variant="outlined" rounded="lg" class="filter-panel mb-3">
-        <TaskFilters />
-      </VCard>
+      <TaskFilters class="mb-3" />
 
       <component
         :is="formatView"
@@ -216,6 +253,7 @@ function editGroup(group: GroupRow) {
         @edit="edit"
         @add-child="addChild"
         @edit-group="editGroup"
+        @remove-group="askRemoveGroup"
       />
     </template>
 
@@ -227,26 +265,29 @@ function editGroup(group: GroupRow) {
       @saved="onSaved"
     />
 
-    <!-- Правка группы меняет и её карточку, и раскладку секций, поэтому список перечитывается
-         целиком — тем же способом, что и после правки задачи. -->
+    <!-- Editing a group changes both its card and the section layout, so the list is re-read in
+         full — the same way as after editing a task. -->
     <GroupFormDialog
       v-model="groupFormOpen"
       :workspace="workspace"
       :group="editingGroup"
       @saved="store.load"
     />
+
+    <GroupDeleteDialog
+      v-model="groupDeleteOpen"
+      :group="removingGroup"
+      :groups="store.groups"
+      :loading="groupDeleting"
+      @confirm="removeGroup"
+    />
   </PageLayout>
 </template>
 
 <style scoped>
-/* Группа форматов идёт первой в ряду действий и отбита от него: она про вид страницы, а
-   соседние кнопки — про её содержимое. */
+/* The format group comes first in the action row and is set apart from it: it is about the page's
+   view, while the neighbouring buttons are about its content. */
 .format-toggle { margin-right: 4px; }
-
-/* Общая для страниц-списков рамка панели: 12px по кругу — ОДИН отступ на двоих, внутри панель
-   своего не добавляет. Пока отступ держали оба, слева набегало 24px: вдвое больше, чем у
-   заголовка страницы и у строк списка под ней, и панель выглядела сдвинутой вправо. */
-.filter-panel { padding: 10px 12px; }
 
 .tasks-empty {
   display: flex;

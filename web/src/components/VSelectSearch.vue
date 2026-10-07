@@ -17,12 +17,18 @@ const props = withDefaults(defineProps<{
   items: unknown[]
   /** Property read as the display title for object items (mirrors VSelect's item-title). */
   itemTitle?: string
+  /** Property read as the value of object items (mirrors VSelect's item-value). */
+  itemValue?: string
+  /** The model holds whole items rather than their values (mirrors VSelect's return-object). */
+  returnObject?: boolean
   /** Placeholder for the in-dropdown search field. */
   searchPlaceholder?: string
   /** Text shown when the filter matches nothing. */
   noDataText?: string
 }>(), {
   itemTitle: 'title',
+  itemValue: 'value',
+  returnObject: false,
 })
 
 const { t } = useI18n()
@@ -44,6 +50,32 @@ const filtered = computed(() => {
   return props.items.filter(it => titleOf(it).toLowerCase().includes(q))
 })
 
+function valueOf(item: unknown): unknown {
+  if (item != null && typeof item === 'object') {
+    return (item as Record<string, unknown>)[props.itemValue]
+  }
+  return item
+}
+
+function itemFor(value: unknown): unknown {
+  if (value == null) return value
+  return props.items.find(it => valueOf(it) === value) ?? value
+}
+
+// VSelect is always fed whole items, and the model is mapped to them here. Given a bare value,
+// VSelect looks its item up in the list it was handed — the filtered one — so a query that hides
+// the selection would leave the field with a value it can no longer title. A whole item carries
+// its own title and is shown as is.
+const selection = computed(() => {
+  if (props.returnObject) return model.value
+  return Array.isArray(model.value) ? model.value.map(itemFor) : itemFor(model.value)
+})
+
+function onSelect(picked: unknown) {
+  if (props.returnObject) model.value = picked
+  else model.value = Array.isArray(picked) ? picked.map(valueOf) : picked == null ? picked : valueOf(picked)
+}
+
 // Clear the query when the menu closes so it reopens clean.
 function onMenuToggle(open: boolean) {
   if (!open) search.value = ''
@@ -59,9 +91,12 @@ const forwardedSlots = computed(() =>
 <template>
   <VSelect
     v-bind="$attrs"
-    v-model="model"
+    :model-value="selection"
     :items="filtered"
     :item-title="itemTitle"
+    :item-value="itemValue"
+    return-object
+    @update:model-value="onSelect"
     @update:menu="onMenuToggle"
   >
     <template #prepend-item>
@@ -96,8 +131,8 @@ const forwardedSlots = computed(() =>
   padding: 4px 10px 6px;
 }
 
-/* Отбивка под линейкой: подсветка первого пункта на наведении встаёт вплотную к ней, и линейка
-   читается как край пункта, а не как граница строки поиска. */
+/* Spacing under the rule: otherwise the first item's hover highlight sits flush against it, and the
+   rule reads as the item's edge rather than the search row's boundary. */
 .vss-divider {
   margin-bottom: 4px;
 }

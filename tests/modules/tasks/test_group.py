@@ -1,10 +1,11 @@
-"""CRUD групп: принадлежность пространству, порядок в списке и логическое удаление."""
+"""Group CRUD: belonging to a workspace, list order and soft deletion."""
 
 from __future__ import annotations
 
 import pytest
 
-from src.modules.tasks.constants import CODE_LEN, SORT_DEFAULT
+from src.modules.tasks.constants import CODE_LEN, GROUP_DESCRIPTION_MAX, SORT_DEFAULT
+from src.modules.tasks.models.group import TasksGroup
 from src.modules.tasks.crud.group import (
     group_create,
     group_delete,
@@ -33,7 +34,7 @@ async def test_create_in_a_missing_workspace_is_refused(db):
 
 
 async def test_create_in_a_deleted_workspace_is_refused(db, workspace):
-    """Удалённое пространство для всего остального кода не существует — группе там не место."""
+    """A deleted workspace does not exist for the rest of the code — no place for a group there."""
     await workspace_delete(workspace.code)
 
     with pytest.raises(ValueError, match="does not exist"):
@@ -58,7 +59,7 @@ async def test_list_is_scoped_to_its_workspace(db, workspace):
 
 
 async def test_create_without_sort_lands_at_the_end(db, workspace):
-    """Умолчание — «ниже всех», а не ``SORT_DEFAULT``: иначе место новой решал бы тайбрейк."""
+    """The default is "below all", not ``SORT_DEFAULT``: else a tiebreak would place the new one."""
     await group_create(workspace_code=workspace.code, title="Биллинг")
     await group_create(workspace_code=workspace.code, title="Аудит")
 
@@ -74,7 +75,7 @@ async def test_find_by_title_ignores_case(db, workspace):
 
 
 async def test_find_by_title_skips_the_deleted_and_the_neighbours(db, workspace):
-    """Занятым название считается только живой группой своего пространства."""
+    """A title counts as taken only by a live group in the same workspace."""
     other = await workspace_create(title="Личное")
     await group_create(workspace_code=other.code, title="Биллинг")
     gone = await group_create(workspace_code=workspace.code, title="Биллинг")
@@ -105,7 +106,7 @@ async def test_reorder_puts_the_group_above_its_anchor(db, workspace):
 
 
 async def test_reorder_leaves_the_list_evenly_spaced(db, workspace):
-    """Перенумерация — весь список сверху вниз: на кончившемся зазоре порядок не ломается."""
+    """Renumbering covers the whole list top to bottom: the order survives a used-up gap."""
     first = await group_create(workspace_code=workspace.code, title="Биллинг", sort=500)
     second = await group_create(workspace_code=workspace.code, title="Интерфейс", sort=500)
     third = await group_create(workspace_code=workspace.code, title="Инфра", sort=500)
@@ -143,7 +144,7 @@ async def test_reorder_needs_exactly_one_point_of_reference(db, workspace):
 
 
 async def test_update_sort_zero_is_applied(db, workspace):
-    """``0`` — валидная позиция: условие смотрит на ``is not None``, а не на истинность."""
+    """``0`` is a valid position: the condition checks ``is not None``, not truthiness."""
     row = await group_create(workspace_code=workspace.code, title="Зона", sort=900)
 
     assert (await group_update(row.code, sort=0)).sort == 0
@@ -159,3 +160,44 @@ async def test_soft_delete_hides_the_group_unless_asked_for(db, workspace):
     assert len(await group_list_by_workspace(workspace.code, include_deleted=True)) == 1
     assert await group_restore(row.code) is True
     assert await group_get(row.code) is not None
+
+
+# ── description limit ─────────────────────────────────────────────────────────
+
+
+def test_description_column_is_as_wide_as_the_limit():
+    """The model, the migration and every surface read one constant; the column is its mirror."""
+    assert TasksGroup.__table__.c.description.type.length == GROUP_DESCRIPTION_MAX == 128
+
+
+async def test_create_takes_a_description_exactly_at_the_limit(db, workspace):
+    text = "д" * GROUP_DESCRIPTION_MAX
+
+    row = await group_create(workspace_code=workspace.code, title="Зона", description=text)
+
+    assert row.description == text
+
+
+async def test_create_refuses_a_description_over_the_limit_and_writes_nothing(db, workspace):
+    """Refused with the numbers, never cut: a clipped boundary reads as a different boundary."""
+    with pytest.raises(ValueError, match=r"129 characters long, the limit is 128"):
+        await group_create(
+            workspace_code=workspace.code,
+            title="Зона",
+            description="д" * (GROUP_DESCRIPTION_MAX + 1),
+        )
+
+    assert await group_list_by_workspace(workspace.code, include_deleted=True) == []
+
+
+async def test_update_refuses_a_long_description_and_keeps_the_whole_card(db, workspace):
+    """The title sent in the same call is not applied either: the update is one write or none."""
+    row = await group_create(workspace_code=workspace.code, title="Зона", description="Старое")
+
+    with pytest.raises(ValueError, match="group description"):
+        await group_update(
+            row.code, title="Новое имя", description="д" * (GROUP_DESCRIPTION_MAX + 1)
+        )
+
+    kept = await group_get(row.code)
+    assert (kept.title, kept.description) == ("Зона", "Старое")
