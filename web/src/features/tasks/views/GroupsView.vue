@@ -1,5 +1,6 @@
 <script setup lang="ts">
-// Groups of the current workspace: a list of cards, one form dialog for create and edit, a
+// Groups of the current workspace: full-width rows in the order the task list shows them, the same
+// list as the workspaces page (`EntityRowList`); one form dialog for create and edit, a
 // confirmation for each of the two deletions.
 //
 // A group is a long-lived topic inside a workspace ("billing", "interface"), and the task list is
@@ -11,27 +12,16 @@
 // page: they arrive with the same request plus a flag.
 import { computed, onActivated, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import {
-  IconCheck,
-  IconCopy,
-  IconDotsVertical,
-  IconFlame,
-  IconPencil,
-  IconPlus,
-  IconRefresh,
-  IconRestore,
-  IconTrash,
-} from '@tabler/icons-vue'
+import { IconPlus, IconRefresh } from '@tabler/icons-vue'
 
 import PageLayout from '@/layout/templates/PageLayout.vue'
 import PageHeader from '@/layout/components/PageHeader.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import EntityRowList, { type EntityRowCounter, type EntityRowLabels } from '@/components/EntityRowList.vue'
+import EntityRowListSkeleton from '@/components/EntityRowListSkeleton.vue'
 import SectionError from '@/components/SectionError.vue'
-import { colorVarsByName } from '@/shared/colors'
-import IconSwatch from '@/components/IconSwatch.vue'
-import { fmtDateTime } from '@/shared/utils/date'
 import { useChangeSubscription } from '@/composables/useChangeSubscription'
-import { useClipboard } from '@/composables/useClipboard'
+import { useFindShortcut } from '@/composables/useFindShortcut'
 import type { Change } from '@/stores/changes'
 
 import GroupFilters from '../components/GroupFilters.vue'
@@ -44,12 +34,29 @@ import { useWorkspaceContextStore } from '@/features/workspace/stores/workspace-
 const { t } = useI18n()
 const store = useGroupsStore()
 const context = useWorkspaceContextStore()
-const { copy, isCopied } = useClipboard()
+
+function counters(group: GroupListRow): EntityRowCounter[] {
+  return [{ key: 'tasks', count: group.task_count, label: t('tasks.group.card.tasks', group.task_count) }]
+}
+
+const labels = computed<EntityRowLabels>(() => ({
+  drag: t('tasks.group.card.drag'),
+  deleted: t('tasks.group.card.deleted'),
+  actions: t('tasks.group.card.actions'),
+  updatedAt: t('tasks.group.card.updated_at'),
+  edit: t('tasks.group.card.edit'),
+  delete: t('tasks.group.card.delete'),
+  restore: t('tasks.group.card.restore'),
+  purge: t('tasks.group.card.purge'),
+}))
 
 // The page lives in KeepAlive and is not unmounted between navigations. `onActivated` fires both on
 // first display and on every return, otherwise the list would stay stale; a second call from
 // `onMounted` would send two identical requests in a row on first display.
 onActivated(store.load)
+
+const filters = ref<InstanceType<typeof GroupFilters> | null>(null)
+useFindShortcut(filters)
 
 const workspace = computed(() => context.currentWorkspace?.code ?? '')
 
@@ -69,7 +76,9 @@ function concernsGroups(change: Change): boolean {
 useChangeSubscription({
   entities: ['tasks.group', 'tasks.task'],
   match: concernsGroups,
-  onChange: () => void store.load(),
+  // Our own drops come back through the feed too; while they are on their way a re-read would show
+  // the order the backend has not reached yet, and the reorder re-reads once it has drained.
+  onChange: () => { if (!store.moving) void store.load() },
   onResync: () => void store.load(),
   reloadsOnReturn: true,
 })
@@ -152,7 +161,7 @@ async function purge() {
     <!-- The search toolbar is its own card ABOVE the list, the same anatomy as the task list
          (`FilterPanel` + cards below it). Without a workspace there is nowhere to search, so it
          is absent. -->
-    <GroupFilters v-if="!store.noWorkspace" class="mb-3" />
+    <GroupFilters v-if="!store.noWorkspace" ref="filters" class="mb-3" />
 
     <!-- No workspaces at all: groups have nowhere to live, and offering to create a group here
          would lead into a refusal. Point to where workspaces are created instead. -->
@@ -164,11 +173,7 @@ async function purge() {
       </VBtn>
     </div>
 
-    <div v-else-if="store.loading" class="group-grid">
-      <VCard v-for="n in 3" :key="n" variant="flat" class="group-card skel-card">
-        <VSkeletonLoader type="heading, text" />
-      </VCard>
-    </div>
+    <EntityRowListSkeleton v-else-if="store.loading" />
 
     <SectionError v-else-if="store.error" :error="store.error" />
 
@@ -190,104 +195,18 @@ async function purge() {
       </VBtn>
     </div>
 
-    <!-- A live group's card opens its edit dialog — the same one as the menu item. A deleted one
-         cannot be edited (409), so it is not clickable at all: it has no handler, and Vuetify does
-         not render it as a link. -->
-    <div v-else class="group-grid">
-      <VCard
-        v-for="group in store.visible"
-        :key="group.code"
-        variant="flat"
-        class="group-card color-tones"
-        :class="{ 'group-card--deleted': group.deleted_at }"
-        :style="colorVarsByName(group.color)"
-        v-on="group.deleted_at ? {} : { click: () => edit(group) }"
-      >
-        <header class="group-card__header">
-          <IconSwatch :icon="group.icon" :color="group.color" :width="34" />
-          <h3 class="group-card__title">{{ group.title }}</h3>
-
-          <VChip v-if="group.deleted_at" color="error" variant="tonal" size="x-small">
-            {{ t('tasks.group.card.deleted') }}
-          </VChip>
-
-          <!-- The code is how the group is named to the agent and in MCP, so copying is at hand,
-               not only in the menu. `.stop` — copying must not also open the card's edit. -->
-          <VBtn
-            icon
-            variant="text"
-            class="group-card__action"
-            :title="t('common.action.copy_code')"
-            @click.stop="copy(group.code)"
-          >
-            <IconCheck v-if="isCopied(group.code)" :size="16" :stroke-width="1.6" />
-            <IconCopy v-else :size="16" :stroke-width="1.6" />
-          </VBtn>
-
-          <VMenu location="bottom end" :offset="4">
-            <template #activator="{ props: menu }">
-              <VBtn
-                v-bind="menu"
-                icon
-                variant="text"
-                class="group-card__action"
-                :title="t('tasks.group.card.actions')"
-                @click.stop
-              >
-                <IconDotsVertical :size="16" :stroke-width="1.6" />
-              </VBtn>
-            </template>
-
-            <!-- The action set depends on state: a live group gets edit and soft delete, a
-                 deleted one gets restore and purge. The backend refuses to edit a deleted group
-                 (409), and showing an item that is bound to fail would make the button lie. -->
-            <VList density="compact">
-              <!-- Copying the code does not depend on state: a deleted group keeps its code. -->
-              <VListItem :prepend-icon="IconCopy" @click="copy(group.code)">
-                <VListItemTitle>{{ t('common.action.copy_code') }}</VListItemTitle>
-              </VListItem>
-              <template v-if="!group.deleted_at">
-                <VListItem :prepend-icon="IconPencil" @click="edit(group)">
-                  <VListItemTitle>{{ t('tasks.group.card.edit') }}</VListItemTitle>
-                </VListItem>
-                <VListItem
-                  :prepend-icon="IconTrash"
-                  class="group-card__menu-danger"
-                  @click="askRemove(group)"
-                >
-                  <VListItemTitle>{{ t('tasks.group.card.delete') }}</VListItemTitle>
-                </VListItem>
-              </template>
-              <template v-else>
-                <VListItem :prepend-icon="IconRestore" @click="store.restore(group.code)">
-                  <VListItemTitle>{{ t('tasks.group.card.restore') }}</VListItemTitle>
-                </VListItem>
-                <VListItem
-                  :prepend-icon="IconFlame"
-                  class="group-card__menu-danger"
-                  @click="askPurge(group)"
-                >
-                  <VListItemTitle>{{ t('tasks.group.card.purge') }}</VListItemTitle>
-                </VListItem>
-              </template>
-            </VList>
-          </VMenu>
-        </header>
-
-        <p class="group-card__desc">{{ group.description }}</p>
-
-        <footer class="group-card__footer">
-          <span class="group-card__count">{{ group.task_count }}</span>
-          <span class="group-card__count-label">{{ t('tasks.group.card.tasks', group.task_count) }}</span>
-          <span class="group-card__updated">
-            {{ fmtDateTime(group.updated_at) }}
-            <VTooltip activator="parent" location="top">
-              {{ t('tasks.group.card.updated_at') }}
-            </VTooltip>
-          </span>
-        </footer>
-      </VCard>
-    </div>
+    <EntityRowList
+      v-else
+      :items="store.visible"
+      :reorderable="store.reorderable"
+      :counters="counters"
+      :labels="labels"
+      @edit="edit"
+      @remove="askRemove"
+      @restore="(group) => store.restore(group.code)"
+      @purge="askPurge"
+      @move="store.move"
+    />
 
     <GroupFormDialog
       v-model="formOpen"
@@ -339,105 +258,5 @@ async function purge() {
   margin: 0 0 8px;
   font-size: 13px;
   color: var(--text-muted);
-}
-
-.group-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-  gap: 12px;
-}
-
-.skel-card { min-height: 116px; }
-.skel-card :deep(.v-skeleton-loader) { width: 100%; padding: 0; }
-
-.group-card {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding: 18px;
-}
-
-/* A deleted card is muted as a whole, not just marked with a label: a card in the trash must not
-   compete for attention with live ones in the same row. Hover restores the opacity. */
-.group-card--deleted { opacity: 0.55; }
-.group-card--deleted:hover { opacity: 1; }
-
-.group-card__header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.group-card__title {
-  margin: 0;
-  flex: 1;
-  min-width: 0;
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 1.3;
-  color: var(--text);
-}
-
-/* The box is set here, not via the `size`/`density` props: for an icon button Vuetify computes the
-   side as `--v-btn-height + 12px`, and density only changes the height. */
-.group-card__action {
-  width: 26px;
-  min-width: 26px;
-  height: 26px;
-  margin-right: -4px;
-  color: var(--text-faint);
-}
-
-.group-card__action:hover { color: var(--text); }
-
-.group-card__menu-danger :deep(.v-list-item-title) { color: var(--error); }
-.group-card__menu-danger :deep(.v-list-item__prepend) { color: var(--error); }
-
-/* The description is fixed at two lines: short ones reserve the height, long ones are cut with an
-   ellipsis — cards in a row line up in height. */
-.group-card__desc {
-  margin: -6px 0 0;
-  min-height: calc(1.5em * 2);
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--text-muted);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-/* The footer is pinned to the card bottom — cards in a row line up along their bottom edge. */
-.group-card__footer {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  border-top: 1px solid var(--border);
-  padding-top: 12px;
-  margin-top: auto;
-}
-
-.group-card__count {
-  font-family: var(--font-mono);
-  font-size: 18px;
-  font-weight: 600;
-  line-height: 1;
-  color: var(--text);
-}
-
-.group-card__count-label {
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
-}
-
-.group-card__updated {
-  margin-left: auto;
-  font-size: 11px;
-  color: var(--text-faint);
-  white-space: nowrap;
 }
 </style>

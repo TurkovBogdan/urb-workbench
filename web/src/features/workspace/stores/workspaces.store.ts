@@ -1,6 +1,8 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 
+import { useListReorder } from '@/composables/useListReorder'
+
 import {
   listWorkspaces,
   reorderWorkspace,
@@ -99,42 +101,14 @@ export const useWorkspacesStore = defineStore('tasks-workspaces', () => {
   // row has no place in the numbering at all.
   const reorderable = computed(() => !query.value.trim() && !includeDeleted.value)
 
-  // Requests go as a CHAIN, in gesture order: two quick drops must not race each other to the
-  // backend and land in reverse.
-  let moveChain: Promise<void> = Promise.resolve()
-  let movesInFlight = 0
-
-  /**
-   * A row was dropped at `toIndex` of the list. On screen at once, then in the database.
-   *
-   * The library reverts its own DOM reorder before `onEnd` and lets Vue redraw from the array, so
-   * without moving the row here first it would sit in its old place until the re-read. The re-read
-   * still follows — once, when the chain has drained — as reconciliation: if the backend agrees,
-   * nothing moves; if it refused (the toast says why) or the list was stale, the backend wins.
-   */
-  function move(code: string, toIndex: number) {
-    const from = items.value.findIndex((workspace) => workspace.code === code)
-    if (from < 0 || from === toIndex) return
-    const next = [...items.value]
-    const [row] = next.splice(from, 1)
-    next.splice(toIndex, 0, row)
-    items.value = next
-    context.adopt(next)
-
-    // The neighbour above names the place; at the very top there is none, so the one below does.
-    const place = toIndex > 0
-      ? { after_code: next[toIndex - 1].code }
-      : { before_code: next[1].code }
-
-    movesInFlight += 1
-    moveChain = moveChain
-      .then(() => reorderWorkspace(code, place))
-      .then(() => undefined, () => undefined)
-      .finally(() => {
-        movesInFlight -= 1
-        if (movesInFlight === 0) void load()
-      })
-  }
+  // The sidebar switcher shows the same order, so it follows the drop at once, not after the
+  // re-read.
+  const { move } = useListReorder({
+    items,
+    request: reorderWorkspace,
+    reload: load,
+    onMoved: (next) => context.adopt(next),
+  })
 
   return {
     items,

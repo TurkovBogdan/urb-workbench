@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Workspaces: a list of full-width rows (`WorkspaceList` — the rows and their drag order), one form
+// Workspaces: a list of full-width rows (`EntityRowList` — the rows and their drag order), one form
 // dialog for create and edit, two delete dialogs — reversible and final.
 //
 // A workspace is the top level of data isolation, shared by all application modules. The page
@@ -9,19 +9,21 @@
 //
 // Deleted ones sit in the same list, not on a separate page: they arrive with the same request
 // plus a flag, and splitting them across addresses would mean a second list for the same rows.
-import { onActivated, ref } from 'vue'
+import { computed, onActivated, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { IconPlus, IconRefresh } from '@tabler/icons-vue'
 
 import PageLayout from '@/layout/templates/PageLayout.vue'
 import PageHeader from '@/layout/components/PageHeader.vue'
 import SectionError from '@/components/SectionError.vue'
+import EntityRowList, { type EntityRowCounter, type EntityRowLabels } from '@/components/EntityRowList.vue'
+import EntityRowListSkeleton from '@/components/EntityRowListSkeleton.vue'
+import { useFindShortcut } from '@/composables/useFindShortcut'
 import { pushToast } from '@/composables/useToasts'
 
 import WorkspaceFilters from '../components/WorkspaceFilters.vue'
 import WorkspaceFormDialog from '../components/WorkspaceFormDialog.vue'
 import WorkspaceDeleteDialog from '../components/WorkspaceDeleteDialog.vue'
-import WorkspaceList from '../components/WorkspaceList.vue'
 import WorkspacePurgeDialog from '../components/WorkspacePurgeDialog.vue'
 import { useWorkspacesStore } from '../stores/workspaces.store'
 import type { WorkspaceListRow } from '../api'
@@ -29,10 +31,34 @@ import type { WorkspaceListRow } from '../api'
 const { t } = useI18n()
 const store = useWorkspacesStore()
 
+// The page doesn't list what is counted: the modules on top declare the set, and each counter
+// arrives with the key of its declined label.
+function counters(workspace: WorkspaceListRow): EntityRowCounter[] {
+  return workspace.counters.map((counter) => ({
+    key: counter.key,
+    count: counter.count,
+    label: t(counter.label_key, counter.count),
+  }))
+}
+
+const labels = computed<EntityRowLabels>(() => ({
+  drag: t('workspace.card.drag'),
+  deleted: t('workspace.card.deleted'),
+  actions: t('workspace.card.actions'),
+  updatedAt: t('workspace.card.updated_at'),
+  edit: t('workspace.card.edit'),
+  delete: t('workspace.card.delete'),
+  restore: t('workspace.card.restore'),
+  purge: t('workspace.card.purge'),
+}))
+
 // The page lives in KeepAlive and isn't unmounted between transitions. `onActivated` fires both on
 // first show and on every return, otherwise the list would stay stale; a second call from
 // `onMounted` would make two identical requests in a row on first show.
 onActivated(store.load)
+
+const filters = ref<InstanceType<typeof WorkspaceFilters> | null>(null)
+useFindShortcut(filters)
 
 const editing = ref<WorkspaceListRow | null>(null)
 const removing = ref<WorkspaceListRow | null>(null)
@@ -103,13 +129,9 @@ function purge(workspace: WorkspaceListRow) {
     <!-- The search toolbar is its own card ABOVE the list — the anatomy of the groups page and
          the task list (`FilterPanel` + cards below it). The trash toggle lives here too, not in
          the header: it narrows what the list shows, like the search. -->
-    <WorkspaceFilters class="mb-3" />
+    <WorkspaceFilters ref="filters" class="mb-3" />
 
-    <div v-if="store.loading" class="skel-list">
-      <VCard v-for="n in 3" :key="n" variant="flat" class="skel-row">
-        <VSkeletonLoader type="list-item-avatar-two-line" />
-      </VCard>
-    </div>
+    <EntityRowListSkeleton v-if="store.loading" />
 
     <SectionError v-else-if="store.error" :error="store.error" />
 
@@ -133,7 +155,18 @@ function purge(workspace: WorkspaceListRow) {
       </VBtn>
     </div>
 
-    <WorkspaceList v-else @edit="edit" @remove="remove" @purge="purge" />
+    <EntityRowList
+      v-else
+      :items="store.visible"
+      :reorderable="store.reorderable"
+      :counters="counters"
+      :labels="labels"
+      @edit="edit"
+      @remove="remove"
+      @restore="(workspace) => store.restore(workspace.code)"
+      @purge="purge"
+      @move="store.move"
+    />
 
     <WorkspaceFormDialog v-model="formOpen" :workspace="editing" @saved="store.load" />
     <WorkspaceDeleteDialog v-model="deleteOpen" :workspace="removing" @deleted="onDeleted" />
@@ -164,15 +197,4 @@ function purge(workspace: WorkspaceListRow) {
   font-size: 13px;
   color: var(--text-muted);
 }
-
-/* The placeholder repeats the list's rhythm (`WorkspaceList`): rows of the same height and gap, so
-   nothing jumps when the real ones arrive. */
-.skel-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.skel-row { min-height: 68px; padding: 14px 16px; }
-.skel-row :deep(.v-skeleton-loader) { width: 100%; padding: 0; background: transparent; }
 </style>

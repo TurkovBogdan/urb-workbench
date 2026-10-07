@@ -1,8 +1,9 @@
 import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 
-import { listGroups, restoreGroup, type GroupListRow } from '../api'
+import { listGroups, reorderGroup, restoreGroup, type GroupListRow } from '../api'
 import { useWorkspaceContextStore } from '@/features/workspace/stores/workspace-context.store'
+import { useListReorder } from '@/composables/useListReorder'
 
 // Groups of the CURRENT workspace: the section is bound to the context selected in the sidebar and
 // has no workspace switcher of its own — a second choice of the same thing would diverge from the
@@ -86,6 +87,16 @@ export const useGroupsStore = defineStore('tasks-groups', () => {
     await load()
   }
 
+  // ── Reordering by dragging ──────────────────────────────────────────────────
+
+  // Only the whole live list can be reordered: on a narrowed one (search, trash shown) a drop
+  // between two visible rows does not say where the group goes among the hidden ones, and a deleted
+  // group has no place in the numbering at all. The order is the same one the task list's group
+  // cards stand in.
+  const reorderable = computed(() => !query.value.trim() && !includeDeleted.value)
+
+  const { move, moving } = useListReorder({ items, request: reorderGroup, reload: load })
+
   return {
     items,
     visible,
@@ -96,8 +107,11 @@ export const useGroupsStore = defineStore('tasks-groups', () => {
     isEmpty,
     isFilteredOut,
     noWorkspace,
+    reorderable,
+    moving,
     load,
     showDeleted,
     restore,
+    move,
   }
 })
