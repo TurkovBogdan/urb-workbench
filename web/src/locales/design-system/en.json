@@ -182,6 +182,15 @@
           "Pagination"
         ]
       },
+      "filter-panel": {
+        "label": "Filter panel",
+        "tags": [
+          "FilterPanel",
+          "ListFilters",
+          "useListFilters",
+          "Applied filters"
+        ]
+      },
       "data-table": {
         "label": "Data table",
         "tags": [
@@ -548,7 +557,7 @@
     },
     "inputs": {
       "title": "Input fields",
-      "description": "VTextField, VTextarea — variants, states, density"
+      "description": "VTextField, VTextarea — variants, states, length limit, density"
     },
     "search-field": {
       "title": "Search field",
@@ -734,6 +743,10 @@
       "title": "Table page",
       "description": "What a list page is assembled from: filter panel, header, rows and pagination at the bottom — and in what order they sit"
     },
+    "filter-panel": {
+      "title": "Filter panel",
+      "description": "The strip above a list: search, selects, toggles, and the line of what narrows the list right now — one chip per value, each with its own cross"
+    },
     "markdown-editor": {
       "title": "MarkdownEditor",
       "description": "Editing-zone prototype: Tiptap as the document model, Vuetify as the entire visible layer"
@@ -748,6 +761,27 @@
     }
   },
   "section": {
+    "filter-panel": {
+      "live": "Live panel",
+      "applied_note": "The applied line answers one question — what narrows the list right now — in one place instead of in every field. A chip carries the value itself, not \"Field: value\", and a click anywhere on it removes the filter. The line arrives whole and leaves whole, so the controls above never shift. Toggles get no chip: the pressed button already says it, but a pressed toggle still brings the reset. The page only describes its filters as a schema (search / select / toggle); fields, chips, the address and the search pause come from useListFilters + ListFilters.",
+      "layout_note": "Search is the widest and never narrower than 300px; selects keep a lower width bound and wrap to the next line instead of squeezing; toggles hug the right edge. On a phone everything takes the full width.",
+      "bare": "Bare panel",
+      "bare_note": "FilterPanel without a schema: the page brings its own controls (classes filter-search / filter-select / filter-toggles give them the widths) and keeps the applied list itself — for filters that do not fit search / select / toggle, like the multi-select status with icons in the task list.",
+      "usage": "Usage",
+      "sample": {
+        "search": "Search tasks",
+        "status": "Status",
+        "status_open": "Open",
+        "status_review": "In review",
+        "status_done": "Done",
+        "priority": "Priority",
+        "priority_high": "High",
+        "priority_low": "Low",
+        "finished": "Finished",
+        "deleted": "Deleted",
+        "total": "42 tasks"
+      }
+    },
     "copy-chip": {
       "in_context": "In an object's header",
       "in_context_note": "This is how it sits on a task page: the code under the title, copyable by clicking the code itself. At rest the chip reads as plain text.",
@@ -950,6 +984,7 @@
       "specialTypes": "Special types",
       "multiline": "Multiline",
       "description": "With description",
+      "limit": "With length limit",
       "density": "Density"
     },
     "layout": {
@@ -1102,12 +1137,16 @@
       "clear": "Clear",
       "same": "Same text again",
       "dedupe_note": "A repeat is ignored while the previous one is still showing",
+      "action_note": "The button closes the message and runs the action — undoing a delete, say",
       "sample": {
         "success": "Settings saved",
         "info": "Search queued",
         "warn": "Engine disabled in settings",
         "error": "Couldn't run the request",
-        "sticky": "Server is restarting…"
+        "sticky": "Server is restarting…",
+        "deleted": "Workspace “Work” deleted",
+        "restore": "Restore",
+        "restored": "Workspace “Work” restored"
       }
     },
     "alerts": {
@@ -1299,6 +1338,7 @@
       "checkboxVariants": "VCheckbox — variants",
       "checkboxGroup": "VCheckbox — group",
       "radioGroup": "VRadio — group",
+      "choiceCards": "Choice cards",
       "switchVariants": "VSwitch — variants",
       "density": "Density"
     },

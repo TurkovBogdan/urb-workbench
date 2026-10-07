@@ -128,6 +128,10 @@
     "completed": "Last successful run: {rel}",
     "not_completed": "no successful runs yet"
   },
+  "filter": {
+    "remove": "Remove filter: {label}",
+    "reset": "Reset"
+  },
   "pagination": {
     "of": "of",
     "per_page": "Per page"

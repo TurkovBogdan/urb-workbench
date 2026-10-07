@@ -11,7 +11,7 @@ import {
   IconLayoutBottombarExpand, IconToggleLeft, IconPaperclip,
   IconMessages, IconMail, IconChevronDown, IconUsersGroup, IconMoodSmile,
   IconMoodSad, IconHeading, IconPalette, IconBrush, IconLayoutList, IconLayoutNavbar,
-  IconSearch, IconFileText, IconFolders, IconLayoutSidebar, IconSubtask, IconCopy,
+  IconSearch, IconFileText, IconFolders, IconLayoutSidebar, IconSubtask, IconCopy, IconFilter,
 } from '@tabler/icons-vue'
 import type { TablerIcon } from '@/shared/nav'
 import PageLayout from '@/layout/templates/PageLayout.vue'
@@ -61,6 +61,7 @@ const groups: Group[] = [
     key: 'tables',
     pages: [
       { slug: 'table-page',  icon: IconLayoutList },
+      { slug: 'filter-panel', icon: IconFilter },
       { slug: 'data-table',  icon: IconTable },
       { slug: 'table',       icon: IconTableRow },
       { slug: 'pagination',  icon: IconPageBreak },
@@ -121,16 +122,16 @@ const groups: Group[] = [
       { slug: 'edge-scroller', icon: IconArrowsHorizontal },
     ],
   },
-  // Специальные — узкие компоненты, собранные под одну задачу интерфейса, а не общие кирпичи
-  // вроде кнопки или поля. Предметной области они при этом не знают, в отличие от проектных.
+  // Special — narrow components built for one interface task, not general building blocks like
+  // a button or a field. Unlike the project ones, they still know nothing about the domain.
   {
     key: 'special',
     pages: [
       { slug: 'counter-button', icon: IconSubtask },
     ],
   },
-  // Проектные — то, что живёт в `features/` и знает про домен (исследования, полки). Остальные
-  // разделы держат кирпичи, которые можно унести в любой проект; эти — нет.
+  // Project — what lives in `features/` and knows the domain (research, shelves). The other
+  // sections hold building blocks that can be carried to any project; these can't.
   {
     key: 'project',
     pages: [
@@ -209,7 +210,7 @@ const groupLabel = (key: string) => t(`design-system.index.group.${key}`)
   gap: 10px;
 }
 
-/* surface / border / radius / hover / focus — глобальный дефолт .v-card + .v-card--link */
+/* surface / border / radius / hover / focus — the global .v-card + .v-card--link default */
 .ds-index__card {
   display: flex;
   flex-direction: column;

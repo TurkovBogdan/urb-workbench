@@ -1,13 +1,15 @@
 <script setup lang="ts">
-// Панель раздела групп: поиск и «показать сверх обычного» — та же анатомия, что у `TaskFilters`,
-// урезанная до того, что у групп есть. Областей глубины у поиска нет: у группы нет ничего, кроме
-// названия и описания, и искать глубже негде.
+// Groups section toolbar: search and "show beyond the usual" — the same anatomy as `TaskFilters`,
+// cut down to what groups have, and the same shared `FilterPanel` frame. The search has no depth
+// scopes: a group has nothing but a name and a description, so there is nowhere deeper to search.
 //
-// Значения живут в сторе раздела, а не здесь: поиск переживает уход со страницы и возврат на неё.
+// The values live in the section store, not here: the search survives leaving the page and coming
+// back. That is also why the schema-driven `ListFilters` is not used — it keeps its own state.
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { IconTrash } from '@tabler/icons-vue'
 
+import FilterPanel, { type AppliedFilter } from '@/components/FilterPanel.vue'
 import SearchField from '@/components/SearchField.vue'
 
 import { useGroupsStore } from '../stores/groups.store'
@@ -16,8 +18,10 @@ const { t } = useI18n()
 const store = useGroupsStore()
 
 const EXTRA_DELETED = 'deleted'
+const CHIP_QUERY = 'query'
+const CHIP_DELETED = 'deleted'
 
-/** Нажатая кнопка = показано. Корзина стоит нового запроса: удалённых в обычном ответе нет. */
+/** Pressed button = shown. The trash costs a new request: the normal response has no deleted. */
 const extras = computed({
   get: () => (store.includeDeleted ? [EXTRA_DELETED] : []),
   set: (keys: string[]) => {
@@ -25,19 +29,41 @@ const extras = computed({
     if (deleted !== store.includeDeleted) void store.showDeleted(deleted)
   },
 })
+
+// "Deleted" gets a chip while shown, as in the task list: the line under the controls is where a
+// person looks to learn what the list is showing, and a pressed button alone is easy to miss.
+const applied = computed<AppliedFilter[]>(() => {
+  const out: AppliedFilter[] = []
+  const needle = store.query.trim()
+  if (needle) out.push({ key: CHIP_QUERY, label: needle })
+  if (store.includeDeleted) out.push({ key: CHIP_DELETED, label: t('tasks.group.filter.deleted') })
+  return out
+})
+
+const showReset = computed(() => applied.value.length > 0)
+
+function drop(key: string) {
+  if (key === CHIP_QUERY) store.query = ''
+  else if (key === CHIP_DELETED) extras.value = []
+}
+
+function resetAll() {
+  store.query = ''
+  if (store.includeDeleted) void store.showDeleted(false)
+}
 </script>
 
 <template>
-  <div class="group-filters">
+  <FilterPanel :applied="applied" :resettable="showReset" @remove="drop" @clear="resetAll">
     <SearchField
       v-model="store.query"
       :placeholder="t('tasks.group.filter.query')"
       density="compact"
-      class="group-filters__search"
+      class="filter-search group-filters__search"
     />
 
-    <!-- Группа из одной кнопки, а не тумблер: так же выглядит «Удалённые» в панели задач, и один
-         переключатель не должен выглядеть по-разному на соседних страницах. -->
+    <!-- A one-button group, not a switch: "Deleted" looks the same in the tasks toolbar, and one
+         toggle must not look different on neighbouring pages. -->
     <VBtnToggle
       v-model="extras"
       multiple
@@ -45,38 +71,20 @@ const extras = computed({
       divided
       density="compact"
       color="primary"
-      class="group-filters__extras"
+      class="filter-toggles group-filters__extras"
     >
       <VBtn :value="EXTRA_DELETED" size="small">
         <template #prepend><IconTrash :size="16" :stroke-width="1.7" /></template>
         {{ t('tasks.group.filter.deleted') }}
       </VBtn>
     </VBtnToggle>
-  </div>
+  </FilterPanel>
 </template>
 
 <style scoped>
-/* Размеры и поведение ряда — те же, что у `TaskFilters`: поиск не уже 300px, переключатели прижаты
-   к правому краю и в узком окне переносятся целиком. */
-.group-filters {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-
-.group-filters__search {
-  flex: 0 1 364px;
-  min-width: 300px;
-}
-
+/* Field widths come from `FilterPanel`; here only what is inside the fields. */
 .group-filters__search :deep(.v-field__input) { font-size: 13px; }
 .group-filters__search :deep(.v-field__prepend-inner) { color: var(--text-faint); }
-
-.group-filters__extras {
-  flex: none;
-  margin-inline-start: auto;
-}
 
 .group-filters__extras :deep(.v-btn) { font-size: 12px; }
 </style>
