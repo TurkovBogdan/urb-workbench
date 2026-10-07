@@ -31,7 +31,6 @@ import {
   IconCheck,
   IconCopy,
   IconDotsVertical,
-  IconListCheck,
   IconPencil,
   IconPlus,
   IconTrash,
@@ -56,7 +55,8 @@ const emit = defineEmits<{
   /** Open a task: the code goes out, not the row — the URL is built from it. */
   open: [code: string]
   create: []
-  edit: [task: TaskListRow]
+  /** Create a task in this card's group; `null` — the "No group" card. */
+  createIn: [group: string | null]
   addChild: [task: TaskListRow]
   /** Edit a group: there is one form dialog per page, and the page holds it, not the list. */
   editGroup: [group: GroupListRow]
@@ -252,14 +252,13 @@ function onPageSizeChange(size: number) {
         </template>
 
         <!-- Right after the name — the task count and the collapse arrow, the same button as on a
-             task row with subtasks. Its icon is its own, not the row's "subtasks" one: otherwise
-             the group would read as a task with subtasks. Zero is shown: for a group it is an
-             answer, not a missing count. -->
+             task row with subtasks. No icon: the row's "subtasks" one would make the group read as
+             a task with subtasks. Zero is shown: for a group it is an answer, not a missing
+             count. -->
         <VCardTitle class="task-group__title">
           {{ section.group ? section.group.title : t('tasks.task.list.no_group') }}
           <CounterButton
             class="task-group__fold"
-            :icon="IconListCheck"
             :count="section.tasks.length"
             :folded="collapsed(section)"
             :label="t(collapsed(section) ? 'tasks.task.list.expand_group' : 'tasks.task.list.collapse_group')"
@@ -306,6 +305,9 @@ function onPageSizeChange(size: number) {
               <VListItem :prepend-icon="IconPencil" @click="emit('editGroup', section.group)">
                 <VListItemTitle>{{ t('tasks.group.card.edit') }}</VListItemTitle>
               </VListItem>
+              <VListItem :prepend-icon="IconPlus" @click="emit('createIn', section.group.code)">
+                <VListItemTitle>{{ t('tasks.task.list.add_to_group') }}</VListItemTitle>
+              </VListItem>
 
               <!-- The same two moves without a mouse: WCAG 2.2 SC 2.5.7 asks for a single-pointer
                    alternative to a gesture, and a menu that opens from the keyboard covers
@@ -349,13 +351,23 @@ function onPageSizeChange(size: number) {
           :child-counts="childCounts"
           :reorderable="reorderable"
           @open="emit('open', $event)"
-          @edit="emit('edit', $event)"
           @add-child="emit('addChild', $event)"
           @remove="store.remove($event)"
           @restore="store.restore($event)"
+          @status="store.setStatus($event.code, $event.status)"
           @move="move"
         />
       </template>
+
+      <!-- Adding stays under the card whether it is collapsed or not: a task is added to a group
+           without unfolding everything already in it. -->
+      <VDivider />
+      <div class="task-group__foot">
+        <VBtn variant="text" size="small" @click="emit('createIn', section.group?.code ?? null)">
+          <template #prepend><IconPlus :size="16" :stroke-width="1.6" /></template>
+          {{ t('tasks.task.list.add_to_group') }}
+        </VBtn>
+      </div>
     </VCard>
 
     <!-- The pagination bar is shared by all group cards and so sits below them, not inside any one:
@@ -487,6 +499,23 @@ function onPageSizeChange(size: number) {
   line-height: 16px;
   color: var(--text-muted);
   opacity: 1;
+}
+
+/* The card's footer is a place, not a control: it does not react to the pointer, only the button in
+   it does. The button's plus sits where a task's state glyph would. */
+.task-group__foot {
+  display: flex;
+  align-items: center;
+  height: 36px;
+  padding-inline-start: 24px;
+}
+
+/* Set like a task title, not like a toolbar button: the footer continues the column of rows, and a
+   heavier label would read louder than the tasks above it. */
+.task-group__foot :deep(.v-btn) {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-muted);
 }
 
 .task-list__state {

@@ -1,7 +1,14 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 
-import { deleteTask, listTasks, reorderTask, restoreTask, type TaskListRow } from '../api'
+import {
+  deleteTask,
+  listTasks,
+  reorderTask,
+  restoreTask,
+  setTaskStatus,
+  type TaskListRow,
+} from '../api'
 import { isTerminal } from '../labels'
 import { childrenIndex, moveInRow, type MovePlace } from '../tree'
 import type { TaskNode } from './tasks.store'
@@ -170,7 +177,7 @@ export const useTaskSubtreeStore = defineStore('tasks-task-subtree', () => {
     return moveChain
   }
 
-  /** Both are reversible, nothing to ask; a refusal was voiced by the toast, the answer is a fresh branch. */
+  /** The row has already asked where it should; a refusal was voiced by the toast, the answer is a fresh branch. */
   async function remove(code: string): Promise<void> {
     try {
       await deleteTask(code)
@@ -189,9 +196,18 @@ export const useTaskSubtreeStore = defineStore('tasks-task-subtree', () => {
     await load()
   }
 
+  async function setStatus(code: string, status: string): Promise<void> {
+    try {
+      await setTaskStatus(code, status)
+    } catch {
+      // see above
+    }
+    await load()
+  }
+
   return {
     rootCode, items, loading, error, query, hideFinished, includeDeleted, rootDeleted,
     deletedShown, searching, childCounts, nodes, matches, isEmpty, isFilteredOut,
-    open, load, showDeleted, reorder, remove, restore,
+    open, load, showDeleted, reorder, remove, restore, setStatus,
   }
 })

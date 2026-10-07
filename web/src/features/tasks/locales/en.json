@@ -41,7 +41,8 @@
     "list": {
       "title": "Tasks",
       "description": "Tasks of the current workspace, arranged by group.",
-      "add": "New task",
+      "add": "Create task",
+      "add_to_group": "Add task",
       "no_group": "No group",
       "group_empty": "Empty — drag a task here",
       "empty": "No tasks yet",
@@ -81,12 +82,28 @@
       "deleted": "Deleted",
       "edit": "Edit",
       "add_child": "Subtask",
+      "add_subtask": "Add subtask",
+      "mark_done": "Done",
+      "reopen": "Back to work",
+      "mark_canceled": "Canceled",
       "detach": "Detach from task",
       "collapse_children": "Collapse subtasks",
       "expand_children": "Expand subtasks",
       "delete": "Delete",
       "restore": "Restore",
-      "purge": "Delete forever"
+      "purge": "Delete forever",
+      "cancel_confirm": {
+        "title": "Cancel the task?",
+        "text": "“{title}” will be marked Canceled: no more work goes into it. To bring it back, change the status on its page.",
+        "confirm": "Cancel task",
+        "keep": "Keep"
+      },
+      "delete_confirm": {
+        "title": "Delete the task?",
+        "text": "“{title}” goes to deleted tasks. To bring it back, turn on the Deleted filter and pick Restore in the task's menu.",
+        "text_children": "“{title}” goes to deleted tasks together with its subtasks. To bring them back, turn on the Deleted filter and pick Restore in the task's menu.",
+        "confirm": "Delete"
+      }
     },
     "form": {
       "create_title": "New task",
@@ -196,7 +213,7 @@
     "list": {
       "title": "Task groups",
       "description": "Split tasks into thematic sets or functional parts",
-      "add": "New group",
+      "add": "Add group",
       "empty": "No groups yet",
       "empty_hint": "Create the first one — the task list will split into sections by it.",
       "nothing_found": "Nothing found",
@@ -208,6 +225,7 @@
     },
     "card": {
       "actions": "Actions",
+      "drag": "Drag group",
       "move_up": "Move up",
       "move_down": "Move down",
       "tasks": "task | tasks",
@@ -257,8 +275,8 @@
   },
   "workspace": {
     "counter": {
-      "groups": "Groups",
-      "tasks": "Tasks"
+      "groups": "group | groups",
+      "tasks": "task | tasks"
     }
   },
   "error": {

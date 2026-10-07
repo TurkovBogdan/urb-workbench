@@ -53,10 +53,10 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   open: [code: string]
-  edit: [task: TaskListRow]
   addChild: [task: TaskListRow]
   remove: [code: string]
   restore: [code: string]
+  status: [change: { code: string; status: string }]
   /**
    * The row moved: which row it landed under, which group it is in and whose child it is now.
    *
@@ -226,10 +226,10 @@ function fromSubtree(payload: {
         :can-down="canStep(node.task.code, 1)"
         :foldable="node.children.length > 0"
         @open="emit('open', $event)"
-        @edit="emit('edit', $event)"
         @add-child="emit('addChild', $event)"
         @remove="emit('remove', $event)"
         @restore="emit('restore', $event)"
+        @status="emit('status', $event)"
         @step="step(node.task.code, $event)"
       />
 
@@ -241,10 +241,10 @@ function fromSubtree(payload: {
         :open-code="props.openCode"
         :reorderable="props.reorderable"
         @open="emit('open', $event)"
-        @edit="emit('edit', $event)"
         @add-child="emit('addChild', $event)"
         @remove="emit('remove', $event)"
         @restore="emit('restore', $event)"
+        @status="emit('status', $event)"
         @move="fromSubtree"
       />
     </div>

@@ -522,9 +522,6 @@ useChangeSubscription({
 const purgeOpen = ref(false)
 const formOpen = ref(false)
 const parent = ref<TaskDetail | TaskListRow | null>(null)
-// Only a subtask is edited from this page via the form — from a branch row; the task itself is
-// edited in place.
-const editing = ref<TaskListRow | null>(null)
 const subtasks = ref<InstanceType<typeof TaskSubtasksPanel> | null>(null)
 
 /** Path of a neighbouring task: moving between tasks is an ordinary URL change, with a history entry. */
@@ -540,27 +537,15 @@ function goTask(target: string) {
 
 /** A subtask — of the open task or, from a branch row's menu, of one of its subtasks. */
 function addChild(under?: TaskListRow) {
-  editing.value = null
   parent.value = under ?? task.value
   formOpen.value = true
 }
 
-function editChild(child: TaskListRow) {
-  editing.value = child
-  parent.value = null
-  formOpen.value = true
-}
-
 /**
- * A newly created subtask opens right away — that is what it was created for. One edited from the
- * branch stays put: the person edited its row rather than going to it — the branch is re-read. If
- * the save was an edit of the task itself, it is re-read in place.
+ * A newly created subtask opens right away — that is what it was created for. If the save was of
+ * the task itself, it is re-read in place.
  */
 function onSaved(saved: string) {
-  if (editing.value) {
-    void subtasks.value?.reload()
-    return
-  }
   if (saved !== code.value) {
     void router.push(taskPath(saved))
     return
@@ -615,7 +600,8 @@ async function purge() {
           <template #prepend><IconRefresh :size="16" :class="{ 'icon-spin': refreshing }" /></template>
           {{ t('common.action.refresh') }}
         </VBtn>
-        <VBtn variant="text" :disabled="deleted" @click="addChild()">
+        <!-- The tree is one level deep: a subtask cannot have subtasks of its own. -->
+        <VBtn v-if="!task.parent" variant="text" :disabled="deleted" @click="addChild()">
           <template #prepend><IconPlus :size="16" /></template>
           {{ t('tasks.task.card.add_child') }}
         </VBtn>
@@ -800,7 +786,13 @@ async function purge() {
           <section>
             <SectionHeader :title="t('tasks.task.detail.children')" :count="task.children.length">
               <template #right>
-                <VBtn variant="text" size="small" :disabled="deleted" @click="addChild()">
+                <VBtn
+                  v-if="!task.parent"
+                  variant="text"
+                  size="small"
+                  :disabled="deleted"
+                  @click="addChild()"
+                >
                   <template #prepend><IconPlus :size="16" /></template>
                   {{ t('tasks.task.card.add_child') }}
                 </VBtn>
@@ -815,7 +807,6 @@ async function purge() {
               :workspace="task.workspace_code"
               :deleted="deleted"
               @open="goTask"
-              @edit="editChild"
               @add-child="addChild"
             />
           </section>
@@ -956,7 +947,7 @@ async function purge() {
     <TaskFormDialog
       v-model="formOpen"
       :workspace="task?.workspace_code ?? ''"
-      :task="editing"
+      :task="null"
       :parent="parent"
       @saved="onSaved"
     />

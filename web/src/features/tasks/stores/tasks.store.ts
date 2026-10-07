@@ -11,6 +11,7 @@ import {
   reorderTask,
   restoreTask,
   searchTasks,
+  setTaskStatus,
   type GroupListRow,
   type TaskListRow,
 } from '../api'
@@ -525,8 +526,8 @@ export const useTasksStore = defineStore('tasks-tasks', () => {
   )
 
   /**
-   * Soft delete and restore — both are reversible, so there is nothing to ask here; confirmation
-   * stays with the irreversible one (the task card).
+   * Soft delete and restore. The store does not ask: the row has already confirmed a delete
+   * before it got here, and a restore needs no question.
    *
    * A refusal is swallowed: the client's toast has already reported it, and all that remains is to
    * re-read the list. A refusal usually means what is shown has drifted from the database, and a
@@ -546,6 +547,19 @@ export const useTasksStore = defineStore('tasks-tasks', () => {
       await restoreTask(code)
     } catch {
       // see above
+    }
+    await load()
+  }
+
+  /**
+   * Closing from the row menu. The backend may refuse — a task with open subtasks is not closed —
+   * and the refusal is handled the same way: the toast has named the reason, the list is re-read.
+   */
+  async function setStatus(code: string, status: string) {
+    try {
+      await setTaskStatus(code, status)
+    } catch {
+      // see `remove`
     }
     await load()
   }
@@ -666,7 +680,7 @@ export const useTasksStore = defineStore('tasks-tasks', () => {
     roots, filtered, total, pageCount, pageItems,
     isEmpty, isFilteredOut, hasActiveFilters, finishedHidden, noWorkspace, sections,
     folded, isCollapsed, toggleCollapsed, dragging, lastRootOf,
-    load, showDeleted, showFinished, resetPage, clearFilters, remove, restore, reorder,
+    load, showDeleted, showFinished, resetPage, clearFilters, remove, restore, setStatus, reorder,
     reorderGroup, reloadForChanges,
   }
 })

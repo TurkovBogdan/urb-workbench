@@ -16,11 +16,13 @@
 //
 // Exactly 36px: a list is scanned top to bottom, and rows of uneven height have to be examined.
 // So there is no description or body here — the task is opened for those.
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   IconArrowDown,
   IconArrowUp,
+  IconCheck,
+  IconCopy,
   IconDotsVertical,
   IconPencil,
   IconRestore,
@@ -29,8 +31,10 @@ import {
   IconUnlink,
 } from '@tabler/icons-vue'
 
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import CounterButton from '@/components/CounterButton.vue'
 import DragHandle from '@/components/DragHandle.vue'
+import { useClipboard } from '@/composables/useClipboard'
 import { fmtDate, fmtDateShort } from '@/shared/utils/date'
 
 import { isTerminal, priorityColor, priorityIcon, statusColor, statusIcon } from '../labels'
@@ -61,10 +65,11 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   open: [code: string]
-  edit: [task: TaskListRow]
   addChild: [task: TaskListRow]
   remove: [code: string]
   restore: [code: string]
+  /** Closing straight from the menu: done, or canceled once confirmed. */
+  status: [change: { code: string; status: string }]
   /** A step along the sibling row without a mouse. */
   step: [direction: -1 | 1]
   /** Detach from the parent: the subtask becomes a regular task. */
@@ -102,6 +107,81 @@ function dateOf(task: TaskListRow): { value: string; label: string } | null {
 // Open action menu: the row keeps its "⋯" visible while the menu is open — otherwise the button
 // would vanish from under the cursor as soon as it moved onto a menu item.
 const menuOpen = ref(false)
+
+// The menu would close on the click and take the check mark with it — so the item holds the menu
+// open just long enough for the check to be seen, then closes it itself.
+const COPIED_MARK_MS = 700
+const { copy, isCopied } = useClipboard()
+
+async function copyCode() {
+  await copy(props.task.code)
+  setTimeout(() => { menuOpen.value = false }, COPIED_MARK_MS)
+}
+
+// The same menu opens on a right click anywhere in the row — at the pointer, not at the "⋯": the
+// person's eye is where they clicked. Null means it hangs off the button as usual.
+const menuPoint = ref<[x: number, y: number] | null>(null)
+
+/** Shift keeps the browser's own menu reachable: open in a new tab, copy the link, inspect. */
+function openMenuAt(event: MouseEvent) {
+  if (event.shiftKey) return
+  event.preventDefault()
+  menuPoint.value = [event.clientX, event.clientY]
+  menuOpen.value = true
+}
+
+const menuOverlay = ref<{ contentEl?: HTMLElement }>()
+const menuGutter = ref<HTMLElement>()
+
+// Vuetify closes a menu only on a left click outside it: a right or middle press leaves it open, and
+// right-clicking down the list would stack up one menu per row. Here a press of any button anywhere
+// outside closes it. The "⋯" gutter is not outside: the button toggles the menu itself, and closing
+// on its press would only let the click reopen it.
+function closeOnPressOutside(event: PointerEvent) {
+  const target = event.target as Node
+  if (menuOverlay.value?.contentEl?.contains(target) || menuGutter.value?.contains(target)) return
+  menuOpen.value = false
+}
+
+function stopWatchingPresses() {
+  document.removeEventListener('pointerdown', closeOnPressOutside, true)
+}
+
+watch(menuOpen, (open) => {
+  if (open) document.addEventListener('pointerdown', closeOnPressOutside, true)
+  else stopWatchingPresses()
+})
+
+onBeforeUnmount(stopWatchingPresses)
+
+// Canceling and deleting take a task out of sight in one click from a menu that opens under any
+// stray right click — so both ask first. Marking done does not: it is the expected end of the work.
+type ConfirmedAction = 'cancel' | 'delete'
+
+// The action outlives the open flag: while the dialog fades out it must keep its own text.
+const confirmAction = ref<ConfirmedAction>('delete')
+const confirmOpen = ref(false)
+
+function ask(action: ConfirmedAction) {
+  confirmAction.value = action
+  confirmOpen.value = true
+}
+
+function confirmed() {
+  confirmOpen.value = false
+  if (confirmAction.value === 'cancel') {
+    emit('status', { code: props.task.code, status: 'canceled' })
+  } else {
+    emit('remove', props.task.code)
+  }
+}
+
+const confirmText = computed(() => {
+  const title = props.task.title
+  if (confirmAction.value === 'cancel') return t('tasks.task.card.cancel_confirm.text', { title })
+  const key = props.task.has_children ? 'text_children' : 'text'
+  return t(`tasks.task.card.delete_confirm.${key}`, { title })
+})
 </script>
 
 <template>
@@ -112,12 +192,14 @@ const menuOpen = ref(false)
       'task-row--open': props.open,
       'task-row--child': props.depth > 0,
       'task-row--last-child': props.depth > 0 && props.last,
+      'task-row--menu': menuOpen,
     }"
     :style="{ '--row-depth': props.depth }"
     role="link"
     tabindex="0"
     @click="emit('open', props.task.code)"
     @keydown.enter="emit('open', props.task.code)"
+    @contextmenu="openMenuAt"
   >
     <!-- A subtask has a handle too: its row is its siblings, and it is reordered by the same
          gesture. The handle's slot is always occupied — the row must not twitch on hover. -->
@@ -213,11 +295,21 @@ const menuOpen = ref(false)
          on every row are constant noise, so the button appears under the cursor and stays while
          the menu is open. -->
     <span
+      ref="menuGutter"
       class="task-row__menu"
       :class="{ 'task-row__menu--open': menuOpen }"
       @click.stop
     >
-      <VMenu v-model="menuOpen" location="bottom end" :offset="4">
+      <!-- A menu opened at the pointer is pinned to a screen point, not to the row: on scroll the
+           row would slide away from under it and leave it hanging over someone else's task. -->
+      <VMenu
+        ref="menuOverlay"
+        v-model="menuOpen"
+        :target="menuPoint ?? undefined"
+        :location="menuPoint ? 'bottom start' : 'bottom end'"
+        :offset="menuPoint ? 0 : 4"
+        :scroll-strategy="menuPoint ? 'close' : 'reposition'"
+      >
         <template #activator="{ props: menu }">
           <VBtn
             v-bind="menu"
@@ -225,19 +317,76 @@ const menuOpen = ref(false)
             variant="text"
             class="row-action"
             :title="t('tasks.task.card.actions')"
+            @click="menuPoint = null"
           >
             <IconDotsVertical :size="16" :stroke-width="1.6" />
           </VBtn>
         </template>
 
-        <!-- The action set depends on state: a live task gets reorder, edit, subtask and delete,
+        <!-- The action set depends on state: a live task gets edit, closing, delete and reorder,
              a deleted one gets only restore. The backend refuses to edit a deleted task (409), and
-             an item bound to fail would make the button lie. -->
-        <VList density="compact">
+             an item bound to fail would make the button lie. Order is by frequency: working on the
+             task, then ending it, then moving it. A right click on the menu itself does nothing:
+             the browser's own menu would open on top of ours and hide it. -->
+        <VList density="compact" @contextmenu.prevent>
+          <!-- The code is what a task is named by to the agent; a deleted task can be named too. -->
+          <VListItem
+            :prepend-icon="isCopied(props.task.code) ? IconCheck : IconCopy"
+            @click.stop="copyCode"
+          >
+            <VListItemTitle>{{ t('common.action.copy_code') }}</VListItemTitle>
+          </VListItem>
           <template v-if="!props.task.deleted_at">
+            <!-- A task is edited on its page, where every field lives; a form here would be a
+                 second, smaller copy of it. -->
+            <VListItem :prepend-icon="IconPencil" @click="emit('open', props.task.code)">
+              <VListItemTitle>{{ t('tasks.task.card.edit') }}</VListItemTitle>
+            </VListItem>
+            <!-- The tree is one level deep: the backend refuses a subtask under a subtask. -->
+            <VListItem
+              v-if="props.task.parent_code === null"
+              :prepend-icon="IconSubtask"
+              @click="emit('addChild', props.task)"
+            >
+              <VListItemTitle>{{ t('tasks.task.card.add_subtask') }}</VListItemTitle>
+            </VListItem>
+
+            <VDivider class="my-1" />
+            <!-- The status the task already has is not offered again; a done task gets the way
+                 back in its place. -->
+            <VListItem
+              v-if="props.task.status === 'done'"
+              :prepend-icon="statusIcon('in_progress')"
+              @click="emit('status', { code: props.task.code, status: 'in_progress' })"
+            >
+              <VListItemTitle>{{ t('tasks.task.card.reopen') }}</VListItemTitle>
+            </VListItem>
+            <VListItem
+              v-else
+              :prepend-icon="statusIcon('done')"
+              @click="emit('status', { code: props.task.code, status: 'done' })"
+            >
+              <VListItemTitle>{{ t('tasks.task.card.mark_done') }}</VListItemTitle>
+            </VListItem>
+            <VListItem
+              v-if="props.task.status !== 'canceled'"
+              :prepend-icon="statusIcon('canceled')"
+              @click="ask('cancel')"
+            >
+              <VListItemTitle>{{ t('tasks.task.card.mark_canceled') }}</VListItemTitle>
+            </VListItem>
+            <VListItem
+              :prepend-icon="IconTrash"
+              class="task-menu-danger"
+              @click="ask('delete')"
+            >
+              <VListItemTitle>{{ t('tasks.task.card.delete') }}</VListItemTitle>
+            </VListItem>
+
             <!-- Mouseless reordering disappears together with the handle: on a narrowed list the
                  order is changed neither by gesture nor by menu item. -->
             <template v-if="props.reorderable !== false">
+              <VDivider class="my-1" />
               <VListItem
                 :prepend-icon="IconArrowUp"
                 :disabled="!props.canUp"
@@ -263,21 +412,7 @@ const menuOpen = ref(false)
               >
                 <VListItemTitle>{{ t('tasks.task.card.detach') }}</VListItemTitle>
               </VListItem>
-              <VDivider class="my-1" />
             </template>
-            <VListItem :prepend-icon="IconPencil" @click="emit('edit', props.task)">
-              <VListItemTitle>{{ t('tasks.task.card.edit') }}</VListItemTitle>
-            </VListItem>
-            <VListItem :prepend-icon="IconSubtask" @click="emit('addChild', props.task)">
-              <VListItemTitle>{{ t('tasks.task.card.add_child') }}</VListItemTitle>
-            </VListItem>
-            <VListItem
-              :prepend-icon="IconTrash"
-              class="task-menu-danger"
-              @click="emit('remove', props.task.code)"
-            >
-              <VListItemTitle>{{ t('tasks.task.card.delete') }}</VListItemTitle>
-            </VListItem>
           </template>
           <VListItem
             v-else
@@ -288,6 +423,18 @@ const menuOpen = ref(false)
           </VListItem>
         </VList>
       </VMenu>
+
+      <!-- Both steps are reversible and asked about often, so Enter confirms at once. -->
+      <ConfirmDialog
+        v-model="confirmOpen"
+        :title="t(`tasks.task.card.${confirmAction}_confirm.title`)"
+        :text="confirmText"
+        :confirm-label="t(`tasks.task.card.${confirmAction}_confirm.confirm`)"
+        :cancel-label="confirmAction === 'cancel' ? t('tasks.task.card.cancel_confirm.keep') : undefined"
+        :tone="confirmAction === 'delete' ? 'danger' : 'primary'"
+        enter-confirms
+        @confirm="confirmed"
+      />
     </span>
   </div>
 </template>
@@ -308,7 +455,7 @@ const menuOpen = ref(false)
   align-items: center;
   gap: 8px;
   height: 36px;
-  padding: 0 8px 0 calc(6px + var(--row-depth, 0) * var(--row-indent));
+  padding: 0 8px 0 6px;
   /* The row is a link: a click opens the task, and the cursor must promise that. The handle, the
      counter button and the menu set their own cursor on top — they have a different action. */
   cursor: pointer;
@@ -316,6 +463,11 @@ const menuOpen = ref(false)
 
 .task-row:hover,
 .task-row:focus-visible { background: var(--surface-hi); outline: none; }
+
+/* While its menu is open the row stays as it looks under the pointer: the pointer has gone onto the
+   menu items, and without the mark nothing on screen says which task the actions will hit. */
+.task-row--menu { background: var(--surface-hi); }
+.task-row--menu .drag-handle { opacity: 1; }
 
 /* The opened task stays marked after the cursor has left: on return the person sees where they
    went from. A stripe on the left, not only a background — otherwise the mark looks like hover. */
@@ -328,7 +480,8 @@ const menuOpen = ref(false)
    not compete for attention with live ones. Hover restores opacity — reading a row does not
    require resurrecting it. */
 .task-row--dimmed { opacity: 0.55; }
-.task-row--dimmed:hover { opacity: 1; }
+.task-row--dimmed:hover,
+.task-row--dimmed.task-row--menu { opacity: 1; }
 
 /* An empty slot in place of the handle: a deleted task has none, but row columns must align. */
 .task-row__handle-gap {
@@ -336,23 +489,27 @@ const menuOpen = ref(false)
   flex: none;
 }
 
-/* A subtask's handle is pushed past the guide's bend: the bend ends 9px right of the vertical,
-   and an unindented handle would start earlier — the grip icon would sit right on the branch line.
-   The empty handle slot shifts too, otherwise a deleted subtask's columns would drift apart. */
-.task-row--child .drag-handle,
-.task-row--child .task-row__handle-gap {
-  margin-inline-start: 8px;
+/* The depth indent goes after the handle, not before it: handles of every depth stand in one column
+   at the row start, where the pointer finds them, and only the branch itself steps right. The empty
+   slot carries the indent too, otherwise a deleted subtask's columns would drift apart. The -6px
+   pulls the state icon up to the grip: the handle box already pads its 14px icon by 3px a side, and
+   the full row gap on top of that reads as a hole between the two. */
+.task-row .drag-handle,
+.task-row__handle-gap {
+  margin-inline-end: calc(var(--row-depth, 0) * var(--row-indent) - 6px);
 }
 
-/* The branch guide: a vertical from the previous row and a bend toward the state icon. The
-   pseudo-element does not catch the pointer: the whole row is clickable, and the line must be no
-   exception. */
+/* The branch guide: a vertical from under the parent's state icon and a bend toward the row's own.
+   37px is the centre of a depth-0 state icon: 6px padding + 20px handle + 2px left of the gap +
+   half of 18px.
+   The pseudo-element does not catch the pointer: the whole row is clickable, and the line must be
+   no exception. */
 .task-row--child::before {
   content: '';
   position: absolute;
   top: 0;
   bottom: 50%;
-  left: calc(16px + (var(--row-depth, 1) - 1) * var(--row-indent) + 9px);
+  left: calc(37px + (var(--row-depth, 1) - 1) * var(--row-indent));
   width: 9px;
   border-left: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
@@ -367,7 +524,7 @@ const menuOpen = ref(false)
   position: absolute;
   top: 50%;
   bottom: 0;
-  left: calc(16px + (var(--row-depth, 1) - 1) * var(--row-indent) + 9px);
+  left: calc(37px + (var(--row-depth, 1) - 1) * var(--row-indent));
   border-left: 1px solid var(--border);
   pointer-events: none;
 }
@@ -423,7 +580,8 @@ const menuOpen = ref(false)
    above. The row also reveals it while the cursor is over the row. */
 .task-row__fold { margin-inline: 2px -4px; }
 
-.task-row:hover { --counter-button-color: var(--text-muted); }
+.task-row:hover,
+.task-row--menu { --counter-button-color: var(--text-muted); }
 
 .task-row__meta {
   display: inline-flex;

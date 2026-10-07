@@ -37,10 +37,10 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   open: [code: string]
-  edit: [task: TaskListRow]
   addChild: [task: TaskListRow]
   remove: [code: string]
   restore: [code: string]
+  status: [change: { code: string; status: string }]
   /**
    * The row moved: its place among siblings, and on detaching also `parent: null` with the group
    * of the card it was dropped into. Only the gesture knows the group; the menu item does not name
@@ -173,10 +173,10 @@ function detach(code: string): void {
         :can-down="canStep(node.task.code, 1)"
         :foldable="node.children.length > 0"
         @open="emit('open', $event)"
-        @edit="emit('edit', $event)"
         @add-child="emit('addChild', $event)"
         @remove="emit('remove', $event)"
         @restore="emit('restore', $event)"
+        @status="emit('status', $event)"
         @step="step(node.task.code, $event)"
         @detach="detach(node.task.code)"
       />
@@ -190,10 +190,10 @@ function detach(code: string): void {
         :open-code="props.openCode"
         :reorderable="props.reorderable"
         @open="emit('open', $event)"
-        @edit="emit('edit', $event)"
         @add-child="emit('addChild', $event)"
         @remove="emit('remove', $event)"
         @restore="emit('restore', $event)"
+        @status="emit('status', $event)"
         @move="emit('move', $event)"
       />
     </div>

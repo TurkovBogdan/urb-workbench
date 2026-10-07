@@ -12,12 +12,13 @@
 import { computed, onActivated, ref, watch, type Component } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { IconList, IconPlus, IconRefresh } from '@tabler/icons-vue'
+import { IconFolderPlus, IconList, IconPlus, IconRefresh } from '@tabler/icons-vue'
 
 import PageLayout from '@/layout/templates/PageLayout.vue'
 import PageHeader from '@/layout/components/PageHeader.vue'
 import SectionError from '@/components/SectionError.vue'
 import { useChangeSubscription } from '@/composables/useChangeSubscription'
+import { useFindShortcut } from '@/composables/useFindShortcut'
 import type { Change } from '@/stores/changes'
 
 import GroupDeleteDialog from '../components/GroupDeleteDialog.vue'
@@ -58,6 +59,9 @@ const formatView = computed(
 // first display and on every return, otherwise the list would stay stale; a second call from
 // `onMounted` would send two identical requests in a row on first display.
 onActivated(store.load)
+
+const filtersEl = ref<HTMLElement | null>(null)
+useFindShortcut(filtersEl)
 
 const workspace = computed(() => context.currentWorkspace?.code ?? '')
 
@@ -114,28 +118,30 @@ watch(
 )
 
 // ── Task form ─────────────────────────────────────────────────────────────────
-// Create and edit are one dialog: an empty card differs from a filled one only in not having a
-// task yet. There is one form for the whole page, wherever it is called from — a list row or a
-// task card: a second copy would diverge from the first at the very first new field.
-const editing = ref<TaskDetail | TaskListRow | null>(null)
+// The dialog only creates: an existing task is edited on its page. There is one form for the whole
+// page, wherever it is called from — the header, a group card or a row's "add subtask": a second copy would
+// diverge from the first at the very first new field.
 const parent = ref<TaskDetail | TaskListRow | null>(null)
+// `undefined` — the form asks for the group; a code or `null` — it is decided by the card.
+const presetGroup = ref<string | null | undefined>(undefined)
 const formOpen = ref(false)
 
 function create() {
-  editing.value = null
   parent.value = null
+  presetGroup.value = undefined
   formOpen.value = true
 }
 
-function edit(task: TaskDetail | TaskListRow) {
-  editing.value = task
+/** From a group card: the task starts in that group; `null` — the "No group" card. */
+function createIn(group: string | null) {
   parent.value = null
+  presetGroup.value = group
   formOpen.value = true
 }
 
 function addChild(task: TaskDetail | TaskListRow) {
-  editing.value = null
   parent.value = task
+  presetGroup.value = undefined
   formOpen.value = true
 }
 
@@ -154,6 +160,11 @@ function onSaved(code: string) {
 // board will be the second) must not carry them around.
 const editingGroup = ref<GroupRow | null>(null)
 const groupFormOpen = ref(false)
+
+function createGroup() {
+  editingGroup.value = null
+  groupFormOpen.value = true
+}
 
 function editGroup(group: GroupRow) {
   editingGroup.value = group
@@ -219,6 +230,10 @@ async function removeGroup(fate: { tasks?: GroupTaskDisposal; target?: string })
           <template #prepend><IconRefresh :size="16" :class="{ 'icon-spin': store.loading }" /></template>
           {{ t('tasks.action.refresh') }}
         </VBtn>
+        <VBtn variant="text" :disabled="!workspace" @click="createGroup">
+          <template #prepend><IconFolderPlus :size="16" /></template>
+          {{ t('tasks.group.list.add') }}
+        </VBtn>
         <VBtn color="primary" variant="flat" :disabled="!workspace" @click="create">
           <template #prepend><IconPlus :size="16" /></template>
           {{ t('tasks.task.list.add') }}
@@ -243,14 +258,16 @@ async function removeGroup(fate: { tasks?: GroupTaskDisposal; target?: string })
          what is shown and belong to the screen, not to whoever draws the rows (the same anatomy
          as other list pages — `FilterPanel` + a content card below it). -->
     <template v-else>
-      <TaskFilters class="mb-3" />
+      <div ref="filtersEl" class="tasks-filters">
+        <TaskFilters />
+      </div>
 
       <component
         :is="formatView"
         :open-code="lastOpened"
         @open="openTask"
         @create="create"
-        @edit="edit"
+        @create-in="createIn"
         @add-child="addChild"
         @edit-group="editGroup"
         @remove-group="askRemoveGroup"
@@ -260,8 +277,9 @@ async function removeGroup(fate: { tasks?: GroupTaskDisposal; target?: string })
     <TaskFormDialog
       v-model="formOpen"
       :workspace="workspace"
-      :task="editing"
+      :task="null"
       :parent="parent"
+      :group="presetGroup"
       @saved="onSaved"
     />
 
@@ -288,6 +306,37 @@ async function removeGroup(fate: { tasks?: GroupTaskDisposal; target?: string })
 /* The format group comes first in the action row and is set apart from it: it is about the page's
    view, while the neighbouring buttons are about its content. */
 .format-toggle { margin-right: 4px; }
+
+/* The filters stay in view while scrolling a long list — the same way the task page keeps its
+   field column: what the list is narrowed by must be seen and changed from any row of it. The
+   z-index lifts the block above the rows, which are positioned and would otherwise slide over it.
+   On a phone the panel wraps into several lines, and a sticky block that tall would take the
+   screen from the list itself.
+   A wrapper sticks, not the card: stuck at `top: 0` the card would hang below the scroller's
+   padding, and the rows would show through the strip above it. The wrapper sticks to the very
+   edge (the padding cancelled, mirroring the layout's 24px / 16px fallbacks) and paints that
+   strip in the page colour. Its own 16px top padding takes the place of the header's bottom
+   margin, so at rest the card stands exactly where it did. The gap below the card is padding for
+   the same reason: as a margin it would be transparent, and stuck the rows would run right up
+   against the card instead of keeping the distance they have at rest. */
+.tasks-filters {
+  position: sticky;
+  top: calc(-1 * var(--page-layout-pad, 24px));
+  z-index: 2;
+  margin-top: -16px;
+  padding-block: 16px 12px;
+  /* The gap below the card fades out instead of cutting the rows off at a hard edge. At rest the
+     fade lies over empty page, so it shows only once the panel is stuck — no need to detect that. */
+  background: linear-gradient(to bottom, var(--bg) calc(100% - 12px), transparent);
+}
+
+@media (max-width: 959px) {
+  .tasks-filters { top: calc(-1 * var(--page-layout-pad, 16px)); }
+}
+
+@media (max-width: 600px) {
+  .tasks-filters { position: static; }
+}
 
 .tasks-empty {
   display: flex;

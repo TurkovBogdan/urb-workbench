@@ -33,7 +33,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   open: [code: string]
-  edit: [task: TaskListRow]
   addChild: [task: TaskListRow]
 }>()
 
@@ -157,10 +156,10 @@ useChangeSubscription({
           :child-count="store.childCounts.get(task.code) ?? 0"
           :reorderable="false"
           @open="emit('open', $event)"
-          @edit="emit('edit', $event)"
-          @add-child="emit('addChild', $event)"
+              @add-child="emit('addChild', $event)"
           @remove="store.remove($event)"
           @restore="store.restore($event)"
+          @status="store.setStatus($event.code, $event.status)"
         />
       </div>
     </div>
@@ -172,10 +171,10 @@ useChangeSubscription({
       :child-counts="store.childCounts"
       :reorderable="!props.deleted"
       @open="emit('open', $event)"
-      @edit="emit('edit', $event)"
       @add-child="emit('addChild', $event)"
       @remove="store.remove($event)"
       @restore="store.restore($event)"
+      @status="store.setStatus($event.code, $event.status)"
       @move="move"
     />
   </VCard>

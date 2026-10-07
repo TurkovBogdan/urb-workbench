@@ -47,6 +47,11 @@ const props = defineProps<{
   task: TaskDetail | TaskListRow | null
   /** Parent of the subtask being created; unused when editing — moving is a separate operation. */
   parent?: TaskListRow | TaskDetail | null
+  /**
+   * The group is already decided: the task is created from that group's card, `null` — from the
+   * "No group" card. The form then does not ask for it. Absent — the person picks.
+   */
+  group?: string | null
 }>()
 
 const emit = defineEmits<{ saved: [code: string] }>()
@@ -123,7 +128,7 @@ function apply(task: TaskDetail | TaskListRow | null) {
   type.value = task?.type ?? TASK_TYPES[0]
   status.value = task?.status ?? TASK_STATUSES[0]
   priority.value = task?.priority ?? 'normal'
-  groupCode.value = task?.group_code ?? null
+  groupCode.value = task ? task.group_code : (props.group ?? null)
   deadlineAt.value = parseDay(task?.deadline_at ?? null)
   if (task && 'body' in task) applyTexts(task)
 }
@@ -286,6 +291,7 @@ async function save() {
 
       <!-- The group is optional: a task without one lands in the "No group" section, not lost. -->
       <VSelect
+        v-if="props.group === undefined"
         v-model="groupCode"
         :items="groupItems"
         :label="t('tasks.task.form.group')"
