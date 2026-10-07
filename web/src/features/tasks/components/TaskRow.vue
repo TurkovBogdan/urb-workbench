@@ -16,7 +16,7 @@
 //
 // Exactly 36px: a list is scanned top to bottom, and rows of uneven height have to be examined.
 // So there is no description or body here — the task is opened for those.
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   IconArrowDown,
@@ -35,6 +35,7 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import CounterButton from '@/components/CounterButton.vue'
 import DragHandle from '@/components/DragHandle.vue'
 import { useClipboard } from '@/composables/useClipboard'
+import { usePointerMenu } from '@/composables/usePointerMenu'
 import { fmtDate, fmtDateShort } from '@/shared/utils/date'
 
 import { isTerminal, priorityColor, priorityIcon, statusColor, statusIcon } from '../labels'
@@ -104,9 +105,19 @@ function dateOf(task: TaskListRow): { value: string; label: string } | null {
   return null
 }
 
-// Open action menu: the row keeps its "⋯" visible while the menu is open — otherwise the button
-// would vanish from under the cursor as soon as it moved onto a menu item.
-const menuOpen = ref(false)
+// The action menu opens from the "⋯" and on a right click anywhere in the row. While it is open the
+// row keeps its "⋯" visible — otherwise the button would vanish from under the cursor as soon as it
+// moved onto a menu item.
+const menuOverlay = ref<{ contentEl?: HTMLElement }>()
+const menuGutter = ref<HTMLElement>()
+const {
+  open: menuOpen,
+  openAt: openMenuAt,
+  fromButton: menuFromButton,
+  placement: menuPlacement,
+} = usePointerMenu(
+  (target) => !!(menuOverlay.value?.contentEl?.contains(target) || menuGutter.value?.contains(target)),
+)
 
 // The menu would close on the click and take the check mark with it — so the item holds the menu
 // open just long enough for the check to be seen, then closes it itself.
@@ -117,42 +128,6 @@ async function copyCode() {
   await copy(props.task.code)
   setTimeout(() => { menuOpen.value = false }, COPIED_MARK_MS)
 }
-
-// The same menu opens on a right click anywhere in the row — at the pointer, not at the "⋯": the
-// person's eye is where they clicked. Null means it hangs off the button as usual.
-const menuPoint = ref<[x: number, y: number] | null>(null)
-
-/** Shift keeps the browser's own menu reachable: open in a new tab, copy the link, inspect. */
-function openMenuAt(event: MouseEvent) {
-  if (event.shiftKey) return
-  event.preventDefault()
-  menuPoint.value = [event.clientX, event.clientY]
-  menuOpen.value = true
-}
-
-const menuOverlay = ref<{ contentEl?: HTMLElement }>()
-const menuGutter = ref<HTMLElement>()
-
-// Vuetify closes a menu only on a left click outside it: a right or middle press leaves it open, and
-// right-clicking down the list would stack up one menu per row. Here a press of any button anywhere
-// outside closes it. The "⋯" gutter is not outside: the button toggles the menu itself, and closing
-// on its press would only let the click reopen it.
-function closeOnPressOutside(event: PointerEvent) {
-  const target = event.target as Node
-  if (menuOverlay.value?.contentEl?.contains(target) || menuGutter.value?.contains(target)) return
-  menuOpen.value = false
-}
-
-function stopWatchingPresses() {
-  document.removeEventListener('pointerdown', closeOnPressOutside, true)
-}
-
-watch(menuOpen, (open) => {
-  if (open) document.addEventListener('pointerdown', closeOnPressOutside, true)
-  else stopWatchingPresses()
-})
-
-onBeforeUnmount(stopWatchingPresses)
 
 // Canceling and deleting take a task out of sight in one click from a menu that opens under any
 // stray right click — so both ask first. Marking done does not: it is the expected end of the work.
@@ -300,16 +275,7 @@ const confirmText = computed(() => {
       :class="{ 'task-row__menu--open': menuOpen }"
       @click.stop
     >
-      <!-- A menu opened at the pointer is pinned to a screen point, not to the row: on scroll the
-           row would slide away from under it and leave it hanging over someone else's task. -->
-      <VMenu
-        ref="menuOverlay"
-        v-model="menuOpen"
-        :target="menuPoint ?? undefined"
-        :location="menuPoint ? 'bottom start' : 'bottom end'"
-        :offset="menuPoint ? 0 : 4"
-        :scroll-strategy="menuPoint ? 'close' : 'reposition'"
-      >
+      <VMenu ref="menuOverlay" v-model="menuOpen" v-bind="menuPlacement">
         <template #activator="{ props: menu }">
           <VBtn
             v-bind="menu"
@@ -317,7 +283,7 @@ const confirmText = computed(() => {
             variant="text"
             class="row-action"
             :title="t('tasks.task.card.actions')"
-            @click="menuPoint = null"
+            @click="menuFromButton"
           >
             <IconDotsVertical :size="16" :stroke-width="1.6" />
           </VBtn>

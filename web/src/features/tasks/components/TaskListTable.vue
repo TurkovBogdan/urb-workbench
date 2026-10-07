@@ -23,7 +23,7 @@
 //
 // One task is one row of exactly 36px: a list is scanned top to bottom, and rows of uneven height
 // have to be examined. So the row has no description or body — the task is opened for those.
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   IconArrowDown,
@@ -40,6 +40,7 @@ import CounterButton from '@/components/CounterButton.vue'
 import IconSwatch from '@/components/IconSwatch.vue'
 import TablePaginationBar from '@/components/TablePaginationBar.vue'
 import { useClipboard } from '@/composables/useClipboard'
+import { usePointerMenu } from '@/composables/usePointerMenu'
 
 import GroupDropZone from './GroupDropZone.vue'
 import TaskRows from './TaskRows.vue'
@@ -94,6 +95,41 @@ function collapsed(section: TaskSection): boolean {
 
 function toggleFold(section: TaskSection) {
   store.toggleCollapsed(section.group?.code ?? null, !section.tasks.length)
+}
+
+// ── Group card menu ───────────────────────────────────────────────────────────
+// Opens from the "⋯" and on a right click on the card's header or footer, the same way a task row's
+// menu does; the rows between them have menus of their own.
+// One menu for the whole list — only one can be open — so the cards share one state and remember
+// whose it is. A press inside the menu or on that card's own "⋯" does not close it.
+const menuGroup = ref<string | null>(null)
+const {
+  open: groupMenuOpen,
+  openAt: openGroupMenuAt,
+  fromButton: groupMenuFromButton,
+  placement: groupMenuPlacement,
+} = usePointerMenu((target) => {
+  const element = target instanceof Element ? target : target.parentElement
+  return !!element?.closest(`.task-group__menu, [data-group-menu="${menuGroup.value}"]`)
+})
+
+function isGroupMenuOpen(code: string): boolean {
+  return groupMenuOpen.value && menuGroup.value === code
+}
+
+function setGroupMenu(code: string, open: boolean) {
+  if (open) {
+    menuGroup.value = code
+    groupMenuOpen.value = true
+  } else if (menuGroup.value === code) {
+    groupMenuOpen.value = false
+  }
+}
+
+function openGroupMenuOnCard(event: MouseEvent, code: string) {
+  if (event.shiftKey) return
+  menuGroup.value = code
+  openGroupMenuAt(event)
 }
 
 /**
@@ -240,7 +276,11 @@ function onPageSizeChange(size: number) {
         :group="section.group?.code ?? ''"
         :after="store.lastRootOf(section.group?.code ?? null)"
       >
-      <VCardItem class="task-group__head">
+      <VCardItem
+        class="task-group__head"
+        :class="{ 'task-group__head--menu': section.group && isGroupMenuOpen(section.group.code) }"
+        @contextmenu="section.group && openGroupMenuOnCard($event, section.group.code)"
+      >
         <template #prepend>
           <IconSwatch
             v-if="section.group"
@@ -284,7 +324,12 @@ function onPageSizeChange(size: number) {
             <IconCheck v-if="isCopied(section.group.code)" :size="16" :stroke-width="1.7" />
             <IconCopy v-else :size="16" :stroke-width="1.7" />
           </VBtn>
-          <VMenu v-if="section.group" location="bottom end">
+          <VMenu
+            v-if="section.group"
+            :model-value="isGroupMenuOpen(section.group.code)"
+            v-bind="groupMenuPlacement"
+            @update:model-value="setGroupMenu(section.group.code, $event)"
+          >
             <template #activator="{ props: menu }">
               <VBtn
                 v-bind="menu"
@@ -292,13 +337,17 @@ function onPageSizeChange(size: number) {
                 size="x-small"
                 icon
                 class="task-group__more"
+                :data-group-menu="section.group.code"
                 :aria-label="t('tasks.group.card.actions')"
+                @click="groupMenuFromButton"
               >
                 <IconDotsVertical :size="16" :stroke-width="1.7" />
               </VBtn>
             </template>
 
-            <VList density="compact" class="task-group__menu">
+            <!-- A right click on the menu itself does nothing: the browser's own menu would open on
+                 top of ours and hide it. -->
+            <VList density="compact" class="task-group__menu" @contextmenu.prevent>
               <VListItem :prepend-icon="IconCopy" @click="copy(section.group.code)">
                 <VListItemTitle>{{ t('common.action.copy_code') }}</VListItemTitle>
               </VListItem>
@@ -360,9 +409,14 @@ function onPageSizeChange(size: number) {
       </template>
 
       <!-- Adding stays under the card whether it is collapsed or not: a task is added to a group
-           without unfolding everything already in it. -->
+           without unfolding everything already in it. The footer is the card's own as much as the
+           header, so a right click here opens the same group menu. -->
       <VDivider />
-      <div class="task-group__foot">
+      <div
+        class="task-group__foot"
+        :class="{ 'task-group__foot--menu': section.group && isGroupMenuOpen(section.group.code) }"
+        @contextmenu="section.group && openGroupMenuOnCard($event, section.group.code)"
+      >
         <VBtn variant="text" size="small" @click="emit('createIn', section.group?.code ?? null)">
           <template #prepend><IconPlus :size="16" :stroke-width="1.6" /></template>
           {{ t('tasks.task.list.add_to_group') }}
@@ -476,10 +530,24 @@ function onPageSizeChange(size: number) {
   transition: opacity 120ms ease, color 120ms ease;
 }
 
-.task-group:hover .task-group__more {
+.task-group:hover .task-group__more,
+.task-group__head--menu .task-group__more {
   opacity: 1;
   color: var(--text-muted);
 }
+
+/* While its menu is open the card's own strips — header and footer — stay marked, as a task row
+   does: the pointer has gone onto the menu items, and without the mark nothing says which group the
+   actions will hit. Both strips, whichever one was clicked: the menu belongs to the whole card. An
+   empty card is lifted out of its muting for the same reason. */
+.task-group__head--menu {
+  background: var(--surface-hi);
+  --counter-button-color: var(--text-muted);
+}
+
+.task-group__foot--menu { background: var(--surface-hi); }
+
+.task-group--empty:has(.task-group__head--menu) { opacity: 1; }
 
 /* As on the groups page: deleting is the one item that costs something, and it says so in color. */
 .task-group__menu-danger :deep(.v-list-item-title),
