@@ -1,9 +1,10 @@
-"""HTTP-API плана: этапы, журнал и то, что деталка задачи отдаёт одним ответом.
+"""The plan's HTTP API: stages, the journal, and what the task detail returns in one response.
 
-Здесь проверяется граница, а не правила: сами правила живут в ``test_stage.py`` и ``test_note.py``.
-Ручке важно другое — каким статусом отвечает отказ, едет ли рядом с ним КОД правила (по нему
-интерфейс показывает свою формулировку, а не английскую фразу из недр CRUD) и приезжают ли
-этапы с журналом внутри карточки задачи.
+This tests the boundary, not the rules: the rules themselves live in ``test_stage.py`` and
+``test_note.py``. What matters to the endpoint is different — which status a refusal answers
+with, whether the rule CODE travels with it (the interface shows its own wording by that code
+rather than an English phrase from deep inside the CRUD), and whether stages and the journal
+arrive inside the task card.
 """
 
 from __future__ import annotations
@@ -30,14 +31,14 @@ NOTES = "/internal/workbench/notes"
 
 
 async def _task(title: str = "Перенести тарифы"):
-    """Задача с этапами, то есть расширенная: у стандартной план живёт прозой и этапов нет."""
+    """A task with stages, i.e. extended: a standard one keeps its plan as prose, no stages."""
     workspace = await workspace_crud.workspace_create(title="Работа")
     return await task_crud.task_create(
         workspace_code=workspace.code, title=title, type=TYPE_EXTENDED
     )
 
 
-# ── этапы ─────────────────────────────────────────────────────────────────────
+# ── stages ────────────────────────────────────────────────────────────────────
 
 
 async def test_stage_list_is_scoped_to_its_task(client):
@@ -65,7 +66,7 @@ async def test_stage_create_returns_the_row_with_its_number(client):
 
 
 async def test_stage_create_on_a_deleted_task_is_409(client):
-    """Удалённая задача не правится нигде — этап к ней не завести, как и всё остальное."""
+    """A deleted task is not editable anywhere — no stage can be added to it, like anything else."""
     task = await _task()
     await task_crud.task_delete(task.code)
 
@@ -95,7 +96,7 @@ async def test_stage_update_replaces_the_card(client):
 
 
 async def test_closing_without_evidence_is_400_with_the_rule_code(client):
-    """Главный шлюз плана: отказ несёт код, по которому интерфейс говорит своими словами."""
+    """The plan's main gate: the refusal carries a code the interface words in its own terms."""
     task = await _task()
     stage = await stage_crud.stage_create(task_code=task.code, title="Модели")
 
@@ -141,7 +142,7 @@ async def test_a_foreign_prefix_in_the_stage_segment_is_400(client):
     assert response.status_code == 400
 
 
-# ── журнал ────────────────────────────────────────────────────────────────────
+# ── journal ───────────────────────────────────────────────────────────────────
 
 
 async def test_note_create_returns_an_open_entry(client):
@@ -196,7 +197,7 @@ async def test_resolve_closes_the_entry(client):
 
 
 async def test_second_resolve_is_409_with_the_rule_code(client):
-    """Журнал дописываемый: повтор — не «неверный запрос», а расхождение состояния."""
+    """The journal is append-only: a repeat is not a "bad request" but a state conflict."""
     task = await _task()
     note = await note_crud.note_create(
         task_code=task.code, type=NOTE_DECISION, title="Куда девать agent"
@@ -217,11 +218,11 @@ async def test_resolve_of_a_missing_entry_is_404(client):
     assert response.status_code == 404
 
 
-# ── карточка задачи целиком ───────────────────────────────────────────────────
+# ── the whole task card ───────────────────────────────────────────────────────
 
 
 async def test_task_detail_carries_the_brief_the_plan_and_both_lists(client):
-    """Деталка — экран работы: постановка, план, этапы и журнал едут одним ответом."""
+    """The detail is the working screen: brief, plan, stages and journal come in one response."""
     task = await _task()
     await task_crud.task_update(
         task.code,
@@ -244,7 +245,7 @@ async def test_task_detail_carries_the_brief_the_plan_and_both_lists(client):
 
 
 async def test_task_list_row_carries_neither_stages_nor_journal(client):
-    """Строка списка остаётся лёгкой: план целиком открывает деталка, а не выдача списком."""
+    """A list row stays light: the full plan is opened by the detail, not by the list."""
     task = await _task()
     await stage_crud.stage_create(task_code=task.code, title="Модели")
 
@@ -257,7 +258,7 @@ async def test_task_list_row_carries_neither_stages_nor_journal(client):
 
 
 async def test_overlong_plan_is_refused_by_the_api(client):
-    """План отказывает, а не усекается: обрезался бы хвост, где перечислены файлы."""
+    """The plan is refused, not truncated: truncation would cut the tail that lists the files."""
     task = await _task()
 
     response = await client.put(

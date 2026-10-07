@@ -1,18 +1,19 @@
 <script setup lang="ts">
-// Контейнер детей ОДНОГО родителя и перетаскивание внутри него.
+// The container of ONE parent's children and dragging within it.
 //
-// Отдельным компонентом и рекурсивно — по той же причине, по которой ряды корней живут в
-// `TaskRows`: sortable заводится НА КОНТЕЙНЕР, а контейнеров столько же, сколько родителей с
-// детьми. Пока ветка рисовалась плоским списком строк, такого контейнера не было вовсе, и
-// переставить подзадачу среди сестёр было нечем.
+// A separate, recursive component — for the same reason root rows live in `TaskRows`: a sortable
+// is created ON A CONTAINER, and there are as many containers as parents with children. While the
+// branch was drawn as a flat list of rows there was no such container at all, so there was nothing
+// to reorder a subtask among its siblings with.
 //
-// ПРАВИЛА ЖЕСТА ВЫРАЖЕНЫ ГРУППОЙ SORTABLE, а не проверками в обработчике. `put: false` — внутрь
-// ветки со стороны не бросишь: ни корень (он не должен становиться подзадачей перетаскиванием),
-// ни подзадачу из чужой ветки (смена родителя — это перенос ветки, у него свой разговор).
-// Перестановка среди СВОИХ сестёр `put` не спрашивает и работает.
+// THE GESTURE RULES ARE EXPRESSED BY THE SORTABLE GROUP, not by checks in the handler.
+// `put: false` — nothing can be dropped into a branch from outside: neither a root task (it must
+// not become a subtask by dragging) nor a subtask from another branch (changing the parent is
+// moving a branch, a separate conversation). Reordering among ITS OWN siblings does not consult
+// `put` and works.
 //
-// `pull: true` при этом оставлен: вытащить подзадачу наверх, в контейнер карточки группы, можно —
-// это и есть открепление. Принимающая сторона (`TaskRows`) решает, брать ли её.
+// `pull: true` is kept, though: pulling a subtask up into a group card's container is allowed —
+// that is detaching. The receiving side (`TaskRows`) decides whether to take it.
 import { ref, watch } from 'vue'
 import { useDraggable } from 'vue-draggable-plus'
 
@@ -21,13 +22,13 @@ import { anchorAfterDrop } from '../drag'
 import { useTasksStore, type TaskNode } from '../stores/tasks.store'
 import type { TaskListRow } from '../api'
 
-/** Ход анимации перестановки соседей — штатный FLIP библиотеки, тот же, что у рядов корней. */
+/** Duration of the sibling reorder animation — the library's stock FLIP, same as for root rows. */
 const ANIMATION_MS = 150
 
 const props = defineProps<{
-  /** Дети одного родителя — узлами: у каждого свои дети, глубина и место в ряду. */
+  /** Children of one parent, as nodes: each with its own children, depth and place in the row. */
   nodes: TaskNode[]
-  /** Код родителя: контейнер помечен им, чтобы обработчик знал, откуда уехала строка. */
+  /** Parent code: the container is tagged with it so the handler knows where the row came from. */
   parentCode: string
   childCounts: Map<string, number>
   openCode?: string | null
@@ -41,9 +42,9 @@ const emit = defineEmits<{
   remove: [code: string]
   restore: [code: string]
   /**
-   * Строка переехала: место среди сестёр, а при откреплении — ещё и `parent: null` с группой
-   * той карточки, в которую её бросили. Группу знает только жест; пункт меню её не называет, и
-   * подставляет её карточка.
+   * The row moved: its place among siblings, and on detaching also `parent: null` with the group
+   * of the card it was dropped into. Only the gesture knows the group; the menu item does not name
+   * it, and the card fills it in.
    */
   move: [payload: {
     code: string
@@ -53,13 +54,13 @@ const emit = defineEmits<{
   }]
 }>()
 
-// Свёрнута ли ветка под строкой — см. тот же стор в `TaskRows`.
+// Whether the branch under a row is collapsed — see the same store in `TaskRows`.
 const store = useTasksStore()
 
 const container = ref<HTMLElement | null>(null)
 
-// Список, который двигает сама библиотека. Рисуем мы не его, а `nodes` из стора — он остаётся
-// источником правды, а этот массив нужен sortable, чтобы вести своё состояние.
+// The list the library itself moves around. We render not it but `nodes` from the store — that
+// stays the source of truth, and this array exists for sortable to keep its own state.
 const codes = ref<string[]>([])
 
 watch(
@@ -72,11 +73,11 @@ const sortable = useDraggable(container, codes, {
   group: { name: 'tasks', pull: true, put: false },
   handle: '.drag-handle',
   draggable: '.task-drag',
-  // Ручка из ВЛОЖЕННОГО контейнера принадлежит ему, а не нам (см. тот же фильтр в `TaskRows`).
+  // A handle from a NESTED container belongs to it, not to us (see the same filter in `TaskRows`).
   filter: (event: Event) =>
     (event.target as HTMLElement | null)?.closest('.task-subtree, .task-rows') !== container.value,
   animation: ANIMATION_MS,
-  // Pointer Events вместо нативного DnD — по тем же причинам, что и у рядов корней.
+  // Pointer Events instead of native DnD — for the same reasons as with root rows.
   forceFallback: true,
   fallbackOnBody: true,
   ghostClass: 'task-drag--ghost',
@@ -95,10 +96,10 @@ const sortable = useDraggable(container, codes, {
     const to = event.to as HTMLElement
     const after = anchorAfterDrop(to, code, event.newIndex)
 
-    // Жест разбирает ИСТОЧНИК, а не приёмник: `onEnd` библиотека шлёт тому sortable, с которого
-    // перетаскивание началось, — принимающий получает только `onAdd` и про исходную ветку не
-    // знает. Отсюда и решение здесь: подзадача уехала в контейнер корней (у него в разметке
-    // помечена группа) — значит её вытащили из ветки, и это открепление.
+    // The SOURCE resolves the gesture, not the receiver: the library sends `onEnd` to the sortable
+    // the drag started from — the receiver gets only `onAdd` and knows nothing of the source
+    // branch. Hence the decision is made here: the subtask went into a root container (its markup
+    // carries a group tag) — so it was pulled out of the branch, and that is a detach.
     if (to !== event.from) {
       if (to.dataset.group === undefined) return
       emit('move', { code, after, parent: null, group: to.dataset.group || null })
@@ -116,9 +117,9 @@ watch(
   { immediate: true },
 )
 
-// ── Тот же перенос без мыши ───────────────────────────────────────────────────
-// «Выше» — встать после того, кто стоял через одного: иначе перестановка с соседом ничего не
-// меняет. «Ниже» — после ближайшего соседа снизу.
+// ── The same move without a mouse ─────────────────────────────────────────────
+// "Up" — land after the one two places above: otherwise swapping with the neighbour changes
+// nothing. "Down" — after the nearest neighbour below.
 
 function neighbourFor(code: string, direction: -1 | 1): string | null | undefined {
   const order = props.nodes.map((node) => node.task.code)
@@ -140,12 +141,13 @@ function step(code: string, direction: -1 | 1): void {
 }
 
 /**
- * Открепление пунктом меню. Места броска у пункта нет, и задача встаёт НАВЕРХ ряда своей группы
- * (`after: null`).
+ * Detaching via the menu item. The item has no drop point, so the task goes to the TOP of its
+ * group's row (`after: null`).
  *
- * Наверх, а не в конец, хотя свежая задача кладётся вниз: откреплённая не свежая, её только что
- * достали из ветки руками — и человек должен увидеть, что получилось, а не искать строку в хвосте
- * карточки. У жеста этого вопроса нет вовсе: там место названо броском.
+ * To the top, not the end, although a fresh task is placed at the bottom: a detached task is not
+ * fresh, it was just pulled out of a branch by hand — and the person should see the result rather
+ * than hunt for the row at the tail of the card. The gesture does not face this question at all:
+ * there the drop names the place.
  */
 function detach(code: string): void {
   emit('move', { code, after: null, parent: null })
@@ -179,7 +181,7 @@ function detach(code: string): void {
         @detach="detach(node.task.code)"
       />
 
-      <!-- Рекурсия: у ребёнка свои дети, и у них свой контейнер со своим sortable. -->
+      <!-- Recursion: a child has children of its own, with their own container and sortable. -->
       <TaskSubtree
         v-if="node.children.length && !store.isCollapsed(node.task.code)"
         :nodes="node.children"
@@ -199,8 +201,8 @@ function detach(code: string): void {
 </template>
 
 <style scoped>
-/* Своей внешности у контейнера нет: он существует ради жеста. Высоту ему задают строки внутри,
-   а разделители рисует сама строка. */
+/* The container has no look of its own: it exists for the gesture. Its height comes from the rows
+   inside, and the dividers are drawn by the row itself. */
 .task-subtree__item + .task-subtree__item,
 .task-subtree > .task-subtree__item:first-child {
   border-top: 1px solid var(--border-soft);

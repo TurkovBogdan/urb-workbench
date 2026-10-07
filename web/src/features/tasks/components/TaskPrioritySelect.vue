@@ -1,19 +1,20 @@
 <script setup lang="ts">
 /**
- * Выбор приоритета: список со значками и две кнопки шага по лестнице важности.
+ * Priority picker: a list with icons and two buttons that step along the importance ladder.
  *
- * Отдельный компонент, потому что мест выбора уже два — карточка задачи и форма заведения, — а
- * пункт приоритета не голая строка: порядок, значок и цвет живут в `labels.ts`, и собирать их в
- * каждом окне заново значило бы разойтись на первой же правке справочника.
+ * A separate component because there are already two places to pick it — the task card and the
+ * create form — and a priority item is not a bare string: order, icon and color live in
+ * `labels.ts`, and assembling them anew in each window would diverge at the first edit of the
+ * vocabulary.
  *
- * Кнопки — `VSelectStepper` дизайн-системы: приоритет это лестница, и соседнюю ступень берут
- * чаще, чем прыгают через весь набор. Набор развёрнут от замороженного к горящему — обратно
- * `TASK_PRIORITIES`, где первым идёт самое важное: шкалу читают снизу вверх, и тогда движение
- * вправо совпадает с ростом важности, как на любом ползунке. Края не заворачиваются — на
- * замороженном гаснет левая кнопка, на горящем правая.
+ * The buttons are the design system's `VSelectStepper`: priority is a ladder, and the next rung is
+ * picked more often than a jump across the whole set. The set is reversed from frozen to burning —
+ * the opposite of `TASK_PRIORITIES`, where the most important comes first: a scale is read bottom
+ * up, and then moving right matches rising importance, as on any slider. The ends do not wrap — on
+ * frozen the left button is disabled, on burning the right one.
  *
- * Всё оформление места применения (`label`, `variant`, `density`, `disabled`) проходит насквозь
- * атрибутами: своей внешности у поля нет, она у окна, где оно стоит.
+ * All call-site styling (`label`, `variant`, `density`, `disabled`) passes straight through as
+ * attributes: the field has no look of its own, the window it sits in owns it.
  */
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -25,8 +26,8 @@ const model = defineModel<string>()
 
 const { t } = useI18n()
 
-// Копия перед разворотом обязательна: `TASK_PRIORITIES` — общий справочник, и `reverse` на нём
-// самом перевернул бы порядок и в фильтрах, и везде, где его читают.
+// Copying before reversing is mandatory: `TASK_PRIORITIES` is a shared vocabulary, and `reverse`
+// on it in place would flip the order in the filters and everywhere else it is read.
 const items = computed(() =>
   [...TASK_PRIORITIES]
     .reverse()
@@ -35,8 +36,9 @@ const items = computed(() =>
 </script>
 
 <template>
-  <!-- Значок берётся из значения пункта, а не из его собственного поля: `item` приезжает в слот
-       в двух разных видах (исходный объект и обёртка Vuetify), а `value` и `title` есть у обоих. -->
+  <!-- The icon is derived from the item's value, not from a field of its own: `item` reaches the
+       slot in two different shapes (the source object and the Vuetify wrapper), and only `value`
+       and `title` exist on both. -->
   <VSelectStepper
     v-model="model"
     :items="items"
@@ -54,8 +56,8 @@ const items = computed(() =>
       </VListItem>
     </template>
 
-    <!-- `#selection` работает только без чипов — с ними Vuetify рисует `#chip` и молча
-         игнорирует этот слот. -->
+    <!-- `#selection` works only without chips — with them Vuetify renders `#chip` and silently
+         ignores this slot. -->
     <template #selection="{ item }">
       <span class="priority-select__line">
         <span class="priority-select__glyph" :class="`priority-select__glyph--${priorityColor(item.value)}`">
@@ -68,8 +70,8 @@ const items = computed(() =>
 </template>
 
 <style scoped>
-/* Зазор значка и подписи тот же, что у пункта списка (`--v-list-prepend-gap`): выбранное
-   значение — это тот же пункт, только показанный в поле, и разъехаться они не должны. */
+/* The icon-to-label gap matches the list item's (`--v-list-prepend-gap`): the selected value is
+   the same item, just shown in the field, and the two must not drift apart. */
 .priority-select__line {
   display: inline-flex;
   align-items: center;
@@ -77,8 +79,8 @@ const items = computed(() =>
   min-width: 0;
 }
 
-/* Цвета те же, что у глифа в строке списка задач: один приоритет не может быть красным на
-   карточке и серым в поле, которым его меняют. */
+/* Same colors as the glyph in the task list row: one priority cannot be red on the card and grey
+   in the field used to change it. */
 .priority-select__glyph {
   display: inline-flex;
   align-items: center;

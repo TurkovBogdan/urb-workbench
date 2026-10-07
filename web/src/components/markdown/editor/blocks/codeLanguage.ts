@@ -1,8 +1,8 @@
-// Язык блока кода — на внешний элемент.
+// A code block's language, lifted onto the outer element.
 //
-// Язык лежит в атрибуте узла, но Tiptap кладёт его на `<code>`, а шапку рисует `<pre>`, и
-// смотреть снизу вверх CSS не умеет. Декорация переносит язык на `<pre>` — тогда шапка
-// появляется сама и исчезает у блока без языка.
+// The language lives in a node attribute, but Tiptap puts it on `<code>` while the header is drawn
+// by `<pre>`, and CSS cannot look upwards. A decoration copies the language onto `<pre>` — then
+// the header appears by itself and disappears from a block without a language.
 import { Plugin } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 

@@ -1,23 +1,25 @@
-"""Модуль ``workspace`` — рабочее пространство как общий уровень изоляции данных.
+"""The ``workspace`` module — a workspace as the shared level of data isolation.
 
-**Уровень 1**: зависит только от ядра и его модулей, и ни на один прикладной модуль не
-ссылается. Прикладные модули (уровень 2 и выше) зависят от него: ``tasks`` держит
-``workspace_code`` у зоны и задачи, следующий модуль будет держать его у своих строк — и
-каждый получает возможность сузить выборку до того пространства, в котором человек работает.
+**Level 1**: depends only on the core and its modules, and refers to no application module.
+Application modules (level 2 and above) depend on it: ``tasks`` keeps ``workspace_code`` on its
+zones and tasks, the next module will keep it on its own rows — and each gains the ability to
+narrow a query to the workspace the human is working in.
 
-Одна таблица — ``workspaces``, без приставки имени модуля: модуль и сущность здесь одно и то же,
-и ``workspace_workspace`` было бы заиканием. Схема строится миграциями ``wkm_*`` на портируемых
-типах — цепочка катится и на SQLite (dev), и на PostgreSQL. Ревизий две, и разделены они не по
-вкусу: таблица — цель кросс-модульного FK, а ``depends_on`` разрешено только на не-голову, так
-что создающую ревизию обязана хоронить под собой следующая (``wkm_002`` с индексом списка).
+One table — ``workspaces``, without the module-name prefix: the module and the entity are one
+and the same here, and ``workspace_workspace`` would be a stutter. The schema is built by the
+``wkm_*`` migrations on portable types — the chain runs on both SQLite (dev) and PostgreSQL.
+There are two revisions, and the split is not a matter of taste: the table is the target of a
+cross-module FK, and ``depends_on`` is allowed only on a non-head, so the creating revision must
+be buried under the next one (``wkm_002`` with the list index).
 
-Что лежит внутри пространства, модуль не знает и знать не должен. Счётчики содержимого для
-карточки объявляют модули поверх — через ``stats.register_counter`` в своём ``configure()``.
+What lives inside a workspace the module does not know and must not know. Content counters for
+the card are declared by the modules above — via ``stats.register_counter`` in their
+``configure()``.
 
-HTTP-API живёт в зоне ``internal`` под подпрефиксом ``/workspace`` (``api.py``). Подпрефикс
-задан явно, а не выведен из ``name``: имя модуля — Python-идентификатор с подчёркиваниями, а
-сегмент URL по конвенции проекта пишется через дефис, и вывод одного из другого сломался бы на
-первом же двусловном модуле.
+The HTTP API lives in the ``internal`` zone under the ``/workspace`` sub-prefix (``api.py``).
+The sub-prefix is set explicitly rather than derived from ``name``: the module name is a Python
+identifier with underscores, while a URL segment is hyphenated by project convention, and
+deriving one from the other would break on the first two-word module.
 """
 
 from __future__ import annotations
@@ -26,7 +28,7 @@ from pathlib import Path
 from typing import ClassVar
 
 from src.core.module import Module
-from src.modules.workspace import models  # noqa: F401 — регистрирует модели в Base.metadata
+from src.modules.workspace import models  # noqa: F401 — registers the models in Base.metadata
 from src.modules.workspace.api import router
 from src.modules.workspace.mcp.auth import resolve_mcp_token
 
@@ -41,10 +43,10 @@ class WorkspaceModule(Module):
     migrations_dir = _HERE / "migrations" / "versions"
     internal_router = router
     internal_router_prefix = "/workspace"
-    # Единственный на приложение резолвер MCP-токена. Живёт у модуля уровня 1 намеренно: он
-    # ниже всех прикладных и переживёт любой из них — почему это важно, см. ``mcp/auth.py``.
-    # ``staticmethod`` обязателен: доступ через экземпляр (``m.mcp_token_resolver``) связал бы
-    # функцию как метод и подставил ``self`` первым аргументом.
+    # The application's only MCP token resolver. It lives on the level 1 module on purpose: that
+    # module sits below every application module and outlives any of them — why that matters,
+    # see ``mcp/auth.py``. ``staticmethod`` is mandatory: access through an instance
+    # (``m.mcp_token_resolver``) would bind the function as a method and pass ``self`` first.
     mcp_token_resolver = staticmethod(resolve_mcp_token)
 
 

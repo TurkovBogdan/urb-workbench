@@ -1,7 +1,7 @@
-"""workspace: резолвер bearer-токена MCP (``mcp/auth.py``) — pure, без БД и fastmcp.
+"""workspace: the MCP bearer-token resolver (``mcp/auth.py``) — pure, no DB and no fastmcp.
 
-``Config`` в модуле подменяется заглушкой, чтобы обе ветки (пустой токен = allow-all, заданный
-токен = сверка) были детерминированны и не зависели от ``.env`` и окружения.
+``Config`` in the module is replaced with a stub so that both branches (empty token = allow-all,
+set token = comparison) are deterministic and independent of ``.env`` and the environment.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ def _use_token(monkeypatch, token: str) -> None:
 
 
 async def test_wrong_scope_rejected(monkeypatch):
-    """Токен другого назначения — бесплатный отказ, до всякой сверки значения."""
+    """A token for another scope is a free refusal, before any comparison of the value."""
     _use_token(monkeypatch, "secret")
     assert await auth.resolve_mcp_token("secret", "other") is None
 
@@ -47,12 +47,12 @@ async def test_configured_token_mismatch_rejected(monkeypatch):
 
 
 def test_the_resolver_lives_below_everything_that_uses_it():
-    """Поставщик обязан быть один и обязан пережить удаление любого модуля над ним.
+    """There must be exactly one provider, and it must survive the removal of any module above it.
 
-    Резолвер собирается ``mount_mcp_servers`` со ВСЕХ модулей: ни одного — монтаж отказывает,
-    двое — тоже. Раньше его держал ``research``, который по замыслу однажды удаляют, и это
-    удаление уронило бы MCP целиком, включая чужие серверы. Тест сторожит и то, и другое:
-    поставщик ровно один, и это модуль уровня 1.
+    ``mount_mcp_servers`` collects the resolver from ALL modules: none — mounting refuses, two —
+    likewise. It used to be held by ``research``, which by design was going to be removed one day,
+    and that removal would have brought down MCP entirely, other servers included. The test guards
+    both: there is exactly one provider, and it is a level-1 module.
     """
     from src.apps.app.modules import build_modules
 

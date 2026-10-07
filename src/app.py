@@ -1,87 +1,87 @@
-"""Единая точка входа: запуск процесса (server/worker) и миграции БД.
+"""The single entry point: launching a process (server/worker) and DB migrations.
 
-Без подкоманды — ЗАПУСК процесса. Роль — композиция двух поверхностей
-(приоритет флаг > env > дефолт):
+Without a subcommand it LAUNCHES a process. The role is a composition of two surfaces
+(precedence flag > env > default):
 
-    uv run python src/app.py --backend --worker   — dev: веб + задачи в одном процессе
-    uv run python src/app.py --backend             — prod-web: только HTTP
-    uv run python src/app.py --worker              — prod-worker: только фон
-    uv run python src/app.py                       — роль из env (SERVER_ENABLED/WORKER_ENABLED)
-    uv run python src/app.py --mcp-stdio           — MCP stdio-шим: клиент спавнит нас,
-                                                     шим лениво поднимает backend + браузер
-    uv run python src/app.py --mcp-stdio workbench — он же, но с явным сервером: серверов
-                                                     смонтировано несколько, и угадать нельзя
+    uv run python src/app.py --backend --worker   — dev: web + jobs in one process
+    uv run python src/app.py --backend             — prod-web: HTTP only
+    uv run python src/app.py --worker              — prod-worker: background only
+    uv run python src/app.py                       — role from env (SERVER_ENABLED/WORKER_ENABLED)
+    uv run python src/app.py --mcp-stdio           — MCP stdio shim: the client spawns us,
+                                                     the shim lazily brings up backend + browser
+    uv run python src/app.py --mcp-stdio workbench — the same, with an explicit server: several
+                                                     servers are mounted and guessing is impossible
 
-Подкоманда `migrate` — миграции БД отдельным прогоном (без подъёма сервера):
+The `migrate` subcommand — DB migrations as a separate run (without bringing up the server):
 
-    uv run python src/app.py migrate            — dry-run сверка (alias check); exit 1 при drift
+    uv run python src/app.py migrate            — dry-run check (alias for check); exit 1 on drift
     uv run python src/app.py migrate check
-    uv run python src/app.py migrate upgrade    — накатить ядро + модули до head
+    uv run python src/app.py migrate upgrade    — apply core + modules up to head
 
-Подкоманда `backup` — копия базы (`src/core/backup.py`) перед миграцией: SQLite через
-`VACUUM INTO` + `integrity_check`, PostgreSQL через `pg_dump --format=custom` с проверкой
-`pg_restore --list`. Без аргумента путь выбирается по провайдеру:
+The `backup` subcommand — a database copy (`src/core/backup.py`) before a migration: SQLite via
+`VACUUM INTO` + `integrity_check`, PostgreSQL via `pg_dump --format=custom` verified with
+`pg_restore --list`. Without an argument the path is chosen by provider:
 
-    uv run python src/app.py backup            — рядом с файловой базой / runtime/<профиль>/backup
-    uv run python src/app.py backup <путь>     — явный файл (существующий не перезаписывается)
+    uv run python src/app.py backup            — next to the file DB / runtime/<profile>/backup
+    uv run python src/app.py backup <path>     — an explicit file (never overwrites an existing one)
 
-Подкоманда `update` — обновление установки целиком (обёртка `./update.sh`): проверки,
-флаг обслуживания, остановка процессов, fast-forward на origin/UPDATE_BRANCH, `uv sync`,
-копия базы, миграции, рестарт с ожиданием готовности. `--dry-run` печатает шаги и план
-остановки, не трогая ничего. Коды выхода: 0 — обновлено/уже актуально, 1 — не прошли
-предусловия, 2 — флаг держит другой апдейтер, 3 — откат, 4 — упала миграция (флаг
-оставлен поднятым), 5 — не снялась копия базы (схему не трогали), 6 — не удался откат,
-7 — не удалось остановить процессы установки, 8 — backend не поднялся после обновления,
-9 — обновление упало непредвиденно (в лог уходит traceback, флаг остаётся как был),
-10 — найдены процессы установки без записи о себе (снять `--stop-unregistered`),
-11 — платформа не поддерживается (Windows): напечатана ручная процедура.
+The `update` subcommand — updating the whole installation (wrapped by `./update.sh`): checks,
+maintenance flag, stopping processes, fast-forward to origin/UPDATE_BRANCH, `uv sync`,
+database copy, migrations, restart waiting for readiness. `--dry-run` prints the steps and the
+stop plan without touching anything. Exit codes: 0 — updated/already current, 1 — preconditions
+failed, 2 — another updater holds the flag, 3 — rolled back, 4 — a migration failed (the flag
+is left up), 5 — the database copy failed (schema untouched), 6 — the rollback failed,
+7 — could not stop the installation's processes, 8 — the backend did not come up after the update,
+9 — the update failed unexpectedly (the traceback goes to the log, the flag stays as it was),
+10 — found installation processes with no record of themselves (stop them with `--stop-unregistered`),
+11 — unsupported platform (Windows): the manual procedure is printed.
 
-Подкоманда `stop` — погасить процессы этой установки (и только её) по тем же записям
-реестра и тем же слоем, что и обновление: группой TERM → CONT → KILL с доказательством
-смерти, чужой пользователь и незарегистрированные процессы — отказ, а не тихий пропуск.
-Vite остановка не касается — он не процесс приложения (его гасит `./run.sh stop`).
+The `stop` subcommand — stop this installation's processes (and only its own) by the same
+registry records and through the same layer as the update: by group TERM → CONT → KILL with
+proof of death; another user's and unregistered processes are a refusal, not a silent skip.
+Stopping does not touch Vite — it is not an application process (`./run.sh stop` stops it).
 
-    uv run python src/app.py stop                       — погасить
-    uv run python src/app.py stop --dry-run             — напечатать план, не трогая
-    uv run python src/app.py stop --stop-unregistered   — гасить и процессы без записи
+    uv run python src/app.py stop                       — stop
+    uv run python src/app.py stop --dry-run             — print the plan, touch nothing
+    uv run python src/app.py stop --stop-unregistered   — also stop processes without a record
 
-Коды выхода: 0 — погашено (или гасить было нечего), 7 — что-то пережило сигналы, процесс
-чужого пользователя или общая группа с гасящим, 10 — найдены процессы без записи о себе,
-11 — платформа не поддерживается (Windows).
+Exit codes: 0 — stopped (or there was nothing to stop), 7 — something survived the signals, a
+process of another user, or a group shared with the stopper, 10 — found processes with no record
+of themselves, 11 — unsupported platform (Windows).
 
-Запуск процесса (server/worker) записывает себя в реестр `runtime/processes/<pid>.json`
-(`src/core/process_registry.py`) и снимает запись при выходе: по этим записям обновление
-гасит установку, вместо того чтобы опознавать её по cwd и argv.
+A launched process (server/worker) records itself in the registry `runtime/processes/<pid>.json`
+(`src/core/process_registry.py`) and drops the record on exit: the update stops the installation
+by these records instead of recognising it by cwd and argv.
 
-Пока флаг обслуживания держит живой апдейтер (`runtime/maintenance.json`), ЗАПУСК
-процесса отклоняется с кодом 1 — иначе MCP-шим поднял бы backend на полупереписанном
-дереве. Подкоманды не гейтятся: обновление накатывает `backup` и `migrate upgrade` как
-раз под поднятым флагом.
+While a live updater holds the maintenance flag (`runtime/maintenance.json`), LAUNCHING a
+process is refused with code 1 — otherwise the MCP shim would bring up a backend on a
+half-rewritten tree. Subcommands are not gated: the update runs `backup` and `migrate upgrade`
+precisely while the flag is up.
 
-`--backend`/`--worker` (и `--no-backend`/`--no-worker`) перекрывают env-тогглы
-`SERVER_ENABLED`/`WORKER_ENABLED`. Флаги выставляются в env ДО `Config()`, поэтому
-их наследуют reload/processes-подпроцессы uvicorn.
+`--backend`/`--worker` (and `--no-backend`/`--no-worker`) override the env toggles
+`SERVER_ENABLED`/`WORKER_ENABLED`. The flags are written to env BEFORE `Config()`, so
+uvicorn's reload/processes subprocesses inherit them.
 
-Поверхности:
-- **SERVER** (`SERVER_ENABLED`) — HTTP-сервер (зоны internal/external/webhook).
-  Поднимается через uvicorn на `SERVER_HOST:SERVER_PORT`. `SERVER_HOT_RELOAD=true`
-  → один процесс с watch по `src/` (dev); иначе `SERVER_PROCESSES` процессов.
-- **WORKER** (`WORKER_ENABLED`) — планировщик + выполнение задач. Когда SERVER
-  выключен, процесс — чистый worker: БЕЗ uvicorn и без биндинга порта, lifespan
-  гоняется напрямую; scope ограничивается `WORKER_MODULES`. При `SERVER_HOT_RELOAD`
-  чистый worker поднимается под watch (`watchfiles`) — тот же ключ, что и у сервера:
-  worker-подпроцесс рестартует на правках `src/`. Встроенный worker (вместе с
-  SERVER) перезагружается заодно с uvicorn-reload.
+Surfaces:
+- **SERVER** (`SERVER_ENABLED`) — the HTTP server (internal/external/webhook zones).
+  Brought up via uvicorn on `SERVER_HOST:SERVER_PORT`. `SERVER_HOT_RELOAD=true`
+  → one process watching `src/` (dev); otherwise `SERVER_PROCESSES` processes.
+- **WORKER** (`WORKER_ENABLED`) — scheduler + job execution. When SERVER is
+  off, the process is a pure worker: NO uvicorn and no port binding, the lifespan
+  is driven directly; the scope is limited by `WORKER_MODULES`. With `SERVER_HOT_RELOAD`
+  the pure worker runs under watch (`watchfiles`) — the same key as the server's:
+  the worker subprocess restarts on edits to `src/`. The embedded worker (alongside
+  SERVER) reloads together with uvicorn's reload.
 
-Когда включён SERVER, встроенный тикер поднимается в lifespan приложения по
-`WORKER_ENABLED` (так dev держит и веб, и задачи). Чистый worker (без SERVER)
-форсит тикер через `scheduler.configure_worker`.
+When SERVER is on, the embedded ticker is brought up in the app's lifespan per
+`WORKER_ENABLED` (that is how dev keeps both web and jobs). A pure worker (no SERVER)
+forces the ticker via `scheduler.configure_worker`.
 
-Миграции накатывает ТОЛЬКО `migrate upgrade` (и обновление установки, которое его
-зовёт) — старт процесса не мигрирует базу, у которой уже есть схема: отставшая
-цепочка поднимает приложение в режиме заглушки (`src/core/router/degraded.py`).
-Исключение — пустая база: свежая установка накатывает цепочку сама. Статику фронта
-раздаёт тот же backend из `web/dist` (в dev — Vite).
+ONLY `migrate upgrade` applies migrations (and the installation update, which calls
+it) — starting a process does not migrate a database that already has a schema: a lagging
+chain brings the app up in degraded mode (`src/core/router/degraded.py`).
+The exception is an empty database: a fresh install applies the chain itself. The frontend
+static files are served by the same backend from `web/dist` (Vite in dev).
 """
 
 import argparse
@@ -92,32 +92,33 @@ import signal
 import sys
 from pathlib import Path
 
-# Точка входа лежит в src/ — корень проекта это родитель src/.
+# The entry point lives in src/ — the project root is the parent of src/.
 sys.path.insert(0, str(Path(__file__).parents[1]))
 
-# Сколько uvicorn ждёт открытые соединения при остановке. Поток изменений (`core_changes`, SSE)
-# сам не заканчивается никогда, и без потолка остановка и hot-reload висели бы, пока вкладка
-# открыта. Обычный запрос за две секунды успевает; поток обрывается, и вкладка переподключится.
+# How long uvicorn waits for open connections on shutdown. A connection that never ends by itself
+# (an MCP session, a change-feed socket of `core_changes`) would otherwise hang shutdown and
+# hot-reload while it is open. A normal request finishes within two seconds; whatever is still
+# open is cut, and the tab reconnects.
 GRACEFUL_SHUTDOWN_SECONDS = 2
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(
         prog="app",
-        description="Запуск процесса (server/worker) или миграции БД (migrate).",
+        description="Launch a process (server/worker) or run DB migrations (migrate).",
     )
-    # ── флаги запуска (top-level; действуют, когда подкоманда не задана) ──────
+    # ── launch flags (top-level; apply when no subcommand is given) ───────────
     p.add_argument(
         "--backend",
         action=argparse.BooleanOptionalAction,
         default=None,
-        help="поднимать HTTP-сервер; перекрывает SERVER_ENABLED (флаг > env)",
+        help="bring up the HTTP server; overrides SERVER_ENABLED (flag > env)",
     )
     p.add_argument(
         "--worker",
         action=argparse.BooleanOptionalAction,
         default=None,
-        help="поднимать планировщик + задачи; перекрывает WORKER_ENABLED (флаг > env)",
+        help="bring up the scheduler + jobs; overrides WORKER_ENABLED (flag > env)",
     )
     p.add_argument(
         "--mcp-stdio",
@@ -125,114 +126,115 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         const="",
         default=None,
         metavar="CODE",
-        help="роль MCP stdio-шима: клиент спавнит по stdio, шим лениво поднимает "
-        "backend + браузер и мостит вызовы на его /mcp/<code> (см. apps/app/mcp_stdio.py). "
-        "CODE — какой из смонтированных серверов проксировать (перекрывает MCP_STDIO_CODE); "
-        "без значения берётся единственный смонтированный",
+        help="MCP stdio shim role: the client spawns it over stdio, the shim lazily brings up "
+        "backend + browser and bridges calls to its /mcp/<code> (see apps/app/mcp_stdio.py). "
+        "CODE — which of the mounted servers to proxy (overrides MCP_STDIO_CODE); "
+        "without a value the only mounted one is used",
     )
     p.add_argument(
         "--mcp-workspace",
         default=None,
         metavar="CODE",
-        help="рабочее пространство ЭТОГО подключения (WORKSPACE@… или голый код); "
-        "перекрывает MCP_WORKSPACE. Умолчание сессии — агент меняет его сам, не трогая конфиг",
+        help="the workspace of THIS connection (WORKSPACE@… or a bare code); "
+        "overrides MCP_WORKSPACE. A session default — the agent changes it, the config stays put",
     )
     p.add_argument(
         "--hot-reload",
         action=argparse.BooleanOptionalAction,
         default=None,
-        help="hot-reload сервера/воркера на правках src/ (dev); перекрывает SERVER_HOT_RELOAD",
+        help="hot-reload the server/worker on edits to src/ (dev); overrides SERVER_HOT_RELOAD",
     )
-    p.add_argument("--host", default=None, help="перекрыть SERVER_HOST")
-    p.add_argument("--port", type=int, default=None, help="перекрыть SERVER_PORT")
+    p.add_argument("--host", default=None, help="override SERVER_HOST")
+    p.add_argument("--port", type=int, default=None, help="override SERVER_PORT")
     p.add_argument(
         "--processes",
         type=int,
         default=None,
-        help="перекрыть SERVER_PROCESSES (игнорируется при hot-reload)",
+        help="override SERVER_PROCESSES (ignored under hot-reload)",
     )
     p.add_argument(
         "--debug-delay",
         type=int,
         default=None,
         metavar="MS",
-        help="DEBUG: задержка (мс) на каждый запрос internal API; ← SERVER_DEBUG_DELAY_MS (0=выкл)",
+        help="DEBUG: delay (ms) on every internal API request; ← SERVER_DEBUG_DELAY_MS (0=off)",
     )
     p.add_argument(
         "--worker-module",
         action="append",
         default=None,
         metavar="NAME",
-        help="scope воркера: только задачи этого модуля (повторяемый); ← WORKER_MODULES",
+        help="worker scope: only this module's jobs (repeatable); ← WORKER_MODULES",
     )
     p.add_argument(
         "--worker-tick-seconds",
         type=int,
         default=None,
-        help="перекрыть WORKER_TICK_SECONDS",
+        help="override WORKER_TICK_SECONDS",
     )
     p.add_argument(
         "--worker-max-concurrent",
         type=int,
         default=None,
-        help="перекрыть WORKER_MAX_CONCURRENT_RUNS",
+        help="override WORKER_MAX_CONCURRENT_RUNS",
     )
 
-    # ── подкоманда migrate ───────────────────────────────────────────────────
+    # ── migrate subcommand ───────────────────────────────────────────────────
     sub = p.add_subparsers(dest="command")
-    mig = sub.add_parser("migrate", help="миграции БД (check|upgrade)")
+    mig = sub.add_parser("migrate", help="DB migrations (check|upgrade)")
     mig.add_argument(
         "action",
         nargs="?",
         choices=("check", "upgrade"),
         default="check",
-        help="check — dry-run сверка (дефолт); upgrade — накатить до head",
+        help="check — dry-run check (default); upgrade — apply up to head",
     )
 
-    # ── подкоманда backup ────────────────────────────────────────────────────
-    bak = sub.add_parser("backup", help="копия базы перед миграцией (sqlite/postgres)")
+    # ── backup subcommand ────────────────────────────────────────────────────
+    bak = sub.add_parser("backup", help="database copy before a migration (sqlite/postgres)")
     bak.add_argument(
         "target",
         nargs="?",
         default=None,
         metavar="PATH",
-        help="куда положить копию; пусто — рядом с файловой базой либо runtime/<профиль>/backup",
+        help="where to put the copy; empty — next to the file database or runtime/<profile>/backup",
     )
 
-    # ── подкоманда update ────────────────────────────────────────────────────
-    upd = sub.add_parser("update", help="обновить установку до origin/UPDATE_BRANCH")
+    # ── update subcommand ────────────────────────────────────────────────────
+    upd = sub.add_parser("update", help="update the installation to origin/UPDATE_BRANCH")
     upd.add_argument(
         "--dry-run",
         action="store_true",
-        help="пройти последовательность и напечатать шаги (в т.ч. план остановки процессов), "
-        "ничего не трогая: без сигналов, fetch/merge/sync, копии базы и миграций",
+        help="walk the sequence and print the steps (including the process stop plan), "
+        "touching nothing: no signals, fetch/merge/sync, database copy or migrations",
     )
     upd.add_argument(
         "--stop-unregistered",
         action="store_true",
-        help="гасить и процессы этого чекаута без записи в реестре (иначе обновление "
-        "отказывается с кодом 10); нужен один раз — на первом обновлении после выкатки реестра",
+        help="also stop this checkout's processes that have no registry record (otherwise the "
+        "update refuses with code 10); needed once — on the first update after the registry ships",
     )
 
-    # ── подкоманда stop ──────────────────────────────────────────────────────
-    stp = sub.add_parser("stop", help="погасить процессы этой установки по их записям в реестре")
+    # ── stop subcommand ──────────────────────────────────────────────────────
+    stp = sub.add_parser("stop", help="stop this install's processes by their registry records")
     stp.add_argument(
         "--dry-run",
         action="store_true",
-        help="напечатать план остановки и выйти, не подавая сигналов",
+        help="print the stop plan and exit without sending signals",
     )
     stp.add_argument(
         "--stop-unregistered",
         action="store_true",
-        help="гасить и процессы этого чекаута без записи в реестре (иначе отказ с кодом 10)",
+        help="also stop this checkout's processes that have no registry record (otherwise refuse "
+        "with code 10)",
     )
     return p.parse_args(argv)
 
 
 def _apply_env_overrides(args: argparse.Namespace) -> None:
-    """CLI > env: выставить env ДО Config()/импорта приложения.
+    """CLI > env: set env BEFORE Config()/importing the app.
 
-    Значения подхватят и reload-, и processes-подпроцессы uvicorn (наследуют env).
+    Both uvicorn's reload and processes subprocesses pick the values up (they inherit env).
     """
     if args.backend is not None:
         os.environ["SERVER_ENABLED"] = "true" if args.backend else "false"
@@ -251,14 +253,15 @@ def _apply_env_overrides(args: argparse.Namespace) -> None:
 
 
 def _run_server(config, args: argparse.Namespace) -> None:
-    """Поднять HTTP-сервер через uvicorn. Встроенный тикер — в lifespan по WORKER_ENABLED."""
+    """Bring up the HTTP server via uvicorn. The embedded ticker starts in the lifespan per
+    WORKER_ENABLED."""
     import uvicorn
 
     host = args.host or config.server_host
     port = args.port or config.server_port
     log_level = config.app_log_level.lower()
     if config.server_hot_reload:
-        # --reload несовместим с processes>1: reload-супервизор держит один процесс.
+        # --reload is incompatible with processes>1: the reload supervisor holds one process.
         uvicorn.run(
             "src.apps.app.server:app",
             host=host,
@@ -280,13 +283,13 @@ def _run_server(config, args: argparse.Namespace) -> None:
 
 
 def _run_worker_hot_reload() -> None:
-    """Чистый worker под watch: рестарт worker-подпроцесса на правках src/ (dev).
+    """A pure worker under watch: restart the worker subprocess on edits to src/ (dev).
 
-    Тот же ключ `SERVER_HOT_RELOAD`, что и у сервера. У чистого worker нет uvicorn
-    (а значит и его reload-супервизора), поэтому watch держим сами через
-    `watchfiles.run_process`: на изменение `src/` подпроцесс перезапускается с нуля.
-    Дочерний процесс — тот же `src/app.py --worker --no-backend`, но уже `--no-hot-reload`
-    (иначе рекурсия watch-watch); scope/ручки наследуются через env.
+    The same `SERVER_HOT_RELOAD` key as the server's. A pure worker has no uvicorn
+    (and hence no reload supervisor of its own), so we keep the watch ourselves via
+    `watchfiles.run_process`: on a change in `src/` the subprocess restarts from scratch.
+    The child is the same `src/app.py --worker --no-backend`, but with `--no-hot-reload`
+    (otherwise watch-within-watch recursion); scope/knobs are inherited via env.
     """
     import shlex
 
@@ -300,12 +303,12 @@ def _run_worker_hot_reload() -> None:
 
 
 async def _run_worker(config) -> None:
-    """Чистый worker: lifespan напрямую, без uvicorn/порта. Ждёт SIGTERM/SIGINT."""
+    """A pure worker: the lifespan driven directly, no uvicorn/port. Waits for SIGTERM/SIGINT."""
     from src.apps.app.modules import build_modules
     from src.core import scheduler
     from src.core.app_factory import create_app
 
-    # Форсим тикер (минуя SERVER) + задаём scope/ручки из config.
+    # Force the ticker (bypassing SERVER) + set scope/knobs from config.
     scheduler.configure_worker(
         modules=config.worker_modules_set,
         max_concurrent=config.worker_max_concurrent_runs,
@@ -318,7 +321,7 @@ async def _run_worker(config) -> None:
     for sig in (signal.SIGTERM, signal.SIGINT):
         try:
             loop.add_signal_handler(sig, stop.set)
-        except NotImplementedError:  # pragma: no cover — не-POSIX
+        except NotImplementedError:  # pragma: no cover — non-POSIX
             pass
 
     async with app.router.lifespan_context(app):
@@ -326,12 +329,12 @@ async def _run_worker(config) -> None:
 
 
 def _run_the_role(config, args: argparse.Namespace) -> None:
-    """Собственно работа процесса: HTTP-сервер либо чистый worker (при hot-reload — под watch)."""
+    """The process's actual work: the HTTP server or a pure worker (under watch with hot-reload)."""
     if config.server_enabled:
-        # Встроенный worker (если WORKER_ENABLED) поднимется в lifespan приложения.
+        # The embedded worker (if WORKER_ENABLED) comes up in the app's lifespan.
         _run_server(config, args)
         return
-    # Чистый worker — без uvicorn и без порта.
+    # A pure worker — no uvicorn and no port.
     if config.server_hot_reload:
         _run_worker_hot_reload()
         return
@@ -339,12 +342,12 @@ def _run_the_role(config, args: argparse.Namespace) -> None:
 
 
 def _run_recorded(config, args: argparse.Namespace) -> None:
-    """Отработать роль, пока процесс записан в реестре установки (`process_registry`).
+    """Run the role while the process is recorded in the installation registry (`process_registry`).
 
-    Снятие записи нужно в двух местах: uvicorn возвращается из `run()` по SIGTERM и доходит до
-    `finally`, а `SystemExit` из глубины (например, занятый порт) уходит через `atexit`. Ни то,
-    ни другое не срабатывает на SIGKILL и на `os.execv` — запись, пережившую свой процесс,
-    опознаёт по паре pid + время старта и убирает следующий `announce`.
+    The record has to be dropped in two places: uvicorn returns from `run()` on SIGTERM and reaches
+    `finally`, while a `SystemExit` from deep inside (e.g. a port already in use) leaves via
+    `atexit`. Neither fires on SIGKILL or on `os.execv` — a record that outlived its process is
+    recognised by the pid + start time pair and removed by the next `announce`.
     """
     from src.core import process_registry
 
@@ -356,7 +359,7 @@ def _run_recorded(config, args: argparse.Namespace) -> None:
         process_registry.withdraw()
 
 
-# ── миграции (подкоманда migrate) ───────────────────────────────────────────
+# ── migrations (migrate subcommand) ─────────────────────────────────────────
 
 
 def _print_migration_status(status) -> None:
@@ -372,7 +375,7 @@ def _print_migration_status(status) -> None:
 
 
 async def _run_migrate(action: str) -> int:
-    """check — вывести состояние (exit 1 при drift); upgrade — накатить до head."""
+    """check — print the state (exit 1 on drift); upgrade — apply up to head."""
     from src.apps.app.modules import build_modules
     from src.core.config import Config
     from src.core.database import close_database, init_database
@@ -395,25 +398,26 @@ async def _run_migrate(action: str) -> int:
 
 
 def _launches_a_process(args: argparse.Namespace) -> bool:
-    """Нет подкоманды — значит запускаем процесс (в том числе `--mcp-stdio`).
+    """No subcommand means we are launching a process (`--mcp-stdio` included).
 
-    Подкоманды (`migrate`, `backup`, `update`, `stop`) освобождены от гейта намеренно: сам
-    апдейтер гоняет `backup` и `migrate upgrade` при поднятом флаге, а упавшая миграция
-    флаг не опускает — гейт на подкомандах запер бы обновление изнутри и лишил бы повтора.
+    Subcommands (`migrate`, `backup`, `update`, `stop`) are exempt from the gate on purpose: the
+    updater itself runs `backup` and `migrate upgrade` with the flag up, and a failed migration
+    does not lower the flag — gating subcommands would lock the update in from the inside and
+    rule out a retry.
     """
     return args.command is None
 
 
 def _maintenance_refusal() -> str | None:
-    """Текст отказа, когда флаг обслуживания держит живой апдейтер; иначе None."""
+    """The refusal text when a live updater holds the maintenance flag; otherwise None."""
     from src.core import maintenance
 
     held = maintenance.active()
     if held is None:
         return None
     return (
-        f"идёт обновление установки ({held.describe()}) — запуск процесса запрещён.\n"
-        f"дождитесь завершения обновления; флаг: {maintenance.flag_path()}"
+        f"the installation is being updated ({held.describe()}) — launching a process is refused.\n"
+        f"wait for the update to finish; flag: {maintenance.flag_path()}"
     )
 
 
@@ -444,13 +448,13 @@ def main(argv: list[str] | None = None) -> int | None:
             print(refusal, file=sys.stderr)
             return 1
 
-    # ``is not None``, а не истинность: голый ``--mcp-stdio`` даёт пустую строку (код ищем
-    # сам), и проверка на истинность приняла бы её за отсутствие роли.
+    # ``is not None`` rather than truthiness: a bare ``--mcp-stdio`` yields an empty string (we
+    # find the code ourselves), and a truthiness check would mistake it for no role at all.
     if args.mcp_stdio is not None:
-        # Шим сам поднимает backend отдельным процессом — role-env этого процесса
-        # не трогаем (он не server и не worker, а stdio-мост). Поэтому и общий
-        # ``_apply_env_overrides`` здесь не зовём: из всех перекрытий шиму осмысленны ровно
-        # эти два, и оба — свойства ПОДКЛЮЧЕНИЯ, а не установки.
+        # The shim brings up the backend itself as a separate process — this process's role env
+        # is left alone (it is neither server nor worker but a stdio bridge). That is also why the
+        # shared ``_apply_env_overrides`` is not called here: of all the overrides exactly these
+        # two make sense for the shim, and both are properties of the CONNECTION, not the install.
         if args.mcp_stdio:
             os.environ["MCP_STDIO_CODE"] = args.mcp_stdio
         if args.mcp_workspace is not None:
@@ -473,21 +477,21 @@ def main(argv: list[str] | None = None) -> int | None:
 
     config = Config()
     if seed_defaults_if_absent(config):
-        print(f"первый запуск: создан {env_path()} со значениями по умолчанию")
-    # Ключи, появившиеся позже самого файла, иначе не доезжают до живой установки:
-    # ни в `.env`, ни на странице настроек их не видно, и поправить значение негде.
+        print(f"first run: created {env_path()} with default values")
+    # Keys that appeared later than the file itself would otherwise never reach a live install:
+    # they are visible neither in `.env` nor on the settings page, and there is nowhere to set them.
     for key in ensure_keys_present(config):
-        print(f"добавлен со значением по умолчанию: {key} → {env_path()}")
-    # Секреты установки досыпаются и в уже существующий .env: ключ шифрования появился
-    # позже самого файла, и без этого шага он не завёлся бы ни на одной живой установке.
+        print(f"added with its default value: {key} → {env_path()}")
+    # Installation secrets are topped up into an existing .env too: the encryption key appeared
+    # later than the file itself, and without this step it would exist on no live install.
     for key in ensure_generated(config):
-        print(f"сгенерирован {key} → {env_path()}")
+        print(f"generated {key} → {env_path()}")
     if not config.server_enabled and not config.worker_enabled:
-        # Ни одной поверхности — не ошибка, а валидный no-op (например, процесс,
-        # который запускали только под `migrate`). Чистый выход (код 0).
+        # No surface at all is not an error but a valid no-op (e.g. a process
+        # that was launched only for `migrate`). Clean exit (code 0).
         print(
-            "ни SERVER, ни WORKER не включены — нечего запускать (для миграций: "
-            "`src/app.py migrate`). Выход."
+            "neither SERVER nor WORKER is enabled — nothing to run (for migrations: "
+            "`src/app.py migrate`). Exiting."
         )
         return None
 

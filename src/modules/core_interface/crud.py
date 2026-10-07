@@ -1,9 +1,10 @@
-"""CRUD таблицы ``core_interface_settings``. Каждая функция открывает свой scope сама.
+"""CRUD for the ``core_interface_settings`` table. Each function opens its own scope.
 
-Наружу (в HTTP) выведены только чтение и пачечная запись. Удаление ручки не имеет: человек
-сбрасывает настройку **к умолчанию**, а то, что хранилище при этом убирает строку, — его
-внутреннее дело. Отсюда три оставшиеся функции: ``delete_many`` зовёт обработчик сброса,
-``prune_unknown`` — уборка на подъёме модуля, ``delete_all`` держится для миграций.
+Only reading and batch writing are exposed (over HTTP). Deletion has no endpoint: a human
+resets a setting **to its default**, and that the store removes a row in doing so is its own
+internal business. Hence the three remaining functions: ``delete_many`` is called by the reset
+handler, ``prune_unknown`` is the cleanup at module startup, ``delete_all`` is kept for
+migrations.
 """
 
 from __future__ import annotations
@@ -29,17 +30,17 @@ def _insert_for(session: AsyncSession):
 
 
 async def list_all() -> dict[str, Any]:
-    """Карта отклонений целиком: строк здесь десятки, выборка всегда полная."""
+    """The whole map of deviations: rows number in the dozens, so it is always read in full."""
     async with session_scope() as s:
         rows = (await s.execute(select(InterfaceSetting))).scalars().all()
         return {row.key: row.value for row in rows}
 
 
 async def upsert_many(values: Mapping[str, Any]) -> None:
-    """Пачка в одной пишущей транзакции: накопленное за дебаунс применяется целиком.
+    """A batch in one write transaction: whatever accumulated during the debounce applies whole.
 
-    ``created_at`` в ветке обновления не трогается — время появления ключа переживает
-    любое число правок.
+    ``created_at`` is not touched on the update branch — the time a key first appeared
+    survives any number of edits.
     """
     if not values:
         return
@@ -60,7 +61,7 @@ async def upsert_many(values: Mapping[str, Any]) -> None:
 
 
 async def delete_many(keys: Sequence[str]) -> None:
-    """Снять переопределения: строки исчезают, снова действует умолчание из реестра."""
+    """Drop overrides: the rows disappear and the registry default applies again."""
     if not keys:
         return
     async with write_scope() as s:
@@ -73,9 +74,9 @@ async def delete_all() -> None:
 
 
 async def prune_unknown(known_keys: Sequence[str]) -> int:
-    """Убрать строки с ключами вне реестра; вернуть их число, чтобы старт сказал об этом в лог.
+    """Remove rows whose keys are outside the registry; return their count for the startup log.
 
-    Настройка, снятая с производства вместе с версией фронта, иначе осталась бы в базе навсегда.
+    Otherwise a setting retired along with a frontend version would stay in the database forever.
     """
     async with write_scope() as s:
         result = await s.execute(

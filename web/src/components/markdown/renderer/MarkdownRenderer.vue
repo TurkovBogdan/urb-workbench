@@ -13,9 +13,10 @@ const settings = useSettingsStore()
 const props = defineProps<{
   text: string
   compact?: boolean
-  // Документ целиком, а не подпись под полем: разбор и раскладка такого тела занимают главный
-  // поток на десятки миллисекунд, и выпади они на переход между страницами — съели бы его
-  // анимацию. Помеченное так тело ждёт конца перехода; всё остальное рисуется сразу.
+  // A whole document, not a caption under a field: parsing and laying out such a body holds the
+  // main thread for tens of milliseconds, and if that landed on a page transition it would eat
+  // the animation. A body marked this way waits for the transition to end; everything else
+  // renders immediately.
   heavy?: boolean
   // Render Markdown images as <img> (off by default: the agent chat strips them).
   allowImages?: boolean
@@ -30,8 +31,8 @@ const REF_LABEL_MAX = 48
 
 const emit = defineEmits<{
   imageClick: [src: string]
-  // Оглавление тела: заголовки с проставленными `id`. Отдаём событием, а не через expose —
-  // потребителю (боковой навигации) нужен готовый список, а не доступ внутрь рендерера.
+  // The body's outline: headings with their assigned `id`. Emitted as an event rather than via
+  // expose — the consumer (side navigation) needs a ready list, not access into the renderer.
   headings: [items: HeadingAnchor[]]
 }>()
 
@@ -55,9 +56,9 @@ function withRefLabels(sanitized: string): string {
   return changed ? doc.body.innerHTML : sanitized
 }
 
-// Пустой текст, пока идёт переход, — это и есть отсрочка: разбор не запускается, оглавление
-// приезжает вместе с телом, и ни один потребитель не узнаёт про ожидание ничего сверх того,
-// что тело пока пустое.
+// Empty text while the transition runs is the deferral itself: parsing does not start, the
+// outline arrives together with the body, and no consumer learns anything about the wait beyond
+// the body being empty for now.
 const settled = useAfterRouteTransition()
 
 const source = computed(() => (props.heavy && !settled.value ? '' : props.text))
@@ -86,9 +87,10 @@ function unmountCodeBlocks() {
   mountedSlots = []
 }
 
-// Повторный вызов на том же теле — не пересборка, а обновление: `render` в тот же слот с тем же
-// компонентом правит пропы, поэтому смена настройки нумерации доезжает до блоков без повторной
-// подсветки. Список слотов собирается заново, иначе на каждом вызове в нём копились бы дубли.
+// A repeat call on the same body is an update, not a rebuild: `render` into the same slot with the
+// same component patches the props, so a change of the line-number setting reaches the blocks
+// without re-highlighting. The slot list is collected afresh, or duplicates would pile up in it on
+// every call.
 function mountCodeBlocks() {
   const container = body.value
   if (!container) return
@@ -103,8 +105,8 @@ function mountCodeBlocks() {
       : h(CodeBlock, {
           code,
           lang: block.language || undefined,
-          // Однострочник — командная плашка независимо от выбранного вида: он про содержимое,
-          // а не про оформление.
+          // A one-liner is a command chip regardless of the chosen variant: that is about the
+          // content, not the styling.
           variant: isOneLiner ? 'compact' : settings.typography.codeVariant,
           showLineNumbers: settings.typography.codeLineNumbers,
         })
@@ -153,6 +155,7 @@ function onClick(event: MouseEvent) {
   <div ref="body" class="md-body" :class="{ 'md-body--compact': compact }" v-html="html" @click="onClick" />
 </template>
 
-<!-- Типографика тела живёт в общем файле и обслуживает обе зоны — просмотр и правку. Своего
-     scoped-блока у рендерера больше нет: вторая копия этих правил и была тем, что разошлось. -->
+<!-- Body typography lives in the shared file and serves both zones — viewing and editing. The
+     renderer no longer has a scoped block of its own: a second copy of these rules was exactly
+     what drifted apart. -->
 <style src="../shared/document.css"></style>

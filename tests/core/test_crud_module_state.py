@@ -1,4 +1,4 @@
-"""``crud.module_state`` + ``module_store`` аксессор: round-trip произвольного состояния."""
+"""``crud.module_state`` + ``module_store`` accessor: round-trip of arbitrary state."""
 
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ async def test_upsert_inserts_then_updates(db):
     await crud.upsert("m", "cursor", {"history_id": "2"})
     second = await crud.get_one("m", "cursor")
     assert second.value == {"history_id": "2"}
-    assert second.created_at == created          # created_at заморожен
+    assert second.created_at == created          # created_at is frozen
     assert second.updated_at >= second.created_at
 
 
@@ -49,7 +49,7 @@ async def test_get_misses_return_none(db):
 async def test_seed_if_absent_only_first_wins(db):
     assert await crud.seed_if_absent("m", "k", {"v": 1}) is True
     assert await crud.seed_if_absent("m", "k", {"v": 2}) is False
-    assert await crud.get_value("m", "k") == {"v": 1}     # повторный seed не перезаписал
+    assert await crud.get_value("m", "k") == {"v": 1}     # a repeated seed did not overwrite
 
 
 @pytest.mark.db
@@ -62,7 +62,7 @@ async def test_jsonb_roundtrips_nested_structure(db):
         "items": ["x", {"y": 1}],
     }
     await crud.upsert("m", "blob", payload)
-    assert await crud.get_value("m", "blob") == payload   # не строка, структура цела
+    assert await crud.get_value("m", "blob") == payload   # not a string, the structure is intact
 
 
 @pytest.mark.db
@@ -85,7 +85,7 @@ async def test_delete_and_delete_for_module(db):
 
     await crud.delete_for_module("m")
     assert await crud.list_for_module("m") == []
-    assert await crud.get_value("other", "k") == 9       # чужой namespace не тронут
+    assert await crud.get_value("other", "k") == 9       # another namespace is untouched
 
 
 @pytest.mark.db

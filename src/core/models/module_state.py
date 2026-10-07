@@ -1,9 +1,9 @@
-"""ORM-модель строки таблицы ``core_modules_state``.
+"""ORM model of a ``core_modules_state`` row.
 
-Произвольное runtime-состояние модуля (курсоры импорта, счётчики, маркеры
-запусков). Сосед ``core_modules_settings``, но для внутренних машинных данных,
-а не пользовательского конфига: без схемы, реестра и UI. ``value`` — JSONB,
-модуль кладёт структуру напрямую.
+Arbitrary runtime state of a module (import cursors, counters, run markers).
+A neighbour of ``core_modules_settings``, but for internal machine data rather
+than user config: no schema, registry or UI. ``value`` is JSONB — the module
+stores its structure directly.
 """
 
 from __future__ import annotations

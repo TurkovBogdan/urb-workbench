@@ -1,15 +1,15 @@
-"""Источник правки: какая вкладка интерфейса её сделала.
+"""The origin of an edit: which interface tab made it.
 
-Вкладка шлёт свой случайный id в заголовке ``X-Client-Id`` каждого запроса. Прослойка кладёт его
-в переменную контекста на время запроса, сборщик изменений при сбросе в базу читает её и ставит
-в сообщение ленты как ``origin``. По нему вкладка узнаёт эхо собственных сохранений и не
-перечитывает то, что сама только что записала.
+A tab sends its random id in the ``X-Client-Id`` header of every request. The middleware puts it
+into a context variable for the duration of the request; the change collector reads it on flush
+and puts it into the feed message as ``origin``. That lets a tab recognise the echo of its own
+saves and not re-read what it has just written itself.
 
-Без заголовка — MCP-агент, фоновые задачи, другие клиенты — ``origin`` пустой, то есть «не вы» для
-любой вкладки.
+Without the header — the MCP agent, background jobs, other clients — ``origin`` is empty, i.e.
+"not you" for every tab.
 
-Прослойка — чистый ASGI, а не ``BaseHTTPMiddleware``: переменная ставится в той же задаче, в
-которой выполняется обработчик запроса, и точно видна из обработчиков событий сессии SQLAlchemy.
+The middleware is plain ASGI, not ``BaseHTTPMiddleware``: the variable is set in the same task
+that runs the request handler, so it is reliably visible from SQLAlchemy session event handlers.
 """
 
 from __future__ import annotations
@@ -18,8 +18,8 @@ from contextvars import ContextVar
 
 CLIENT_ID_HEADER = "x-client-id"
 
-# Потолок длины: заголовок приходит снаружи, и строка неограниченной длины поехала бы в каждое
-# сообщение ленты каждой вкладке.
+# A length cap: the header comes from outside, and an unbounded string would ride along in every
+# feed message to every tab.
 _MAX_LEN = 64
 
 current_origin: ContextVar[str | None] = ContextVar("core_changes_origin", default=None)

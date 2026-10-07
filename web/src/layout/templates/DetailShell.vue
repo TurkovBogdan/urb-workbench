@@ -1,14 +1,14 @@
 <script setup lang="ts">
-// Рамка всех деталок сразу: колонка навигации слева, содержимое справа.
+// The frame shared by all detail pages: a navigation rail on the left, the content on the right.
 //
-// Стоит на маршруте-родителе, поэтому переход с исследования на его зону не пересобирает страницу
-// целиком — уезжает и приезжает только правая половина, а колонка остаётся на месте и
-// перестраивается: подпись выхода, поиск и оглавление приходят из реестра (`detailRail`), который
-// заполняет пришедшая страница. Раньше колонку рисовала каждая вьюха сама, и на каждом переходе
-// она исчезала вместе с содержимым — при том, что показывала почти то же самое.
+// It sits on the parent route, so going from a research to its zone doesn't rebuild the whole
+// page — only the right half slides out and in, while the rail stays in place and rebuilds itself:
+// the exit label, search and table of contents come from the registry (`detailRail`) filled by the
+// incoming page. Each view used to render the rail itself, and on every transition it vanished
+// along with the content — even though it showed almost the same thing.
 //
-// Прокрутка и отбивки по-прежнему у `PageLayout`; `nested` говорит ему, что смена адреса внутри
-// этой рамки — начало новой страницы, а не переход на другую рамку.
+// Scrolling and spacing still belong to `PageLayout`; `nested` tells it that an address change
+// inside this frame is the start of a new page, not a move to another frame.
 import { IconSearch } from '@tabler/icons-vue'
 
 import PageLayout from './PageLayout.vue'
@@ -53,17 +53,18 @@ const rail = detailRail()
             </template>
           </DetailNav>
 
-          <!-- Оглавление есть не у всякой страницы и приезжает вместе с её данными, поэтому
-               появляется и уходит оно тоже движением: мигнувшая плашка читалась бы как сбой. -->
+          <!-- Not every page has a table of contents, and it arrives with the page's data, so it
+               also appears and leaves with motion: a flashing panel would read as a glitch. -->
           <Transition name="rail-card" mode="out-in">
             <SectionNav v-if="rail.sections?.length" :sections="rail.sections" />
           </Transition>
         </template>
       </template>
 
-      <!-- Тот же переход, что и у смены страницы целиком, но только над содержимым: колонка вне
-           его и не мигает. Конец въезда снимается здесь же — переход между вложенными адресами
-           верхний `Transition` в `App.vue` не запускает, а тяжёлое содержимое ждёт именно его. -->
+      <!-- The same transition as a full page change, but over the content only: the rail is
+           outside it and doesn't flicker. The end of the enter is cleared right here — the top
+           `Transition` in `App.vue` doesn't run for a move between nested addresses, and heavy
+           content waits precisely for it. -->
       <RouterView v-slot="{ Component }">
         <Transition
           name="page"
@@ -87,8 +88,9 @@ const rail = detailRail()
   color: var(--text-muted);
 }
 
-/* Плашка оглавления гаснет вместе со схлопыванием: высота едет по `interpolate-size` (auto ↔ 0),
-   `min-height: 0` нужен, чтобы элемент колонки-флекса вообще мог сжаться ниже содержимого. */
+/* The table-of-contents panel fades out while collapsing: the height animates via
+   `interpolate-size` (auto ↔ 0), and `min-height: 0` is needed for an item of the flex rail to be
+   able to shrink below its content at all. */
 .rail-card-enter-active,
 .rail-card-leave-active {
   overflow: hidden;
@@ -110,8 +112,8 @@ const rail = detailRail()
   }
 }
 
-/* Догоняющая половина поиска: строкой рядом со счётчиком, а не отдельным местом — она уточняет
-   именно его число. */
+/* The catching-up half of the search: inline next to the counter rather than a place of its own —
+   it refines exactly that number. */
 .rail-search__pending {
   display: inline-flex;
   align-items: center;

@@ -1,24 +1,26 @@
-"""ORM ``tasks_stage`` — этап плана: единица работы внутри задачи.
+"""ORM ``tasks_stage`` — a plan stage: a unit of work inside a task.
 
-Этапы заводятся у задач типа ``standard`` и тяжелее: ``simple`` — карточка без плана. Сам план
-прозой лежит в ``tasks.body``, а здесь — конкретные шаги, каждый со своим состоянием и
-доказательством.
+Stages exist on tasks of type ``standard`` and heavier: ``simple`` is a card without a plan. The
+plan itself, as prose, lives in ``tasks.body``; here are the concrete steps, each with its own
+state and evidence.
 
-Порядок держит ``number``, а не ``sort`` соседних таблиц: у этапа номер — часть его имени в
-разговоре («третий заход на второй этап»), и растёт он вниз, от первого к последнему. Пара
-``(task_code, number)`` уникальна — без этого два этапа с номером 3 появятся в первый же день, и
-порядок станет неопределённым. Вставка в середину — передать номер явно и сдвинуть хвост.
+Order is kept by ``number``, not by the ``sort`` of the neighbouring tables: a stage's number is
+part of its name in conversation ("third attempt at stage two"), and it grows downwards, from
+first to last. The ``(task_code, number)`` pair is unique — without that, two stages numbered 3
+would appear on day one and the order would become undefined. To insert in the middle, pass the
+number explicitly and shift the tail.
 
-``status`` берёт тот же справочник, что и задача, и отличается только умолчанием: этап заводят
-уже назначенным (``planned``), потому что он часть плана, а не идея на будущее.
+``status`` uses the same vocabulary as the task and differs only in its default: a stage is
+created already scheduled (``planned``), because it is part of the plan, not an idea for later.
 
-``evidence`` — указатель на доказательство выполнения: команда и её итог, путь к изменённому
-файлу, сводка дифа. Переход в ``done`` с пустым ``evidence`` отказывает на записи (``crud``):
-без этого шаг помечался бы сделанным без проверки, следующие рассуждали бы на ложной посылке, и
-задача завершилась бы «успешно». ``finished_at`` ставит система при уходе в терминальный статус.
+``evidence`` is a pointer to proof of completion: a command and its result, a path to a changed
+file, a diff summary. A transition to ``done`` with empty ``evidence`` is refused on write
+(``crud``): otherwise a step would be marked done without a check, the following steps would
+reason from a false premise, and the task would end "successfully". The system sets
+``finished_at`` on entering a terminal status.
 
-Логического удаления у этапа нет: плана без этапа не бывает, а выбранный и брошенный этап — это
-``canceled``, а не скрытая строка.
+A stage has no soft delete: a plan never lacks its stages, and a chosen-then-abandoned stage is
+``canceled``, not a hidden row.
 """
 
 from __future__ import annotations
@@ -50,8 +52,8 @@ class TasksStage(Base):
         CheckConstraint(
             f"status IN ({sql_in(TASK_STATUSES)})", name="ck_tasks_stage_status"
         ),
-        # Уникальность и порядок одним индексом: он же отдаёт этапы задачи уже отсортированными
-        # и покрывает дочернюю сторону FK ``task_code``.
+        # Uniqueness and order in one index: it also returns a task's stages already sorted and
+        # covers the child side of the ``task_code`` FK.
         Index("ix_tasks_stage_task_number", "task_code", "number", unique=True),
     )
 

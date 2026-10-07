@@ -1,1 +1,1 @@
-"""CRUD-слой ``tasks`` — по файлу на сущность (group / task / link / stage / note), зеркало ``models/``."""
+"""CRUD layer of ``tasks`` — one file per entity (group / task / link / stage / note), mirroring ``models/``."""

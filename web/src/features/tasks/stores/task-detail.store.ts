@@ -14,25 +14,25 @@ import {
   type TaskUpdateBody,
 } from '../api'
 
-// Деталка задачи: карточка, тело в markdown и дети. Дерево страница не строит — ей хватает
-// одного уровня вниз (`children`) и ссылки вверх (`parent_code`): дальше человек идёт переходами,
-// а не разглядывает всю ветку сразу.
+// Task detail: the card, the markdown body and the children. The page builds no tree — one level
+// down (`children`) and a link up (`parent_code`) are enough: beyond that the person navigates
+// rather than surveying the whole branch at once.
 export const useTaskDetailStore = defineStore('tasks-task-detail', () => {
   const task = ref<TaskDetail | null>(null)
   const loading = ref(false)
-  // Держим сам отказ, а не его текст: показ (`SectionError`) отличает «задачи нет» от сбоя по
-  // статусу ответа, а формулировку берёт из `errorText`.
+  // Keep the failure itself, not its text: the display (`SectionError`) tells "no such task" from
+  // a fault by the response status, and takes the wording from `errorText`.
   const error = ref<unknown>(null)
-  // Операция в полёте (статус, удаление, восстановление) — заперты кнопки, а не вся страница.
+  // An operation in flight (status, delete, restore) — the buttons are locked, not the whole page.
   const busy = ref(false)
-  // Правка полей едет сама, без кнопки, поэтому у неё своя пара: чем она занята сейчас и чем
-  // кончилась прошлая попытка. `busy` тут не годится — он запирает кнопки, а поле, в котором
-  // человек продолжает печатать, запирать нельзя.
+  // Field edits are sent on their own, without a button, so they have their own pair: what is in
+  // progress now and how the last attempt ended. `busy` will not do here — it locks the buttons,
+  // and a field the person keeps typing into must not be locked.
   const saving = ref(false)
   const saveError = ref<string | null>(null)
 
-  // Код задачи, которую сейчас ждём: ответ на устаревший запрос не должен перебить пришедший
-  // позже, если человек успел уйти на другую задачу.
+  // Code of the task we are waiting for: a response to a stale request must not override a later
+  // one if the person has already moved to another task.
   let current = ''
 
   async function load(code: string) {
@@ -54,13 +54,13 @@ export const useTaskDetailStore = defineStore('tasks-task-detail', () => {
   }
 
   /**
-   * Правка полей карточки — ТОЛЬКО названных (`PATCH`). Остальные поля на бэк не уезжают вовсе:
-   * пока страница открыта, их мог поменять агент, и полная карточка, собранная из того, что
-   * страница когда-то загрузила, откатила бы его правку.
+   * Edit card fields — ONLY the named ones (`PATCH`). The other fields are not sent at all: while
+   * the page is open the agent may have changed them, and a full card assembled from what the
+   * page once loaded would roll back the agent's edit.
    *
-   * Ответ кладём в `task`: вместе с полями он несёт новую отметку изменения, и перечитывать
-   * задачу отдельным запросом после каждой правки незачем. Отказ не откатывает поля на экране —
-   * набранное остаётся на месте, чтобы его можно было отправить ещё раз.
+   * The response goes into `task`: along with the fields it carries the new modification stamp,
+   * so there is no need to re-read the task with a separate request after each edit. A refusal
+   * does not roll back the fields on screen — what was typed stays so it can be sent again.
    */
   async function patch(fields: Partial<TaskUpdateBody>): Promise<boolean> {
     const row = task.value
@@ -69,8 +69,8 @@ export const useTaskDetailStore = defineStore('tasks-task-detail', () => {
     saving.value = true
     saveError.value = null
     try {
-      // `report: false` — о неудавшейся правке говорит сама карточка, рядом с полями: тост о
-      // запросе, которого человек не запускал руками, читается как сбой неизвестно чего.
+      // `report: false` — a failed edit is reported by the card itself, next to the fields: a toast
+      // about a request the person did not launch by hand reads as a failure of who knows what.
       task.value = await patchTask(row.code, fields, { report: false })
       return true
     } catch (e) {
@@ -82,11 +82,11 @@ export const useTaskDetailStore = defineStore('tasks-task-detail', () => {
   }
 
   /**
-   * Смена статуса — отдельная ручка: вместе со статусом бэк ставит отметку фазы (начало,
-   * завершение, отмена), и общая правка карточки его не трогает вовсе.
+   * Status change is a separate endpoint: together with the status the backend stamps the phase
+   * (start, completion, cancel), and the general card update does not touch status at all.
    *
-   * Ответ — задача целиком, поэтому перечитывать страницу после не нужно: пришедшая карточка уже
-   * несёт и новые отметки времени.
+   * The response is the whole task, so there is no need to re-read the page afterwards: the
+   * returned card already carries the new timestamps.
    */
   async function changeStatus(status: string) {
     const code = task.value?.code
@@ -95,13 +95,14 @@ export const useTaskDetailStore = defineStore('tasks-task-detail', () => {
     try {
       task.value = await setTaskStatus(code, status)
     } catch {
-      // Об отказе сказал тост клиента; статус на экране остаётся прежним — то есть тем, что в базе.
+      // The client's toast reported the refusal; the status on screen stays as it was — i.e. as in
+      // the database.
     } finally {
       busy.value = false
     }
   }
 
-  /** Мягкое удаление — вместе с веткой. Задача остаётся на экране: её можно вернуть отсюда же. */
+  /** Soft delete — together with the branch. The task stays on screen: it can be restored here. */
   async function remove(): Promise<boolean> {
     const code = task.value?.code
     if (!code) return false
@@ -132,8 +133,8 @@ export const useTaskDetailStore = defineStore('tasks-task-detail', () => {
   }
 
   /**
-   * Физическое удаление: возвращать будет некуда, поэтому страница после успеха уходит в список —
-   * решение об уходе принимает она, стор только сообщает, удалось ли.
+   * Physical deletion: there will be nothing to come back to, so on success the page leaves for
+   * the list — the page decides to leave, the store only reports whether it succeeded.
    */
   async function purge(): Promise<boolean> {
     const code = task.value?.code

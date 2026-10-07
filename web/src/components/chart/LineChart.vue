@@ -317,7 +317,7 @@ const tooltipHeader = computed(() => {
           :y1="inner.h" :y2="inner.h"
         />
 
-        <!-- areas (below lines) — сплошная заливка в цвет линии -->
+        <!-- areas (below lines) — a solid fill in the line color -->
         <g class="line-chart__areas">
           <path
             v-for="(a, i) in areaPaths"

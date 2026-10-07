@@ -10,7 +10,7 @@ import { useGroupCatalogStore } from '@/features/research/stores/group-catalog.s
 
 const { t } = useI18n()
 
-// Витрина работает на живом справочнике — здесь же видно, что компонент грузит полки сам.
+// The showcase runs on the live catalog — which also shows that the component loads the shelves itself.
 const catalog = useGroupCatalogStore()
 
 const filterValue = ref<string | null>(null)

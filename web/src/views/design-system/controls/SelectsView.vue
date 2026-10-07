@@ -65,8 +65,8 @@ const value = ref<string | null>(null)
   />
 </template>`
 
-// Иконки в пунктах. Штатный путь — `props.prependIcon` у самого пункта; своя разметка (плашка
-// в цвете, две строки, счётчик) — слоты `#item` / `#selection`.
+// Icons in items. The standard path is `props.prependIcon` on the item itself; custom markup (a
+// colored badge, two lines, a counter) goes through the `#item` / `#selection` slots.
 const viewOptions = [
   { title: 'Table', value: 'table', props: { prependIcon: IconTable } },
   { title: 'Cards', value: 'cards', props: { prependIcon: IconLayoutGrid } },
@@ -100,15 +100,15 @@ const iconsSnippet = `<template>
   </VSelect>
 </template>`
 
-// Селект с приросшей кнопкой — на примере сортировки: поле выбирает, по чему сортировать,
-// кнопка переключает направление, и порознь они не читаются.
+// A select with an attached button — sorting as the example: the field picks what to sort by,
+// the button toggles the direction, and apart they don't make sense.
 const sortFields = ['Date created', 'Date updated', 'Name']
 const sortBy = ref(sortFields[0])
 const sortDir = ref<'asc' | 'desc'>('desc')
 const sortBy2 = ref(sortFields[0])
 const sortDir2 = ref<'asc' | 'desc'>('desc')
 
-// Классы глобальные (main.scss) — своего CSS месту применения не нужно.
+// The classes are global (main.scss) — the call site needs no CSS of its own.
 const groupSnippet = `<template>
   <div class="field-group">
     <VSelect v-model="sortBy" :items="fields" label="Sort by"
@@ -121,8 +121,8 @@ const groupSnippet = `<template>
   </div>
 </template>`
 
-// Селект с шагом — на примере кегля: варианты стоят лестницей, и соседний перебирают подряд,
-// сравнивая результат на глаз.
+// A select with steps — font size as the example: the options form a ladder, and neighbours are
+// tried one after another, comparing the result by eye.
 const sizeOptions = [14, 15, 16, 17, 18, 20].map((size) => ({ title: `${size} px`, value: size }))
 const stepSize = ref(16)
 const stepShelf = ref('devops')
@@ -643,13 +643,13 @@ const { t } = useI18n()
   max-width: 280px;
 }
 
-/* У селекта с шагом ширину держит вся тройка: поле внутри компонента до правила выше не
-   достаёт (чужая область видимости), а кнопки по краям должны стоять на её границах. */
+/* For the stepped select the whole trio holds the width: the rule above doesn't reach the field
+   inside the component (a foreign scope), and the side buttons must stand at its bounds. */
 .ds-stepper {
   width: 280px;
 }
 
-/* Плашка пункта: иконка в цвете сущности — так полка узнаётся в реестре исследований. */
+/* Item badge: an icon in the entity's color — that's how a shelf is recognized in the research registry. */
 .swatch {
   display: inline-flex;
   align-items: center;

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-// Стандарт шапки страницы — рамка СПИСКОВ (у деталки рамка своя, см. `detail-nav`). Правило
-// проверяется автоматически (tests/apps/test_web_page_header.py), поэтому здесь оно не
-// пересказывается прозой, а показывается в двух формах, которые только и встречаются.
+// The page header standard — the frame for LISTS (a detail page has its own, see `detail-nav`). The
+// rule is checked automatically (tests/apps/test_web_page_header.py), so here it isn't retold in
+// prose but shown in the only two forms that occur.
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { IconCopy, IconRefresh } from '@tabler/icons-vue'
@@ -140,8 +140,8 @@ const detailSnippet = `<!-- Nested section: the same list, but inside something 
 .ds-page { max-width: 1100px; }
 .ds-section { margin-bottom: 28px; }
 
-/* Шапка живёт на полотне страницы, поэтому в демо ей нужна не карточка, а очерченное поле:
-   иначе непонятно, где её границы и сколько места она занимает. */
+/* The header lives on the page canvas, so in the demo it needs an outlined area, not a card:
+   otherwise it's unclear where its bounds are and how much space it takes. */
 .ds-frame {
   border: 1px dashed var(--border);
   border-radius: var(--radius);

@@ -1,4 +1,4 @@
-"""HTTP API подсистемы settings."""
+"""HTTP API of the settings subsystem."""
 
 from __future__ import annotations
 
@@ -134,7 +134,7 @@ def _token_field(body: dict) -> dict:
 
 
 def _stored_token() -> str:
-    """Реальное значение секрета в store (не маскированное API-представление)."""
+    """The real secret value in the store (not the masked API representation)."""
     from src.core.settings.registry import get_registry
 
     return get_registry().get("secret_m").token
@@ -157,9 +157,9 @@ async def test_secret_unset_masked_and_is_set_false(client):
 @pytest.mark.db
 async def test_secret_set_stores_value_but_returns_sentinel(client):
     await _set_token(client, "s3cr3t")
-    assert _stored_token() == "s3cr3t"              # реально сохранён
+    assert _stored_token() == "s3cr3t"              # actually stored
     body = (await client.get("/internal/core/settings/secret_m")).json()
-    assert body["values"]["token"] == "NOT_CHANGED"  # наружу — сентинел, не токен
+    assert body["values"]["token"] == "NOT_CHANGED"  # outward — the sentinel, not the token
     assert "s3cr3t" not in str(body)
     assert _token_field(body)["is_set"] is True
 
@@ -168,16 +168,16 @@ async def test_secret_set_stores_value_but_returns_sentinel(client):
 async def test_secret_update_replaces_value(client):
     await _set_token(client, "old-token")
     await _set_token(client, "new-token")
-    assert _stored_token() == "new-token"           # новое значение перезаписало старое
+    assert _stored_token() == "new-token"           # the new value overwrote the old one
 
 
 @pytest.mark.db
 async def test_sentinel_put_does_not_overwrite_token(client):
     await _set_token(client, "keepme")
-    # Пользователь не трогал поле → форма прислала обратно сам сентинел.
+    # The user didn't touch the field → the form sent the sentinel itself back.
     r = await _set_token(client, "NOT_CHANGED")
     assert r.status_code == 200
-    # Токен не заменён на литерал "NOT_CHANGED" и не очищен — остался прежним.
+    # The token was neither replaced by the literal "NOT_CHANGED" nor cleared — it is unchanged.
     assert _stored_token() == "keepme"
 
 
@@ -194,4 +194,4 @@ async def test_reset_clears_secret(client):
     await _set_token(client, "keepme")
     r = await client.post("/internal/core/settings/secret_m/token/reset")
     assert r.status_code == 200
-    assert _stored_token() == ""                     # очистка — только через reset
+    assert _stored_token() == ""                     # clearing goes through reset only

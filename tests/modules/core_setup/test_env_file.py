@@ -1,4 +1,4 @@
-"""core_setup: построчный редактор .env — сохранение комментариев + правка на месте."""
+"""core_setup: the line-based .env editor — comments preserved + in-place edits."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from src.modules.core_setup.keys import FIELDS
 
 
 def _fake_config(**over) -> SimpleNamespace:
-    """Config-стенд: атрибут на каждый ENV-ключ формы (ключ в нижнем регистре)."""
+    """Config stand-in: one attribute per ENV key of the form (key in lower case)."""
     values = {f.key.lower(): "" for f in FIELDS}
     values.update({s.key.lower(): "" for s in env_file.SECRETS})
     values.update(over)
@@ -34,12 +34,12 @@ def test_write_preserves_comments_replaces_in_place_appends_missing(tmp_path, mo
     env_file.write_values({"DB_PROVIDER": "sqlite", "NEW_KEY": "x"})
 
     text = path.read_text(encoding="utf-8")
-    assert "# header comment" in text  # комментарии сохранены
+    assert "# header comment" in text  # comments preserved
     assert "# inline doc for port" in text
-    assert "DB_PROVIDER=sqlite" in text  # заменено на месте
-    assert "DB_PORT=5432" in text  # нетронутый ключ
-    assert "NEW_KEY=x" in text  # дописан в конец
-    # порядок исходных строк не нарушен
+    assert "DB_PROVIDER=sqlite" in text  # replaced in place
+    assert "DB_PORT=5432" in text  # untouched key
+    assert "NEW_KEY=x" in text  # appended at the end
+    # the order of the original lines is intact
     assert text.index("DB_PROVIDER") < text.index("DB_PORT") < text.index("NEW_KEY")
 
 
@@ -68,13 +68,13 @@ def test_seed_creates_env_with_defaults_when_absent(tmp_path, monkeypatch):
 
     assert created is True
     values = env_file.read_values([f.key for f in FIELDS])
-    assert {f.key for f in FIELDS} <= set(values)  # все поля формы записаны
+    assert {f.key for f in FIELDS} <= set(values)  # every form field is written
     assert values["DB_PROVIDER"] == "sqlite"
     assert values["DB_SSL"] == "true"  # bool → true/false
-    assert values["SERVER_PORT"] == "13410"  # int → строка
-    assert values["SERVER_VITE_PORT"] == ""  # None → пусто
+    assert values["SERVER_PORT"] == "13410"  # int → string
+    assert values["SERVER_VITE_PORT"] == ""  # None → empty
     assert values["WORKER_ENABLED"] == "false"
-    assert path.stat().st_mode & 0o777 == 0o600  # в файле секреты — читает только владелец
+    assert path.stat().st_mode & 0o777 == 0o600  # the file holds secrets — owner-only read
 
 
 @pytest.mark.pure
@@ -86,13 +86,13 @@ def test_seed_is_noop_when_env_exists(tmp_path, monkeypatch):
     created = env_file.seed_defaults_if_absent(_fake_config(db_provider="sqlite"))
 
     assert created is False
-    assert path.read_text(encoding="utf-8") == "DB_PROVIDER=postgres\n"  # не тронут
+    assert path.read_text(encoding="utf-8") == "DB_PROVIDER=postgres\n"  # untouched
 
 
 @pytest.mark.pure
 def test_a_key_added_after_the_file_was_written_is_topped_up(tmp_path, monkeypatch):
-    """Ключ, появившийся в новой версии, иначе не доезжает ни до одной живой установки:
-    `seed_defaults_if_absent` пишет только отсутствующий файл (так было с UPDATE_BRANCH)."""
+    """Otherwise a key introduced in a new version never reaches any live installation:
+    `seed_defaults_if_absent` only writes a missing file (this happened with UPDATE_BRANCH)."""
     path = tmp_path / ".env"
     path.write_text("# оператор правил руками\nDB_PROVIDER=postgres\n", encoding="utf-8")
     monkeypatch.setattr(env_file, "env_path", lambda: path)
@@ -103,9 +103,9 @@ def test_a_key_added_after_the_file_was_written_is_topped_up(tmp_path, monkeypat
     assert "DB_PROVIDER" not in added
     text = path.read_text(encoding="utf-8")
     assert "UPDATE_BRANCH=main" in text
-    assert "DB_PROVIDER=postgres" in text  # существующее значение не тронуто
+    assert "DB_PROVIDER=postgres" in text  # the existing value is untouched
     assert "# оператор правил руками" in text
-    assert "# Update branch" in text  # ключ объяснён, а не свалился строкой
+    assert "# Update branch" in text  # the key is explained, not dumped as a bare line
 
 
 @pytest.mark.pure
@@ -121,7 +121,7 @@ def test_topping_up_is_idempotent_and_never_touches_a_full_file(tmp_path, monkey
 
 @pytest.mark.pure
 def test_topping_up_does_not_create_a_missing_file(tmp_path, monkeypatch):
-    """Создание файла — дело `seed_defaults_if_absent`; здесь только уже живая установка."""
+    """Creating the file is `seed_defaults_if_absent`'s job; this is only a live installation."""
     path = tmp_path / ".env"
     monkeypatch.setattr(env_file, "env_path", lambda: path)
 
@@ -131,10 +131,10 @@ def test_topping_up_does_not_create_a_missing_file(tmp_path, monkeypatch):
 
 @pytest.fixture
 def env(tmp_path, monkeypatch):
-    """`.env` во временном каталоге + гарантия, что секреты не утекут в окружение теста.
+    """`.env` in a temp directory + a guarantee that secrets don't leak into the test environment.
 
-    ``setenv`` до вызова кода: monkeypatch запоминает исходное состояние переменной и
-    вернёт его на выходе, даже если код перезапишет её напрямую через ``os.environ``.
+    ``setenv`` before calling the code: monkeypatch remembers the variable's original state and
+    restores it on exit, even if the code overwrites it directly via ``os.environ``.
     """
     path = tmp_path / ".env"
     path.write_text("DB_PROVIDER=sqlite\n", encoding="utf-8")
@@ -152,8 +152,8 @@ def test_missing_secrets_are_generated_into_an_existing_env(env):
     values = env_file.read_values(generated)
     assert all(values[key] for key in generated)
     text = env.read_text(encoding="utf-8")
-    assert "DB_PROVIDER=sqlite" in text  # существующий файл не переписан
-    assert "# Мастер-ключ шифрования" in text  # ключ объяснён, а не свалился строкой
+    assert "DB_PROVIDER=sqlite" in text  # the existing file is not rewritten
+    assert "# Master key encrypting" in text  # the key is explained, not dumped as a bare line
     assert env.stat().st_mode & 0o777 == 0o600
 
 
@@ -161,7 +161,7 @@ def test_missing_secrets_are_generated_into_an_existing_env(env):
 def test_a_generated_secret_is_taken_into_use_right_away(env):
     env_file.ensure_generated(_fake_config())
 
-    # Записали → приняли: процесс, который его выписал, шифрует уже этим ключом
+    # Written → adopted: the process that issued it already encrypts with this key
     assert os.environ["SECRETS_KEY"] == env_file.read_values(["SECRETS_KEY"])["SECRETS_KEY"]
 
 
@@ -186,8 +186,8 @@ def test_generation_is_idempotent(env):
 
 @pytest.mark.pure
 def test_a_key_written_by_a_neighbour_process_is_adopted_not_regenerated(env):
-    # Config пуст (прочитан до соседа), но в файле ключ уже есть — генерировать нельзя,
-    # иначе двое зашифруют разными ключами, а в файле останется один
+    # Config is empty (read before the neighbour wrote), but the file already has a key — must not
+    # generate, or the two would encrypt with different keys while the file keeps only one
     env.write_text(env.read_text(encoding="utf-8") + "SECRETS_KEY=сосед\n", encoding="utf-8")
 
     generated = env_file.ensure_generated(_fake_config())
@@ -205,18 +205,18 @@ def test_a_key_that_could_not_be_written_is_not_taken_into_use(env, monkeypatch)
 
     generated = env_file.ensure_generated(_fake_config())
 
-    # Ключ только в памяти зашифровал бы записи так, что после перезапуска их не прочесть
+    # A key held only in memory would encrypt records that become unreadable after a restart
     assert generated == []
     assert os.environ["SECRETS_KEY"] == ""
 
 
 @pytest.mark.pure
 def test_the_generated_master_key_keeps_its_declared_format(env):
-    """32 случайных байта в base64url без набивки — то, что обещает докстринг генератора.
+    """32 random bytes in unpadded base64url — what the generator's docstring promises.
 
-    Раньше формат сверялся со слоем шифрования, который ключ принимал (``core_connectors``);
-    модуль снят, второй стороны у договора нет, и проверять остаётся само обещание. Потребитель
-    вернётся — тест вернётся к нему, а не к этой форме.
+    The format used to be checked against the encryption layer that consumed the key
+    (``core_connectors``); that module is gone, the contract has no other side, so what remains to
+    check is the promise itself. When a consumer returns, the test goes back to it, not this shape.
     """
     import base64
 

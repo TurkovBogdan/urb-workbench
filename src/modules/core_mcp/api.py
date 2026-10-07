@@ -1,14 +1,14 @@
-"""Раздел «MCP-серверы» — интроспекция модулей, поднятых как MCP-серверы.
+"""The "MCP servers" section — introspection of modules brought up as MCP servers.
 
-Поверхность только на чтение: перечисляет смонтированные ядром MCP-серверы
-(``/mcp/<code>``) и отдаёт по каждому имя/версию/инструкции, список инструментов
-и готовый stdio-конфиг для вставки в MCP-клиент. Источник истины — живые
-``FastMCP``-инстансы, которые ``mount_mcp_servers`` кладёт в ``app.state.mcp_servers``
-при сборке сервера; читаем их duck-typed (``name``/``version``/``instructions``/
-``list_tools``), поэтому модуль НЕ импортирует ``fastmcp`` (воркер чист).
+A read-only surface: lists the MCP servers mounted by the core (``/mcp/<code>``) and returns
+for each its name/version/instructions, the tool list and a ready stdio config to paste into
+an MCP client. The source of truth is the live ``FastMCP`` instances that
+``mount_mcp_servers`` puts into ``app.state.mcp_servers`` while building the server; we read
+them duck-typed (``name``/``version``/``instructions``/``list_tools``), so the module does
+NOT import ``fastmcp`` (the worker stays clean).
 
-Корень ``/servers`` прописан в путях; зона навешивает префикс ``/core-mcp``.
-Зона internal в чистом ядре = ``allow_all`` — guard не нужен.
+The ``/servers`` root is spelled out in the paths; the zone adds the ``/core-mcp`` prefix.
+The internal zone in the bare core is ``allow_all`` — no guard needed.
 """
 
 from __future__ import annotations
@@ -23,11 +23,11 @@ from pydantic import BaseModel
 
 from src.core.api import ApiError
 
-# Корень проекта (…/src/modules/core_mcp/api.py → четыре уровня вверх) — идёт в
-# `uv run --directory`, чтобы клиент со своим cwd всё равно попал в проект.
+# The project root (…/src/modules/core_mcp/api.py → four levels up) — goes into
+# `uv run --directory`, so a client with its own cwd still lands in the project.
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
-# Голый код сервера («workbench») в списке MCP клиента не отличить от чужих серверов.
+# A bare server code ("workbench") is indistinguishable from other servers in a client's MCP list.
 _CLIENT_SERVER_NAME_PREFIX = "urb-"
 
 
@@ -52,9 +52,9 @@ class McpServerDetail(BaseModel):
     version: str | None
     instructions: str | None
     tools: list[McpToolInfo]
-    # Готовый JSON-конфиг подключения строкой, для копирования. Единый для Claude
-    # Desktop и Claude Code — оба спавнят локальную stdio-обёртку `app.py --mcp-stdio`
-    # (лёгкий демон-враппер), которая сама поднимает backend и мостит вызовы.
+    # A ready JSON connection config as a string, for copying. The same for Claude Desktop
+    # and Claude Code — both spawn the local stdio wrapper `app.py --mcp-stdio` (a light
+    # daemon wrapper) that brings up the backend itself and bridges the calls.
     connection_config: str
 
 
@@ -62,12 +62,12 @@ router = APIRouter()
 
 
 def _servers(request: Request) -> dict[str, Any]:
-    """Реестр живых MCP-инстансов из ``app.state`` (пусто, если зона не монтирована)."""
+    """The registry of live MCP instances from ``app.state`` (empty if the zone is not mounted)."""
     return getattr(request.app.state, "mcp_servers", {})
 
 
 async def _tools(mcp: Any) -> list[McpToolInfo]:
-    """Инструменты сервера через интроспекцию (без middleware/auth — чистый список)."""
+    """The server's tools via introspection (no middleware/auth — the bare list)."""
     return [
         McpToolInfo(
             name=t.name,
@@ -80,39 +80,40 @@ async def _tools(mcp: Any) -> list[McpToolInfo]:
 
 
 def _uv_binary() -> str:
-    """Абсолютный путь к ``uv`` для конфига (fallback — голое имя).
+    """The absolute path to ``uv`` for the config (fallback — the bare name).
 
-    MCP-клиенты часто стартуют с урезанным PATH, поэтому абсолютный путь надёжнее
-    голого ``uv`` (иначе клиент не найдёт бинарь → «Connection Failed»).
+    MCP clients often start with a trimmed PATH, so an absolute path is more reliable than a
+    bare ``uv`` (otherwise the client cannot find the binary → "Connection Failed").
     """
     return shutil.which("uv") or "uv"
 
 
 def _stdio_config(code: str, pin_code: bool, token: str, workspace: str) -> str:
-    """Конфиг подключения через stdio-обёртку (``app.py --mcp-stdio``).
+    """The connection config through the stdio wrapper (``app.py --mcp-stdio``).
 
-    Клиент сам спавнит лёгкий демон-враппер по stdio — тот лениво поднимает backend и
-    мостит вызовы инструментов на ``/mcp/<code>``. Вид единый для Claude Desktop и Claude
-    Code. ``uv run --directory <root>`` фиксирует проект независимо от cwd клиента.
+    The client itself spawns a light daemon wrapper over stdio — it lazily brings up the
+    backend and bridges tool calls to ``/mcp/<code>``. The shape is the same for Claude Desktop
+    and Claude Code. ``uv run --directory <root>`` pins the project regardless of the client's
+    cwd.
 
-    **Что аргументом, а что переменной — решает не вкус, а видимость.** Аргументы командной
-    строки видны в ``ps`` любому процессу машины, переменные окружения — нет. Поэтому
-    ``MCP_TOKEN`` (bearer MCP-серверов) остаётся в ``env``, а код сервера и пространство едут
-    аргументами: секрета в них нет, зато в аргументах они читаются с одного взгляда и стоят
-    там же, где сама роль.
+    **What goes as an argument and what as a variable is decided by visibility, not taste.**
+    Command-line arguments are visible in ``ps`` to any process on the machine; environment
+    variables are not. So ``MCP_TOKEN`` (the MCP servers' bearer) stays in ``env``, while the
+    server code and the workspace go as arguments: there is no secret in them, and as
+    arguments they read at a glance and sit right next to the role itself.
 
-    Код сервера пинуется, только когда серверов несколько: иначе шим сам берёт единственный
-    смонтированный, и лишний аргумент был бы обещанием, что выбор есть. Пространство
-    попадает сюда по тому же правилу «только заданное» — пустой аргумент выглядел бы
-    обязательным полем, которое забыли заполнить. И то и другое перекрывается флагом поверх
-    ``.env`` установки: подключение — не установка, и настройка одного не должна течь в
-    другое.
+    The server code is pinned only when there are several servers: otherwise the shim takes
+    the single mounted one by itself, and an extra argument would promise a choice that does
+    not exist. The workspace gets here by the same "only when set" rule — an empty argument
+    would look like a required field someone forgot to fill. Both override the installation's
+    ``.env`` as a flag on top of it: a connection is not an installation, and configuring one
+    must not leak into the other.
 
-    **Форма ``--флаг=значение``, а не два элемента массива.** Оба варианта argparse понимает
-    одинаково, но в конфиге, который человек правит руками, склеенная пара не распадается:
-    переставить, продублировать или потерять половину нельзя, потому что половины нет. Для
-    ``--mcp-stdio`` это особенно важно — значение у него необязательное, и осиротевший флаг не
-    сломается, а тихо сменит смысл на «сервер выбери сам».
+    **The ``--flag=value`` form, not two array elements.** argparse treats both the same, but
+    in a config a human edits by hand a glued pair cannot fall apart: you cannot reorder,
+    duplicate or lose half of it, because there are no halves. For ``--mcp-stdio`` this
+    matters most — its value is optional, so an orphaned flag would not break but would
+    silently change meaning to "pick the server yourself".
     """
     args = ["run", "--directory", str(_PROJECT_ROOT), "python", "src/app.py"]
     args.append(f"--mcp-stdio={code}" if pin_code else "--mcp-stdio")
@@ -127,7 +128,7 @@ def _stdio_config(code: str, pin_code: bool, token: str, workspace: str) -> str:
 
 @router.get("/servers", response_model=list[McpServerSummary])
 async def list_servers(request: Request) -> list[McpServerSummary]:
-    """Сводка по всем смонтированным MCP-серверам (имя/версия/число инструментов)."""
+    """A summary of all mounted MCP servers (name/version/tool count)."""
     out: list[McpServerSummary] = []
     for code, mcp in _servers(request).items():
         out.append(
@@ -145,7 +146,7 @@ async def list_servers(request: Request) -> list[McpServerSummary]:
 
 @router.get("/servers/{code}", response_model=McpServerDetail)
 async def get_server(code: str, request: Request) -> McpServerDetail:
-    """Детали одного сервера: инструкции, инструменты и конфиг подключения."""
+    """One server's details: instructions, tools and the connection config."""
     servers = _servers(request)
     mcp = servers.get(code)
     if mcp is None:

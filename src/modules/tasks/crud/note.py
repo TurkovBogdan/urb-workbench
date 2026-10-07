@@ -1,15 +1,16 @@
-"""CRUD ``TasksNote`` — журнал работы. Каждая функция владеет своей сессией.
+"""CRUD for ``TasksNote`` — the work journal. Each function owns its session.
 
-Таблица дописываемая, и слой это держит: правки записи нет вовсе, а ``note_resolve`` заполняет
-разрешение **один раз**. Повторный вызов на уже закрытой записи отказывает — иначе историю можно
-было бы переписать под результат, и разбор неудачи перестал бы что-либо значить. Отмена
-оформляется новой записью, а не правкой старой.
+The table is append-only, and the layer enforces it: there is no entry edit at all, and
+``note_resolve`` fills the resolution **once**. A repeat call on an already resolved entry is
+refused — otherwise history could be rewritten to fit the outcome, and analysing a failure would
+stop meaning anything. A reversal is recorded as a new entry, not as an edit of the old one.
 
-Кто пишет какую половину строки, слой не решает: это поверхность (MCP/HTTP) — у агента просто нет
-инструмента завести ``remark`` и нет ручки проставить ответ там, где отвечает человек.
+Who writes which half of a row is not this layer's call: that is the surface (MCP/HTTP) — the agent
+simply has no tool to create a ``remark`` and no endpoint to fill in an answer where the person
+answers.
 
-Открытая запись — та, у которой пусто ``resolution``. ``fact`` закрыт в момент создания, поэтому
-в счётчик открытых не попадает: он ничего не ждёт.
+An open entry is one with an empty ``resolution``. A ``fact`` is resolved at creation, so it never
+counts as open: it is waiting for nothing.
 """
 
 from __future__ import annotations
@@ -35,10 +36,10 @@ from src.modules.tasks.text import clip
 
 
 async def _require_planned_task(s, task_code: str) -> None:
-    """Живая задача С ПЛАНОМ или отказ — те же две проверки, что и у этапа.
+    """A live task WITH A PLAN, or refuse — the same two checks as for a stage.
 
-    Журнал начинается с ``standard`` по той же причине, что и этапы: у ``simple`` его нет ни в
-    схеме ведения, ни в интерфейсе, и запись туда никому бы не показалась.
+    The journal starts at ``standard`` for the same reason stages do: ``simple`` has none in its
+    workflow or in the UI, so an entry written there would never be shown to anyone.
     """
     stmt = select(TasksTask.type).where(
         TasksTask.code == task_code, TasksTask.deleted_at.is_(None)
@@ -57,7 +58,7 @@ async def _require_planned_task(s, task_code: str) -> None:
 
 
 async def _require_stage_of(s, stage_code: str, task_code: str) -> None:
-    """Этап существует и принадлежит той же задаче, что и запись."""
+    """The stage exists and belongs to the same task as the entry."""
     stmt = select(TasksStage.task_code).where(TasksStage.code == stage_code)
     owner = (await s.execute(stmt)).scalar_one_or_none()
     if owner is None:
@@ -78,10 +79,11 @@ async def note_create(
     stage_code: str | None = None,
     resolution: str | None = None,
 ) -> TasksNote:
-    """Завести запись журнала.
+    """Create a journal entry.
 
-    ``resolution`` на создании имеет смысл ровно для ``fact``: факт закрыт в момент записи, ждать
-    ему нечего. Остальные виды заводятся открытыми и закрываются ``note_resolve``.
+    ``resolution`` at creation makes sense only for ``fact``: a fact is resolved the moment it is
+    written and has nothing to wait for. The other types start open and are closed by
+    ``note_resolve``.
     """
     if type not in NOTE_TYPES:
         raise ValueError(
@@ -114,7 +116,7 @@ async def note_get(code: str) -> TasksNote | None:
 async def note_list_by_task(
     task_code: str, *, type: str | None = None, open_only: bool = False
 ) -> list[TasksNote]:
-    """Журнал задачи в порядке появления; можно сузить до вида или до незакрытых записей."""
+    """The task's journal in order of appearance; can be narrowed to one type or to open entries."""
     stmt = (
         select(TasksNote)
         .where(TasksNote.task_code == task_code)
@@ -129,10 +131,10 @@ async def note_list_by_task(
 
 
 async def note_resolve(code: str, resolution: str) -> TasksNote | None:
-    """Закрыть запись разрешением. ``None`` — записи нет; уже закрытая — ``TaskRuleError``.
+    """Resolve an entry. ``None`` — no such entry; already resolved — ``TaskRuleError``.
 
-    Пробелы срезаются ДО проверки на пустоту: иначе строка из одних пробелов закрывала бы запись,
-    оставляя её пустой на вид — и открытой по смыслу, но закрытой для шлюза.
+    Whitespace is stripped BEFORE the emptiness check: otherwise a whitespace-only string would
+    close the entry while leaving it blank to the eye — open in meaning, but closed to the gate.
     """
     text = clip(resolution.strip(), RESOLUTION_MAX)
     if not text:
@@ -154,13 +156,13 @@ async def note_resolve(code: str, resolution: str) -> TasksNote | None:
 
 
 async def note_delete(code: str) -> bool:
-    """Снести запись физически. Агенту эта операция не отдаётся — журнал чистит человек."""
+    """Hard-delete an entry. Not exposed to the agent — cleaning the journal is the person's job."""
     async with write_scope() as s:
         row = await s.get(TasksNote, code)
         if row is None:
             return False
         await s.execute(sa_delete(TasksNote).where(TasksNote.code == code))
-        # Массовый оператор объектов не даёт — ленте изменений код называем сами.
+        # A bulk statement yields no objects — so we name the code to the change feed ourselves.
         mark_changes(s, "tasks.note", DELETED, [code])
     return True
 
@@ -168,16 +170,16 @@ async def note_delete(code: str) -> bool:
 async def note_open_count_by_task_codes(
     task_codes: list[str], *, types: tuple[str, ...] = NOTE_TYPES_OPENABLE
 ) -> dict[str, int]:
-    """``task_code → сколько открытых записей`` названных видов.
+    """``task_code → number of open entries`` of the given types.
 
-    ``fact`` не входит в ``NOTE_TYPES_OPENABLE`` вовсе: он закрыт в момент записи и ничего не
-    ждёт. Остальные три — ждут, но ждут **разного**, и потому у счётчика есть параметр.
+    ``fact`` is not in ``NOTE_TYPES_OPENABLE`` at all: it is resolved the moment it is written and
+    waits for nothing. The other three do wait, but for **different** things — hence the parameter.
 
-    Для показа человеку считают всё открытое. Для **шлюза сдачи** — только
-    ``NOTE_TYPES_BLOCKING`` (решение и замечание): их закрыть в силах тот, кто сдаёт работу.
-    Находка адресована не сюда — её разбирает человек в своём порядке, и посчитай мы её
-    наравне, первая же находка заперла бы сдачу навсегда, потому что снять её исполнителю
-    нечем.
+    For display to the person, everything open is counted. For the **hand-off gate** — only
+    ``NOTE_TYPES_BLOCKING`` (decision and remark): those are within the power of whoever hands the
+    work in to close. A finding is not addressed here — the person triages it in their own order,
+    and were we to count it equally, the very first finding would lock the hand-off forever,
+    because the executor has no way to clear it.
     """
     if not task_codes:
         return {}

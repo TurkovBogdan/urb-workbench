@@ -1,7 +1,7 @@
 // Client for the INTERNAL API (zone `/internal/*`) — the single way the frontend talks to our
-// own backend. Общая фабрика (`createClient`) плюс политика ЭТОЙ зоны; отдельный клиент под
-// будущий внешний/публичный API заводится там же одной строкой. Вызывающие передают
-// зона-относительные пути ('/workbench/tasks') — префикс принадлежит этому файлу.
+// own backend. The shared factory (`createClient`) plus THIS zone's policy; a separate client for a
+// future external/public API is added the same way in one line. Callers pass zone-relative paths
+// ('/workbench/tasks') — the prefix belongs to this file.
 import { CLIENT_ID, CLIENT_ID_HEADER } from './client-id'
 import { createClient } from './createClient'
 import { errorText } from '@/api/errorText'
@@ -14,14 +14,14 @@ export type { ApiErrorBody, RequestOptions } from './createClient'
 export const internalApi = createClient({
   prefix: '/internal',
   origin: import.meta.env.VITE_API_BASE ?? '',
-  // Метка вкладки: по ней лента изменений отличает эхо своих правок от чужих (`client-id.ts`).
+  // Tab tag: the change feed uses it to tell the echo of our own edits from others' (`client-id.ts`).
   headers: { [CLIENT_ID_HEADER]: CLIENT_ID },
-  // ⚠️ Авторизации у зоны сегодня нет: CSRF-проверки на бэкенде не существует, и включённый
-  // тумблер добавил бы провальный GET `/internal/csrf-cookie` перед каждой записью. Здесь же
-  // появится `loginPath`/`onUnauthenticated`, если вход когда-нибудь заведётся.
+  // ⚠️ The zone has no auth today: there is no CSRF check on the backend, and turning this on
+  // would add a failing GET `/internal/csrf-cookie` before every write. `loginPath` and
+  // `onUnauthenticated` will appear here too, if login is ever introduced.
   csrf: false,
-  // Отказ в правах — экран на текущем адресе, а не уход на отдельный.
+  // A permission denial is a screen at the current address, not a redirect to a separate one.
   onForbidden: () => setShellError('forbidden'),
-  // Отказ, который экран не показал сам, всплывает сообщением.
+  // A failure the screen did not show itself pops up as a toast.
   onError: (error) => pushToast(errorText(error)),
 })

@@ -1,8 +1,8 @@
-"""workbench MCP: каталог навыков и показ страницы пользователю.
+"""workbench MCP: the skills catalogue and showing a page to the user.
 
-Навыки — файлы в модуле, и тест сторожит не их текст, а то, ради чего каталог существует:
-первый уровень дёшев (имена и условия вызова, без текстов), у каждого навыка есть условие, и
-неизвестное имя отвечает списком доступных, а не пустотой.
+Skills are files in the module, and the test guards not their text but what the catalogue exists
+for: the first level is cheap (names and invocation conditions, no texts), every skill has a
+condition, and an unknown name answers with the list of available ones rather than with nothing.
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ async def test_the_catalogue_carries_conditions_and_no_text(call, db):
 
     assert {row["name"] for row in rows} >= {"task-brief", "task-plan", "journal", "markdown"}
     for row in rows:
-        # Описание — это УСЛОВИЕ вызова, а не тема: «read before…», а не «about briefs».
+        # The description is a calling CONDITION, not a topic: "read before…", not "about briefs".
         assert row["description"].lower().startswith("read before"), row["name"]
         assert "text" not in row
 
@@ -42,18 +42,19 @@ async def test_an_unknown_skill_answers_with_what_there_is(call, db):
 
 
 def test_every_skill_file_declares_its_condition():
-    """Навык без описания невидим на первом уровне — его просто никогда не откроют."""
+    """A skill without a description is invisible at the first level — nobody will ever open it."""
     assert list_skills()
     for skill in list_skills():
         assert skill.description, skill.name
 
 
-# ── показ ─────────────────────────────────────────────────────────────────────
+# ── showing ───────────────────────────────────────────────────────────────────
 
 
 @pytest.fixture
 def no_browser(monkeypatch):
-    """Браузер не дёргаем: тест про адрес, а не про то, что на машине есть чем открыть."""
+    """Leave the browser alone: the test is about the URL, not about the machine having a way
+    to open it."""
     opened = []
     monkeypatch.setattr(
         "src.modules.tasks.mcp.interface.webbrowser.open",
@@ -96,7 +97,7 @@ async def test_a_workspace_and_a_group_open_the_list_they_are_a_row_in(call, wor
 async def test_showing_a_foreign_workspace_is_refused_like_everything_else(
     call, workspace, no_browser
 ):
-    """Открытие страницы — видимое действие на машине человека, и забор действует и здесь."""
+    """Opening a page is a visible action on the person's machine, so the fence applies here too."""
     from src.modules.workspace.crud.workspace import workspace_create
 
     other = await workspace_create(title="Личное")

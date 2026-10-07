@@ -1,7 +1,7 @@
-"""Модуль ``core_setup``: страница настроек, редактирующая ``.env`` + рестарт.
+"""The ``core_setup`` module: a settings page that edits ``.env`` + restart.
 
-Слой ENV/``Config`` (deploy-time), НЕ рантайм-настройки (``core_modules_settings``).
-Правка ``.env`` применяется перезапуском процесса. Без БД/задач — только internal-API.
+The ENV/``Config`` layer (deploy-time), NOT runtime settings (``core_modules_settings``).
+An ``.env`` edit takes effect by restarting the process. No DB/jobs — only an internal API.
 """
 
 from __future__ import annotations

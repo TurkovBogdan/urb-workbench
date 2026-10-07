@@ -1,11 +1,11 @@
 """tasks: tasks_link table
 
-Creates ``tasks_link`` — ребро дерева задач. Column order mirrors ``models/link.py::TasksLink``.
-``task_code`` — одновременно PK и FK → tasks.code (CASCADE): одна строка на задачу, второго
-родителя схема физически не вмещает. ``parent_code`` — FK туда же (CASCADE, nullable; ``NULL`` =
-корень пространства). Дети родителя идут одним полотном: весь порядок несёт ``sort``. Индекс
-``(parent_code, sort)`` отдаёт детей узла уже упорядоченными и покрывает дочернюю сторону FK
-``parent_code``.
+Creates ``tasks_link`` — an edge of the task tree. Column order mirrors
+``models/link.py::TasksLink``. ``task_code`` is both the PK and an FK → tasks.code (CASCADE): one
+row per task, so the schema physically cannot hold a second parent. ``parent_code`` is an FK to
+the same table (CASCADE, nullable; ``NULL`` = the workspace root). A parent's children form a
+single run: ``sort`` carries the whole order. The ``(parent_code, sort)`` index returns a node's
+children already ordered and covers the child side of the ``parent_code`` FK.
 
 Revision ID: tsm_003_link
 Revises: tsm_002_task

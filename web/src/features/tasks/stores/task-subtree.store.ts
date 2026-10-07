@@ -6,25 +6,26 @@ import { isTerminal } from '../labels'
 import { childrenIndex, moveInRow, type MovePlace } from '../tree'
 import type { TaskNode } from './tasks.store'
 
-// Ветка под задачей — на её странице, в том же виде, что в общем списке.
+// The branch under a task — on its page, in the same form as in the main list.
 //
-// Стор свой, а не общий со списком: поиск и переключатели здесь сужают ОДНУ ветку, и делить их
-// со списком значило бы, что набранное на странице задачи сужает весь список, куда человек потом
-// вернётся. Собирается ветка тем же путём, что и список, — из плоского списка пространства
-// (`GET /tasks`): в нём уже лежат родители и места всех задач, и отдельная ручка «потомки задачи»
-// повторяла бы его частью. Перестановка — та же арифметика ряда (`tree.ts`) и та же цепочка:
-// сразу на экране, следом в базе, сверка после последнего ответа.
+// A store of its own, not shared with the list: search and toggles here narrow ONE branch, and
+// sharing them with the list would mean that what is typed on the task page narrows the whole list
+// the person later returns to. The branch is assembled the same way as the list — from the
+// workspace's flat list (`GET /tasks`): it already holds the parents and positions of all tasks,
+// and a separate "task descendants" endpoint would partly duplicate it. Reordering uses the same
+// row arithmetic (`tree.ts`) and the same chain: on screen at once, then in the database,
+// reconciliation after the last response.
 export const useTaskSubtreeStore = defineStore('tasks-task-subtree', () => {
   const rootCode = ref('')
   const workspace = ref('')
-  /** Сама задача в корзине: живых потомков у неё не бывает (удаление каскадно), и прятать удалённых незачем. */
+  /** The task itself is in the trash: it has no live descendants (delete cascades), so no point hiding deleted. */
   const rootDeleted = ref(false)
 
   const items = ref<TaskListRow[]>([])
   const loading = ref(false)
   const error = ref<unknown>(null)
 
-  // Умолчания — те же, что у списка: завершённое спрятано, корзина не запрошена.
+  // Same defaults as the list: finished hidden, trash not requested.
   const query = ref('')
   const hideFinished = ref(true)
   const includeDeleted = ref(false)
@@ -33,8 +34,8 @@ export const useTaskSubtreeStore = defineStore('tasks-task-subtree', () => {
   const searching = computed(() => query.value.trim() !== '')
 
   /**
-   * Открыть ветку задачи. Другая задача — другая ветка: набранное и переключатели возвращаются к
-   * умолчаниям, иначе поиск, оставленный на прошлой задаче, молча сузил бы эту.
+   * Open a task's branch. Another task means another branch: the query and toggles go back to
+   * defaults, otherwise a search left over from the previous task would silently narrow this one.
    */
   function open(code: string, workspaceCode: string, deleted: boolean): Promise<void> {
     if (code !== rootCode.value) {
@@ -49,7 +50,7 @@ export const useTaskSubtreeStore = defineStore('tasks-task-subtree', () => {
     return load()
   }
 
-  // Код ветки, которую сейчас ждём: ответ по прежней задаче не должен лечь на новую.
+  // Code of the branch we are waiting for: a response for the previous task must not land on the new one.
   let pending = ''
 
   async function load(): Promise<void> {
@@ -78,7 +79,7 @@ export const useTaskSubtreeStore = defineStore('tasks-task-subtree', () => {
 
   const childrenByParent = computed(() => childrenIndex(items.value))
 
-  /** Сколько детей у каждой задачи — для кнопки-счётчика строки, как в списке. */
+  /** How many children each task has — for the row's counter button, as in the list. */
   const childCounts = computed(
     () => new Map([...childrenByParent.value].map(([code, children]) => [code, children.length])),
   )
@@ -89,13 +90,13 @@ export const useTaskSubtreeStore = defineStore('tasks-task-subtree', () => {
     )
   }
 
-  /** Завершена и под ней нет живой работы — правило списка: иначе вместе с ней ушла бы открытая подзадача. */
+  /** Finished with no live work under it — the list's rule: otherwise an open subtask would vanish with it. */
   function finishedAndIdle(task: TaskListRow): boolean {
     if (!hideFinished.value || !isTerminal(task.status)) return false
     return !hasLiveDescendant(task)
   }
 
-  /** Ветка под задачей: узлы детей, у каждого — свои дети. Глубина считается от нуля, как у корней списка. */
+  /** The branch under the task: child nodes, each with its own children. Depth counts from zero, like list roots. */
   const nodes = computed<TaskNode[]>(() => {
     const walk = (task: TaskListRow, depth: number, last: boolean): TaskNode => {
       const children = visibleChildren(task.code)
@@ -115,8 +116,8 @@ export const useTaskSubtreeStore = defineStore('tasks-task-subtree', () => {
   }
 
   /**
-   * Совпадения поиска — плоским рядом в порядке ветки, как отфильтрованный список: подзадача,
-   * попавшая под запрос, не должна пропадать вместе с родителем, который под него не попал.
+   * Search matches as a flat row in branch order, like the filtered list: a subtask that matches
+   * the query must not disappear along with a parent that does not.
    */
   const matches = computed<TaskListRow[]>(() => {
     const needle = query.value.trim().toLowerCase()
@@ -134,15 +135,15 @@ export const useTaskSubtreeStore = defineStore('tasks-task-subtree', () => {
     return out
   })
 
-  /** Под задачей нет ни одной подзадачи — даже спрятанной переключателями. */
+  /** The task has no subtasks at all — not even ones hidden by the toggles. */
   const isEmpty = computed(() => !(childrenByParent.value.get(rootCode.value)?.length))
 
-  /** Подзадачи есть, но переключатели или поиск спрятали все. */
+  /** Subtasks exist, but the toggles or the search hid all of them. */
   const isFilteredOut = computed(
     () => !isEmpty.value && (searching.value ? matches.value.length === 0 : nodes.value.length === 0),
   )
 
-  // Запросы перестановки идут цепочкой, в порядке жестов, — см. `tasks.store.ts::reorder`.
+  // Reorder requests go as a chain, in gesture order — see `tasks.store.ts::reorder`.
   let moveChain: Promise<void> = Promise.resolve()
   let movesInFlight = 0
 
@@ -160,7 +161,7 @@ export const useTaskSubtreeStore = defineStore('tasks-task-subtree', () => {
       )
       .then(
         () => undefined,
-        () => undefined, // об отказе сказал тост клиента; ответ на него — сверка ниже
+        () => undefined, // the client's toast reported the refusal; the answer is the re-read below
       )
       .then(async () => {
         movesInFlight -= 1
@@ -169,12 +170,12 @@ export const useTaskSubtreeStore = defineStore('tasks-task-subtree', () => {
     return moveChain
   }
 
-  /** Обе операции обратимы и спрашивать нечего; отказ озвучил тост, ответ на него — свежая ветка. */
+  /** Both are reversible, nothing to ask; a refusal was voiced by the toast, the answer is a fresh branch. */
   async function remove(code: string): Promise<void> {
     try {
       await deleteTask(code)
     } catch {
-      // см. выше
+      // see above
     }
     await load()
   }
@@ -183,7 +184,7 @@ export const useTaskSubtreeStore = defineStore('tasks-task-subtree', () => {
     try {
       await restoreTask(code)
     } catch {
-      // см. выше
+      // see above
     }
     await load()
   }

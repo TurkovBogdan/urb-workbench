@@ -1,29 +1,30 @@
-"""MCP stdio-шим: клиент спавнит нас как ``command``-сервер, мы поднимаем backend.
+"""MCP stdio shim: the client spawns us as a ``command`` server, we bring up the backend.
 
-Модель «в покое не крутится ничего»: MCP-клиент запускает этот процесс по stdio
-(транспорт ``command``), а не ходит на HTTP-порт. При старте шим:
+The "nothing runs at rest" model: the MCP client launches this process over stdio
+(the ``command`` transport) instead of connecting to an HTTP port. On start the shim:
 
-1. Проверяет, поднят ли backend (HTTP ``/internal/health``). Если нет — спавнит
-   ``src/app.py --backend`` отдельной сессией (``start_new_session`` — процесс
-   переживает смерть шима: MCP-сессия закончилась, а сервер остаётся; гасят
-   вручную) и ждёт готовности. Готовность — ``status="ok"`` в теле, а не сам код 200:
-   backend с отставшей схемой отвечает 200 и ``degraded``, и шим отказывает,
-   назвав неприменённые ревизии. Под флагом обновления не спавнит вовсе.
-   Сам спавн и опрос готовности — общие с апдейтером (``core/backend_launch.py``).
-2. Открывает системный браузер на главной SPA — только когда backend реально
-   подняли (если сервер уже был жив, страница и так открыта, второй вкладкой не
-   спамим).
-3. Работает мостом stdio ↔ HTTP-MCP backend (``fastmcp`` proxy): вызовы уходят на
-   ``/mcp/<code>`` живого сервера и возвращаются клиенту. Каждый такой вызов несёт
-   заголовок с идентификатором ЭТОГО подключения — им backend отличает одну сессию
-   агента от другой и держит по нему активное рабочее пространство
+1. Checks whether the backend is up (HTTP ``/internal/health``). If not, spawns
+   ``src/app.py --backend`` in a separate session (``start_new_session`` — the process
+   outlives the shim: the MCP session ends, the server stays; it is stopped
+   by hand) and waits for readiness. Readiness is ``status="ok"`` in the body, not the 200
+   itself: a backend with a lagging schema answers 200 and ``degraded``, and the shim refuses,
+   naming the unapplied revisions. Under the update flag it does not spawn at all.
+   The spawn and the readiness poll are shared with the updater (``core/backend_launch.py``).
+2. Opens the system browser on the SPA home page — only when the backend was actually
+   brought up (if the server was already alive, the page is already open; no spamming
+   a second tab).
+3. Acts as a stdio ↔ HTTP-MCP backend bridge (``fastmcp`` proxy): calls go to
+   ``/mcp/<code>`` on the live server and come back to the client. Every such call carries
+   a header with THIS connection's identifier — the backend uses it to tell one agent
+   session from another and keeps the active workspace keyed by it
    (``core/mcp_headers``).
 
-stdout зарезервирован под MCP-протокол — диагностика идёт в лог-канал (файл, не
-поток), а stdio backend-подпроцесса отвязан в свой лог-файл, не в пайп клиента.
+stdout is reserved for the MCP protocol — diagnostics go to a log channel (a file, not a
+stream), and the backend subprocess's stdio is detached into its own log file, not the client
+pipe.
 
-``fastmcp`` (+13 МБ) импортируется лениво в ``_build_proxy`` — импорт самого модуля
-форк не тянет (как и остальная MCP-инфра).
+``fastmcp`` (+13 MB) is imported lazily in ``_build_proxy`` — importing this module itself
+does not pull in the fork (like the rest of the MCP infra).
 """
 
 from __future__ import annotations
@@ -48,10 +49,10 @@ _LOG = get_logger("mcp")
 
 
 def _use_file_only_logging(config: Config) -> None:
-    """Логи шима — только в файл: stdout несёт MCP-протокол, echo туда рвёт JSONRPC.
+    """The shim logs to a file only: stdout carries the MCP protocol, echoing there breaks JSONRPC.
 
-    ``CoreLogger`` по умолчанию дублирует в stdout; здесь ставим фабрику с
-    ``stdout=False`` до первого лога (прокси ``get_logger`` резолвит на неё)."""
+    ``CoreLogger`` mirrors to stdout by default; here we install a factory with
+    ``stdout=False`` before the first log line (the ``get_logger`` proxy resolves to it)."""
     from src.core.app_path import AppPath, ensure_dirs
     from src.core.loggers import set_logger_factory
     from src.core.loggers.core_logger import CoreLogger
@@ -69,7 +70,7 @@ def _use_file_only_logging(config: Config) -> None:
 
 
 def _resolve_code(config: Config) -> str:
-    """Код смонтированного MCP-сервера: из настройки или единственный из модулей."""
+    """Code of the mounted MCP server: from the setting, or the only one among the modules."""
     if config.mcp_stdio_code:
         return config.mcp_stdio_code
     from src.apps.app.modules import build_modules
@@ -78,8 +79,8 @@ def _resolve_code(config: Config) -> str:
     if len(codes) == 1:
         return codes[0]
     raise RuntimeError(
-        f"mcp-stdio: ожидался ровно один MCP-сервер (нашлось {len(codes)}: {codes}); "
-        "задайте MCP_STDIO_CODE"
+        f"mcp-stdio: expected exactly one MCP server (found {len(codes)}: {codes}); "
+        "set MCP_STDIO_CODE"
     )
 
 
@@ -92,7 +93,7 @@ def _backend_log_path(config: Config) -> Path:
 
 
 def _spawn_backend(config: Config) -> None:
-    """Поднять backend отдельной сессией; его stdio отвязан от пайпа MCP-клиента."""
+    """Bring up the backend in its own session; its stdio is detached from the MCP client pipe."""
     command = spawn_backend(
         (sys.executable,),
         with_worker=config.mcp_stdio_start_worker,
@@ -107,22 +108,22 @@ def _open_home(config: Config) -> None:
 
 
 def _refuse_during_update() -> None:
-    """Под поднятым флагом backend не спавним: апдейтер переписывает дерево под нами.
+    """With the flag up we do not spawn the backend: the updater is rewriting the tree under us.
 
-    Запуск шима гейтит и `app.py::main`, но флаг может подняться между той проверкой и
-    этой — гонка закрывается здесь.
+    `app.py::main` gates the shim's start too, but the flag can go up between that check and
+    this one — the race is closed here.
     """
     held = maintenance.active()
     if held is None:
         return
     raise RuntimeError(
-        f"mcp-stdio: идёт обновление установки ({held.describe()}) — backend не поднимаем; "
-        "переподключитесь после завершения обновления"
+        f"mcp-stdio: the installation is being updated ({held.describe()}) — not starting the "
+        "backend; reconnect once the update has finished"
     )
 
 
 def _ensure_backend(config: Config) -> None:
-    """Backend готов → ничего. Деградировал → отказ с причиной. Иначе спавним и ждём."""
+    """Backend ready → nothing. Degraded → refuse with the reason. Otherwise spawn and wait."""
     _refuse_during_update()
     health = probe_health(config)
     if health is not None:
@@ -130,31 +131,31 @@ def _ensure_backend(config: Config) -> None:
             _LOG.info("mcp-stdio: backend already up at %s", base_url(config))
             return
         raise RuntimeError(
-            f"mcp-stdio: backend на {base_url(config)} не готов — {health.describe()}"
+            f"mcp-stdio: backend at {base_url(config)} is not ready — {health.describe()}"
         )
     _spawn_backend(config)
     booted = wait_until_ready(config, timeout=config.mcp_stdio_boot_timeout)
     if booted is None:
         raise RuntimeError(
-            f"mcp-stdio: backend не поднялся за {config.mcp_stdio_boot_timeout}s "
-            f"(см. {_backend_log_path(config)})"
+            f"mcp-stdio: backend did not come up within {config.mcp_stdio_boot_timeout}s "
+            f"(see {_backend_log_path(config)})"
         )
     if not booted.is_ready:
-        raise RuntimeError(f"mcp-stdio: backend поднялся, но не готов — {booted.describe()}")
+        raise RuntimeError(f"mcp-stdio: backend came up but is not ready — {booted.describe()}")
     _open_home(config)
 
 
 def _session_headers(config: Config) -> dict[str, str]:
-    """Чем шим представляется backend: кто звонит и в каком пространстве по умолчанию.
+    """How the shim introduces itself to the backend: who calls, and in which default workspace.
 
-    Идентификатор рождается здесь и живёт ровно столько же, сколько подключение: шим — один
-    процесс на одного MCP-клиента. Backend сессий не ведёт вовсе (серверы смонтированы
-    ``stateless_http``) и обслуживает сразу все подключения, поэтому отличить вызов из этого
-    разговора от вызова из соседнего он может только по этому ключу — и активное рабочее
-    пространство держит по нему же.
+    The identifier is born here and lives exactly as long as the connection: the shim is one
+    process per MCP client. The backend keeps no sessions at all (the servers are mounted
+    ``stateless_http``) and serves every connection at once, so the only way it can tell a call
+    from this conversation from one in the next is this key — and it keeps the active workspace
+    keyed by it too.
 
-    Пространство из конфига едет рядом отдельным заголовком и остаётся умолчанием: смысл и
-    цена обоих — в ``core/mcp_headers``.
+    The workspace from the config travels alongside in a separate header and stays the default:
+    the meaning and cost of both are in ``core/mcp_headers``.
     """
     headers = {MCP_SESSION_HEADER: str(uuid4())}
     if config.mcp_workspace:
@@ -167,8 +168,8 @@ def _build_proxy(config: Config, code: str):
     from fastmcp.server import create_proxy
 
     url = f"{base_url(config)}/mcp/{code}"
-    # Заголовки транспорта подмешиваются в КАЖДЫЙ запрос к backend, а не только в первый, —
-    # на этом и держится привязка сессии: отдельного «логина» у моста нет.
+    # Transport headers are added to EVERY request to the backend, not just the first one —
+    # that is what keeps the session binding: the bridge has no separate "login".
     transport = StreamableHttpTransport(
         url, headers=_session_headers(config), auth=config.mcp_token or None
     )
@@ -176,7 +177,7 @@ def _build_proxy(config: Config, code: str):
 
 
 def run_mcp_stdio(config: Config) -> None:
-    """Поднять backend (если нужно) и запустить stdio-мост к его MCP-серверу."""
+    """Bring up the backend (if needed) and run the stdio bridge to its MCP server."""
     _use_file_only_logging(config)
     code = _resolve_code(config)
     _ensure_backend(config)

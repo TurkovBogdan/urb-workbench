@@ -2,8 +2,8 @@
 import type { TablerIcon } from '@/shared/nav'
 
 /**
- * Одна переключаемая область поиска: `key` уходит наружу в модель, `icon` рисуется на кнопке,
- * `label` — подсказка (текстом, потому что на кнопке ничего кроме глифа нет).
+ * One toggleable search scope: `key` goes out into the model, `icon` is drawn on the button,
+ * `label` is the tooltip (as text, because the button carries nothing but a glyph).
  */
 export type SearchScope = {
   key: string
@@ -13,25 +13,25 @@ export type SearchScope = {
 </script>
 
 <script setup lang="ts">
-// Поисковое поле с переключателями области прямо внутри рамки: одна строка запроса, а кнопки
-// говорят, ГДЕ её искать. Переключатели живут в поле, а не рядом с ним, потому что они относятся
-// к этому запросу и ни к чему больше — вынесенные в панель, они читались бы вторым фильтром.
+// A search field with scope toggles right inside its frame: one query string, and the buttons say
+// WHERE to search it. The toggles live in the field rather than next to it because they belong to
+// this query and nothing else — moved out into a panel, they would read as a second filter.
 //
-// Разделение моделей: `v-model` — текст, `v-model:active-scopes` — ключи включённых областей
-// (`scopes` пропом описывает сам набор, поэтому включённые названы отдельным именем). Обе модели
-// меняются независимо (области переключают и с пустым полем), и потребитель сам решает, стоит ли
-// перезапрашивать: смена области при пустом запросе ничего не меняет в выдаче.
+// Model split: `v-model` is the text, `v-model:active-scopes` the keys of enabled scopes (the
+// `scopes` prop describes the set itself, so the enabled ones get a separate name). Both models
+// change independently (scopes are toggled even with an empty field), and the consumer decides
+// whether to re-query: switching scope with an empty query changes nothing in the results.
 import { IconSearch } from '@tabler/icons-vue'
 
 withDefaults(defineProps<{
-  /** Переключатели области; пустой набор — обычное поле поиска без кнопок. */
+  /** Scope toggles; an empty set gives a plain search field without buttons. */
   scopes?: SearchScope[]
   label?: string
   placeholder?: string
   /**
-   * Пояснение под полем — например, что именно входит в стог при включённых областях. Держится
-   * на месте всегда: оно описывает текущую область поиска, а не подсказывает во время ввода, и
-   * появляясь по фокусу дёргало бы вёрстку панели.
+   * An explanation under the field — e.g. what exactly the haystack includes with the enabled
+   * scopes. It always stays in place: it describes the current search scope rather than hinting
+   * while typing, and appearing on focus would jolt the panel layout.
    */
   hint?: string
   density?: 'default' | 'comfortable' | 'compact'
@@ -45,8 +45,8 @@ withDefaults(defineProps<{
 const query = defineModel<string>({ default: '' })
 const activeScopes = defineModel<string[]>('activeScopes', { default: () => [] })
 
-// Крестик очистки у VTextField отдаёт `null`, а наружу обещана строка: потребитель зовёт на
-// запросе `trim()` и на пустом поле упал бы. Пустая строка — то же «ничего не введено».
+// VTextField's clear × emits `null`, while a string is promised outward: the consumer calls
+// `trim()` on the query and would crash on an empty field. An empty string means the same "nothing entered".
 function setQuery(value: string | null) {
   query.value = value ?? ''
 }
@@ -55,7 +55,7 @@ function isActive(key: string): boolean {
   return activeScopes.value.includes(key)
 }
 
-// Новый массив, а не мутация на месте: наблюдатели потребителя следят за ссылкой.
+// A new array, not an in-place mutation: the consumer's watchers track the reference.
 function toggle(key: string) {
   activeScopes.value = isActive(key)
     ? activeScopes.value.filter((active) => active !== key)
@@ -79,8 +79,8 @@ function toggle(key: string) {
     @update:model-value="setQuery"
   >
     <template v-if="scopes.length" #append-inner>
-      <!-- mousedown гасится, иначе нажатие кнопки уводит курсор из поля: пользователь щёлкает
-           переключатель посреди набора запроса и продолжает печатать. -->
+      <!-- mousedown is suppressed, otherwise pressing a button takes the caret out of the field: the
+           user clicks a toggle in the middle of typing a query and keeps typing. -->
       <div class="search-field__scopes" @mousedown.prevent>
         <VDivider vertical class="search-field__divider" />
         <VBtn
@@ -111,7 +111,7 @@ function toggle(key: string) {
   margin-inline-start: 2px;
 }
 
-/* Линейка отбивает переключатели от текста: без неё глифы читаются как продолжение запроса. */
+/* The rule sets the toggles apart from the text: without it the glyphs read as part of the query. */
 .search-field__divider {
   margin-inline-end: 4px;
   height: 20px;

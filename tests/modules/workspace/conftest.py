@@ -1,17 +1,17 @@
-"""Фикстуры тестов ``workspace``: свежая in-memory БД со схемой модуля и HTTP-клиент.
+"""``workspace`` test fixtures: a fresh in-memory DB with the module schema and an HTTP client.
 
-``db`` строит схему из ОРМ-моделей (``create_all``) на новой ``:memory:``-базе — миграции сюда
-не катятся, их место в heavy-ярусе.
+``db`` builds the schema from the ORM models (``create_all``) on a new ``:memory:`` database —
+migrations are not applied here, they belong to the heavy tier.
 
-``app``/``client`` поднимают роутер модуля на голом ``FastAPI``, а не через ``create_app``: тесты
-про маршруты модуля, и тащить ради них жизненный цикл приложения незачем. Единственное, что
-приходится довесить руками, — ``register_exception_handlers``: без него ``ApiError`` пролетает
-мимо обработчика, и вместо 404 с телом ``{"error": …}`` тест получил бы исключение
-(см. ``docs/platform/api-zones.md``).
+``app``/``client`` mount the module router on a bare ``FastAPI`` rather than via ``create_app``:
+the tests are about the module's routes, and dragging the application lifecycle in for them is
+pointless. The one thing that has to be added by hand is ``register_exception_handlers``: without
+it ``ApiError`` flies past the handler, and instead of a 404 with a ``{"error": …}`` body the test
+would get an exception (see ``docs/platform/api-zones.md``).
 
-``no_counters`` чистит реестр счётчиков: приложение целиком подняло бы сюда чужие счётчики
-(``tasks`` регистрирует свои в ``configure()``), а модуль обязан отвечать и в одиночестве —
-когда над ним не поднято ни одного модуля вовсе.
+``no_counters`` clears the counter registry: the full application would bring in other modules'
+counters (``tasks`` registers its own in ``configure()``), and the module must answer on its own
+too — when no module at all is mounted above it.
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ from src.modules.workspace.stats import reset_counters
 
 @pytest.fixture(autouse=True)
 def no_counters():
-    """Реестр счётчиков пуст на входе и на выходе: он process-global, и след пережил бы тест."""
+    """Counters are cleared on entry and exit: the registry is process-global, so leftovers leak."""
     reset_counters()
     yield
     reset_counters()
@@ -39,7 +39,7 @@ def no_counters():
 async def db(config: Config):
     engine = await init_database(config)
     from src.core.database.runtime import Base
-    import src.modules.workspace.models  # noqa: F401 — регистрирует таблицу workspace
+    import src.modules.workspace.models  # noqa: F401 — registers the workspace table
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -53,13 +53,13 @@ async def db(config: Config):
 async def app(config: Config):
     engine = await init_database(config)
     from src.core.database.runtime import Base
-    import src.modules.workspace.models  # noqa: F401 — регистрирует таблицу workspace
+    import src.modules.workspace.models  # noqa: F401 — registers the workspace table
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     fastapi_app = FastAPI()
     register_exception_handlers(fastapi_app)
-    # Префикс повторяет боевой (``WorkspaceModule.internal_router_prefix``).
+    # The prefix mirrors the production one (``WorkspaceModule.internal_router_prefix``).
     fastapi_app.include_router(router, prefix="/internal/workspace")
     try:
         yield fastapi_app

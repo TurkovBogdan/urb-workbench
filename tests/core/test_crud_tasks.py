@@ -1,4 +1,4 @@
-"""``crud.tasks.finalize_error``: усечение ``error_text`` по лимиту колонки."""
+"""``crud.tasks.finalize_error``: truncating ``error_text`` to the column limit."""
 
 from __future__ import annotations
 
@@ -53,7 +53,7 @@ async def test_finalize_error_keeps_text_at_limit(db):
 
 @pytest.mark.db
 async def test_stats_24h_all_aggregates_per_pair(db):
-    # pair (m, a): один success + один error; pair (m, b): один running.
+    # pair (m, a): one success + one error; pair (m, b): one running.
     t1 = await crud_tasks.create_running(module="m", code="a")
     await crud_tasks.finalize_success(t1)
     t2 = await crud_tasks.create_running(module="m", code="a")
@@ -64,6 +64,6 @@ async def test_stats_24h_all_aggregates_per_pair(db):
 
     assert stats[("m", "a")] == {"total": 2, "success": 1, "error": 1, "running": 0}
     assert stats[("m", "b")] == {"total": 1, "success": 0, "error": 0, "running": 1}
-    # Совпадает с поштучным stats_24h и не содержит лишних пар.
+    # Matches the per-pair stats_24h and holds no extra pairs.
     assert stats[("m", "a")] == await crud_tasks.stats_24h(module="m", code="a")
     assert ("m", "missing") not in stats

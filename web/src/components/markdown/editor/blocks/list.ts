@@ -1,10 +1,10 @@
-// Список — цельный блок с плоским рядом пунктов.
+// A list is one block with a flat row of items.
 //
-// «Вложенность» здесь это число `depth` на пункте: Tab меняет цифру, а не переставляет узлы.
-// Отсюда и главное свойство схемы — один пункт ложится в одну строку markdown, и сериализатору
-// нечего сворачивать. Ценой становится всё, что браузер делал бы сам: нумерация, маркеры и
-// отступы считаются здесь, потому что пункты разных уровней лежат соседями, а не вложенными
-// списками, и `ol` считал бы их подряд.
+// "Nesting" here is a `depth` number on the item: Tab changes the number rather than rearranging
+// nodes. Hence the schema's key property — one item maps onto one markdown line, and the
+// serializer has nothing to fold. The price is everything the browser would otherwise do itself:
+// numbering, markers and indents are computed here, because items of different levels sit side by
+// side rather than in nested lists, and an `ol` would count them consecutively.
 import { InputRule, Node, mergeAttributes } from '@tiptap/core'
 import type { ChainedCommands, Editor } from '@tiptap/core'
 import type { EditorState } from '@tiptap/pm/state'
@@ -12,7 +12,7 @@ import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import type { Node as PMNode } from '@tiptap/pm/model'
 
-// Форма того, что Tiptap передаёт в обработчик правила ввода; полного типа наружу он не отдаёт.
+// The shape of what Tiptap passes to an input rule handler; it does not export the full type.
 interface InputRuleProps {
   state: EditorState
   range: { from: number; to: number }
@@ -22,15 +22,15 @@ interface InputRuleProps {
 
 export interface ListKind {
   ordered: boolean
-  /** `null` — обычный пункт; `true`/`false` — пункт-галочка и её состояние. */
+  /** `null` — a plain item; `true`/`false` — a checkbox item and its state. */
   checked: boolean | null
 }
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     flatBlocks: {
-      /** Имя с префиксом: `toggleList` уже занят типами @tiptap/extension-list, и
-       *  объявление поверх него склеивается в union вместо замены. */
+      /** A prefixed name: `toggleList` is already taken by the @tiptap/extension-list types, and
+       *  a declaration on top of it merges into a union instead of replacing it. */
       toggleFlatList: (kind: ListKind) => ReturnType
       indentListItem: () => ReturnType
       outdentListItem: () => ReturnType
@@ -38,7 +38,7 @@ declare module '@tiptap/core' {
   }
 }
 
-// ── Пункт ─────────────────────────────────────────────────────────────────────
+// ── Item ──────────────────────────────────────────────────────────────────────
 
 export const ListItem = Node.create({
   name: 'listItem',
@@ -50,8 +50,8 @@ export const ListItem = Node.create({
       depth: {
         default: 0,
         parseHTML: (element) => Number(element.getAttribute('data-depth') ?? 0),
-        // `--depth` уезжает в CSS как отступ: уровень это оформление пункта, а не его место
-        // в структуре.
+        // `--depth` goes to CSS as an indent: the level is the item's styling, not its place in
+        // the structure.
         renderHTML: (attributes) => ({ 'data-depth': attributes.depth, style: `--depth:${attributes.depth}` }),
       },
       ordered: {
@@ -65,9 +65,9 @@ export const ListItem = Node.create({
           const value = element.getAttribute('data-checked')
           return value === null ? null : value === 'true'
         },
-        // Класс тот же, каким рендерер метит пункт-галочку: типографику документа обе зоны
-        // берут из одного файла (`markdown/shared/document.css`), и совпадать они должны
-        // разметкой, а не двумя похожими наборами правил.
+        // The same class the renderer marks a checkbox item with: both zones take the document
+        // typography from one file (`markdown/shared/document.css`), and they must match through
+        // markup, not through two similar rule sets.
         renderHTML: (attributes) => (attributes.checked === null
           ? {}
           : { 'data-checked': String(attributes.checked), class: 'md-task' }),
@@ -84,7 +84,7 @@ export const ListItem = Node.create({
   },
 })
 
-// ── Список ────────────────────────────────────────────────────────────────────
+// ── List ──────────────────────────────────────────────────────────────────────
 
 export const List = Node.create({
   name: 'list',
@@ -113,15 +113,15 @@ export const List = Node.create({
             && (first.attrs.checked === null) === (kind.checked === null)
 
           if (sameKind) {
-            // Тот же вид — выключаем список: каждый пункт становится абзацем, уровни теряются
-            // вместе со списком, потому что в абзаце их негде хранить.
+            // Same kind — turn the list off: every item becomes a paragraph, and the levels are
+            // lost along with the list, because a paragraph has nowhere to keep them.
             const blocks: PMNode[] = []
             top.node.forEach((item) => blocks.push(paragraph.create(null, item.content)))
             if (dispatch) tr.replaceWith(top.pos, top.pos + top.node.nodeSize, blocks)
             return true
           }
 
-          // Другой вид — переписываем атрибуты пунктов, не трогая содержимое.
+          // A different kind — rewrite the items' attributes without touching the content.
           if (dispatch) {
             let at = top.pos + 1
             top.node.forEach((item) => {
@@ -150,12 +150,12 @@ export const List = Node.create({
     }
   },
 
-  // Правила ввода markdown. Ушли вместе с выключенными узлами StarterKit, а без них редактор
-  // markdown перестаёт понимать markdown: набранный `- ` оставался текстом.
+  // Markdown input rules. They left together with the disabled StarterKit nodes, and without them
+  // a markdown editor stops understanding markdown: a typed `- ` stayed as text.
   addInputRules() {
     const toList = (kind: ListKind) => ({ state, chain, range }: InputRuleProps): void => {
-      // Внутри пункта `- ` — это просто дефис. Без проверки правило поймало бы начало пункта и
-      // командой того же вида РАСПУСТИЛО бы список.
+      // Inside an item `- ` is just a hyphen. Without this check the rule would catch the item's
+      // start and, with a same-kind command, DISSOLVE the list.
       if (itemAt(state)) return
       chain().deleteRange(range).toggleFlatList(kind).run()
     }
@@ -163,8 +163,8 @@ export const List = Node.create({
     return [
       new InputRule({ find: /^\s*[-+*]\s$/, handler: toList({ ordered: false, checked: null }) }),
       new InputRule({ find: /^\s*\d+[.)]\s$/, handler: toList({ ordered: true, checked: null }) }),
-      // `- [ ] ` одним махом не набрать: `- ` срабатывает раньше. Поэтому галочка ставится уже
-      // внутри пункта — ровно так же, как это делается в Notion.
+      // `- [ ] ` cannot be typed in one go: `- ` fires first. So the checkbox is set from inside
+      // the item — exactly as Notion does it.
       new InputRule({
         find: /^\[([ xX])\]\s$/,
         handler: ({ state, chain, range, match }) => {
@@ -190,8 +190,8 @@ export const List = Node.create({
       Enter: () => exitOnEmptyItem(this.editor),
       Backspace: () => backspaceAtItemStart(this.editor),
 
-      // Те же сочетания, что у выключенных узлов StarterKit: человек, знающий любой другой
-      // редактор на Tiptap, приходит сюда с готовой мышечной памятью.
+      // The same shortcuts as the disabled StarterKit nodes: anyone who knows any other
+      // Tiptap-based editor arrives here with muscle memory already in place.
       'Mod-Shift-8': () => this.editor.commands.toggleFlatList({ ordered: false, checked: null }),
       'Mod-Shift-7': () => this.editor.commands.toggleFlatList({ ordered: true, checked: null }),
       'Mod-Shift-9': () => this.editor.commands.toggleFlatList({ ordered: false, checked: false }),
@@ -203,7 +203,7 @@ export const List = Node.create({
   },
 })
 
-// ── Позиционирование ──────────────────────────────────────────────────────────
+// ── Positioning ───────────────────────────────────────────────────────────────
 
 interface TopBlock { pos: number; node: PMNode }
 
@@ -238,12 +238,12 @@ function itemAt(state: EditorState): ItemRef | null {
   return null
 }
 
-// ── Уровень пункта ────────────────────────────────────────────────────────────
+// ── Item level ────────────────────────────────────────────────────────────────
 
 type Dispatch = ((args?: unknown) => void) | undefined
 
-// Уровень не может обогнать предыдущий пункт больше чем на единицу — иначе появился бы
-// «вложенный» пункт без родителя, а список перестал бы отображаться как список.
+// A level cannot exceed the previous item's by more than one — otherwise a "nested" item with no
+// parent would appear, and the list would stop rendering as a list.
 function shiftDepth(state: EditorState, tr: EditorState['tr'], dispatch: Dispatch, delta: number): boolean {
   const found = itemAt(state)
   if (!found) return false
@@ -256,7 +256,7 @@ function shiftDepth(state: EditorState, tr: EditorState['tr'], dispatch: Dispatc
 
   if (dispatch) {
     tr.setNodeMarkup(found.pos, undefined, { ...found.node.attrs, depth: next })
-    // Пункты, которые лежали глубже, едут следом — иначе они отвязались бы от своего пункта.
+    // Items that were deeper follow along — otherwise they would come loose from their parent item.
     let at = found.pos + found.node.nodeSize
     for (let index = found.index + 1; index < found.list.childCount; index += 1) {
       const child = found.list.child(index)
@@ -268,10 +268,10 @@ function shiftDepth(state: EditorState, tr: EditorState['tr'], dispatch: Dispatc
   return true
 }
 
-// ── Выход из списка ───────────────────────────────────────────────────────────
+// ── Leaving the list ──────────────────────────────────────────────────────────
 
-// Enter в пустом последнем пункте закрывает список — единственный способ выйти из него, не
-// прибегая к мыши.
+// Enter in an empty last item closes the list — the only way out of it without resorting to the
+// mouse.
 function exitOnEmptyItem(editor: Editor): boolean {
   const found = itemAt(editor.state)
   if (!found || found.node.content.size > 0) return false
@@ -295,8 +295,9 @@ function exitOnEmptyItem(editor: Editor): boolean {
   })
 }
 
-// Backspace в начале пункта: сперва поднимает уровень, и только у самого первого пункта
-// нулевого уровня распускает список. Так удаление не проваливает текст в соседний блок.
+// Backspace at the start of an item: first it outdents, and only on the very first item at level
+// zero does it dissolve the list. That way deletion does not drop the text into the neighbouring
+// block.
 function backspaceAtItemStart(editor: Editor): boolean {
   const { selection } = editor.state
   if (!selection.empty || selection.$from.parentOffset !== 0) return false
@@ -312,13 +313,13 @@ function backspaceAtItemStart(editor: Editor): boolean {
   })
 }
 
-// ── Маркеры ───────────────────────────────────────────────────────────────────
+// ── Markers ───────────────────────────────────────────────────────────────────
 
 const MARKERS = new PluginKey('flatListMarkers')
 
-// Номер пункта — производное от плоского ряда, а не хранимое значение: держать его в атрибуте
-// значило бы перенумеровывать половину документа на каждый Enter. CSS сам посчитать не может
-// (уровни лежат в одном ряду, а не вложенными списками), поэтому номер приезжает декорацией.
+// An item's number is derived from the flat row, not a stored value: keeping it in an attribute
+// would mean renumbering half the document on every Enter. CSS cannot count it on its own (the
+// levels sit in one row, not in nested lists), so the number arrives as a decoration.
 function listMarkers(): Plugin {
   return new Plugin({
     key: MARKERS,
@@ -355,11 +356,11 @@ function listMarkers(): Plugin {
   })
 }
 
-// ── Галочка ───────────────────────────────────────────────────────────────────
+// ── Checkbox ──────────────────────────────────────────────────────────────────
 
-// Клик по псевдоэлементу приходит на сам <li>, так что галочку от текста отличает только
-// координата: граница — левый отступ пункта, за которым начинается содержимое. Берётся из
-// вычисленных стилей, а не константой, иначе уровень вложенности сдвинул бы её.
+// A click on the pseudo-element lands on the <li> itself, so only the coordinate tells the
+// checkbox from the text: the boundary is the item's left padding, after which the content
+// starts. It is read from computed styles, not a constant, or the nesting level would shift it.
 function taskToggle(): Plugin {
   return new Plugin({
     props: {

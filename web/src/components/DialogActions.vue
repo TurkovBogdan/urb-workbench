@@ -1,7 +1,7 @@
 <script setup lang="ts">
-// Полоса кнопок модального окна. Отдельный компонент, а не `VCardActions`: тот раздаёт всем
-// вложенным кнопкам `slim: true` и `variant: 'text'` через provideDefaults, из-за чего главное
-// действие теряет заливку и высоту, а `color` перестаёт работать. Здесь кнопки обычные.
+// The modal window's button bar. A separate component rather than `VCardActions`: that one hands all
+// nested buttons `slim: true` and `variant: 'text'` via provideDefaults, so the primary action loses
+// its fill and height, and `color` stops working. Here buttons are ordinary.
 </script>
 
 <template>
@@ -11,8 +11,9 @@
 </template>
 
 <style scoped>
-/* Низ повторяет верх шапки, бока — общие 24px окна. Сверху минимум 12px: контент со своей
-   прокруткой обрезается по краю, и без него кнопки упирались бы в срезанный текст. */
+/* The bottom mirrors the header's top, the sides are the window's shared 24px. At least 12px on top:
+   content with its own scrolling is clipped at the edge, and without it the buttons would butt
+   against the clipped text. */
 .dlg-actions {
   display: flex;
   justify-content: flex-end;

@@ -1,13 +1,14 @@
-"""MCP-тулы справки — навыки, которые агент забирает перед работой, а не носит в контексте.
+"""Reference MCP tools — skills the agent fetches before work instead of carrying them in context.
 
-Два тула: каталог (имя и условие вызова, без текстов) и чтение — целиком или одним разделом.
-Тексты лежат файлами в ``skills/`` и отдаются как есть; вся логика в ``services/skills.py``.
+Two tools: the catalogue (name and trigger condition, no texts) and reading — whole or one
+section. The texts are files in ``skills/`` and are served as is; all logic is in
+``services/skills.py``.
 
-Загрузку навыка ничем нельзя гарантировать: указание в описании конкурирует с уверенностью
-модели, и клиент вправе его перевесить. Поэтому указатели стоят там, где справка нужна, а
-ответственность на самом навыке не заканчивается — **указатель это оптимизация, гарантию даёт
-отказ инструмента**. Всё, что можно проверить, проверяется отказом: доказательство при закрытии
-этапа, тип записи, терминальный статус задачи.
+Nothing can guarantee that a skill gets loaded: an instruction in a description competes with
+the model's confidence, and the client is free to outweigh it. So pointers sit where the
+reference is needed, and responsibility does not end with the skill itself — **a pointer is an
+optimization; the guarantee comes from the tool's refusal**. Whatever can be checked is enforced
+by refusal: evidence when closing a stage, the entry type, a task's terminal status.
 """
 
 from __future__ import annotations
@@ -18,11 +19,11 @@ from pydantic import BaseModel
 
 from src.modules.tasks.services.skills import list_skills, read_skill
 
-if TYPE_CHECKING:  # fork fastmcp — только backend (через mcp_server(ctx))
+if TYPE_CHECKING:  # fastmcp fork — backend only (via mcp_server(ctx))
     from fastmcp import FastMCP
 
 
-# Строка каталога: всё, кроме текста. Дёшево звать — в этом и смысл первого уровня.
+# A catalogue row: everything but the text. Cheap to call — that is the point of the first level.
 class AgentSkillRow(BaseModel):
     model_config = {"from_attributes": True}
 
@@ -31,8 +32,8 @@ class AgentSkillRow(BaseModel):
     sections: list[str] = []
 
 
-# Навык целиком или один раздел. ``sections`` едет и здесь: прочитав тело, агент видит, за какой
-# веткой идти дальше, и не обязан возвращаться в каталог.
+# A whole skill or one section. ``sections`` comes along here too: having read the body, the agent
+# sees which branch to follow next and does not have to go back to the catalogue.
 class AgentSkill(BaseModel):
     model_config = {"from_attributes": True}
 

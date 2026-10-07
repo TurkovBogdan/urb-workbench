@@ -1,4 +1,4 @@
-"""Стандартные ошибки API (``src.core.api``): конверт + обработчики исключений."""
+"""Standard API errors (``src.core.api``): the envelope + exception handlers."""
 
 from __future__ import annotations
 

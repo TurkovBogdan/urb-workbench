@@ -1,21 +1,21 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-// Заголовок секции — внутристраничный родственник PageHeader: заголовок и необязательное
-// описание слева, необязательный слот справа (счётчик, кнопка, бейдж). `level` задаёт И
-// семантический тег (h1…h6), И кегль, поэтому вложенные секции дают правильную структуру
-// документа, а не набор одинаковых строк.
+// Section header — the in-page sibling of PageHeader: a title and optional description on the
+// left, an optional slot on the right (counter, button, badge). `level` sets BOTH the semantic tag
+// (h1…h6) AND the font size, so nested sections give a proper document structure rather than a
+// set of identical lines.
 //
-// Кнопку «назад» сюда НЕ кладут: она принадлежит странице, а не секции внутри неё, и живёт
-// в PageHeader — тот собран поверх этого же компонента (level 1), чтобы анатомия заголовка
-// была одна на оба уровня.
+// The "back" button does NOT go here: it belongs to the page, not a section within it, and lives
+// in PageHeader — which is built on top of this same component (level 1) so that the heading
+// anatomy is one for both levels.
 const props = withDefaults(defineProps<{
   title?: string
   description?: string
   level?: 1 | 2 | 3 | 4 | 5 | 6
-  /** Число рядом с заголовком: сколько всего элементов в секции. */
+  /** A number next to the title: how many items the section holds in total. */
   count?: number
-  /** Данные ещё едут — вместо заголовка и описания идут плейсхолдеры их размера. */
+  /** Data is still loading — placeholders of their size stand in for the title and description. */
   loading?: boolean
 }>(), {
   title: '',
@@ -37,9 +37,9 @@ const tag = computed(() => `h${props.level}` as const)
       </template>
 
       <template v-else>
-        <!-- `title` — слот на случай, когда заголовок не текст, а свой компонент. Замещается
-             ВЕСЬ элемент вместе с тегом: такому компоненту нужна полная власть над метрикой,
-             иначе <h*> навяжет ему свой кегль и отступы. -->
+        <!-- `title` is a slot for when the title isn't text but a component of its own. The WHOLE
+             element is replaced, tag included: such a component needs full control of its metrics,
+             otherwise <h*> would impose its own font size and margins. -->
         <slot name="title">
           <component :is="tag" class="section-header__title">
             {{ title }}
@@ -83,13 +83,13 @@ const tag = computed(() => `h${props.level}` as const)
   line-height: 1.3;
 }
 
-/* Отбивка секции внутри страницы. Первому уровню её не даём: там расстоянием до содержимого
-   распоряжается шапка страницы, и вторая величина в том же месте разъехалась бы с первой. */
+/* Spacing for a section within a page. Level one doesn't get it: there the page header owns the
+   distance to the content, and a second value in the same place would drift from the first. */
 .section-header:not(.section-header--l1) {
   margin: 4px 0 10px;
 }
 
-/* Кегль — функция уровня: семантика и вес задаются одной ручкой. */
+/* Font size is a function of level: semantics and weight are set by a single knob. */
 .section-header--l1 .section-header__title { font-size: 18px; }
 .section-header--l2 .section-header__title { font-size: 14px; }
 .section-header--l3 .section-header__title { font-size: 13px; }
@@ -118,15 +118,15 @@ const tag = computed(() => `h${props.level}` as const)
   gap: 8px;
 }
 
-/* Плейсхолдеры повторяют метрику заголовка и описания. Ширину костей Vuetify ставит инлайном
-   (100% загрузчика), поэтому ограничиваем корень, а у кости трогаем только высоту и отступ. */
+/* Placeholders repeat the title and description metrics. Vuetify sets the bone width inline
+   (100% of the loader), so the root is constrained and only the bone's height and margin are touched. */
 .section-header__skel { padding: 0; background: transparent; }
 .section-header__skel--title { width: 280px; max-width: 55%; }
 .section-header__skel--desc  { width: 180px; max-width: 38%; }
 .section-header__skel--title :deep(.v-skeleton-loader__bone) { height: 16px; margin: 3px 0; }
 .section-header__skel--desc  :deep(.v-skeleton-loader__bone) { height: 10px; margin: 8px 0 0; }
 
-/* На самых узких экранах правая часть уходит под текст. */
+/* On the narrowest screens the right part wraps below the text. */
 @media (max-width: 599px) {
   .section-header {
     flex-wrap: wrap;

@@ -34,7 +34,7 @@ const { t } = useI18n()
 </script>
 
 <template>
-  <!-- `rule=false`: спрашивающий текст ниже И ЕСТЬ описание, отделять его от заголовка нечем. -->
+  <!-- `rule=false`: the question text below IS the description, there's nothing to separate from the title. -->
   <AppDialog
     v-model="open"
     :title="title"
@@ -64,7 +64,7 @@ const { t } = useI18n()
 </template>
 
 <style scoped>
-/* Отступы приносит тело окна; текст отвечает только за собственный набор. */
+/* The window body brings the paddings; the text is responsible only for its own typesetting. */
 .cfm__text {
   font-size: 14px;
   line-height: 1.5;

@@ -1,7 +1,7 @@
-"""Глобальный лог: тиирует весь stdout/stderr в logs/global.log.
+"""Global log: tees all of stdout/stderr into logs/global.log.
 
-Вызывать как можно раньше при старте процесса — до любой другой инициализации.
-Работает для GUI, MCP-серверов и любых других точек входа платформы.
+Call it as early as possible at process start — before any other initialisation.
+Works for the GUI, MCP servers and any other entry point of the platform.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ class _TeeStream:
         self._file     = log_file.open("a", encoding="utf-8", buffering=1)
 
     def write(self, text: str) -> int:
-        # файл — первым, чтобы исключение в оригинальном потоке не блокировало запись
+        # the file goes first, so an exception in the original stream cannot block the write
         self._file.write(text)
         if self._original is not None:
             try:
@@ -47,12 +47,12 @@ class _TeeStream:
 
 
 def install() -> None:
-    """Перенаправить stdout и stderr: писать в оригинал + logs/global.log."""
+    """Redirect stdout and stderr: write to the original + logs/global.log."""
     logs_dir = resolve_runtime_root() / "logs"
     logs_dir.mkdir(parents=True, exist_ok=True)
     log_file = logs_dir / "app.log"
 
-    # захватываем sys.stdout/stderr как они есть сейчас (IDE может уже заменить их)
+    # capture sys.stdout/stderr as they are right now (an IDE may have replaced them already)
     sys.stdout = _TeeStream(sys.stdout, log_file)  # type: ignore[assignment]
     sys.stderr = _TeeStream(sys.stderr, log_file)  # type: ignore[assignment]
 

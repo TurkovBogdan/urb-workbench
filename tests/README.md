@@ -1,105 +1,105 @@
-# Система тестов
-> Правила создания тестов и команды запуска — всё здесь.
+# Test system
+> Rules for writing tests and the commands to run them — all here.
 
-Используем `Pytest` + `pytest-xdist`, и метки типов тестов. 
+We use `Pytest` + `pytest-xdist`, and test type markers. 
 
-## Настройка тестовой базы
-> Никакой настройки не требуется: тесты гоняются на **in-memory `SQLite`** (`DB_PROVIDER=sqlite`, `DB_PATH=:memory:`). Внешний `PostgreSQL`-сервер и пул баз больше не нужны.
+## Test database setup
+> No setup is required: tests run on **in-memory `SQLite`** (`DB_PROVIDER=sqlite`, `DB_PATH=:memory:`). An external `PostgreSQL` server and a database pool are no longer needed.
 
-`conftest.py` подменяет `DB_*` ещё до импортов из `src`, так что любой `Config()` в тесте получает чистую in-memory базу. Схема каждого теста строится из ОРМ-моделей (`create_all` в lifespan либо в локальной `db`-фикстуре). Изоляция параллельного прогона бесплатна: каждый xdist-воркер — отдельный процесс со своей `:memory:`-базой, ударить по dev/prod БД нельзя в принципе.
+`conftest.py` overrides `DB_*` before any import from `src`, so any `Config()` in a test gets a clean in-memory database. Each test's schema is built from the ORM models (`create_all` in the lifespan or in a local `db` fixture). Isolation of a parallel run is free: each xdist worker is a separate process with its own `:memory:` database, so hitting the dev/prod DB is impossible in principle.
 
-**Heavy-тесты Alembic-миграций — только Postgres.** Миграции описаны в типах `postgresql.*` (JSONB/TIMESTAMP) и на SQLite не накатываются, поэтому по умолчанию такие тесты скипаются. Чтобы прогнать их на реальной базе, задайте DSN административного подключения (роль с правом `CREATEDB`):
+**Heavy Alembic migration tests — Postgres only.** The migrations are written in `postgresql.*` types (JSONB/TIMESTAMP) and do not apply on SQLite, so by default such tests are skipped. To run them against a real database, set the DSN of an administrative connection (a role with the `CREATEDB` privilege):
 ```dotenv
 TEST_PG_DSN=postgresql://user:pass@host:port/postgres
 ```
-База из DSN — только место, где выполняется `CREATE DATABASE`: каждому heavy-тесту фикстура создаёт свою одноразовую базу `urb_test_<hex>` и сносит её после (`DROP DATABASE … WITH (FORCE)`), поэтому `--heavy` одинаково зелёный под `-n auto` и `-n0`. Остальные тесты того же прогона остаются на in-memory SQLite. Локальный сервер под это поднимается любым способом — в репозитории его стенда нет.
+The DSN database is only where `CREATE DATABASE` runs: for each heavy test the fixture creates its own disposable database `urb_test_<hex>` and drops it afterwards (`DROP DATABASE … WITH (FORCE)`), so `--heavy` is equally green under `-n auto` and `-n0`. The other tests of the same run stay on in-memory SQLite. Bring up a local server for this any way you like — the repository has no stand for it.
 
-## Структура тестов
-Тесты должны располагаться в папках зеркально основной структуре `src`:
-- тесты сборки и приложений в `apps`
-- тесты модулей в `modules`, с разделением по папкам модулей
-- тесты ядра в `core`
+## Test layout
+Tests must sit in folders mirroring the main `src` structure:
+- build and application tests in `apps`
+- module tests in `modules`, split into per-module folders
+- core tests in `core`
 
-- Пример:
+- Example:
 ```
 tests/
-├─ core/                 # ядро платформы
-├─ apps/                 # сборка и приложения
+├─ core/                 # the platform core
+├─ apps/                 # build and applications
 ├─ modules/
-│  ├─ intercom/          # зеркало слоёв модуля
+│  ├─ intercom/          # mirrors the module's layers
 │  │  ├─ crud/
 │  │  ├─ models/
 │  │  ├─ services/
 │  │  ├─ importers/
-│  │  └─ live/           # тесты против реальных сервисов
+│  │  └─ live/           # tests against real services
 │  └─ mail_sync/
-└─ conftest.py           # конфигурация тестов
+└─ conftest.py           # test configuration
 ```
 
-## Метки типов тестов
-Каждый тест обязан иметь метку типа теста:
+## Test type markers
+Every test must carry a test type marker:
 ~~~python
-# Маркируем что тест использует db
+# Mark that the test uses db
 @pytest.mark.db
 async def test_returns_empty_list_when_no_tasks_registered(db):
     r = await _get_tasks(_client_app())
     assert r.json() == []
 ~~~
 
-| Маркер  | Значение |
+| Marker  | Meaning |
 |---------|---|
-| `pure`  | без БД и сети; единственные, кто не трогает схему |
-| `db`    | нужна БД — in-memory SQLite, схема из ОРМ-моделей |
-| `heavy` | реальные миграции Alembic — только Postgres (`TEST_PG_DSN`), иначе скип |
-| `live`  | реальные внешние сервисы (креды + сеть) |
+| `pure`  | no DB and no network; the only ones that don't touch the schema |
+| `db`    | needs a DB — in-memory SQLite, schema from the ORM models |
+| `heavy` | real Alembic migrations — Postgres only (`TEST_PG_DSN`), otherwise skipped |
+| `live`  | real external services (credentials + network) |
 
-> Транзакционное поведение на in-memory базе не проверяется: там одно соединение драйвера на все сессии, а значит и одно транзакционное состояние (приложение поэтому и не перехватывает открытие транзакции для `:memory:`). Всё про `BEGIN IMMEDIATE`, переключение прагм и транзакции миграций — на файловой базе в `tmp_path`, образцы в `tests/core/test_sqlite_pragmas.py`. Сторож пишущего намерения работает везде: изменяющий оператор внутри `session_scope()` роняет тест в любом ярусе.
+> Transactional behaviour is not tested on the in-memory database: there is one driver connection for all sessions, and therefore one transactional state (which is why the application doesn't intercept transaction start for `:memory:`). Everything about `BEGIN IMMEDIATE`, pragma switching and migration transactions runs on a file database in `tmp_path`; see the examples in `tests/core/test_sqlite_pragmas.py`. The write-intent guard works everywhere: a mutating statement inside `session_scope()` fails the test in any tier.
 
-> По умолчанию гоняются `pure` + `db` — рабочий набор. `heavy` и `live` дёргаются отдельными ключами `--heavy` / `--live`, когда правда нужны. Всё разом — `--all`.
+> By default `pure` + `db` run — the working set. `heavy` and `live` are triggered by the separate `--heavy` / `--live` switches when really needed. Everything at once — `--all`.
 
-## Запуск тестов
-> Все команды нужно запускать из корня проекта
+## Running tests
+> Run every command from the project root
 
-### Флаги областей 
-Тесты разделены на области ядра и модулей, технически на папки. Для удобства сделали два атрибута:
+### Area flags 
+Tests are split into core and module areas, technically into folders. For convenience there are two options:
 ```bash
-# Тесты ядра и apps
+# Core and apps tests
 pytest --core
-# Тесты конкретного модуля
+# Tests of one module
 pytest --module=core_users
-# Набора модулей
+# A set of modules
 pytest --module=core_users,core_storage
 ```
 
-### Флаги меток
-По умолчанию запускаются тесты с метками `pure` и `db`, без тестов `heavy` и `live`
-Их запуск управляется отдельными флагами:
+### Marker flags
+By default tests marked `pure` and `db` run, without the `heavy` and `live` tests
+Running those is controlled by separate flags:
 ```bash
-# по умолчанию — pure + db
+# default — pure + db
 pytest --core
-# только pure
+# pure only
 pytest --core --pure
-# только db
+# db only
 pytest --core --db
-# только heavy
+# heavy only
 pytest --core --heavy
-# только live
+# live only
 pytest --core --live
-# Все тесты 
+# All tests 
 pytest --core --all
-# Потерянные тесты без метки типа
+# Lost tests without a type marker
 pytest --unmarked --collect-only
 ```
 
-### Флаги потоков
-> Параллелизм ничем не ограничен — у каждого xdist-воркера своя in-memory база (отдельный процесс). По умолчанию `-n auto` (по числу ядер).
+### Worker flags
+> Parallelism is unrestricted — each xdist worker has its own in-memory database (a separate process). The default is `-n auto` (by core count).
 
 ```bash
-# По умолчанию — параллельно по числу ядер
+# Default — parallel by core count
 pytest --core
-# Зафиксировать число воркеров
+# Fix the number of workers
 pytest --core -n 4
-# Однопоточно (нужно для --pdb)
+# Single process (needed for --pdb)
 pytest --core -n0
 ```
-> Опция `--dbs` устарела (пула баз больше нет) и игнорируется — оставлена no-op, чтобы старые команды не падали.
+> The `--dbs` option is deprecated (there is no DB pool any more) and ignored — kept as a no-op so that old commands don't fail.

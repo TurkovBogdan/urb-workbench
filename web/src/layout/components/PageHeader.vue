@@ -5,9 +5,9 @@ import { useRouter, type RouteLocationRaw } from 'vue-router'
 import { useNavigationHistory } from '@/composables/useNavigationHistory'
 import SectionHeader from '@/components/SectionHeader.vue'
 
-// Шапка страницы = кнопка «назад» + заголовок первого уровня. Сам заголовок рисует
-// SectionHeader: анатомия (заголовок, описание, правая часть, плейсхолдеры) одна на страницу
-// и на секцию внутри неё, а странице принадлежит только возврат.
+// Page header = a "back" button + a first-level heading. The heading itself is rendered by
+// SectionHeader: the anatomy (title, description, right side, placeholders) is the same for a page
+// and a section inside it, and only the way back belongs to the page.
 const props = defineProps<{
   title: string
   description?: string
@@ -18,18 +18,19 @@ const props = defineProps<{
 const router = useRouter()
 const { goBack } = useNavigationHistory()
 
-// Выравнивание решает не разметка, а замер: заголовок бывает с надзаголовком, с описанием и
-// просто длинным — на глаз эти случаи не различить, а правило одно. Пока текст умещается в
-// высоту соседа, обе коробки центруются друг по другу; как только текст соседа перерос (вторая
-// строка, надзаголовок, описание), он читается сверху вниз, и сосед встаёт по его верхней кромке.
+// Alignment is decided by measurement, not markup: a heading may have an overline, a description,
+// or just be long — these cases can't be told apart by eye, yet the rule is one. While the text
+// fits within the neighbour's height, both boxes center on each other; once the text outgrows the
+// neighbour (a second line, an overline, a description), it reads top-down, and the neighbour
+// aligns to its top edge.
 //
-// Сосед — кнопка «назад», а если её нет, мерка сама строка заголовка: на странице без возврата
-// вопрос стоит уже не про кнопку, а про действия справа, и «текст перерос своё имя» — это ровно
-// «под именем что-то есть».
+// The neighbour is the "back" button, and without it the title line itself is the measure: on a
+// page with no way back the question is no longer about the button but about the actions on the
+// right, and "the text outgrew its name" means exactly "there is something under the name".
 //
-// Меряется текстовая половина, а не заголовок целиком: правая часть с действиями одна сделала бы
-// «переросшим» любой заголовок. Классы чужие (`SectionHeader`), но эти двое и так одна анатомия —
-// шапка собрана поверх него.
+// The text half is measured, not the whole heading: the right side with actions alone would make
+// any heading "outgrown". The classes are someone else's (`SectionHeader`), but the two are one
+// anatomy anyway — the header is built on top of it.
 const root = ref<HTMLElement | null>(null)
 const textFitsItsNeighbour = ref(true)
 
@@ -79,8 +80,8 @@ onBeforeUnmount(() => sizeWatcher?.disconnect())
     </div>
 
     <SectionHeader :level="1" :title="title" :description="description" :loading="loading">
-      <!-- Заголовок целиком отдаётся своему компоненту (правка названия на месте): пробрасываем
-           слот SectionHeader как есть — метрику такой компонент задаёт себе сам. -->
+      <!-- The title is handed over entirely to its own component (inline title editing): pass
+           the SectionHeader slot through as is — such a component sets its own metrics. -->
       <template v-if="$slots.title" #title>
         <slot name="title" />
       </template>
@@ -95,10 +96,10 @@ onBeforeUnmount(() => sizeWatcher?.disconnect())
 </template>
 
 <style scoped>
-/* По умолчанию — по ВЕРХУ: заголовок с надзаголовком, описанием или просто переносом читается
-   сверху вниз, и кнопка принадлежит его первой строке, а не середине абзаца. Исключение считает
-   скрипт: пока текст умещается в высоту кнопки, они центруются друг по другу — прижатая к верху
-   одинокая строка висела бы над серединой кнопки. */
+/* TOP-aligned by default: a heading with an overline, a description or just a wrap reads top-down,
+   and the button belongs to its first line, not the middle of a paragraph. The script computes the
+   exception: while the text fits the button's height they center on each other — a lone line
+   pinned to the top would hang above the button's middle. */
 .page-header {
   display: flex;
   align-items: flex-start;
@@ -116,9 +117,9 @@ onBeforeUnmount(() => sizeWatcher?.disconnect())
   flex-shrink: 0;
 }
 
-/* Коробка задана здесь, а не пропом `size`: у иконочной кнопки Vuetify считает сторону как
-   `--v-btn-height + 12px`, а `density` правит только высоту — обе ручки дают то прямоугольник, то
-   размер крупнее нужного. Незаслоённое правило перебивает `@layer vuetify-components`
+/* The box is set here, not via the `size` prop: for an icon button Vuetify computes the side as
+   `--v-btn-height + 12px`, and `density` only changes the height — both knobs give either a
+   rectangle or a larger size than needed. An unlayered rule overrides `@layer vuetify-components`
    (docs/frontend/vuetify-css-patterns). */
 .page-header__back {
   width: 32px;
@@ -126,7 +127,7 @@ onBeforeUnmount(() => sizeWatcher?.disconnect())
   height: 32px;
 }
 
-/* Заголовок подтягивается к кнопке: у неё своя внутренняя рамка отступа. */
+/* The heading is pulled toward the button: the button has its own inner padding box. */
 .page-header__before + * {
   margin-left: -8px;
 }

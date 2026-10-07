@@ -1,8 +1,8 @@
-"""Зон-роутер модуля core_monitoring (зона internal, без собственного префикса).
+"""Zone router of the core_monitoring module (internal zone, no prefix of its own).
 
-Пока одна поверхность — ``/tasks`` (scheduler-задачи: список, запуски, логи). Модуль
-не задаёт ``internal_router_prefix``, и агрегатор не навешивает prefix — корень пути
-(``/tasks``) прописан в самих маршрутах под-роутера.
+One surface so far — ``/tasks`` (scheduler jobs: list, runs, logs). The module does not set
+``internal_router_prefix``, and the aggregator adds no prefix — the path root (``/tasks``) is
+spelled out in the sub-router's routes themselves.
 """
 
 from __future__ import annotations

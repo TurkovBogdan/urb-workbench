@@ -1,11 +1,12 @@
 import type { RouteRecordRaw } from 'vue-router'
 
-// Раздел пространств. Страница одна — их список; выбор текущего живёт не здесь, а в боковой
-// панели (`WorkspaceSwitcher`), потому что это контекст всего приложения, а не место в нём.
+// The workspaces section. A single page — their list; choosing the current one lives not here but
+// in the sidebar (`WorkspaceSwitcher`), because it is the context of the whole app, not a place in
+// it.
 //
-// Адрес корневой (`/workspaces`), а не внутри задач: пространство перестало принадлежать модулю
-// задач и стало общим уровнем для всех. Старый адрес оставлен редиректом — на него смотрят
-// ссылки из пустых состояний и из чужих закладок.
+// The address is top-level (`/workspaces`), not inside tasks: the workspace stopped belonging to
+// the tasks module and became a shared level for everyone. The old address is kept as a redirect —
+// links from empty states and other people's bookmarks point at it.
 export const workspacesRoutes: RouteRecordRaw[] = [
   {
     path: '/workspaces',

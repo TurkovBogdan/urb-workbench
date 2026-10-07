@@ -1,4 +1,4 @@
-"""core_interface: подъём модуля — самопроверка реестра и уборка снятых с производства ключей."""
+"""core_interface: module startup — registry self-check and cleanup of retired keys."""
 
 from __future__ import annotations
 

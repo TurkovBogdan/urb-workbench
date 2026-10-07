@@ -11,17 +11,17 @@ const MENU_HEIGHT = 320
 
 const scroller = ref<HTMLElement | null>(null)
 
-// Доводка до активного пункта. Клавиатурная навигация уводит выбор за нижний край списка, и
-// без этого человек жмёт стрелку в пустоту: подсветка ушла туда, где её не видно.
-// `block: 'nearest'` прокручивает ровно настолько, чтобы пункт стал виден, и не дёргает
-// список, когда он и так на экране.
+// Keep the active item in view. Keyboard navigation moves the choice past the bottom edge of the
+// list, and without this the person presses the arrow into the void: the highlight has gone where
+// it cannot be seen. `block: 'nearest'` scrolls just enough to reveal the item and does not jerk
+// the list when it is already on screen.
 watch(() => props.state.active, async (index) => {
   await nextTick()
   scroller.value?.querySelector(`[data-index="${index}"]`)?.scrollIntoView({ block: 'nearest' })
 })
 
-// Новый запрос — список другой: прокрутку возвращаем в начало, иначе первый пункт окажется
-// выше видимой области.
+// A new query means a different list: scroll back to the top, otherwise the first item ends up
+// above the visible area.
 watch(() => props.state.items, async () => {
   await nextTick()
   if (scroller.value) scroller.value.scrollTop = 0
@@ -46,8 +46,8 @@ const style = computed(() => ({
         <div ref="scroller" class="slash__scroll">
           <VList density="compact" nav class="py-1">
             <template v-for="(item, index) in state.items" :key="item.id">
-              <!-- Черта между группами: типы блоков читаются отдельными наборами, а не одной
-                   простынёй. Рисуется перед первым пунктом группы, кроме самой первой. -->
+              <!-- A rule between groups: block types read as separate sets rather than one long
+                   sheet. Drawn before the first item of every group except the very first. -->
               <VDivider v-if="index > 0 && item.group !== state.items[index - 1].group" class="my-1" />
               <VListItem
                 :data-index="index"
@@ -80,8 +80,8 @@ const style = computed(() => ({
   width: 320px;
 }
 
-/* Прокрутка живёт на внутреннем слое, а скругление и обрезка — на карточке. Иначе список
-   едет поверх скруглённых углов: полоса прокрутки и последний пункт упираются в прямой край. */
+/* Scrolling lives on the inner layer, rounding and clipping on the card. Otherwise the list rides
+   over the rounded corners: the scrollbar and the last item run into a square edge. */
 .slash__card {
   overflow: hidden;
 }
@@ -89,7 +89,7 @@ const style = computed(() => ({
 .slash__scroll {
   max-height: 320px;
   overflow-y: auto;
-  /* Докрутив список до конца, не прокручиваем страницу под ним. */
+  /* Scrolling past the end of the list must not scroll the page beneath it. */
   overscroll-behavior: contain;
 }
 
@@ -97,15 +97,15 @@ const style = computed(() => ({
   font-size: 13px;
 }
 
-/* Отступ задаём сами: Vuetify разносит слот только для своих VIcon/VAvatar, а здесь иконка —
-   обычный компонент, и по умолчанию она прилипает к подписи. */
+/* The gap is set by hand: Vuetify spaces the slot only for its own VIcon/VAvatar, and here the
+   icon is a plain component that sticks to the label by default. */
 .slash__icon {
   color: var(--text-muted);
   margin-right: 10px;
 }
 
-/* Подписи клавиш — отдельными плашками, как их рисует система: сплошная строка «Ctrl Alt 1»
-   читается как текст, а не как сочетание. */
+/* Key labels as separate keycaps, the way the OS draws them: a solid string "Ctrl Alt 1" reads
+   as text rather than as a shortcut. */
 .slash__keys {
   display: inline-flex;
   align-items: center;

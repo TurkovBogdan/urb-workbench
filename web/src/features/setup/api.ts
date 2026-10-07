@@ -1,9 +1,9 @@
 /**
- * Клиент API настроек окружения (бэк: /internal/core/setup, модуль core_setup).
+ * API client for environment settings (backend: /internal/core/setup, module core_setup).
  *
- * Редактирует слой ENV/.env: значения — строки, применяются перезапуском процесса
- * (PUT пишет .env и инициирует os.execv-рестарт). Отдельно от рантайм-настроек
- * (/core/settings), которые применяются горячо.
+ * Edits the ENV/.env layer: values are strings, applied by restarting the process
+ * (PUT writes .env and triggers an os.execv restart). Separate from the runtime settings
+ * (/core/settings), which apply hot.
  */
 
 import { internalApi } from '@/api/client/internal'

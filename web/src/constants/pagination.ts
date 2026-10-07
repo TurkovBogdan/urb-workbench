@@ -1,9 +1,9 @@
-// Одна лестница размеров страницы на все списки приложения — реестр исследований, источники,
-// страницы веб-поиска, запуски задач. Раньше лестница была у каждого своя (25/50/100/200,
-// 200/500/1000), и «сколько строк на странице» означало разное в зависимости от того, где стоишь.
+// One ladder of page sizes for every list in the app — the research registry, sources, web search
+// pages, job runs. Each used to have its own ladder (25/50/100/200, 200/500/1000), and "rows per
+// page" meant different things depending on where you stood.
 //
-// Умолчание — 100: столько строк ещё пролистывается взглядом, но уже почти всегда вмещает раздел
-// целиком, и листать не приходится.
+// Default is 100: that many rows can still be scanned by eye, yet it almost always fits a whole
+// section, so no paging is needed.
 export const PAGE_SIZES = [50, 100, 200, 500]
 
 export const DEFAULT_PAGE_SIZE = 100

@@ -1,10 +1,11 @@
-"""Тела запросов и ответов модуля.
+"""The module's request and response bodies.
 
-Схема собирается из реестра на лету, поэтому отдельного хранения не требует и разойтись
-с проверкой на записи не может.
+The schema is assembled from the registry on the fly, so it needs no storage of its own and
+cannot drift from the check applied on write.
 
-Поле схемы называется наружу ``schema``, а внутри ``fields``: имя ``schema`` занято
-методом самой ``BaseModel``, и поле с таким именем pydantic принимает лишь с руганью.
+The schema field is called ``schema`` outwardly and ``fields`` inside: the name ``schema`` is
+taken by a method of ``BaseModel`` itself, and pydantic accepts a field by that name only with
+a warning.
 """
 
 from __future__ import annotations
@@ -18,11 +19,11 @@ class SettingSchemaOut(BaseModel):
     key: str
     type: str  # string | number | boolean
     default: Any
-    options: list[Any] | None  # ``null`` — набор не ограничен
+    options: list[Any] | None  # ``null`` — the set is unrestricted
 
 
 class InterfaceSettingsOut(BaseModel):
-    """Действующие значения всех полей; схема — только по запросу старта."""
+    """Effective values of all fields; the schema only on the startup request."""
 
     values: dict[str, Any]
     fields: list[SettingSchemaOut] | None = Field(default=None, serialization_alias="schema")

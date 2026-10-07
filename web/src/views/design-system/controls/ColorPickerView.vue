@@ -5,8 +5,8 @@ import { useI18n } from 'vue-i18n'
 import PageLayout from '@/layout/templates/PageLayout.vue'
 import PageHeader from '@/layout/components/PageHeader.vue'
 import ColorPicker from '@/components/ColorPicker.vue'
-// Демо идёт на настоящем наборе — палитре приложения: выдуманный список показывал бы
-// раскладку на цветах, которых в приложении нет.
+// The demo runs on the real set — the app palette: a made-up list would show the layout on
+// colors the app doesn't have.
 import { colorNames, colorVarsByName } from '@/shared/colors'
 import { iconByName } from '@/shared/icons'
 
@@ -18,8 +18,8 @@ const picked = ref<string | null>('teal')
 const optional = ref<string | null>(null)
 const large = ref<string | null>('rose')
 
-// Что уходит наружу, в этих же кавычках: имя — строка, «без цвета» — `null`, и на витрине
-// разница между ними должна быть видна, а не додумываться по пустому месту.
+// What goes out, in the same literal form: a name is a string, "no color" is `null`, and in the
+// showcase the difference must be visible rather than inferred from an empty spot.
 function modelLiteral(value: string | null): string {
   return value === null ? 'null' : `'${value}'`
 }
@@ -66,8 +66,8 @@ function modelLiteral(value: string | null): string {
       </div>
     </section>
 
-    <!-- Ради чего набор и заведён: то же имя красит плашку иконки полки. Показываем плашку рядом
-         с пикером, потому что выбор оценивают по ней, а не по самой плитке. -->
+    <!-- What the set exists for: the same name paints the shelf's icon badge. The badge is shown next
+         to the picker because the choice is judged by it, not by the tile itself. -->
     <section class="ds-section">
       <h6 class="mb-3">{{ t('design-system.section.color-picker.plate') }}</h6>
       <div class="ds-card">
@@ -141,13 +141,13 @@ function modelLiteral(value: string | null): string {
   gap: 8px;
 }
 
-/* Пикер занимает всю ширину ячейки: сетка плиток считает колонки от неё. */
+/* The picker takes the full cell width: the tile grid derives its columns from it. */
 .ds-controls--stack {
   display: block;
 }
 
-/* Живое значение модели под пикером — тем же моноширинным набором, что подписи пропов справа:
-   и то и другое читается как код, а не как текст интерфейса. */
+/* The live model value under the picker uses the same monospace as the prop labels on the right:
+   both read as code, not as interface text. */
 .ds-value {
   margin: 8px 0 0;
   font-family: var(--font-mono);
@@ -155,7 +155,7 @@ function modelLiteral(value: string | null): string {
   color: var(--text-muted);
 }
 
-/* Та же плашка, что на карточке полки, — цвет берётся из вар, а не задаётся здесь. */
+/* The same badge as on the shelf card — the color comes from the variables, not set here. */
 .ds-plate {
   display: inline-flex;
   align-items: center;

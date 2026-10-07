@@ -1,9 +1,9 @@
-"""Журнал работы: предмет и разрешение, дописываемость и счёт открытых записей.
+"""The work journal: subject and resolution, append-only, and the count of open entries.
 
-Два правила здесь несут вес. Первое: запись закрывается ОДИН раз — переписать разрешение задним
-числом нельзя, иначе историю можно подогнать под результат. Второе: открытая запись — та, у
-которой разрешение пусто, и именно на этом числе будет стоять шлюз сдачи; факт в него не входит,
-он закрыт в момент записи.
+Two rules carry the weight here. First: an entry is closed ONCE — the resolution cannot be
+rewritten after the fact, or history could be fitted to the result. Second: an open entry is one
+whose resolution is empty, and this very number is what the hand-in gate will stand on; a fact
+does not count, it is closed the moment it is written.
 """
 
 from __future__ import annotations
@@ -36,10 +36,11 @@ pytestmark = pytest.mark.db
 
 @pytest.fixture
 async def task(db, workspace):
-    """Журнал начинается со ``standard`` — на нём и проверяем, чтобы не перепутать с этапами.
+    """The journal starts at ``standard`` — so that is what we test on, not to mix it up with
+    stages.
 
-    Этапы живут только у расширенной, журнал у обеих. Возьми сюда расширенную — и половина
-    файла молча перестала бы сторожить, что журнал стандартной вообще работает.
+    Stages exist only on an extended task, the journal on both. Use an extended one here and half
+    the file would silently stop guarding that a standard task's journal works at all.
     """
     return await task_create(
         workspace_code=workspace.code, title="Перенести тарифы", type=TYPE_STANDARD
@@ -48,13 +49,13 @@ async def task(db, workspace):
 
 @pytest.fixture
 async def staged(db, workspace):
-    """Расширенная задача — для тех немногих случаев, где записи нужен этап."""
+    """An extended task — for the few cases where an entry needs a stage."""
     return await task_create(
         workspace_code=workspace.code, title="С этапами", type=TYPE_EXTENDED
     )
 
 
-# ── заведение ─────────────────────────────────────────────────────────────────
+# ── creation ──────────────────────────────────────────────────────────────────
 
 
 async def test_entry_starts_open(task):
@@ -65,7 +66,7 @@ async def test_entry_starts_open(task):
 
 
 async def test_a_fact_may_be_closed_at_once(task):
-    """Факт ничего не ждёт: он и заводится уже закрытым."""
+    """A fact waits for nothing: it is created already closed."""
     note = await note_create(
         task_code=task.code, type=NOTE_FACT, title="Строк 1842", resolution="записано"
     )
@@ -89,7 +90,7 @@ async def test_an_entry_needs_a_live_task(db, workspace):
 
 
 async def test_a_simple_task_keeps_no_journal(db, workspace):
-    """Журнал начинается со ``standard`` — как и этапы, и по той же причине."""
+    """The journal starts at ``standard`` — like stages, and for the same reason."""
     task = await task_create(workspace_code=workspace.code, title="Записаться к врачу")
 
     with pytest.raises(ValueError, match="Raise its type first"):
@@ -119,7 +120,7 @@ async def test_an_entry_can_point_at_its_own_stage(staged):
     assert note.stage_code == stage.code
 
 
-# ── закрытие ──────────────────────────────────────────────────────────────────
+# ── closing ───────────────────────────────────────────────────────────────────
 
 
 async def test_resolution_closes_the_entry(task):
@@ -152,15 +153,15 @@ async def test_resolving_a_missing_entry_reports_none(db):
     assert await note_resolve("0" * 10, "что-то") is None
 
 
-# ── выдача ────────────────────────────────────────────────────────────────────
+# ── listing ───────────────────────────────────────────────────────────────────
 
 
 async def test_list_returns_the_whole_journal_of_the_task(db, workspace, task):
-    """Лента выдаётся по времени появления; чужая задача в неё не подмешивается.
+    """The feed comes in order of creation; another task's entries are not mixed in.
 
-    Внутри ОДНОЙ секунды порядок задаёт добивка по коду, а код случаен, — поэтому две записи,
-    заведённые подряд, здесь сравниваются как множество. Тот же предел у журнала и на экране:
-    точный порядок соседей по одной секунде ничем не обещан.
+    Within ONE second the order falls back to the code as a tiebreaker, and the code is random —
+    so two entries created back to back are compared here as a set. The journal on screen has the
+    same limit: the exact order of neighbours within one second is not promised by anything.
     """
     stranger = await task_create(
         workspace_code=workspace.code, title="Чужая", type=TYPE_STANDARD
@@ -201,11 +202,11 @@ async def test_open_count_skips_facts_and_closed_entries(db, workspace, task):
 
 
 async def test_the_hand_over_gate_does_not_count_findings(task):
-    """Находка адресована не исполнителю, и запирать ею сдачу значит запирать её навсегда.
+    """A finding is not addressed to the executor, and locking hand-in on it locks it for good.
 
-    Снять находку может только человек: она про работу ВНЕ этой задачи. Посчитай мы её наравне
-    с решением — первая же добросовестно записанная находка сделала бы сдачу недостижимой, и
-    агент перестал бы их записывать. Поэтому у счётчика два режима.
+    Only the person can clear a finding: it is about work OUTSIDE this task. Were we to count it
+    on a par with a decision, the very first honestly recorded finding would make hand-in
+    unreachable, and the agent would stop recording them. Hence the counter's two modes.
     """
     await note_create(task_code=task.code, type=NOTE_FINDING, title="Чужой дефект рядом")
 

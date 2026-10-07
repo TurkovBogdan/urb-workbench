@@ -21,29 +21,29 @@ export interface SlashItem {
   id: string
   title: string
   icon: Component
-  /** Возможность, без которой пункт не показывается. `null` — есть всегда (абзац). */
+  /** The feature without which the item is not shown. `null` — always present (paragraph). */
   feature: BlockFeature | null
-  /** Привязка в записи Tiptap, например `Mod-Shift-8`. `null` — сочетания нет.
-   *  Подписи для меню выводятся из неё же: два независимых поля разъехались бы. */
+  /** The binding in Tiptap notation, e.g. `Mod-Shift-8`. `null` — no shortcut.
+   *  The menu labels are derived from it too: two independent fields would drift apart. */
   keys: string | null
-  /** Латинские и русские триггеры: в меню набирают, и попасть должны оба написания. */
+  /** Latin and Russian triggers: people type into the menu, and both spellings must match. */
   keywords: string[]
-  /** Номер группы. Группы разделяются чертой — чтобы типы блоков читались отдельно. */
+  /** Group number. Groups are separated by a rule so block types read as separate sets. */
   group: number
   run: (editor: Editor, range: Range) => void
 }
 
-// Каждая команда разбивает `/запрос` первой: диапазон покрывает и сам слэш, и оставить его —
-// классическая ошибка такого меню.
+// Every command deletes the `/query` first: the range covers the slash itself too, and leaving it
+// behind is the classic bug of such a menu.
 function at(editor: Editor, range: Range) {
   return editor.chain().focus().deleteRange(range)
 }
 
-// На маке модификатор рисуется символом, в остальных местах словом. Сочетания при этом одни и
-// те же: Tiptap сам разбирает `Mod` как Cmd или Ctrl.
+// On a Mac the modifier is drawn as a symbol, elsewhere as a word. The shortcuts themselves are
+// the same: Tiptap resolves `Mod` to Cmd or Ctrl on its own.
 const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)
 
-/** Подписи клавиш для меню — выводятся из самой привязки, поэтому разойтись с ней не могут. */
+/** Key labels for the menu — derived from the binding itself, so they cannot drift from it. */
 export function shortcutLabels(keys: string | null): string[] {
   if (!keys) return []
   return keys.split('-').map((part) => {
@@ -54,8 +54,8 @@ export function shortcutLabels(keys: string | null): string[] {
   })
 }
 
-// Буквенная клавиша с Shift приходит от браузера заглавной, и привязка, записанная строчной,
-// не срабатывает никогда. Поэтому регистрируем оба написания — та же мина, что была у цитаты.
+// A letter key with Shift arrives from the browser in uppercase, and a binding written in
+// lowercase never fires. So both cases are registered — the same trap the quote had.
 function bindings(keys: string): string[] {
   const tail = keys.slice(keys.lastIndexOf('-') + 1)
   if (tail.length !== 1 || !/[a-z]/i.test(tail)) return [keys]
@@ -64,12 +64,12 @@ function bindings(keys: string): string[] {
 }
 
 /**
- * Пункты меню. Подписи сочетаний соответствуют РЕАЛЬНО работающим клавишам: заголовки, абзац и
- * блок кода держит StarterKit, списки и цитату — наши плоские узлы (blocks/), и сочетания там
- * выбраны те же, что у выключенных узлов StarterKit.
+ * Menu items. The shortcut labels match keys that ACTUALLY work: headings, paragraph and code
+ * block are handled by StarterKit, lists and the quote by our flat nodes (blocks/), whose
+ * shortcuts were chosen to match the disabled StarterKit nodes.
  *
- * `features` отсеивает пункты, которых в этом поле нет: меню обязано показывать то, что
- * сработает, а не полный каталог с половиной мёртвых строк.
+ * `features` filters out items this field does not have: the menu must show what will work, not
+ * the full catalogue with half of the rows dead.
  */
 export function createSlashItems(t: (key: string) => string, features?: FeatureSet): SlashItem[] {
   const items: SlashItem[] = [
@@ -133,8 +133,8 @@ export function createSlashItems(t: (key: string) => string, features?: FeatureS
       keywords: ['hr', 'divider', 'разделитель'],
       run: (editor, range) => at(editor, range).setHorizontalRule().run(),
     },
-    // Своя группа: таблица — единственный блок, который не ложится в одну строку markdown, и в
-    // меню она тоже стоит отдельно от однострочных.
+    // A group of its own: the table is the only block that does not fit on one markdown line, and
+    // in the menu it also stands apart from the single-line ones.
     {
       id: 'table', group: 5, icon: IconTable, feature: 'table',
       title: t('common.editor.slash.table'), keys: null,
@@ -171,7 +171,7 @@ export interface SlashMenu {
 }
 
 export interface SlashController {
-  /** Диапазон набранного `/запроса`, пока меню открыто. `null` — меню закрыто. */
+  /** The range of the typed `/query` while the menu is open. `null` — the menu is closed. */
   activeRange: () => Range | null
   start: (props: SuggestionProps<SlashItem, SlashItem>) => void
   update: (props: SuggestionProps<SlashItem, SlashItem>) => void
@@ -185,8 +185,8 @@ export function useSlashMenu(): SlashMenu {
   // The command closes over the current suggestion range, so it is replaced on every update
   // rather than rebuilt from state — a stale range would apply the item to the wrong place.
   const apply = shallowRef<((item: SlashItem) => void) | null>(null)
-  // Диапазон нужен не только для выбора мышью: по нему же сочетание клавиш убирает набранный
-  // `/запрос`, иначе команда применится, а слэш останется в тексте.
+  // The range is not only for mouse picks: a keyboard shortcut also uses it to remove the typed
+  // `/query`, otherwise the command would apply and the slash would stay in the text.
   const range = shallowRef<Range | null>(null)
 
   const place = (props: SuggestionProps<SlashItem, SlashItem>): void => {
@@ -244,17 +244,17 @@ export const SlashMenuExtension = Extension.create<{
 }>({
   name: 'slashMenu',
 
-  // Выше остальных: пока меню открыто, сочетание обязано пройти через нас — иначе команда
-  // сработает раньше, и убирать `/запрос` будет уже нечем.
+  // Above the rest: while the menu is open, a shortcut must pass through us — otherwise the
+  // command fires first, and there is nothing left to remove the `/query` with.
   priority: 1000,
 
   addOptions() {
     return { controller: null, items: null }
   },
 
-  // Те же сочетания, что подписаны в меню, но с одной добавкой: открытое меню они сперва
-  // закрывают, удаляя набранный `/запрос`. Закрытое меню их не касается — обработчик
-  // возвращает false, и дальше работает обычная привязка из blocks.ts или StarterKit.
+  // The same shortcuts as labelled in the menu, with one addition: when the menu is open they
+  // first close it, deleting the typed `/query`. A closed menu is not their business — the handler
+  // returns false, and the regular binding from blocks.ts or StarterKit takes over.
   addKeyboardShortcuts() {
     const { controller, items } = this.options
     const shortcuts: Record<string, () => boolean> = {}
@@ -282,8 +282,9 @@ export const SlashMenuExtension = Extension.create<{
         // A slash inside a word is a slash — a path, a date, a fraction. Only one that opens a
         // token starts the menu.
         allowSpaces: false,
-        // В блоке кода слэш — это слэш: путь, регулярка, комментарий. Меню там не просто лишнее,
-        // оно опасно — любая его команда сменила бы тип блока и разнесла код.
+        // In a code block a slash is a slash: a path, a regex, a comment. The menu there is not
+        // just superfluous but dangerous — any of its commands would change the block type and
+        // wreck the code.
         allow: ({ editor }) => !editor.isActive('codeBlock'),
         items: ({ query }) => (items?.() ?? []).filter((item) => matches(item, query)),
         command: ({ editor, range, props }) => props.run(editor, range),

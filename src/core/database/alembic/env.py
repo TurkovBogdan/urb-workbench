@@ -1,8 +1,8 @@
 """Alembic environment configured programmatically by AlembicRunner.
 
-Метаданные моделей собираются автоматически: каждый модуль импортирует свои
-``models`` в ``__init__.py`` (что регистрирует их в ``Base.metadata``).
-К моменту запуска миграций модули уже импортированы из ``apps/<name>/server.py``.
+Model metadata is collected automatically: each module imports its ``models`` in
+``__init__.py`` (which registers them in ``Base.metadata``). By the time migrations run,
+the modules have already been imported from ``apps/<name>/server.py``.
 """
 
 from __future__ import annotations

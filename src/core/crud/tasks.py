@@ -1,8 +1,8 @@
-"""CRUD для core_tasks. ORM-модели не пересекают границу слоя.
+"""CRUD for core_tasks. ORM models do not cross the layer boundary.
 
-Каждая функция сама открывает ``session_scope`` и коммитит — каллер передаёт
-только данные. Возвращаются detached ORM-row'ы / простые типы; ``expire_on_commit=False``
-гарантирует, что атрибуты доступны после выхода из сессии.
+Every function opens its own ``session_scope`` and commits — the caller passes
+only data. Detached ORM rows / plain types are returned; ``expire_on_commit=False``
+guarantees the attributes stay accessible after the session exits.
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from src.core.database import session_scope, write_scope
 from src.core.models.tasks import CoreTask, CoreTaskStatus
 from src.core.utils.date import utc_now
 
-ERROR_TEXT_MAX = 512  # лимит ``core_tasks.error_text`` (String(512))
+ERROR_TEXT_MAX = 512  # limit of ``core_tasks.error_text`` (String(512))
 
 
 def _truncate(s: str, limit: int) -> str:
@@ -33,9 +33,9 @@ def _insert_for(session: AsyncSession):
 
 
 async def create_running(*, module: str, code: str) -> int | None:
-    """INSERT с ON CONFLICT DO NOTHING по partial unique индексу.
+    """INSERT with ON CONFLICT DO NOTHING on the partial unique index.
 
-    Возвращает id новой записи или None, если уже есть running для (module, code).
+    Returns the new row's id, or None if a running row already exists for (module, code).
     """
     async with write_scope() as s:
         insert = _insert_for(s)
@@ -96,7 +96,7 @@ async def finalize_error(task_id: int, *, text: str) -> None:
 
 
 async def cleanup_zombies(threshold_seconds: int) -> list[int]:
-    """Финализировать зависшие running-записи. Возвращает их id для cleanup локов."""
+    """Finalise stuck running rows. Returns their ids for lock cleanup."""
     async with write_scope() as s:
         cutoff = utc_now() - timedelta(seconds=threshold_seconds)
         stmt = (
@@ -126,7 +126,7 @@ def _stats_row(by_status: dict[str, int]) -> dict[str, int]:
 
 
 async def stats_24h(*, module: str, code: str) -> dict[str, int]:
-    """Считает запуски за последние 24 часа: total / success / error / running."""
+    """Counts runs over the last 24 hours: total / success / error / running."""
     async with session_scope() as s:
         cutoff = utc_now() - timedelta(hours=24)
         stmt = (
@@ -144,11 +144,11 @@ async def stats_24h(*, module: str, code: str) -> dict[str, int]:
 
 
 async def stats_24h_all() -> dict[tuple[str, str], dict[str, int]]:
-    """Статистика за 24 часа сразу для всех (module, code) — один GROUP BY.
+    """24-hour stats for every (module, code) at once — a single GROUP BY.
 
-    Заменяет N запросов из ``stats_24h`` на один: дашборд задач строится без
-    N+1 round-trip'ов к БД. Ключ результата — пара ``(module, code)``; пары без
-    запусков за окно в словаре отсутствуют (каллер подставляет нули).
+    Replaces N ``stats_24h`` queries with one: the jobs dashboard is built without
+    N+1 round trips to the DB. The result key is the ``(module, code)`` pair; pairs
+    with no runs in the window are absent from the dict (the caller fills in zeros).
     """
     async with session_scope() as s:
         cutoff = utc_now() - timedelta(hours=24)
@@ -164,8 +164,8 @@ async def stats_24h_all() -> dict[tuple[str, str], dict[str, int]]:
     return {pair: _stats_row(by_status) for pair, by_status in per_pair.items()}
 
 
-# Колонки, по которым разрешена серверная сортировка runs.
-# duration = finished_at - started_at (NULL у running — уходит в конец/начало).
+# Columns that server-side sorting of runs is allowed on.
+# duration = finished_at - started_at (NULL for running — goes last/first).
 _RUN_DURATION = CoreTask.finished_at - CoreTask.started_at
 _SORTABLE = {
     "id": CoreTask.id,
@@ -186,10 +186,10 @@ async def list_runs(
     sort_by: str = "started_at",
     sort_dir: str = "desc",
 ) -> tuple[list[CoreTask], int]:
-    """Запуски задачи + общее количество с учётом фильтра.
+    """A job's runs + the total count under the filter.
 
-    Сортировка серверная по всему набору (не по текущей странице): ``sort_by`` из
-    ``_SORTABLE`` (иначе fallback на ``started_at``), ``sort_dir`` = asc|desc.
+    Sorting is server-side over the whole set (not the current page): ``sort_by`` from
+    ``_SORTABLE`` (otherwise falls back to ``started_at``), ``sort_dir`` = asc|desc.
     """
     where = [CoreTask.module == module, CoreTask.code == code]
     if status is not None:
@@ -214,7 +214,7 @@ async def list_runs(
 
 
 async def get_running_set() -> set[tuple[str, str]]:
-    """Все (module, code) пары с активным running-запуском."""
+    """All (module, code) pairs with an active running run."""
     async with session_scope() as s:
         result = await s.execute(
             select(CoreTask.module, CoreTask.code).where(
@@ -227,7 +227,7 @@ async def get_running_set() -> set[tuple[str, str]]:
 async def first_run_since(
     module: str, code: str, since: datetime
 ) -> tuple[int, CoreTaskStatus] | None:
-    """Самый ранний запуск пары, стартовавший не раньше ``since``: (id, status)."""
+    """The pair's earliest run started no earlier than ``since``: (id, status)."""
     stmt = (
         select(CoreTask.id, CoreTask.status)
         .where(
@@ -253,12 +253,12 @@ async def statuses_by_ids(task_ids: list[int]) -> dict[int, CoreTaskStatus]:
 
 
 async def brief_status_all() -> dict[tuple[str, str], tuple[CoreTaskStatus, datetime | None]]:
-    """Краткий статус каждой (module, code): статус последнего запуска + время последнего успешного.
+    """Brief status of each (module, code): status of the last run + time of the last success.
 
-    Значение — пара ``(last_status, last_completed_at)``: статус самого свежего
-    запуска (по ``started_at``) и ``finished_at`` самого свежего успешного запуска
-    (``None``, если успеха ещё не было). Пары без единого запуска в словаре
-    отсутствуют — каллер трактует их как «ещё не запускалась».
+    The value is the pair ``(last_status, last_completed_at)``: the status of the latest
+    run (by ``started_at``) and the ``finished_at`` of the latest successful run
+    (``None`` if there has been no success yet). Pairs with no runs at all are absent
+    from the dict — the caller reads them as "never run yet".
     """
     rank = func.row_number().over(
         partition_by=(CoreTask.module, CoreTask.code),

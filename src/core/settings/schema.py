@@ -1,7 +1,7 @@
-"""Schema = упорядоченный tuple полей одного модуля.
+"""Schema = an ordered tuple of one module's fields.
 
-``validate_schema`` зовётся при регистрации модуля в реестре (build phase):
-любая ошибка — fail-fast.
+``validate_schema`` is called when a module is registered in the registry (build
+phase): any error fails fast.
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ _KEY_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 
 
 def validate_schema(module: str, fields: ModuleSchema) -> None:
-    """Уникальность ключей, snake_case, default валидируется ограничениями."""
+    """Unique keys, snake_case, and the default passes the field's own constraints."""
     seen: set[str] = set()
     for f in fields:
         if not _KEY_RE.fullmatch(f.key):
@@ -38,10 +38,10 @@ def validate_schema(module: str, fields: ModuleSchema) -> None:
 
 
 def _validate_visibility(module: str, fields: ModuleSchema) -> None:
-    """Условие видимости обязано ссылаться на существующее поле того же модуля.
+    """A visibility condition must point at an existing field of the same module.
 
-    Опечатка в ключе иначе прошла бы молча и увела поле с экрана навсегда: значение при
-    этом продолжало бы применяться, а править его стало бы нечем.
+    Otherwise a typo in the key would pass silently and take the field off the screen for
+    good: its value would still apply, with nothing left to edit it with.
     """
     keys = {f.key for f in fields}
     for f in fields:

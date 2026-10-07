@@ -27,14 +27,14 @@ def test_text_hash_differs_on_content_change():
 
 @pytest.mark.pure
 def test_text_hash_sensitive_to_whitespace():
-    # канонизация делается выше по pipeline (на стороне вызывающего кода),
-    # сам хеш — чистая функция от полученной строки
+    # canonicalization happens further up the pipeline (on the caller's side),
+    # the hash itself is a pure function of the string it gets
     assert text_hash("hello") != text_hash("hello ")
 
 
 @pytest.mark.pure
 def test_text_hash_is_lowercase_hex():
-    # SHA-256 hexdigest[:22]: алфавит строго [0-9a-f], без '_'/'-'/'='
+    # SHA-256 hexdigest[:22]: alphabet strictly [0-9a-f], no '_'/'-'/'='
     digest = text_hash("hello")
     assert all(c in "0123456789abcdef" for c in digest)
 

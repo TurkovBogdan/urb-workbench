@@ -1,16 +1,18 @@
-"""Что попадает в поток изменений: объявления сущностей и их реестр.
+"""What goes into the changes stream: entity declarations and their registry.
 
-Поток не знает ни одной конкретной сущности. Что в него слать, решает модуль-владелец: в своём
-``configure()`` он объявляет модели, изменения которых видны фронту, — ровно тем же ходом, каким
-``tasks`` кладёт счётчики в реестр ``workspace.stats``. Модель без объявления в поток не попадает,
-даже если меняется: настройки, журналы и служебные таблицы наружу не уходят сами собой.
+The stream knows no concrete entity. What to send into it is decided by the owning module: in
+its ``configure()`` it declares the models whose changes the frontend sees — exactly the way
+``tasks`` puts its counters into the ``workspace.stats`` registry. An undeclared model never
+reaches the stream even when it changes: settings, logs and service tables do not leak out on
+their own.
 
-Имя сущности — публичный контракт: его читает фронт (``web/src/features/<модуль>`` зеркалит модуль
-бэка). Переименовать ``tasks.task`` — всё равно что сменить адрес ручки API, а не внутренняя правка.
+An entity name is a public contract: the frontend reads it (``web/src/features/<module>``
+mirrors the backend module). Renaming ``tasks.task`` is like changing an API endpoint's
+address, not an internal edit.
 
-Объявление проверяется сразу при регистрации: колонка кода и колонки ссылок обязаны существовать
-в модели, а имя — быть единственным. Переименованная колонка иначе молча выключила бы поток, и
-экран перестал бы обновляться без единой ошибки.
+A declaration is checked right at registration: the code column and the ref columns must exist
+on the model, and the name must be unique. Otherwise a renamed column would silently switch the
+stream off, and the screen would stop updating without a single error.
 """
 
 from __future__ import annotations
@@ -22,10 +24,11 @@ from sqlalchemy import inspect
 
 @dataclass(frozen=True)
 class Code:
-    """Колонка с кодом и тип-префикс, с которым код уходит наружу.
+    """The column holding the code and the type prefix the code goes out with.
 
-    В базе коды голые (``3f1a…``), на проводе — с префиксом (``TASK@3f1a…``): фронт сравнивает то,
-    что получил от ручек, а ручки отдают префиксованную форму. Пустой префикс — код как есть.
+    In the database codes are bare (``3f1a…``), on the wire they are prefixed (``TASK@3f1a…``):
+    the frontend compares against what it got from the endpoints, and the endpoints return the
+    prefixed form. An empty prefix means the code as is.
     """
 
     column: str
@@ -39,11 +42,11 @@ class Code:
 
 @dataclass(frozen=True)
 class ChangeEntity:
-    """Сущность потока: её имя, модель, чем она названа и на кого ссылается.
+    """A stream entity: its name, model, what identifies it and what it refers to.
 
-    ``refs`` — коды сущностей, к которым эта относится: у этапа — его задача, у задачи — её группа.
-    По ним экран понимает, что изменение «про него», не зная, что такое этап. Перечисляются явно, а
-    не выводятся из всех внешних ключей: ссылка, которая никому на экране не нужна, — шум.
+    ``refs`` are the codes of the entities this one belongs to: a stage's task, a task's group.
+    They let a screen tell that a change is "about it" without knowing what a stage is. They are
+    listed explicitly rather than derived from every foreign key: a ref no screen needs is noise.
     """
 
     name: str
@@ -58,7 +61,7 @@ _BY_TABLE: dict[str, ChangeEntity] = {}
 
 
 def register_entity(entity: ChangeEntity) -> None:
-    """Объявить сущность потока. Повтор того же объявления (пересборка приложения в тестах) — не ошибка."""
+    """Declare a stream entity. Repeating a declaration (app rebuild in tests) is not an error."""
     existing = _BY_NAME.get(entity.name)
     if existing is not None and existing != entity:
         raise ValueError(
@@ -93,7 +96,7 @@ def declared_entities() -> list[ChangeEntity]:
 
 
 def clear_entities() -> None:
-    """Забыть все объявления — для тестов, которые собирают реестр заново."""
+    """Forget all declarations — for tests that rebuild the registry from scratch."""
     _BY_NAME.clear()
     _BY_MODEL.clear()
     _BY_TABLE.clear()

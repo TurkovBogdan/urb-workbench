@@ -1,7 +1,7 @@
-"""HTTP API настроек окружения (mounted at /internal/core/setup).
+"""HTTP API for the environment settings (mounted at /internal/core/setup).
 
-``GET`` — поля по группам с текущими значениями из ``.env``. ``PUT`` — записать
-переданные значения в ``.env`` и перезапустить процесс (новый старт перечитает Config).
+``GET`` — fields by group with their current values from ``.env``. ``PUT`` — write the given
+values into ``.env`` and restart the process (the fresh start re-reads Config).
 """
 
 from __future__ import annotations

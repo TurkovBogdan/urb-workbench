@@ -1,15 +1,15 @@
 """tasks: tasks_stage table
 
-Creates ``tasks_stage`` — этап плана внутри задачи. Column order mirrors
+Creates ``tasks_stage`` — a plan stage inside a task. Column order mirrors
 ``models/stage.py::TasksStage``. String PK ``code``; FK ``task_code`` → tasks.code
-(CASCADE). ``status`` берёт справочник задачи и отличается только умолчанием (``planned``):
-значения перечислены буквально — миграция фиксирует состояние схемы на своей дате и не должна
-меняться вслед за ``constants.py``.
+(CASCADE). ``status`` reuses the task's vocabulary and differs only in its default (``planned``):
+the values are spelled out literally — a migration pins the schema as of its date and must not
+change to follow ``constants.py``.
 
-Индекс ``(task_code, number)`` — **уникальный**: он и задаёт порядок этапов, и запрещает двум
-этапам одной задачи носить один номер. Заодно покрывает дочернюю сторону FK.
+The ``(task_code, number)`` index is **unique**: it both defines the stage order and forbids two
+stages of one task from sharing a number. It also covers the child side of the FK.
 
-Логического удаления у этапа нет: брошенный этап — это статус ``canceled``, а не скрытая строка.
+A stage has no soft delete: an abandoned stage is status ``canceled``, not a hidden row.
 
 Revision ID: tsm_004_stage
 Revises: tsm_003_link

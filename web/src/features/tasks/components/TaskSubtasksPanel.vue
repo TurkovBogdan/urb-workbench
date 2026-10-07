@@ -1,14 +1,15 @@
 <script setup lang="ts">
-// Подзадачи на странице задачи — тем же видом, что в общем списке.
+// Subtasks on the task page — in the same form as in the main list.
 //
-// Одна карточка: сверху поиск и «показать сверх обычного», ниже ветка. Строки — те же `TaskRow`,
-// контейнер — тот же `TaskSubtree`, что рисует ветку под задачей в списке: подзадача обязана
-// выглядеть и двигаться одинаково, где бы её ни увидели. Корнем ветки здесь служит сама открытая
-// задача, поэтому жесты те же, что внутри ветки списка: переставить среди сестёр можно, бросить в
-// чужую ветку нельзя.
+// One card: search and "show beyond the usual" on top, the branch below. Rows are the same
+// `TaskRow`, the container is the same `TaskSubtree` that draws the branch under a task in the
+// list: a subtask must look and move the same wherever it is seen. The branch root here is the
+// open task itself, so the gestures are the same as inside a list branch: reordering among
+// siblings is allowed, dropping into another branch is not.
 //
-// Поиск превращает ветку в плоский ряд совпадений и выключает перестановку — как фильтр в
-// списке: в ряду, где стоят не все сёстры, «встать после соседа» значит не то, что видно.
+// Search turns the branch into a flat row of matches and disables reordering — like the filter in
+// the list: in a row where not all siblings are present, "land after a neighbour" means something
+// other than what is visible.
 import { computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { IconCircleCheck, IconTrash } from '@tabler/icons-vue'
@@ -23,10 +24,10 @@ import { useTaskSubtreeStore } from '../stores/task-subtree.store'
 import type { TaskListRow } from '../api'
 
 const props = defineProps<{
-  /** Открытая задача — корень ветки. */
+  /** The open task — the branch root. */
   taskCode: string
   workspace: string
-  /** Задача в корзине: её ветка удалена вместе с ней и видна только вместе с удалёнными. */
+  /** The task is in the trash: its branch was deleted with it and is visible only with deleted. */
   deleted: boolean
 }>()
 
@@ -39,9 +40,9 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const store = useTaskSubtreeStore()
 
-// Источники — по отдельности, а не одним массивом: массив из геттера новый на каждое чтение, и
-// перечитка карточки задачи (живое обновление) заново открывала бы ветку, хотя ни одно значение
-// не поменялось.
+// Sources are watched separately, not as one array: an array from a getter is new on every read,
+// and a re-read of the task card (live update) would reopen the branch even though no value
+// changed.
 watch(
   [() => props.taskCode, () => props.workspace, () => props.deleted],
   ([code, workspace, deleted]) => {
@@ -50,11 +51,11 @@ watch(
   { immediate: true },
 )
 
-// Ключи группы «показать сверх обычного» — те же две кнопки, что в панели фильтров списка.
+// Keys of the "show beyond the usual" group — the same two buttons as in the list filter panel.
 const EXTRA_FINISHED = 'finished'
 const EXTRA_DELETED = 'deleted'
 
-/** Нажатая кнопка = показано; знак флагов стора разворачивается здесь, как в `TaskFilters`. */
+/** Pressed button = shown; the store flags' polarity is inverted here, as in `TaskFilters`. */
 const extras = computed({
   get: () => [
     ...(store.hideFinished ? [] : [EXTRA_FINISHED]),
@@ -81,9 +82,10 @@ async function move(payload: {
 
 defineExpose({ reload: () => store.load() })
 
-// Ветка обновляется сама, когда задачи или их места меняет кто-то другой (агент, другая вкладка).
-// Ветку строит плоский список пространства, поэтому «своё» — всё из этого пространства: новая
-// задача несёт его в `refs`, а ребро дерева — только коды задач, и узнаётся по уже известным.
+// The branch updates itself when someone else (the agent, another tab) changes tasks or their
+// positions. The branch is built from the workspace's flat list, so "ours" is anything from this
+// workspace: a new task carries it in `refs`, while a tree edge carries only task codes and is
+// recognised by the ones already known.
 function concernsBranch(change: Change): boolean {
   if (change.ids.length === 0) return true
   if (change.refs.includes(props.workspace)) return true
@@ -100,9 +102,9 @@ useChangeSubscription({
 </script>
 
 <template>
-  <!-- Подзадач нет вовсе — нет и карточки: поиск и переключатели над пустотой обещают список,
-       которого нет. Остаётся строка, как у пустого журнала. Пока ветка грузится, не показывается
-       ничего: иначе у задачи с подзадачами на миг мелькало бы «подзадач нет». -->
+  <!-- No subtasks at all — no card either: a search and toggles over emptiness promise a list
+       that does not exist. What remains is a line, as with an empty journal. While the branch is
+       loading nothing is shown: otherwise a task with subtasks would flash "no subtasks". -->
   <p v-if="store.isEmpty" v-show="!store.loading" class="subtasks-empty">
     {{ t('tasks.task.detail.no_children') }}
   </p>
@@ -116,8 +118,9 @@ useChangeSubscription({
         class="subtasks__search"
       />
 
-      <!-- У задачи в корзине живых подзадач нет вовсе, и «Удалённые» у неё не выключить: без них
-           ветка была бы пустой, хотя под задачей лежит всё, что вернётся вместе с ней. -->
+      <!-- A task in the trash has no live subtasks at all, so "Deleted" cannot be switched off
+           for it: without them the branch would be empty, though under the task lies everything
+           that will come back with it. -->
       <VBtnToggle
         v-model="extras"
         multiple
@@ -144,7 +147,7 @@ useChangeSubscription({
       {{ t('tasks.task.detail.children_filtered') }}
     </p>
 
-    <!-- Совпадения поиска — плоским рядом без ручек: см. шапку файла. -->
+    <!-- Search matches as a flat row without handles: see the file header. -->
     <div v-else-if="store.searching" class="subtasks__flat">
       <div v-for="task in store.matches" :key="task.code" class="subtasks__flat-item">
         <TaskRow
@@ -179,16 +182,16 @@ useChangeSubscription({
 </template>
 
 <style scoped>
-/* Тот же вид, что у пустого журнала (`TaskJournal`, `.journal__empty`): соседние секции страницы
-   говорят «пусто» одним голосом. */
+/* Same look as the empty journal (`TaskJournal`, `.journal__empty`): neighbouring page sections
+   say "empty" in one voice. */
 .subtasks-empty {
   margin: 0;
   font-size: 13px;
   color: var(--text-muted);
 }
 
-/* Ряд ручек — как панель фильтров списка (`filter-panel` + `TaskFilters`): поиск слева,
-   переключатели прижаты к правому краю, в узком окне переносятся целиком. */
+/* The controls row is like the list filter panel (`filter-panel` + `TaskFilters`): search on the
+   left, toggles hugging the right edge, wrapping as a whole in a narrow window. */
 .subtasks__toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -197,8 +200,8 @@ useChangeSubscription({
   padding: 10px 12px;
 }
 
-/* Колонка у страницы задачи уже списка: поиск отдаёт ширину первым, иначе переключатели уезжали
-   на вторую строку, хотя места им хватало. */
+/* The task page column is narrower than the list: the search gives up width first, otherwise the
+   toggles moved to a second line even though they had room. */
 .subtasks__search {
   flex: 1 1 200px;
   max-width: 364px;
@@ -215,7 +218,7 @@ useChangeSubscription({
 
 .subtasks__extras :deep(.v-btn) { font-size: 12px; }
 
-/* Полоса обновления не раздвигает карточку: перечитка после каждого жеста дёргала бы строки. */
+/* The progress bar does not push the card apart: a re-read after every gesture would jolt rows. */
 .subtasks__progress {
   position: absolute;
   top: 0;
@@ -231,8 +234,8 @@ useChangeSubscription({
   color: var(--text-muted);
 }
 
-/* Разделители плоского ряда — те же, что у ветки (`TaskSubtree`): линия над каждой строкой, и
-   над первой тоже — она же отделяет ряд от панели ручек. */
+/* Flat-row dividers match the branch's (`TaskSubtree`): a line above every row, the first one
+   included — it also separates the row from the controls panel. */
 .subtasks__flat-item {
   border-top: 1px solid var(--border-soft);
 }

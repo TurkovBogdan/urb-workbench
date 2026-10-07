@@ -1,11 +1,12 @@
 <script setup lang="ts">
-// «Забрать код объекта» — одна кнопка на все шапки: и на деталках (`DetailHead`), и на страницах,
-// чья шапка страничная (`PageHeader` у полки). Раньше разметка жила в `DetailHead`, и полка
-// повторила бы её слово в слово — а расходятся такие копии молча, по одной правке за раз.
+// "Grab the object code" — one button for every header: both on detail views (`DetailHead`) and on
+// pages with a page-level header (the shelf's `PageHeader`). The markup used to live in
+// `DetailHead`, and the shelf would have repeated it word for word — and such copies drift apart
+// silently, one edit at a time.
 //
-// Подпись обязательна: кнопка стоит рядом с ИМЕНЕМ объекта, а значок копирования сам по себе не
-// говорит, что именно он заберёт. Там, где на экране стоит сам код, копируют его плашкой
-// (`CopyChip`) — текст и значок одной кнопкой, и вопроса «что копируется» там нет.
+// The label is required: the button sits next to the object's NAME, and a copy icon by itself
+// doesn't say what it will grab. Where the code itself is on screen, it is copied with a chip
+// (`CopyChip`) — text and icon as one button, and the "what gets copied" question doesn't arise.
 import { useI18n } from 'vue-i18n'
 import { IconCheck, IconCopy } from '@tabler/icons-vue'
 
@@ -20,9 +21,9 @@ const { copy, isCopied } = useClipboard()
 </script>
 
 <template>
-  <!-- Ответ об успехе даёт только значок: подпись говорит, что кнопка делает, и меняться от
-       нажатия ей незачем — иначе кнопка на мгновение перестаёт быть той же самой, а вместе с
-       длиной подписи дёргается и весь ряд. -->
+  <!-- Only the icon reports success: the label says what the button does and has no reason to
+       change on press — otherwise the button briefly stops being the same one, and the whole row
+       twitches with the label's length. -->
   <VBtn variant="text" @click="copy(code)">
     <template #prepend>
       <IconCheck v-if="isCopied(code)" :size="16" class="copy-code__done" />
@@ -33,9 +34,9 @@ const { copy, isCopied } = useClipboard()
 </template>
 
 <style scoped>
-/* Об успехе говорит сама смена значка, и цветом его называть незачем: копирование кода — рядовое
-   действие, которое делают по многу раз, а зелёная вспышка в шапке читается как событие. Серый
-   держит галочку в том же весе, что и значок, который она подменила. */
+/* The icon change itself reports success, there's no need to name it with color: copying a code is a
+   routine action done many times over, and a green flash in the header reads as an event. Grey keeps
+   the check at the same weight as the icon it replaced. */
 .copy-code__done {
   color: var(--text-muted);
 }

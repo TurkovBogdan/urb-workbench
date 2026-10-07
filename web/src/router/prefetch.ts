@@ -1,27 +1,29 @@
 import type { RouteRecordNormalized, Router } from 'vue-router'
 
-// Компонент маршрута — ленивый `import()`, и скачивается он ВНУТРИ навигации: пока чанк в пути,
-// старая страница стоит неподвижно, а полоса прогресса с порогом 140 мс появиться не успевает
-// (замер первого захода в деталку исследования — 107 мс, второго — 26 мс). Клик выглядит как
-// «ничего не произошло», и только потом всё разом оживает.
+// A route component is a lazy `import()`, and it downloads INSIDE the navigation: while the chunk
+// is in flight the old page stands still, and the progress bar with its 140 ms threshold doesn't
+// get to appear (measured: first visit to the research detail page — 107 ms, second — 26 ms). The
+// click looks like "nothing happened", and only then does everything come alive at once.
 //
-// Лечится тем, что чанк приезжает до клика. Два входа: наведение или фокус на внутренней ссылке
-// (курсор доходит до цели раньше нажатия) и разогрев на простое — до строк таблиц и карточек,
-// которые ссылками не являются, наведение не дотягивается.
+// The cure is for the chunk to arrive before the click. Two entries: hover or focus on an internal
+// link (the cursor reaches the target before the press) and warm-up when idle — hover doesn't
+// reach table rows and cards that are not links.
 //
-// Витрина дизайн-системы из разогрева исключена: сорок семь страниц, на рабочем пути не лежат,
-// и по наведению каждая приедет сама.
+// The design-system showcase is excluded from warm-up: forty-seven pages that are not on the
+// working path, and each will arrive on hover by itself.
 const SHOWCASE_PREFIX = '/design-system'
 
-// Помним ЗАПИСЬ маршрута, а не адрес: у деталки на каждый код свой адрес, но чанк один.
+// Remember the route RECORD, not the address: a detail page has its own address per code, but one
+// chunk.
 const warmed = new WeakSet<RouteRecordNormalized>()
 
 function warm(record: RouteRecordNormalized): void {
   if (warmed.has(record)) return
   warmed.add(record)
   for (const component of Object.values(record.components ?? {})) {
-    // Ленивый компонент — функция-загрузчик; уже разрешённый маршрут отдаёт сам объект.
-    // Отказ глотаем: это упреждение, а не запрос, и настоящую ошибку покажет сама навигация.
+    // A lazy component is a loader function; an already resolved route yields the object itself.
+    // Failures are swallowed: this is anticipation, not a request, and navigation itself will
+    // show the real error.
     if (typeof component === 'function') void (component as () => Promise<unknown>)().catch(() => {})
   }
 }

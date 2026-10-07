@@ -1,11 +1,11 @@
 <script setup lang="ts">
-// Плавающая панель над выделением — вместо постоянной полосы сверху. Появляется там, где
-// работает курсор, и исчезает, как только выделение снято.
+// A floating toolbar over the selection — instead of a permanent strip at the top. It appears
+// where the cursor is working and disappears as soon as the selection is cleared.
 //
-// Позиционирование своё, а не из @tiptap/extension-bubble-menu: тот принимает готовый
-// HTMLElement в момент создания редактора, то есть панель обязана существовать раньше, чем
-// смонтируется компонент. Разворачивать ради этого порядок инициализации дороже, чем
-// посчитать координаты: у ProseMirror они берутся прямо из view.
+// Positioning is our own, not @tiptap/extension-bubble-menu: that one takes a ready HTMLElement
+// when the editor is created, so the toolbar would have to exist before the component mounts.
+// Reversing the initialization order for that costs more than computing the coordinates: with
+// ProseMirror they come straight from the view.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Editor } from '@tiptap/core'
@@ -20,24 +20,25 @@ const props = defineProps<{ editor: Editor | undefined; tick: number; features: 
 
 const { t } = useI18n()
 
-// Панель показывает то, что СРАБОТАЕТ. Кнопка выключенной возможности — не «серая», её нет:
-// узла или метки нет в схеме, и нажатие не сделало бы ничего.
+// The toolbar shows what WILL WORK. A button for a disabled feature is not greyed out, it is
+// absent: the node or mark is not in the schema, and pressing it would do nothing.
 const has = (feature: Feature): boolean => props.features.has(feature)
 
-// Выпадающий список типа блока держится на заголовках и цитате. Нет ни тех, ни другой —
-// выбирать не из чего, и сам список исчезает вместе с ними.
+// The block-type dropdown rests on headings and the quote. With neither of them there is nothing
+// to choose from, and the dropdown disappears along with them.
 const showBlockMenu = computed(() => has('heading') || has('quote'))
 const showMarks = computed(() => has('bold') || has('italic') || has('strike') || has('code'))
-// Режим, в котором панели нечего предложить, не должен показывать пустую карточку.
+// A mode in which the toolbar has nothing to offer must not show an empty card.
 const showPanel = computed(() => showBlockMenu.value || showMarks.value
   || has('link') || has('list') || has('entityRef'))
 
 const HEIGHT = 40
 const MARGIN = 8
 
-// Панель центрируется по выделению, но не вылезает за колонку редактора: рядом сайдбар, и
-// короткое выделение у левого края увело бы её на него. Границы приходят из DOM самого
-// редактора, а ширина измеряется — угаданная константа разъехалась бы с набором кнопок.
+// The toolbar centres on the selection but does not overflow the editor column: the sidebar is
+// next to it, and a short selection near the left edge would pull the toolbar onto it. The bounds
+// come from the editor's own DOM, and the width is measured — a guessed constant would drift
+// away from the set of buttons.
 interface Spot { left: number; top: number; bottom: number; min: number; max: number }
 
 const spot = ref<Spot | null>(null)
@@ -53,8 +54,8 @@ function place(): void {
   if (!editor || editor.isDestroyed || !showPanel.value) return hide()
 
   const { selection } = editor.state
-  // Панель правит текст: без выделения править нечего. Внутри блока кода строчных меток нет,
-  // поэтому там она только мешала бы.
+  // The toolbar edits text: without a selection there is nothing to edit. A code block has no
+  // inline marks, so there it would only get in the way.
   if (selection.empty || editor.isActive('codeBlock')) return hide()
 
   const start = editor.view.coordsAtPos(selection.from)
@@ -80,8 +81,8 @@ function hide(): void {
   spot.value = null
 }
 
-// Выделение не переживёт перевода фокуса, поэтому кнопки не должны его забирать: mousedown
-// гасится, клик доходит, каретка остаётся на месте.
+// The selection will not survive a focus change, so the buttons must not take focus: mousedown
+// is suppressed, the click still arrives, the caret stays where it is.
 function hold(event: Event): void {
   event.preventDefault()
 }
@@ -91,7 +92,7 @@ const style = computed(() => {
   if (!at) return {}
   const half = width.value / 2
   const above = at.top > HEIGHT + MARGIN * 2
-  // Центр зажимается так, чтобы оба края панели остались внутри колонки редактора.
+  // The centre is clamped so both edges of the toolbar stay inside the editor column.
   const left = Math.min(Math.max(at.left, at.min + half), Math.max(at.min + half, at.max - half))
   return {
     left: `${left}px`,
@@ -101,7 +102,7 @@ const style = computed(() => {
 
 watch(() => props.tick, place)
 watch(() => props.editor, place)
-// Набор кнопок постоянен, но выпадающие меняют подпись «Aa» на «H2» — ширину пересчитываем.
+// The button set is fixed, but the dropdowns change their label from "Aa" to "H2" — remeasure.
 watch(spot, () => void nextTick(measure))
 
 onMounted(() => {
@@ -115,15 +116,15 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', place)
 })
 
-// ── Состояние ─────────────────────────────────────────────────────────────────
+// ── State ─────────────────────────────────────────────────────────────────────
 
 function is(name: string, attrs?: Record<string, unknown>): boolean {
   void props.tick
   return props.editor?.isActive(name, attrs) ?? false
 }
 
-// Вид списка под курсором. `isActive` здесь не годится: пункт-галочка отличается от обычного
-// значением `checked`, а совпадения «любое булево» в нём не выразить.
+// The list kind under the cursor. `isActive` will not do here: a checkbox item differs from a
+// plain one by its `checked` value, and "any boolean" cannot be expressed as a match in it.
 function listKind(): 'bullet' | 'ordered' | 'task' | null {
   void props.tick
   const state = props.editor?.state
@@ -138,8 +139,8 @@ function listKind(): 'bullet' | 'ordered' | 'task' | null {
   return null
 }
 
-// Только уровень заголовка: кавычка вместо подписи читалась как случайный символ, а что блок
-// сейчас цитата, и без того видно по подсвеченной кнопке цитаты.
+// Heading level only: a quote mark as the label read as a stray character, and that the block
+// is currently a quote is already visible from the highlighted quote button.
 const blockLabel = computed(() => {
   void props.tick
   if (is('heading', { level: 1 })) return 'H1'
@@ -155,7 +156,7 @@ const listIcon = computed(() => {
   return IconList
 })
 
-// ── Действия ──────────────────────────────────────────────────────────────────
+// ── Actions ───────────────────────────────────────────────────────────────────
 
 function chain() {
   return props.editor?.chain().focus()
@@ -192,7 +193,7 @@ function applyRef(): void {
   <Teleport to="body">
     <div v-show="spot" ref="panel" class="bubble" :style="style" @mousedown="hold">
       <VCard elevation="8" rounded="lg" class="bubble__card">
-        <!-- Тип блока: то же, что «Aa ∨» — один список вместо ряда кнопок H1/H2/H3 -->
+        <!-- Block type: same as "Aa ∨" — one dropdown instead of a row of H1/H2/H3 buttons -->
         <VMenu v-if="showBlockMenu" location="bottom start">
           <template #activator="{ props: menu }">
             <button v-bind="menu" class="bubble__btn bubble__btn--wide" :title="t('common.editor.toolbar.block_type')">
@@ -266,7 +267,7 @@ function applyRef(): void {
           <IconClearFormatting :size="16" />
         </button>
 
-        <!-- Списки: тоже один выпадающий, как «☰ ∨» на образце -->
+        <!-- Lists: also one dropdown, like "☰ ∨" in the reference design -->
         <VMenu v-if="has('list')" location="bottom">
           <template #activator="{ props: menu }">
             <button v-bind="menu" class="bubble__btn bubble__btn--wide" :class="{ 'is-on': !!listKind() }" :title="t('common.editor.toolbar.list')">

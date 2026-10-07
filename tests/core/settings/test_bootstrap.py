@@ -61,7 +61,7 @@ async def test_second_boot_keeps_user_value(db):
     await load_initial_stores([m])
     await get_registry().update("boot_m", "n", 99)
 
-    # Эмулируем перезапуск: реестр чистим, но БД остаётся.
+    # Emulate a restart: clear the registry, but the DB stays.
     get_registry().clear()
     m2 = _M()
     register_settings_schemas([m2])

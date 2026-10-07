@@ -1,21 +1,22 @@
 """tasks: tasks table
 
-Creates ``tasks`` — сама задача; таблица названа по модулю, без приставки (её несут спутники:
-``tasks_group``, ``tasks_link``, ``tasks_stage``, ``tasks_note``). Column order mirrors
-``models/task.py::TasksTask``.
-String PK ``code``; FK ``workspace_code`` → workspaces.code (CASCADE) и ``group_code`` →
-tasks_group.code (SET NULL, nullable). Справочные колонки ``type``/``status``/``priority``/
-``created_by`` — строки с именованными CHECK, а не нативный enum: ``CREATE TYPE`` не существует
-на SQLite, а цепочка катится на обоих провайдерах. Значения CHECK перечислены буквально —
-миграция фиксирует состояние схемы на своей дате и не должна меняться задним числом вслед за
-``constants.py``. Три индекса — под доску по статусу, раскладку по группам и план по срокам; все
-ведут с ``workspace_code`` (поперёк пространств модуль не читает).
+Creates ``tasks`` — the task itself; the table is named after the module, without a prefix (the
+satellites carry one:``tasks_group``, ``tasks_link``, ``tasks_stage``, ``tasks_note``). Column
+order mirrors ``models/task.py::TasksTask``.
+String PK ``code``; FK ``workspace_code`` → workspaces.code (CASCADE) and ``group_code`` →
+tasks_group.code (SET NULL, nullable). The vocabulary columns ``type``/``status``/``priority``/
+``created_by`` are strings with named CHECKs, not a native enum: ``CREATE TYPE`` does not exist
+on SQLite, and the chain runs on both providers. The CHECK values are spelled out literally — a
+migration pins the schema as of its date and must not change retroactively to follow
+``constants.py``. Three indexes — for the board by status, the layout by group and the schedule
+by deadline; all lead with ``workspace_code`` (the module never reads across workspaces).
 
-Назначаемая дата одна — ``deadline_at``: «день, на который задача поставлена в календарь» не
-завёл себе ни одного читателя и в схему не попадает вовсе.
+There is one assignable date, ``deadline_at``: "the day the task is put on the calendar" never
+gained a single reader and does not enter the schema at all.
 
-Текст разложен по владельцу: постановку (``description`` — цель, ``context``, ``constraints``,
-``criteria``) пишет человек, ``body`` — план агента, и потому он замыкает текстовый блок.
+The text is split by owner: the person writes the brief (``description`` — the goal,
+``context``, ``constraints``, ``criteria``), ``body`` is the agent's plan, and so it closes the
+text block.
 
 Revision ID: tsm_002_task
 Revises: tsm_001_group

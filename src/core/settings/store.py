@@ -1,4 +1,4 @@
-"""Per-module immutable store — codegen'd frozen dataclass из ModuleSchema."""
+"""Per-module immutable store — a frozen dataclass codegen'd from ModuleSchema."""
 
 from __future__ import annotations
 
@@ -10,11 +10,11 @@ from src.core.settings.schema import ModuleSchema
 
 
 ModuleSettingsStore = Any
-"""Тип per-module store. Конкретный класс кодогенерится в build_store."""
+"""Type of a per-module store. The concrete class is codegen'd in build_store."""
 
 
 def _freeze(value: Any, field) -> Any:
-    """list/multichoice → tuple, чтобы инстанс был полностью иммутабелен."""
+    """list/multichoice → tuple, so the instance is fully immutable."""
     if isinstance(field, (ListField, MultiChoiceField)):
         return tuple(value)
     return value
@@ -25,10 +25,10 @@ def build_store(
     schema: ModuleSchema,
     values: dict[str, Any],
 ) -> ModuleSettingsStore:
-    """Сконструировать frozen dataclass-инстанс из значений по схеме.
+    """Construct a frozen dataclass instance from the values, per the schema.
 
-    Отсутствующие ключи заполняются ``field.default()`` (вызывающему положено
-    логировать предупреждение в этом случае).
+    Missing keys are filled with ``field.default()`` (the caller is expected to
+    log a warning in that case).
     """
     cls = make_dataclass(
         f"_{module.title().replace('_', '')}SettingsStore",

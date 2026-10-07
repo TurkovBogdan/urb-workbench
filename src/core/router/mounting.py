@@ -1,16 +1,16 @@
-"""Монтаж HTTP-зон ядра на FastAPI-приложение.
+"""Mounting the core HTTP zones onto the FastAPI app.
 
-Вынесено из ``app_factory``: сборка общего реестра guard'ов (``build_guard_registry``)
-и монтаж зон под их зон-guard'ами с валидацией видов (``mount_router_zones``).
+Extracted from ``app_factory``: building the shared guard registry (``build_guard_registry``)
+and mounting the zones under their zone guards with kind validation (``mount_router_zones``).
 
-Разделение ответственности по условиям подключения:
-- ``create_app`` решает, монтировать ли HTTP-поверхность ВООБЩЕ (гейт
-  ``SERVER_ENABLED``) — это видно прямо из фабрики;
-- ``mount_router_zones`` решает, КАКИЕ зоны и при КАКИХ условиях монтируются —
-  каждое условие прописано здесь явно (internal — всегда; mcp — отдельные
-  ASGI-подприложения через ``mount_mcp_servers``; api/webhook — пока выключены).
+Responsibility for mount conditions is split:
+- ``create_app`` decides whether to mount the HTTP surface AT ALL (the
+  ``SERVER_ENABLED`` gate) — visible right in the factory;
+- ``mount_router_zones`` decides WHICH zones are mounted and under WHAT conditions —
+  each condition is spelled out here explicitly (internal — always; mcp — separate
+  ASGI sub-apps via ``mount_mcp_servers``; api/webhook — off for now).
 
-``_attach_zone`` — чистая механика монтажа одной зоны, без условий.
+``_attach_zone`` is the bare mechanics of mounting one zone, with no conditions.
 """
 
 from __future__ import annotations
@@ -49,11 +49,11 @@ _LOG = get_logger()
 
 
 def build_guard_registry(modules: Sequence[Module]) -> GuardRegistry:
-    """Собрать общий реестр guard'ов: встроенные ядра + виды модулей.
+    """Build the shared guard registry: the core built-ins + the modules' kinds.
 
-    Ядро держит только ``allow_all``/``deny_all``; реальные ``auth``/``ability`` дал бы
-    auth-модуль через декларативный ``Module.guards``. Без него умолчание зоны internal —
-    встроенный ``allow_all`` (см. ``INTERNAL_DEFAULT_GUARDS``).
+    The core holds only ``allow_all``/``deny_all``; real ``auth``/``ability`` would come from an
+    auth module via the declarative ``Module.guards``. Without one, the internal zone defaults
+    to the built-in ``allow_all`` (see ``INTERNAL_DEFAULT_GUARDS``).
     """
     registry = GuardRegistry()
     registry.add("allow_all", guard_allow_all)
@@ -73,9 +73,9 @@ def _attach_zone(
     *,
     extra_deps: Sequence[Any] = (),
 ) -> None:
-    """Механика монтажа ОДНОЙ зоны (без условий — их решает ``mount_router_zones``):
-    зон-guard (+ необязательные ``extra_deps``) → ``include_router`` под префиксом →
-    валидация, что все упомянутые виды зарегистрированы."""
+    """The mechanics of mounting ONE zone (no conditions — ``mount_router_zones`` decides those):
+    zone guard (+ optional ``extra_deps``) → ``include_router`` under the prefix →
+    validation that every referenced kind is registered."""
     deps = [Depends(make_zone_guard(registry, default=default_guards)), *extra_deps]
     app.include_router(zone, prefix=prefix, dependencies=deps)
     validate_guard_rules(app, registry, defaults=default_guards)
@@ -84,22 +84,22 @@ def _attach_zone(
 def mount_router_zones(
     app: FastAPI, modules: Sequence[Module], config: Config
 ) -> list[AbstractAsyncContextManager[None]]:
-    """Смонтировать HTTP-зоны на ``app``. Условие подключения КАЖДОЙ зоны — здесь, явно.
+    """Mount the HTTP zones onto ``app``. The mount condition of EVERY zone lives here, explicitly.
 
-    Зовётся из ``create_app`` под гейтом ``SERVER_ENABLED`` (сам гейт виден в фабрике).
-    Возвращает lifespan-CM смонтированных MCP-серверов — ``create_app`` композирует
-    их в свой lifespan (иначе session manager форка не поднимется).
+    Called from ``create_app`` under the ``SERVER_ENABLED`` gate (the gate itself is visible in
+    the factory). Returns the lifespan CMs of the mounted MCP servers — ``create_app`` composes
+    them into its own lifespan (otherwise the fork's session manager never starts).
     """
     registry = build_guard_registry(modules)
 
-    # internal — монтируется ВСЕГДА (ядро + SPA). DEBUG: искусственная задержка идёт
-    # ПОСЛЕ guard'а (отклонённые запросы не ждут), добавляется только при ms > 0.
+    # internal — mounted ALWAYS (core + SPA). DEBUG: the artificial delay runs
+    # AFTER the guard (rejected requests don't wait), added only when ms > 0.
     internal_extra: list[Any] = []
     if config.server_debug_delay_ms > 0:
         internal_extra.append(Depends(make_request_delay(config.server_debug_delay_ms)))
         _LOG.warning(
-            "mount_router_zones: SERVER_DEBUG_DELAY_MS=%d — internal API искусственно "
-            "замедлён на %d мс/запрос (DEBUG; в проде держать 0)",
+            "mount_router_zones: SERVER_DEBUG_DELAY_MS=%d — internal API artificially "
+            "slowed by %d ms/request (DEBUG; keep 0 in prod)",
             config.server_debug_delay_ms,
             config.server_debug_delay_ms,
         )
@@ -112,8 +112,8 @@ def mount_router_zones(
         extra_deps=internal_extra,
     )
 
-    # storage — отдача файлов от корня /storage (guard auth). Только protected ходит
-    # сюда; public отдаёт nginx напрямую, private закрыт. Монтируется всегда.
+    # storage — serving files from the root /storage (guard auth). Only protected goes
+    # through here; public is served by nginx directly, private is closed. Always mounted.
     _attach_zone(
         app,
         registry,
@@ -122,19 +122,19 @@ def mount_router_zones(
         STORAGE_DEFAULT_GUARDS,
     )
 
-    # spa — собранный фронт из web/dist отдаёт тот же HTTP-сервер. Это middleware
-    # (вне зон/guard'ов): короткозамыкает любой GET вне API-префиксов до роутинга,
-    # поэтому порядок монтажа не важен. Нет сборки → no-op (см. mount_spa).
+    # spa — the built frontend from web/dist is served by the same HTTP server. It is a middleware
+    # (outside zones/guards): it short-circuits any GET outside the API prefixes before routing,
+    # so the mount order does not matter. No build → no-op (see mount_spa).
     mount_spa(app)
 
-    # mcp — каждый MCP-сервер модуля монтируется как отдельное ASGI-подприложение
-    # (форк fastmcp, Streamable HTTP) под /mcp/<code>; auth — внутри сервера
-    # (McpServerTokenVerifier), НЕ зон-guard'ом (mount обходит dependencies).
-    # Возвращённые lifespan-ы поднимаются в create_app.
+    # mcp — each module's MCP server is mounted as a separate ASGI sub-app
+    # (the fastmcp fork, Streamable HTTP) under /mcp/<code>; auth lives inside the server
+    # (McpServerTokenVerifier), NOT in a zone guard (mount bypasses dependencies).
+    # The returned lifespans are started in create_app.
     mcp_lifespans = mount_mcp_servers(app, modules, config)
 
-    # api / webhook — болванки, пока НЕ монтируются (guard-виды scope/signature ещё
-    # не реализованы; см. router/api.py, router/webhook.py).
+    # api / webhook — stubs, NOT mounted yet (the scope/signature guard kinds are not
+    # implemented yet; see router/api.py, router/webhook.py).
     return mcp_lifespans
 
 

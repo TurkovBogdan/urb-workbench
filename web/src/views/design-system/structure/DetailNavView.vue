@@ -1,8 +1,7 @@
 <script setup lang="ts">
-// Стандарт страницы-деталки: липкая колонка навигации слева, содержимое справа, шапки нет.
-// Правило проверяется автоматически (tests/apps/test_web_page_header.py), поэтому здесь оно не
-// пересказывается прозой, а показывается живой панелью в обоих её видах — со своим действием
-// страницы и без него.
+// The detail page standard: a sticky navigation column on the left, content on the right, no header.
+// The rule is checked automatically (tests/apps/test_web_page_header.py), so here it isn't retold
+// in prose but shown as a live panel in both its forms — with its own page action and without one.
 import { useI18n } from 'vue-i18n'
 import { IconFolderPlus } from '@tabler/icons-vue'
 
@@ -16,8 +15,8 @@ const { t } = useI18n()
 
 const SAMPLE_CODE = 'RESEARCH@bc854947af58733bd93c3d'
 
-// Колонку страница не рисует — она её заполняет: рамка (`DetailShell`) стоит на маршруте-родителе
-// и переживает переход с артефакта на артефакт.
+// The page doesn't draw the column — it fills it: the frame (`DetailShell`) sits on the parent route
+// and survives moving from one artifact to another.
 const snippet = `// routes.ts — detail pages are children of the shared shell
 {
   path: '/research',
@@ -58,9 +57,9 @@ const templateSnippet = `<template>
   </div>
 </template>`
 
-// Адрес — ОДИН УРОВЕНЬ выше, а не корень раздела: у источника это зона, а не исследование и не
-// реестр. Он запасной — обычно кнопка идёт по истории, и до него дело доходит лишь при заходе по
-// прямой ссылке.
+// The address is ONE LEVEL up, not the section root: for a source that is the zone, not the
+// research and not the registry. It is a fallback — normally the button goes back through history,
+// and the address is reached only when the page was entered via a direct link.
 const parentSnippet = `const parentPath = computed(() =>
   source.value ? \`/research/areas/\${source.value.area_code}\` : '/research/researches',
 )`
@@ -175,9 +174,9 @@ const SAMPLE_PARENT = '/design-system/detail-nav'
 .ds-page { max-width: 1100px; }
 .ds-section { margin-bottom: 28px; }
 
-/* Колонка живёт на полотне страницы, поэтому в демо ей нужна не карточка, а очерченное поле.
-   Ширина в поле — та самая, что в стандарте: на полной ширине подписи не переносятся, и не
-   видно, как карточка ведёт себя на самом деле. */
+/* The column lives on the page canvas, so in the demo it needs an outlined area, not a card.
+   The width in the area is the one from the standard: at full width the labels don't wrap, and
+   you can't see how the card actually behaves. */
 .ds-frame {
   border: 1px dashed var(--border);
   border-radius: var(--radius);

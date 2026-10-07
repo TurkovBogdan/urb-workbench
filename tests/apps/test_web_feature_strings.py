@@ -1,11 +1,11 @@
-"""Строки фич: вьюха просит только те ключи, которые есть в её словаре.
+"""Feature strings: a view asks only for keys that exist in its dictionary.
 
-Промах ключа не роняет страницу — `vue-i18n` рисует сам ключ, поэтому в интерфейсе появляется
-«research.back.research» вместо подписи, и держится оно ровно до того, как кто-нибудь заметит
-глазами. Здесь это падает сразу.
+A missing key does not break the page — `vue-i18n` renders the key itself, so the interface shows
+"research.back.research" instead of a label, and it stays exactly until someone happens to notice
+it. Here it fails at once.
 
-Собираемые по месту ключи (шаблонная строка внутри `t(...)`) не проверяются: их значение
-известно только в рантайме.
+Keys assembled in place (a template string inside `t(...)`) are not checked: their value is known
+only at runtime.
 """
 
 from __future__ import annotations

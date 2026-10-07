@@ -1,20 +1,20 @@
 <script setup lang="ts">
-// Знак объекта одной плашкой: его иконка в его цвете. Пара «иконка + цвет» есть у пространства,
-// у зоны, у полки исследований — и объект узнаётся по ней везде, где он упомянут: в карточке
-// списка, в строке выбора, в шапке чужого списка. Плашка поэтому одна на всех, а её размер
-// задаёт место, куда она поставлена.
+// An object's mark as one badge: its icon in its color. Workspaces, zones and research shelves all
+// have an "icon + color" pair — and the object is recognized by it wherever it is mentioned: in a
+// list card, in a picker row, in the header of another list. So there is one badge for all, and its
+// size is set by the place it is put in.
 //
-// Доменных типов здесь нет намеренно (правило промоушена, docs/conventions/frontend.md): на входе
-// два имени из общих реестров, и компонент не знает, чей знак рисует.
+// There are deliberately no domain types here (the promotion rule, docs/conventions/frontend.md):
+// the inputs are two names from shared registries, and the component doesn't know whose mark it draws.
 //
-// Задаётся ШИРИНА, от неё считается размер иконки: плашка квадратная, и вторая величина была бы
-// способом рассогласовать её саму с собой.
+// The WIDTH is set and the icon size derives from it: the badge is square, and a second value would
+// just be a way to make it disagree with itself.
 //
-// Скругление при этом от ширины НЕ зависит: у системы две ступени радиуса (`--radius` 10px для
-// карточек, `--radius-sm` 6px для кнопок и полей), и плашка — предмет второй ступени, какого бы
-// она ни была размера. Считай мы радиус долей ширины, у каждого размера плашки получалось бы
-// своё скругление — третья шкала помимо двух общих, и рядом с иконочной кнопкой в 6px плашка
-// выглядела бы переслащённой.
+// The rounding, however, does NOT depend on width: the system has two radius steps (`--radius` 10px
+// for cards, `--radius-sm` 6px for buttons and fields), and the badge belongs to the second step at
+// any size. If the radius were a share of the width, each badge size would get its own rounding — a
+// third scale beside the two shared ones, and next to a 6px icon button the badge would look
+// over-rounded.
 import { computed } from 'vue'
 
 import { colorVarsByName } from '@/shared/colors'
@@ -23,11 +23,11 @@ import { iconByName } from '@/shared/icons'
 const ICON_SHARE_OF_WIDTH = 0.7
 
 const props = withDefaults(defineProps<{
-  /** Имя из реестра `shared/icons.ts`; пустое — запасная иконка. */
+  /** A name from the `shared/icons.ts` registry; empty — the fallback icon. */
   icon: string
-  /** Имя из реестра `shared/colors.ts`; пустое — акцент приложения. */
+  /** A name from the `shared/colors.ts` registry; empty — the app accent. */
   color: string
-  /** Сторона плашки в пикселях. */
+  /** Badge side in pixels. */
   width?: number
 }>(), {
   width: 22,
@@ -56,7 +56,7 @@ const boxStyle = computed(() => ({
   height: var(--icon-swatch-width);
   border-radius: var(--radius-sm);
   flex: none;
-  /* Цвет объекта, а без него — акцент приложения: тот же запасной путь, что у иконки. */
+  /* The object's color, or without one the app accent: the same fallback path as the icon's. */
   color: var(--gc-ink, var(--accent));
   background: var(--gc-fill, var(--accent-soft));
 }

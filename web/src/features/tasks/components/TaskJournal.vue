@@ -1,13 +1,13 @@
 <script setup lang="ts">
-// Журнал работы: решения, замечания, находки и факты одной лентой.
+// The work journal: decisions, remarks, findings and facts in one feed.
 //
-// Лента дописываемая — правки записей нет вовсе, как и на бэке. Закрыть запись можно один раз:
-// поле разрешения показывается только у открытой, а у закрытой стоит текстом. Передумали — новая
-// запись; так и устроен журнал.
+// The feed is append-only — entries cannot be edited at all, same as on the backend. An entry can
+// be closed once: the resolution field is shown only on an open entry, and on a closed one it is
+// plain text. Changed your mind — write a new entry; that is how the journal works.
 //
-// Виды записей не разведены по вкладкам: их четыре, и лента читается временем, а не разделами.
-// Вид виден шильдиком, а фильтр «только открытые» отвечает на единственный вопрос, ради которого
-// журнал листают в работе — «что ещё висит».
+// Entry kinds are not split into tabs: there are four, and the feed reads by time, not by section.
+// The kind shows as a badge, and the "open only" filter answers the one question the journal is
+// scrolled for during work — "what is still pending".
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { IconPlus } from '@tabler/icons-vue'
@@ -31,7 +31,7 @@ import {
 const props = defineProps<{
   taskCode: string
   notes: NoteRow[]
-  /** Задача в корзине: журнал только читается. */
+  /** The task is in the trash: the journal is read-only. */
   disabled?: boolean
 }>()
 
@@ -52,7 +52,7 @@ const typeItems = computed(() =>
   NOTE_TYPES.map((value) => ({ value, title: t(`tasks.note.type.${value}`) })),
 )
 
-/** Открытая запись — та, у которой пусто разрешение. Факт закрыт в момент создания. */
+/** An open entry is one with an empty resolution. A fact is closed at creation. */
 const isOpen = (note: NoteRow) => note.resolution === ''
 
 const visible = computed(() =>
@@ -92,12 +92,12 @@ async function add() {
 }
 
 /**
- * Закрыть запись. Пустое разрешение бэк не примет — это и есть смысл «закрыть».
+ * Close an entry. The backend rejects an empty resolution — that is exactly what "close" means.
  *
- * Закрытие приходит с двух событий сразу: Enter закрывает запись, а следом поле теряет фокус и
- * тем же текстом присылает `blur`. Второй заход упёрся бы в дописываемость журнала и показал
- * пользователю «запись уже закрыта» на его же успешное действие, — поэтому код помечается
- * отправленным ДО запроса и повторный вызов молча отваливается.
+ * Closing arrives from two events at once: Enter closes the entry, then the field loses focus and
+ * sends `blur` with the same text. The second pass would hit the journal's append-only rule and
+ * show the user "entry already closed" for their own successful action — so the code is marked as
+ * submitted BEFORE the request and a repeated call silently drops out.
  */
 const submitted = new Set<string>()
 
@@ -105,7 +105,7 @@ async function resolve(note: NoteRow, value: string) {
   const text = value.trim()
   if (!text || submitted.has(note.code)) return
   submitted.add(note.code)
-  // Отказ снимает пометку: иначе упавший запрос навсегда запер бы запись открытой.
+  // A refusal clears the mark: otherwise a failed request would lock the entry open forever.
   if (!(await run(() => resolveNote(note.code, text, { report: false })))) {
     submitted.delete(note.code)
   }
@@ -131,8 +131,8 @@ async function resolve(note: NoteRow, value: string) {
       </VBtn>
     </div>
 
-    <!-- Форма заведения раскрывается по кнопке, а не стоит всегда: журнал чаще читают, чем
-         пополняют, и постоянная форма съедала бы первый экран ленты. -->
+    <!-- The add form expands on a button press rather than always being there: the journal is read
+         more often than added to, and a permanent form would eat the first screen of the feed. -->
     <div v-if="adding" class="journal__form">
       <VSelect
         v-model="draftType"
@@ -151,9 +151,9 @@ async function resolve(note: NoteRow, value: string) {
         hide-details
         autofocus
       />
-      <!-- Запись журнала — тот же документ, что и план: в неё кладут разбор со списками,
-           листингами и ссылками на соседние сущности. Потолок при этом вчетверо ниже, и
-           счётчик об этом говорит. -->
+      <!-- A journal entry is the same kind of document as the plan: it holds analysis with lists,
+           code listings and references to neighbouring entities. Its cap is four times lower,
+           though, and the counter says so. -->
       <MarkdownEditor
         v-model="draftBody"
         :label="t('tasks.note.body')"
@@ -189,13 +189,13 @@ async function resolve(note: NoteRow, value: string) {
         <span class="entry__date">{{ fmtDateTime(note.created_at) }}</span>
       </header>
 
-      <!-- Тело записи набирают разметкой, а показывалось оно сырым текстом: списки шли дефисами
-           в строку, а код — бэктиками. Правки у записи нет (лента дописываемая), поэтому здесь
-           рендерер, а не редактор. -->
+      <!-- The entry body is written in markdown but used to be shown as raw text: lists came out as
+           inline dashes and code as backticks. An entry cannot be edited (the feed is
+           append-only), so this is a renderer, not an editor. -->
       <MarkdownRenderer v-if="note.body" :text="note.body" compact class="entry__body" />
 
-      <!-- Разрешение у закрытой записи стоит текстом: переписать его нельзя, и поле ввода тут
-           обещало бы правку, которой нет. -->
+      <!-- A closed entry's resolution is plain text: it cannot be rewritten, and an input field
+           here would promise an edit that does not exist. -->
       <p v-if="note.resolution" class="entry__resolution">
         <span class="entry__resolution-label">{{ t('tasks.note.resolution') }}:</span>
         {{ note.resolution }}
@@ -268,8 +268,8 @@ async function resolve(note: NoteRow, value: string) {
   background: var(--surface);
 }
 
-/* Открытая запись помечена полосой слева, а не цветом всей карточки: цветных карточек в ленте
-   было бы столько же, сколько записей, и пометка перестала бы работать. */
+/* An open entry is marked by a stripe on the left, not by coloring the whole card: there would be
+   as many colored cards in the feed as entries, and the mark would stop working. */
 .entry--open { border-left: 2px solid var(--warn, var(--primary)); }
 
 .entry__head {
@@ -292,9 +292,9 @@ async function resolve(note: NoteRow, value: string) {
   white-space: nowrap;
 }
 
-/* Кегль, интерлиньяж и зазоры даёт компактный вид рендерера — он для того и есть: интерфейсный
-   хром, а не зона чтения. Здесь остаётся только то, чего у него нет: запись в ленте вторична по
-   отношению к своему заголовку, поэтому приглушена. */
+/* Font size, line height and spacing come from the renderer's compact mode — that is what it is
+   for: UI chrome, not a reading zone. Only what it lacks stays here: an entry in the feed is
+   secondary to its title, so it is muted. */
 .entry__body {
   margin: 0;
   color: var(--text-muted);

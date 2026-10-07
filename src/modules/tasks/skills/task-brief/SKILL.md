@@ -15,8 +15,8 @@ Four fields, and each answers a different question.
 
 **What becomes true when the work is done.** An outcome, not a sequence of steps.
 
-- ✅ «Счета выставляются по новой схеме тарифов, старые не ломаются»
-- ❌ «Открыть tariff.py, найти класс, добавить поле» — this turns the executor into a slow
+- ✅ «Invoices are issued under the new tariff scheme, the old ones do not break»
+- ❌ «Open tariff.py, find the class, add a field» — this turns the executor into a slow
   typist and moves the whole design risk onto you.
 
 If the approach is already decided, that is a constraint, not a goal. Keep them apart: the goal
@@ -55,10 +55,10 @@ checkable on its own, each with what proves it.
 The test of a criterion: could two readers disagree about whether it is met? If yes, it is not
 finished being written.
 
-- ✅ «1. `pytest tests/billing -q` зелёный»
-- ✅ «2. Счёт за март пересчитывается в те же копейки — сверка на трёх примерах из прода»
-- ❌ «Работает надёжно» — read as already satisfied.
-- ❌ «Быстро грузится» — say the number and the conditions.
+- ✅ «1. `pytest tests/billing -q` is green»
+- ✅ «2. The March invoice recalculates to the same cents — checked against three examples from prod»
+- ❌ «Works reliably» — read as already satisfied.
+- ❌ «Loads fast» — say the number and the conditions.
 
 Do not write twenty-five of them. Past a certain length they stop producing care and start
 producing selective compliance; five that matter beat twenty that do not.

@@ -1,15 +1,15 @@
-"""Чтение/запись ``.env`` с сохранением комментариев и структуры.
+"""Reading/writing ``.env`` while preserving comments and structure.
 
-Запись правит строки ``KEY=…`` НА МЕСТЕ; комментарии, пустые строки и порядок не
-трогаются. Отсутствующие ключи дописываются в конец. Чтение берёт значения прямо из
-файла (источник, который и редактируется), а не из ``Config`` — форма показывает
-ровно то, что в ``.env``, без валидации промежуточных состояний.
+A write edits ``KEY=…`` lines IN PLACE; comments, blank lines and order are left alone.
+Missing keys are appended at the end. A read takes values straight from the file (the very
+source being edited), not from ``Config`` — the form shows exactly what is in ``.env``, with
+no validation of intermediate states.
 
-Здесь же установка **выписывает себе секреты сама** (``SECRETS``): токен MCP-поверхности
-и мастер-ключ шифрования значений в БД. Оба нужны с первого старта, оба бессмысленно
-требовать от человека — он всё равно сгенерирует случайную строку. Дом у этого кода
-такой, потому что предмет модуля — сам файл ``.env``: чей ключ туда попадает, вопрос
-второй.
+This is also where the installation **issues its own secrets** (``SECRETS``): the MCP surface
+token and the master key encrypting values in the DB. Both are needed from the first start,
+and asking a human for either is pointless — they would just generate a random string anyway.
+The code lives here because the module's subject is the ``.env`` file itself; whose key ends
+up in it is a secondary question.
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ _LOG = get_logger("core_setup")
 
 @dataclass(frozen=True)
 class GeneratedSecret:
-    """Секрет, который установка выписывает себе сама, если его ещё нет."""
+    """A secret the installation issues to itself when it is not there yet."""
 
     key: str
     generate: Callable[[], str]
@@ -47,7 +47,7 @@ def _bearer_token() -> str:
 
 
 def _master_key() -> str:
-    """32 случайных байта в base64url — формат, который ждёт слой шифрования."""
+    """32 random bytes in base64url — the format the encryption layer expects."""
     return base64.urlsafe_b64encode(os.urandom(_SECRET_BYTES)).decode().rstrip("=")
 
 
@@ -55,13 +55,13 @@ SECRETS: tuple[GeneratedSecret, ...] = (
     GeneratedSecret(
         "MCP_TOKEN",
         _bearer_token,
-        "# Статичный bearer MCP-серверов. Сгенерирован при первом старте.",
+        "# Static bearer for the MCP servers. Generated on first start.",
     ),
     GeneratedSecret(
         "SECRETS_KEY",
         _master_key,
-        "# Мастер-ключ шифрования значений в БД. Сгенерирован при первом старте;\n"
-        "# без него копия базы бесполезна, при его утрате доступы вводятся заново.",
+        "# Master key encrypting values in the DB. Generated on first start;\n"
+        "# a database copy is useless without it, and if it is lost credentials are re-entered.",
     ),
 )
 
@@ -71,8 +71,8 @@ def env_path() -> Path:
 
 
 def _config_default(field: SetupField, config: Config) -> str:
-    """Дефолт поля из ``Config``: ENV-ключ формы == поле Config в нижнем регистре
-    (конвенция pydantic-settings — имя поля задаёт ENV-переменную)."""
+    """The field's default from ``Config``: the form's ENV key == the Config field lowercased
+    (the pydantic-settings convention — the field name defines the ENV variable)."""
     value = getattr(config, field.key.lower())
     if isinstance(value, bool):
         return "true" if value else "false"
@@ -82,10 +82,9 @@ def _config_default(field: SetupField, config: Config) -> str:
 
 
 def seed_defaults_if_absent(config: Config) -> bool:
-    """Первый запуск без ``.env`` → создать его со значениями по умолчанию из
-    ``Config`` (страница настроек показывает реальные дефолты, а не пустые поля).
-    Секреты досыпает ``ensure_generated``, вызываемая следом. Возвращает True, если
-    файл был создан."""
+    """First run without ``.env`` → create it with the default values from ``Config`` (the
+    settings page shows the real defaults, not empty fields). Secrets are topped up by
+    ``ensure_generated``, called right after. Returns True if the file was created."""
     if env_path().is_file():
         return False
     write_values({f.key: _config_default(f, config) for f in FIELDS})
@@ -94,13 +93,14 @@ def seed_defaults_if_absent(config: Config) -> bool:
 
 
 def ensure_keys_present(config: Config) -> list[str]:
-    """Дописать в СУЩЕСТВУЮЩИЙ ``.env`` ключи формы, которых в нём ещё нет.
+    """Append to an EXISTING ``.env`` the form keys it does not have yet.
 
-    ``seed_defaults_if_absent`` пишет только файл, которого нет, поэтому ключ, появившийся
-    в новой версии (так пришёл ``UPDATE_BRANCH``), не доезжает ни до одной живой установки:
-    его нет ни в файле, ни на странице настроек, и поправить значение оператору негде.
-    Пишется ТЕКУЩЕЕ значение ``Config`` (дефолт кода, если ключ не задан больше нигде) —
-    поведение установки не меняется, меняется видимость. Возвращает добавленные ключи.
+    ``seed_defaults_if_absent`` writes only a file that does not exist, so a key introduced
+    in a new version (that is how ``UPDATE_BRANCH`` arrived) never reaches any live
+    installation: it is neither in the file nor on the settings page, and the operator has
+    nowhere to change its value. The CURRENT ``Config`` value is written (the code default if
+    the key is set nowhere else) — the installation's behaviour does not change, only its
+    visibility does. Returns the keys added.
     """
     if not env_path().is_file():
         return []
@@ -123,13 +123,13 @@ def _key_comment(field: SetupField) -> str:
 
 
 def _assignment_key(line: str) -> str | None:
-    """Ключ строки ``KEY=value`` (без коммента/пробелов); None — если это не присваивание."""
+    """The key of a ``KEY=value`` line (no comment/whitespace); None if it is not an assignment."""
     match = re.match(r"\s*([A-Za-z_][A-Za-z0-9_]*)\s*=", line)
     return match.group(1) if match else None
 
 
 def read_values(keys: Iterable[str]) -> dict[str, str]:
-    """Текущие значения перечисленных ключей из ``.env`` (отсутствующие → пропущены)."""
+    """Current values of the listed keys from ``.env`` (missing ones → skipped)."""
     wanted = set(keys)
     values: dict[str, str] = {}
     path = env_path()
@@ -143,10 +143,10 @@ def read_values(keys: Iterable[str]) -> dict[str, str]:
 
 
 def write_values(updates: Mapping[str, str], comments: Mapping[str, str] | None = None) -> None:
-    """Записать значения в ``.env``: заменить строки ``KEY=`` на месте, недостающие — в конец.
+    """Write values into ``.env``: replace ``KEY=`` lines in place, append the missing ones.
 
-    ``comments`` печатается только над **дописанными** ключами: файл читают глазами, и
-    ключ, появившийся сам по себе, без объяснения выглядит как мусор.
+    ``comments`` is printed only above **appended** keys: people read the file by eye, and a
+    key that appeared on its own with no explanation looks like garbage.
     """
     if not updates:
         return
@@ -166,7 +166,7 @@ def write_values(updates: Mapping[str, str], comments: Mapping[str, str] | None 
 
 
 def _restrict_access() -> None:
-    """Права 600 на ``.env``: в нём лежат секреты, читать их должен только владелец."""
+    """Mode 600 on ``.env``: it holds secrets, and only the owner should read them."""
     path = env_path()
     if path.is_file():
         path.chmod(0o600)
@@ -174,11 +174,11 @@ def _restrict_access() -> None:
 
 @contextmanager
 def _write_lock() -> Iterator[None]:
-    """Взаимное исключение на запись ``.env`` между процессами установки.
+    """Mutual exclusion on writing ``.env`` across the installation's processes.
 
-    Backend, worker и порождённый шимом второй backend стартуют одновременно; без
-    блокировки двое могли бы сгенерировать РАЗНЫЕ ключи, а в файл лёг бы один — второй
-    зашифровал бы записи ключом, которого больше нет.
+    The backend, the worker and a second backend spawned by the shim start simultaneously;
+    without the lock two of them could generate DIFFERENT keys while only one lands in the
+    file — and the other would encrypt records with a key that no longer exists.
     """
     lock_path = env_path().with_suffix(env_path().suffix + ".lock")
     with open(lock_path, "w", encoding="utf-8") as handle:
@@ -190,12 +190,12 @@ def _write_lock() -> Iterator[None]:
 
 
 def ensure_generated(config: Config) -> list[str]:
-    """Досыпать в ``.env`` секреты, которых в нём ещё нет. Возвращает сгенерированные ключи.
+    """Top up ``.env`` with the secrets it does not have yet. Returns the generated keys.
 
-    Проверяется **эффективное** значение (``Config`` уже учёл и переменную оболочки, и
-    файл): заданный оператором ключ не трогаем никогда. Порядок «сначала записать, потом
-    принять» обязателен — ключ, оставшийся только в памяти, зашифровал бы записи так, что
-    после перезапуска их никто не прочтёт; поэтому при сбое записи мы просто живём без него.
+    The **effective** value is checked (``Config`` has already accounted for both the shell
+    variable and the file): a key set by the operator is never touched. The order "write
+    first, then adopt" is mandatory — a key that lived only in memory would encrypt records
+    that nobody could read after a restart; so when the write fails we simply run without it.
     """
     missing = [s for s in SECRETS if not _effective(config, s.key)]
     if not missing:
@@ -205,13 +205,13 @@ def ensure_generated(config: Config) -> list[str]:
     with _write_lock():
         for secret in missing:
             if read_values([secret.key]).get(secret.key):
-                continue  # пока ждали блокировку, ключ выписал соседний процесс
+                continue  # while we waited for the lock, a sibling process issued the key
             value = secret.generate()
             try:
                 write_values({secret.key: value}, comments={secret.key: secret.comment})
                 _restrict_access()
             except OSError as exc:
-                _LOG.warning("%s не записан в .env (%s) — работаем без него", secret.key, exc)
+                _LOG.warning("%s not written to .env (%s) — running without it", secret.key, exc)
                 continue
             os.environ[secret.key] = value
             written.append(secret.key)
@@ -221,7 +221,7 @@ def ensure_generated(config: Config) -> list[str]:
 
 
 def _effective(config: Config, key: str) -> str:
-    """Текущее значение ключа с точки зрения приложения (окружение поверх файла)."""
+    """The key's current value as the application sees it (environment over the file)."""
     return str(getattr(config, key.lower(), "") or "")
 
 

@@ -1,15 +1,15 @@
 """tasks: tasks_note table
 
-Creates ``tasks_note`` — журнал работы: решения, замечания, находки и факты одной дописываемой
-таблицей. Column order mirrors ``models/note.py::TasksNote``. String PK ``code``; FK ``task_code``
-→ tasks.code (CASCADE) и ``stage_code`` → tasks_stage.code (CASCADE, nullable — запись про
-задачу целиком этапа не называет).
+Creates ``tasks_note`` — the work journal: decisions, remarks, findings and facts in one
+append-only table. Column order mirrors ``models/note.py::TasksNote``. String PK ``code``; FK
+``task_code`` → tasks.code (CASCADE) and ``stage_code`` → tasks_stage.code (CASCADE, nullable —
+an entry about the task as a whole names no stage).
 
-Значения ``type`` перечислены буквально, порядок от частого к редкому. ``updated_at`` в таблице
-нет намеренно: записи только дописываются, отмена оформляется новой строкой.
+The ``type`` values are spelled out literally, ordered from most to least frequent. The table
+has no ``updated_at`` on purpose: entries are only appended, and a retraction is a new row.
 
-Два индекса: чтение журнала задачи в порядке появления и выборка записей этапа (она же покрывает
-дочернюю сторону FK ``stage_code``).
+Two indexes: reading a task's journal in order of appearance, and selecting a stage's entries
+(which also covers the child side of the ``stage_code`` FK).
 
 Revision ID: tsm_005_note
 Revises: tsm_004_stage

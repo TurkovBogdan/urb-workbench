@@ -1,4 +1,4 @@
-"""core_interface: таблица настроек — пачка, сброс, время жизни строки."""
+"""core_interface: the settings table — batch, reset, row lifetime."""
 
 from __future__ import annotations
 

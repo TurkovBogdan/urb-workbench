@@ -1,14 +1,14 @@
 import { readonly, ref, watch, type Ref } from 'vue'
 
-// Переход между страницами идёт по часам CSS, а не по кадрам: пока главный поток занят, анимация
-// не откладывается, а прокручивается вхолостую. Замер на деталке исследования — въезд длиной
-// 150 мс, съеденный 88-миллисекундным первым рендером тела: непрозрачность прошла 0 → 0.05 → 0.99
-// за 22 мс, то есть страница не проявилась, а щёлкнула. Поэтому тяжёлое содержимое ждёт конца
-// перехода — так рывок превращается в лишнюю строку загрузки, которой не жалко.
+// The page transition runs on the CSS clock, not on frames: while the main thread is busy, the
+// animation is not postponed but runs on idle. Measured on the research detail page — a 150 ms
+// enter eaten by an 88 ms first render of the body: opacity went 0 → 0.05 → 0.99 in 22 ms, i.e.
+// the page didn't fade in, it snapped. So heavy content waits for the transition to end — that
+// turns the jerk into an extra loading line nobody minds.
 //
-// Флаг поднимает гвард роутера: он срабатывает раньше, чем смонтируется новая вьюха, а хук
-// `before-enter` самого перехода — уже позже, и вьюха успела бы решить, что анимации нет.
-// Снимает — сам `<Transition>` в App.vue по окончании въезда.
+// The flag is raised by the router guard: it fires before the new view mounts, while the
+// transition's own `before-enter` hook fires later, and the view would already have decided there
+// is no animation. It is cleared by the `<Transition>` in App.vue itself once the enter finishes.
 const busy = ref(false)
 
 export const routeTransitionBusy = readonly(busy)
@@ -22,11 +22,12 @@ export function endRouteTransition(): void {
 }
 
 /**
- * Можно ли рисовать тяжёлое: `true`, если переход не идёт, иначе — как только он закончится.
+ * Whether heavy content may render: `true` if no transition is running, otherwise as soon as it
+ * ends.
  *
- * Обратно в `false` не возвращается никогда: вьюхи живут в `KeepAlive`, и при следующем визите
- * их содержимое уже нарисовано — прятать готовую картинку на время анимации значило бы менять
- * один рывок на другой.
+ * It never goes back to `false`: views live in `KeepAlive`, and on the next visit their content is
+ * already rendered — hiding a finished picture for the duration of the animation would trade one
+ * jerk for another.
  */
 export function useAfterRouteTransition(): Readonly<Ref<boolean>> {
   const ready = ref(!busy.value)

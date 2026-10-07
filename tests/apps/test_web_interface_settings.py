@@ -1,13 +1,13 @@
-"""Реестр настроек интерфейса и фронт говорят об одном и том же.
+"""The interface settings registry and the frontend talk about the same thing.
 
-Умолчания и наборы допустимых значений объявлены на бэкенде (``core_interface/registry.py``),
-но выбор человеку рисует фронт своими списками — с подписями и пояснениями, которых в схеме нет
-и не будет. Списки поэтому остаются в ``web/src/constants``, и единственная опасность здесь —
-расхождение: набор, разъехавшийся с реестром, означает вариант, который выбирается на экране и
-отвергается сервером с 422.
+Defaults and sets of allowed values are declared on the backend (``core_interface/registry.py``),
+but the frontend draws the choice for the person from its own lists — with labels and notes the
+schema does not and will not carry. So the lists stay in ``web/src/constants``, and the only risk
+here is divergence: a set that has drifted from the registry means an option that can be picked
+on screen and is rejected by the server with 422.
 
-Тест ловит расхождение на прогоне, а не на живом клике. Как и соседние проверки фронта, читает
-исходники текстом — ни сборки, ни браузера, поэтому ``pure``.
+The test catches the divergence on a run rather than on a live click. Like the neighbouring
+frontend checks, it reads sources as text — no build, no browser, hence ``pure``.
 """
 
 from __future__ import annotations
@@ -28,14 +28,15 @@ CONSTANTS = WEB_SRC / "constants"
 INTERFACE_PAGE = WEB_SRC / "features" / "settings" / "views" / "InterfaceView.vue"
 DOCUMENT_COLUMN = WEB_SRC / "layout" / "components" / "DocumentAppearance.vue"
 
-# Группы страницы настроек, которые повторяет колонка деталки. Четвёртой, «Интерфейс», там нет:
-# тема, шрифт интерфейса и раскладка списков к показанному документу отношения не имеют.
+# The settings-page groups that the detail column repeats. The fourth, "Interface", is absent
+# there: theme, interface font and list layout have nothing to do with the document on display.
 DOCUMENT_COLUMN_GROUPS = ("document", "code", "diagram")
 
-# Группа начинается со своей подписи, а поля идут за ней — и на странице (`<SettingsGroup :title>`),
-# и в колонке (плашка-заголовок). Поэтому обе поверхности читаются одним разбором. У поля читается
-# не только привязка, но и ручка: список с шагом влево-вправо и простой список — разные ручки, и
-# выбор между ними принадлежит настройке, а не месту показа.
+# A group starts with its label and the fields follow it — both on the page (`<SettingsGroup
+# :title>`) and in the column (a header strip). So both surfaces are read by one parse. For a field
+# not only the binding is read but also the control: a list with left-right stepping and a plain
+# list are different controls, and the choice between them belongs to the setting, not to where it
+# is shown.
 _GROUP_OR_FIELD = re.compile(
     r"settings\.interface\.group\.(\w+)\.title"
     r"|<(\w+)[^>]*?v-model=\"settings\.([\w.]+)\""
@@ -65,13 +66,13 @@ def _codes(source: str, name: str) -> list[str]:
 
 
 def _font_code(source: str, name: str) -> str:
-    """``DEFAULT_MONO_FONT = JETBRAINS_MONO.code`` — разворачиваем ссылку до самого кода."""
+    """``DEFAULT_MONO_FONT = JETBRAINS_MONO.code`` — resolve the reference down to the code itself."""
     option = re.search(rf"{name} = (\w+)\.code", source).group(1)
     return re.search(rf"const {option}: FontOption = \{{\s*code: '([^']*)'", source).group(1)
 
 
 def _fields_by_group(path: Path) -> dict[str, list[tuple[str, str]]]:
-    """Поля «ручка + привязка к стору», разложенные по группам в порядке появления."""
+    """"Control + store binding" fields, sorted into groups in order of appearance."""
     groups: dict[str, list[tuple[str, str]]] = {}
     current: list[tuple[str, str]] = []
     for match in _GROUP_OR_FIELD.finditer(_source(path)):
@@ -98,10 +99,10 @@ def test_store_syncs_exactly_the_keys_the_registry_declares():
 
 
 def test_switch_defaults_in_the_store_match_the_registry():
-    """У тумблеров умолчание записано литералом в самом сторе — константы у них нет.
+    """For toggles the default is written as a literal in the store itself — they have no constant.
 
-    Расхождение здесь тихое и злое: значение, совпавшее с чужим умолчанием, уходит на сервер
-    сбросом вместо записи, и настройка возвращается назад на следующей гидрации.
+    A divergence here is quiet and nasty: a value that matches the wrong default goes to the server
+    as a reset instead of a write, and the setting snaps back on the next hydration.
     """
     store = _source(WEB_SRC / "stores" / "settings.ts")
     declared = {
@@ -117,14 +118,15 @@ def test_switch_defaults_in_the_store_match_the_registry():
 
 
 def test_document_column_repeats_the_page_groups_field_for_field():
-    """Колонка деталки и страница настроек показывают одни и те же поля одними и теми же ручками.
+    """The detail column and the settings page show the same fields with the same controls.
 
-    Настройка здесь одна на два места (общий стор), поэтому разъехавшиеся наборы означают либо
-    поле, которое правится только на странице настроек, либо — что хуже — поле, приписанное в
-    колонке к чужой группе: так шрифт кода однажды оказался «оформлением документа». Сверяются и
-    порядок (по одной и той же колонке полей глаз ищет знакомое место, а не читает подписи), и
-    ручка: список с шагом влево-вправо, подменённый простым списком, отнимает перебор соседних
-    вариантов — то самое движение, ради которого настройку и открывают рядом с текстом.
+    A setting here is one for two places (a shared store), so diverging sets mean either a field
+    editable only on the settings page or — worse — a field filed under the wrong group in the
+    column: that is how the code font once ended up as "document appearance". Both the order is
+    checked (in the same column of fields the eye looks for a familiar spot rather than reading
+    labels) and the control: a left-right stepping list swapped for a plain list takes away
+    stepping through neighbouring options — the very move the setting is opened next to the text
+    for.
     """
     page = _fields_by_group(INTERFACE_PAGE)
 
@@ -174,14 +176,14 @@ def test_diagram_layout_matches_the_registry():
     assert _number(diagrams, "DEFAULT_DIAGRAM_HEIGHT") == _default("interface_diagram_max_height")
 
 
-# Раскладка списка исследований сверялась здесь же, пока была настройкой интерфейса. Ключ
-# `interface_list_research_view` снят вместе с разделом (2026-09-20): набор значений остался
-# только во фронте (`constants/lists.ts`), сверять его теперь не с чем.
+# The research list layout was checked here too while it was an interface setting. The key
+# `interface_list_research_view` was removed along with the section (2026-09-20): the value set
+# remains only in the frontend (`constants/lists.ts`), and there is nothing to check it against.
 
 
-# Подписи вариантов живут в словаре по коду (`composables/useAppearanceOptions.ts`), а в константах
-# остались только коды и имена собственные. Промах здесь тихий: `vue-i18n` рисует путь ключа, и
-# вариант выглядит в списке как `settings.interface.option.font.lora.note`.
+# Option labels live in the dictionary by code (`composables/useAppearanceOptions.ts`), and the
+# constants keep only codes and proper names. A miss here is quiet: `vue-i18n` renders the key path,
+# and the option shows in the list as `settings.interface.option.font.lora.note`.
 _OPTION_SOURCES = {
     "theme": ("theme.ts", "THEME_OPTIONS"),
     "code_variant": ("code.ts", "CODE_VARIANTS"),
@@ -197,7 +199,7 @@ def _option_strings() -> dict:
 
 
 def _declared_options(kind: str) -> dict[str, bool]:
-    """Код варианта → есть ли у него собственная подпись в константах."""
+    """Option code → whether it has its own label in the constants."""
     if kind == "font":
         source = _source(CONSTANTS / "fonts.ts")
         return {

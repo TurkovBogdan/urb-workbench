@@ -1,12 +1,12 @@
-"""Тесты scheduler.runner.run_entry: жизненный цикл одного запуска задачи.
+"""Tests for scheduler.runner.run_entry: the lifecycle of one task run.
 
-Покрытие:
-- успешный handler → status=success, finished_at заполнен.
-- хендлер бросает → status=error, traceback в core_tasks_logs.
-- авто-release task-лока и любых суб-локов с тем же owner-ом.
-- timeout (ttl) → status=error с текстом про таймаут.
-- двойной запуск (одновременно running) → второй вызов — no-op.
-- task-лок занят чужим процессом → finalize_error('task lock busy').
+Coverage:
+- successful handler → status=success, finished_at set.
+- handler raises → status=error, traceback in core_tasks_logs.
+- auto-release of the task lock and any sub-locks with the same owner.
+- timeout (ttl) → status=error with a timeout text.
+- double run (simultaneously running) → the second call is a no-op.
+- task lock held by another process → finalize_error('task lock busy').
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ from src.core.scheduler.runner import run_entry
 
 @pytest.fixture
 async def db(config: Config):
-    """Engine + core-таблицы для запуска runner-а."""
+    """Engine + core tables for running the runner."""
     engine = await init_database(config)
     from src.core.database.runtime import Base
 
@@ -55,7 +55,7 @@ async def _fetch_task() -> CoreTask:
         return (await s.execute(select(CoreTask))).scalar_one()
 
 
-# ── Жизненный цикл ──────────────────────────────────────────────────────────
+# ── Lifecycle ───────────────────────────────────────────────────────────────
 
 
 @pytest.mark.db
@@ -91,7 +91,7 @@ async def test_failing_handler_marks_error_and_logs_traceback(db):
 
 @pytest.mark.db
 async def test_double_run_is_noop(db):
-    """Когда running уже есть, second run_entry должен ничего не сделать."""
+    """When a running one already exists, a second run_entry must do nothing."""
 
     async def handler(ctx):
         pass
@@ -122,7 +122,7 @@ async def test_ctx_lock_is_task_level_corelock(db):
     assert captured["key"] == "task:m:c"
     assert captured["owner"].startswith("task_run:")
     assert captured["is_owner"] is True
-    # task-лок снят в finally
+    # the task lock is released in finally
     async with session_scope() as s:
         rows = (await s.execute(select(CoreLockRow))).scalars().all()
     assert rows == []
@@ -156,7 +156,7 @@ async def test_sub_locks_auto_released_on_handler_failure(db):
 
 @pytest.mark.db
 async def test_locks_of_other_owners_not_touched(db):
-    """Авто-снятие должно цеплять только локи этой задачи, чужие не трогать."""
+    """Auto-release must catch only this task's locks and leave others alone."""
     await CoreLock.acquire("res:foreign", 60, owner="external:1")
 
     async def handler(ctx):
@@ -171,8 +171,8 @@ async def test_locks_of_other_owners_not_touched(db):
 
 @pytest.mark.db
 async def test_task_lock_busy_finalizes_error(db):
-    """Если task-лок держит другой процесс — finalize_error('task lock busy')."""
-    # внешний процесс удерживает task-лок
+    """If another process holds the task lock — finalize_error('task lock busy')."""
+    # an external process holds the task lock
     foreign = await CoreLock.acquire("task:m:c", 60, owner="external")
     assert foreign is not None
 
@@ -200,7 +200,7 @@ async def test_handler_timeout_marks_error(db):
     async def handler(ctx):
         await asyncio.sleep(5)
 
-    await run_entry(_entry(handler, ttl=1))  # ttl в секундах; sleep-5 не уложится
+    await run_entry(_entry(handler, ttl=1))  # ttl in seconds; sleep-5 won't fit
 
     task = await _fetch_task()
     assert task.status == CoreTaskStatus.error

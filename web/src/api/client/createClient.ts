@@ -6,16 +6,17 @@
 //    'same-origin'. Absolute URLs are rejected outright.
 //  - Errors follow the backend envelope (`src/core/api/errors.py`): { error, code?, fields? }.
 //    Every non-2xx is thrown as a typed `ApiError`. Network/abort/timeout normalize too.
-//  - Ответ обязан быть JSON. Редирект НЕ ответ: `redirect: 'manual'` — за ним не идут никогда
-//    (запрещать надо на входе, после ответа запрос уже ушёл на чужой адрес), не-JSON тело и
-//    неразбираемый JSON тоже отвергаются. Всё это — `ApiError` с кодом `protocol`.
-//  - У каждого запроса есть потолок ожидания: иначе зависший бэкенд вешает приложение молча.
-//  - Отказ, который экран не показал сам, докладывается через `onError` (см. `shouldReport`).
+//  - The response must be JSON. A redirect is NOT a response: `redirect: 'manual'` — it is never
+//    followed (it has to be forbidden up front: after the response the request has already gone
+//    to a foreign address); a non-JSON body and unparseable JSON are rejected too. All of these
+//    are an `ApiError` with code `protocol`.
+//  - Every request has a timeout: otherwise a hung backend silently hangs the app.
+//  - A failure the screen did not show itself is reported via `onError` (see `shouldReport`).
 //
-// Слой сессии (CSRF, 401/403, «сессия потеряна») перенесён из донорского портала целиком, но
-// у internal-зоны авторизации нет, поэтому он выключен конфигом: `csrf: false` и отсутствие
-// `loginPath`/`onUnauthenticated`. Включение CSRF без соответствующей middleware на бэкенде
-// добавило бы провальный GET `<prefix>/csrf-cookie` перед КАЖДОЙ записью.
+// The session layer (CSRF, 401/403, "session lost") was carried over from the donor portal whole,
+// but the internal zone has no auth, so it is switched off by config: `csrf: false` and no
+// `loginPath`/`onUnauthenticated`. Enabling CSRF without the matching middleware on the backend
+// would add a failing GET `<prefix>/csrf-cookie` before EVERY write.
 //
 // Dev mode: set VITE_API_BASE to the ORIGIN of a backend reachable directly (no Vite proxy),
 // e.g. http://localhost:22040. When set, requests go absolute + credentials: 'include'. Empty
@@ -26,65 +27,65 @@ export interface ClientConfig {
   prefix: string
   /** Backend origin for direct-HTTP dev (VITE_API_BASE); '' for same-origin (prod default). */
   origin?: string
-  /** Заголовки, которые уходят с каждым запросом зоны (например, id вкладки — `client-id.ts`). */
+  /** Headers sent with every request of the zone (e.g. the tab id — `client-id.ts`). */
   headers?: Record<string, string>
   /**
-   * Двойная отправка CSRF-токена на записи: кука `XSRF-TOKEN` → заголовок `X-XSRF-TOKEN`,
-   * обновление куки через `<prefix>/csrf-cookie` и один молчаливый повтор на 419. Включать
-   * только для зоны, у которой эта проверка есть на бэкенде.
+   * Double-submit CSRF token on writes: cookie `XSRF-TOKEN` → header `X-XSRF-TOKEN`, cookie
+   * refresh via `<prefix>/csrf-cookie` and one silent retry on 419. Enable only for a zone whose
+   * backend actually has this check.
    */
   csrf?: boolean
-  /** Куда 401 уводит браузер (адрес входа зоны). Нет входа — не задавать. */
+  /** Where a 401 sends the browser (the zone's login address). No login — leave unset. */
   loginPath?: string
-  /** Показать отказ в правах: экран шелла на текущем адресе, без навигации. */
+  /** Show a permission denial: a shell screen at the current address, no navigation. */
   onForbidden?: () => void
   /**
-   * Сессия кончилась (401). Приложение, которое умеет увести на вход СВОИМИ силами, ставит
-   * колбэк и получает переход внутри SPA; без него клиент перезагружает страницу на `loginPath`,
-   * теряя несохранённый ввод. Аргумент — адрес, на котором человека застали.
+   * The session has ended (401). An app that can route to login ON ITS OWN sets the callback and
+   * gets a transition inside the SPA; without it the client reloads the page at `loginPath`,
+   * losing unsaved input. The argument is the address where the person was caught.
    */
   onUnauthenticated?: (returnTo: string) => void
   /**
-   * Сессия, наоборот, УЖЕ открыта (409 `already_authenticated` с гость-ручки). Приложение
-   * усыновляет её и уводит в кабинет; форме входа про этот случай знать не нужно.
+   * The opposite: the session is ALREADY open (409 `already_authenticated` from a guest endpoint).
+   * The app adopts it and routes to the dashboard; the login form need not know about this case.
    */
   onAlreadyAuthenticated?: () => void
   /**
-   * Показать отказ человеку. Клиент решает, ЧТО докладывать (см. `shouldReport`), приложение —
-   * КАК: обычно всплывающим сообщением. Без колбэка отказ остаётся немым.
+   * Show a failure to the person. The client decides WHAT to report (see `shouldReport`), the
+   * app decides HOW: usually as a toast. Without the callback the failure stays mute.
    */
   onError?: (error: ApiError) => void
   /**
-   * Знает ли приложение, что сессии больше нет. Пока это так, запросы к закрытым ручкам не
-   * выходят в сеть вовсе: человек, которого выбило, продолжает кликать, и каждый клик иначе
-   * тратит общий лимит зоны, возвращаясь 429 вместо честного «войдите заново».
+   * Whether the app knows the session is gone. While it is, requests to protected endpoints don't
+   * hit the network at all: a person who got logged out keeps clicking, and otherwise every click
+   * spends the zone's shared rate limit, coming back as 429 instead of an honest "log in again".
    */
   isSessionLost?: () => boolean
-  /** Потолок ожидания ответа, мс. По умолчанию REQUEST_TIMEOUT_MS. */
+  /** Response timeout, ms. Defaults to REQUEST_TIMEOUT_MS. */
   timeoutMs?: number
 }
 
-/** Потолок ожидания одного запроса. Живых ручек длиннее у нас нет. */
+/** Timeout for a single request. We have no live endpoints that take longer. */
 const REQUEST_TIMEOUT_MS = 20_000
 
 /**
- * Коды отказа, которые ставит САМ клиент (у остальных код приходит от бэкенда).
- * `protocol` — ответ не является нашим JSON: редирект, чужой content-type, битое тело.
+ * Failure codes set by the client ITSELF (for the rest the code comes from the backend).
+ * `protocol` — the response is not our JSON: a redirect, a foreign content-type, a broken body.
  */
 export type ClientErrorCode = 'network' | 'timeout' | 'aborted' | 'protocol' | 'session_lost'
 
-/** Машинный код 409 «ты уже вошёл» — его разбирает auth-слой, а не человек. */
+/** Machine code of the 409 "you are already logged in" — read by the auth layer, not a person. */
 export const ALREADY_AUTHENTICATED = 'already_authenticated'
 
-// Mirror of backend ErrorBody (src/core/api/errors.py). `fields` — ошибки по полям формы;
-// `code` несёт машинный код бэкенда либо один из ClientErrorCode; `params` — значения для
-// подстановки в текст кода; `error` — английский запасной текст (см. `api/errorText.ts`).
+// Mirror of backend ErrorBody (src/core/api/errors.py). `fields` — per-form-field errors;
+// `code` carries the backend's machine code or one of ClientErrorCode; `params` — values to
+// interpolate into the code's text; `error` — English fallback text (see `api/errorText.ts`).
 export interface ApiErrorBody {
   error: string
   code?: string
   params?: Record<string, string | number>
   fields?: Record<string, string>
-  /** Секунды из заголовка `Retry-After` у 429 — сколько ждать на самом деле. */
+  /** Seconds from the `Retry-After` header of a 429 — how long to actually wait. */
   retryAfter?: number
 }
 
@@ -108,10 +109,11 @@ export class ApiError extends Error {
 }
 
 /**
- * Докладывать ли отказ человеку. Правило одно на все запросы:
- * 422 — дело формы (там поля), 401/403/409 — смена состояния, её разбирает auth-слой и шелл,
- * отмена вызывающим и уже известная потеря сессии — не новость. Всё остальное всплывает,
- * если вызывающий не сказал `report: false`, потому что показать сам он тогда обязан.
+ * Whether to report a failure to the person. One rule for all requests:
+ * 422 is the form's business (fields are there), 401/403/409 are a state change handled by the
+ * auth layer and the shell, a cancel by the caller and an already known session loss are not news.
+ * Everything else pops up unless the caller said `report: false`, because then it is obliged to
+ * show it itself.
  */
 function shouldReport(error: ApiError, opts: RequestOptions): boolean {
   if (opts.report === false) {
@@ -122,14 +124,14 @@ function shouldReport(error: ApiError, opts: RequestOptions): boolean {
     return false
   }
 
-  // 404 — «по этому адресу смотреть нечего», и раздел показывает это состоянием на своём месте
-  // (`SectionError`). Тост поверх него дублировал бы ту же новость вторым способом.
+  // 404 means "nothing to see at this address", and the section shows that as a state in its own
+  // place (`SectionError`). A toast on top would duplicate the same news a second way.
   if (error.status === 404) {
     return false
   }
 
-  // ⚠️ Молчим только про ОДИН 409 — «ты уже вошёл», его разбирает auth-слой. Остальные 409
-  // доменные, и глушить их значит терять отказ.
+  // ⚠️ Stay silent about only ONE 409 — "you are already logged in", handled by the auth layer.
+  // Other 409s are domain ones, and muting them means losing the failure.
   if (error.status === 409 && error.code === ALREADY_AUTHENTICATED) {
     return false
   }
@@ -147,11 +149,11 @@ export interface RequestOptions {
   // 403 policy: 'redirect' (default) hands the refusal to the shell; 'throw' lets the caller
   // handle it inline.
   on403?: 'redirect' | 'throw'
-  /** `false` — вызывающий показывает отказ сам; по умолчанию его показывает клиент. */
+  /** `false` — the caller shows the failure itself; by default the client shows it. */
   report?: boolean
-  /** Свой потолок ожидания для этого запроса, мс. По умолчанию — общий для зоны. */
+  /** This request's own timeout, ms. Defaults to the zone-wide one. */
   timeoutMs?: number
-  /** Ручка входа: работает и без сессии, поэтому стоп-кран потерянной сессии её не держит. */
+  /** A login endpoint: works without a session, so the lost-session kill switch does not hold it. */
   allowGuest?: boolean
   signal?: AbortSignal
 }
@@ -173,9 +175,9 @@ function readCookie(name: string): string | null {
   return null
 }
 
-// Один сигнал на «истёк потолок» и «отменил вызывающий» — с раздельным диагнозом: аборт по
-// таймауту и аборт по воле кода снаружи должны попадать в разные коды ошибки. Готовая пара
-// AbortSignal.timeout/any этого не различает, поэтому свой контроллер.
+// One signal for "timeout expired" and "caller cancelled" — with a separate diagnosis: an abort by
+// timeout and an abort at the will of outside code must land in different error codes. The
+// ready-made AbortSignal.timeout/any pair can't tell them apart, hence our own controller.
 function deadline(ms: number, external?: AbortSignal) {
   const controller = new AbortController()
   let expired = false
@@ -201,7 +203,8 @@ function deadline(ms: number, external?: AbortSignal) {
   }
 }
 
-// Ответ пришёл, но это не наш JSON. Тело в сообщение не тащим: там бывает целая html-страница.
+// A response arrived, but it is not our JSON. The body stays out of the message: it can be a
+// whole html page.
 function protocolError(status: number, what: string): ApiError {
   return new ApiError(status, { error: `API contract violated: ${what}`, code: 'protocol' })
 }
@@ -210,13 +213,14 @@ function protocolError(status: number, what: string): ApiError {
 async function toApiError(res: Response): Promise<ApiError> {
   const body: ApiErrorBody = { error: res.statusText || `HTTP ${res.status}` }
 
-  // Сколько ждать до следующей попытки — говорит сам сервер, а не наша догадка.
+  // How long to wait before the next attempt is said by the server itself, not guessed by us.
   const retryAfter = Number.parseInt(res.headers.get('retry-after') ?? '', 10)
   if (Number.isFinite(retryAfter)) body.retryAfter = retryAfter
 
-  // Тело читаем один раз строкой: пустой ответ — это нормально (у отказа тела может не быть),
-  // а вот НЕПУСТОЕ и не-JSON значит, что отвечал не наш контур (страница прокси, заглушка WAF).
-  // Такому отказу ставим `protocol`, иначе человек получит английский `statusText` от чужого узла.
+  // Read the body once, as a string: an empty response is fine (a failure may have no body), but a
+  // NON-EMPTY non-JSON one means something other than our stack answered (a proxy page, a WAF
+  // stub). Such a failure gets `protocol`, otherwise the person would see an English `statusText`
+  // from a foreign node.
   const text = await res.text().catch(() => '')
 
   if (text !== '') {
@@ -269,8 +273,8 @@ export function createClient(config: ClientConfig): ApiClient {
     return s ? `${url}?${s}` : url
   }
 
-  // Обновить CSRF-куку. Под тем же потолком ожидания, что и сам запрос: зависший
-  // `/csrf-cookie` иначе блокирует КАЖДУЮ запись бессрочно, а отвечает за него та же зона.
+  // Refresh the CSRF cookie. Under the same timeout as the request itself: otherwise a hung
+  // `/csrf-cookie` blocks EVERY write indefinitely, and the same zone is responsible for it.
   async function refreshCsrfCookie(signal?: AbortSignal): Promise<void> {
     const clock = deadline(config.timeoutMs ?? REQUEST_TIMEOUT_MS, signal)
 
@@ -289,8 +293,8 @@ export function createClient(config: ClientConfig): ApiClient {
     await refreshCsrfCookie()
   }
 
-  // Сессии больше нет. Приложение со своим обработчиком уводит на вход внутри SPA (ввод и
-  // бандл остаются); зона без входа (`loginPath` не задан) просто отдаёт отказ наружу.
+  // The session is gone. An app with its own handler routes to login inside the SPA (input and the
+  // bundle survive); a zone without login (`loginPath` unset) just passes the failure out.
   function handleUnauthenticated(): void {
     if (typeof window === 'undefined') return
 
@@ -307,8 +311,9 @@ export function createClient(config: ClientConfig): ApiClient {
     window.location.assign(`${config.loginPath}?return=${encodeURIComponent(to)}`)
   }
 
-  // Отказ наружу: сначала доложить (если по правилу это наше дело), потом бросить. Единственная
-  // точка выхода ошибки из клиента — иначе «показать» и «бросить» разъезжаются по вызывающим.
+  // A failure going out: first report it (if the rule says it's ours to report), then throw. The
+  // single exit point for errors from the client — otherwise "show" and "throw" drift apart across
+  // callers.
   function raise(error: ApiError, opts: RequestOptions): never {
     if (config.onError && shouldReport(error, opts)) {
       config.onError(error)
@@ -324,8 +329,8 @@ export function createClient(config: ClientConfig): ApiClient {
     opts: RequestOptions = {},
     isRetry = false,
   ): Promise<T> {
-    // Стоп-кран: сессии нет и приложение это знает — в сеть не идём вовсе. Ручки входа
-    // (`allowGuest`) исключены, иначе выбитому человеку нечем было бы войти обратно.
+    // Kill switch: there is no session and the app knows it — don't hit the network at all. Login
+    // endpoints (`allowGuest`) are exempt, otherwise a logged-out person would have no way back in.
     if (opts.allowGuest !== true && config.isSessionLost?.() === true) {
       raise(new ApiError(0, { error: 'Session lost', code: 'session_lost' }), opts)
     }
@@ -343,8 +348,8 @@ export function createClient(config: ClientConfig): ApiClient {
       const token = readCookie('XSRF-TOKEN')
       if (token) headers['X-XSRF-TOKEN'] = token
     }
-    // `manual`: за редиректом не идём НИКОГДА. Иначе агент повторяет POST'ы методом GET, и
-    // страница-оболочка приезжает сюда как успешный ответ.
+    // `manual`: a redirect is NEVER followed. Otherwise the user agent replays POSTs as GET, and
+    // the shell page arrives here as a successful response.
     const clock = deadline(opts.timeoutMs ?? config.timeoutMs ?? REQUEST_TIMEOUT_MS, opts.signal)
     const init: RequestInit = {
       method,
@@ -354,8 +359,8 @@ export function createClient(config: ClientConfig): ApiClient {
       signal: clock.signal,
     }
 
-    // Сериализация ВНУТРИ потолка и внутри нормализации: цикл или BigInt в теле — ошибка кода,
-    // но наружу она обязана выйти тем же `ApiError`, а не сырым TypeError.
+    // Serialization happens INSIDE the timeout and inside normalization: a cycle or a BigInt in the
+    // body is a code bug, but it must still come out as the same `ApiError`, not a raw TypeError.
     try {
       if (payload !== undefined) {
         headers['Content-Type'] = 'application/json'
@@ -366,14 +371,16 @@ export function createClient(config: ClientConfig): ApiClient {
       try {
         res = await fetch(buildUrl(path, opts.query), init)
       } catch (e) {
-        // Транспорт не дал ответа. Три разных диагноза, и путать их нельзя: по таймауту и обрыву
-        // сети шелл показывает разные экраны, а отмену вызывающим показывать не надо вовсе.
+        // The transport gave no response. Three different diagnoses that must not be mixed up: the
+        // shell shows different screens for a timeout and a dropped network, and a cancel by the
+        // caller must not be shown at all.
         if (clock.expired()) raise(new ApiError(0, { error: 'Request timed out', code: 'timeout' }), opts)
         if (opts.signal?.aborted) raise(new ApiError(0, { error: 'Request aborted', code: 'aborted' }), opts)
         raise(new ApiError(0, { error: (e as Error)?.message || 'Network error', code: 'network' }), opts)
       }
 
-      // Редирект: тело и заголовки браузер не отдаёт (status 0, type opaqueredirect) — судим по типу.
+      // A redirect: the browser exposes neither body nor headers (status 0, type opaqueredirect) —
+      // judge by the type.
       if (res.type === 'opaqueredirect') raise(protocolError(0, 'the API answered with a redirect'), opts)
 
       if (!res.ok) {
@@ -386,8 +393,8 @@ export function createClient(config: ClientConfig): ApiClient {
 
         const err = await toApiError(res)
 
-        // Два статуса — не ошибки, а смена состояния сессии, и обрабатываются они здесь, в одной
-        // точке: вызывающему остаётся только показать свой шаг, а не разбираться, куда его вести.
+        // Two statuses are not errors but a session state change, and they are handled here, in
+        // one place: the caller only has to show its own step, not figure out where to route.
         if (err.status === 401 && opts.on401 !== 'throw') handleUnauthenticated()
         else if (err.status === 409 && err.code === ALREADY_AUTHENTICATED) config.onAlreadyAuthenticated?.()
         else if (err.status === 403 && opts.on403 !== 'throw') config.onForbidden?.()
@@ -395,11 +402,12 @@ export function createClient(config: ClientConfig): ApiClient {
         raise(err, opts)
       }
 
-      // 204 / пустое тело → undefined; иначе только JSON и ничего кроме.
+      // 204 / empty body → undefined; otherwise JSON and nothing else.
       if (res.status === 204) return undefined as T
 
-      // ⚠️ Чтение тела тоже под потолком: сервер, отдавший заголовки и заглохший на теле, иначе
-      // вешает промис навсегда — а на первом запросе это вечный сплэш вместо приложения.
+      // ⚠️ Reading the body is under the timeout too: a server that sent headers and stalled on
+      // the body would otherwise hang the promise forever — and on the first request that is an
+      // eternal splash screen instead of the app.
       let text: string
       try {
         text = await res.text()

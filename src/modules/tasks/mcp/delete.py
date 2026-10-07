@@ -1,12 +1,12 @@
-"""MCP-тул удаления — одна дверь для всех типов, каскад выбирает сам код.
+"""The delete MCP tool — one door for every type; the code itself picks the cascade.
 
-Пять отдельных тулов на одну строку кода каждый стоили бы агенту пяти описаний в контексте при
-том, что отличается у них ровно одно — каскад, а он привязан к типу и описан здесь одним
-списком.
+Five separate tools of one line of code each would cost the agent five descriptions in context,
+while they differ in exactly one thing — the cascade, which is bound to the type and described
+here in a single list.
 
-Типы, у которых удаления нет, упираются в отказ, называющий причину и то, чем это делается
-вместо. Отказ здесь не «нельзя», а обучающий канал: журнал дописываемый, раскладка принадлежит
-человеку, необратимое остаётся ему же.
+Types that have no deletion hit a refusal that names the reason and what to do instead. The
+refusal here is not "forbidden" but a teaching channel: the journal is append-only, the layout
+belongs to the person, and the irreversible stays with the person too.
 """
 
 from __future__ import annotations
@@ -25,12 +25,12 @@ from src.modules.tasks.crud import task as task_crud
 from src.modules.tasks.mcp.scope import require_scope
 from src.modules.workspace.constants import WORKSPACE_CODE_PREFIX
 
-if TYPE_CHECKING:  # fork fastmcp — только backend (через mcp_server(ctx))
+if TYPE_CHECKING:  # fastmcp fork — backend only (via mcp_server(ctx))
     from fastmcp import FastMCP
 
 _DELETABLE = (TASK_CODE_PREFIX, STAGE_CODE_PREFIX)
 
-# Почему нельзя — по типу. Текст едет агенту как есть, поэтому он называет не запрет, а выход.
+# Why not — per type. The text reaches the agent as is, so it names the way out, not the ban.
 _REFUSALS = {
     NOTE_CODE_PREFIX: (
         "A journal entry is never deleted — the journal is append-only, and a history you can "

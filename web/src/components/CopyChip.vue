@@ -1,18 +1,18 @@
 <script setup lang="ts">
-// Плашка копирования: значок копирования и текст — одна кнопка.
+// Copy chip: the copy icon and the text — one button.
 //
-// Значок стоит ПЕРВЫМ: он говорит, что это за плашка, раньше, чем глаз дочитает значение, и не
-// уезжает вслед за длиной текста — у плашек разной длины значки стоят в одну линию.
+// The icon comes FIRST: it tells what the chip is before the eye finishes reading the value, and it
+// doesn't drift with the text length — chips of different lengths keep their icons in one line.
 //
-// Для всего, что человек забирает в буфер ради того, чтобы вставить в другое место: код объекта,
-// адрес, токен, путь. Раньше рядом с текстом стояла отдельная кнопка-значок 22px, и в неё
-// приходилось целиться, хотя сам текст рядом не делал ничего. Здесь мишень — вся плашка, и
-// скопировано ровно то, что на ней написано (или `text`, если показывается другое).
+// For anything a person takes to the clipboard to paste elsewhere: an object code, an address, a
+// token, a path. There used to be a separate 22px icon button next to the text that had to be aimed
+// at, while the text beside it did nothing. Here the whole chip is the target, and exactly what is
+// written on it gets copied (or `text`, if something else is shown).
 //
-// В покое плашка прозрачна и читается как обычный текст: копирование — побочное действие, и звать
-// к себе ему незачем. Кнопкой её выдаёт подложка под курсором — та же, что у кнопки-счётчика.
-// Об успехе говорит смена значка на галочку, без цвета: копирование делают по многу раз, и
-// зелёная вспышка читалась бы как событие.
+// At rest the chip is transparent and reads as plain text: copying is a side action with no need to
+// call attention to itself. The fill under the pointer gives it away as a button — the same as the
+// counter button's. Success is shown by the icon turning into a check, without color: people copy
+// many times over, and a green flash would read as an event.
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { IconCheck, IconCopy } from '@tabler/icons-vue'
@@ -20,11 +20,11 @@ import { IconCheck, IconCopy } from '@tabler/icons-vue'
 import { useClipboard } from '@/composables/useClipboard'
 
 const props = defineProps<{
-  /** Что уходит в буфер. */
+  /** What goes to the clipboard. */
   text: string
-  /** Что написано на плашке; не передано — сам `text`. */
+  /** What is written on the chip; if not passed — `text` itself. */
   label?: string
-  /** Подпись действия для подсказки и читалки; по умолчанию «Скопировать». */
+  /** Action label for the tooltip and screen reader; defaults to "Copy". */
   hint?: string
 }>()
 
@@ -38,8 +38,8 @@ const hintText = computed(() =>
 </script>
 
 <template>
-  <!-- Клик дальше плашки не уходит: она стоит и в строках, которые открываются по клику, и
-       «скопировать» не должно заодно уводить со страницы. -->
+  <!-- The click doesn't propagate past the chip: it also sits in rows that open on click, and
+       "copy" must not navigate away from the page as a side effect. -->
   <button
     type="button"
     class="copy-chip"
@@ -54,12 +54,12 @@ const hintText = computed(() =>
 </template>
 
 <style scoped>
-/* Вид — от кнопки-счётчика (`CounterButton.vue`): шрифт интерфейса, мелкий кегль, приглушённый
-   цвет, подложка только под курсором. Гарнитура — `--font`, а не наследованная: плашка стоит и в
-   шапках, и в строках, и должна выглядеть одинаково везде, где её поставили.
+/* The look comes from the counter button (`CounterButton.vue`): interface font, small size, muted
+   color, a fill only under the pointer. The typeface is `--font`, not inherited: the chip sits both
+   in headers and in rows, and must look the same wherever it is placed.
 
-   Текст и значок в коробках одной высоты (14px): при разных высотах flex даёт дробные смещения,
-   браузер округляет их по-разному, и текст встаёт на пиксель выше значка. */
+   Text and icon sit in boxes of one height (14px): with different heights flex yields fractional
+   offsets, the browser rounds them differently, and the text sits a pixel above the icon. */
 .copy-chip {
   display: inline-flex;
   flex: none;
@@ -88,8 +88,8 @@ const hintText = computed(() =>
   outline: none;
 }
 
-/* Длинное значение (путь, токен) сжимается многоточием, значок — никогда: без него плашка
-   перестаёт говорить, что по ней можно нажать. */
+/* A long value (a path, a token) shrinks with an ellipsis, the icon never does: without it the chip
+   no longer says that it can be clicked. */
 .copy-chip__text {
   min-width: 0;
   overflow: hidden;
@@ -97,7 +97,7 @@ const hintText = computed(() =>
   text-overflow: ellipsis;
 }
 
-/* Значок тише текста: он поясняет действие, а не называет значение. */
+/* The icon is quieter than the text: it explains the action rather than naming the value. */
 .copy-chip__icon {
   flex: none;
   color: var(--text-faint);

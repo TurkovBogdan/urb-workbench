@@ -1,4 +1,4 @@
-"""build_modules: состав списка модулей приложения."""
+"""build_modules: the contents of the application's module list."""
 
 from __future__ import annotations
 

@@ -1,9 +1,9 @@
-"""Раздел «Задачи» — HTTP-эндпойнты scheduler-задач.
+"""The "Jobs" section — HTTP endpoints for scheduler jobs.
 
-Список задач (+ статистика за 24 часа), одна задача, её запуски (пагинация +
-фильтр статуса + серверная сортировка) и логи одного запуска. Корень ``/tasks``
-прописан прямо в путях маршрутов (агрегатор включает роутер без prefix). Зона
-internal в чистом ядре = ``allow_all`` — guard не нужен.
+The job list (+ 24-hour stats), a single job, its runs (pagination + status filter +
+server-side sorting) and the logs of one run. The ``/tasks`` root is spelled out right in the
+route paths (the aggregator includes the router without a prefix). The internal zone in the
+bare core is ``allow_all`` — no guard needed.
 """
 
 from __future__ import annotations
@@ -82,7 +82,7 @@ def _to_info(entry, stats: dict[str, int]) -> TaskInfo:
 
 
 def _module_rank(module: str) -> int:
-    """core → core_* → остальные модули."""
+    """core → core_* → the other modules."""
     if module == "core":
         return 0
     if module.startswith("core_"):
@@ -92,7 +92,7 @@ def _module_rank(module: str) -> int:
 
 @router.get("/tasks", response_model=list[TaskInfo])
 async def list_tasks() -> list[TaskInfo]:
-    """Все зарегистрированные scheduler-задачи + статистика за 24 часа."""
+    """All registered scheduler jobs + 24-hour stats."""
     entries = sorted(
         get_registry().all(),
         key=lambda e: (_module_rank(e.module), e.module, e.sort),
@@ -120,7 +120,7 @@ async def list_task_runs(
     sort_by: str = Query("started_at"),
     sort_dir: str = Query("desc", pattern="^(asc|desc)$"),
 ) -> TaskRunsPage:
-    """Запуски задачи с пагинацией + фильтр статуса + серверная сортировка."""
+    """A job's runs with pagination + status filter + server-side sorting."""
     rows, total = await crud_tasks.list_runs(
         module=module, code=code, limit=limit, offset=offset, status=status,
         sort_by=sort_by, sort_dir=sort_dir,
@@ -144,7 +144,7 @@ async def list_task_runs(
 
 @router.get("/tasks/{module}/{code}/runs/{run_id}/logs", response_model=list[TaskRunLog])
 async def list_task_run_logs(module: str, code: str, run_id: int) -> list[TaskRunLog]:
-    """Логи одного запуска задачи (created_at asc)."""
+    """The logs of one job run (created_at asc)."""
     rows = await crud_tasks_logs.list_for_task(task_id=run_id, module=module, code=code)
     return [
         TaskRunLog(

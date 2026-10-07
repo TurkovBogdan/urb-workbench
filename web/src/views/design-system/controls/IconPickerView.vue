@@ -5,8 +5,8 @@ import { useI18n } from 'vue-i18n'
 import PageLayout from '@/layout/templates/PageLayout.vue'
 import PageHeader from '@/layout/components/PageHeader.vue'
 import IconPicker from '@/components/IconPicker.vue'
-// Демо идёт на настоящем наборе — палитре полок research (120 кодов): выдуманный список
-// показывал бы прокрутку и поиск на данных, которых в приложении нет.
+// The demo runs on the real set — the research shelf palette (120 codes): a made-up list would
+// show scrolling and search on data the app doesn't have.
 import { iconByName, iconNames } from '@/shared/icons'
 
 const { t } = useI18n()
@@ -109,7 +109,7 @@ const short = ref<string>('folder')
   gap: 4px 16px;
 }
 
-/* Пикер занимает всю ширину ячейки: сетка плиток считает колонки от неё. */
+/* The picker takes the full cell width: the tile grid derives its columns from it. */
 .ds-controls--stack {
   display: block;
 }

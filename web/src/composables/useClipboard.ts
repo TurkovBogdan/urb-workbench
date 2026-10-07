@@ -1,13 +1,13 @@
 import { onUnmounted, ref, type Ref } from 'vue'
 
 /**
- * Копирование в буфер с самоочищающейся отметкой «скопировано» — то, что нужно любой кнопке копии.
+ * Copy to clipboard with a self-clearing "copied" mark — what any copy button needs.
  *
- * Отметка держит САМ СКОПИРОВАННЫЙ ТЕКСТ, а не флаг: в списке кнопок булев флаг зажёгся бы разом
- * на всех строках. Кнопке с единственной целью хватает `isCopied(своё значение)`.
+ * The mark holds THE COPIED TEXT ITSELF, not a flag: in a list of buttons a boolean flag would
+ * light up on every row at once. A button with a single target just uses `isCopied(its value)`.
  *
- * Запасной путь через textarea — не перестраховка: под Qt WebEngine асинхронный clipboard-API
- * отклоняет запись, пока документ не в фокусе.
+ * The textarea fallback is not overcaution: under Qt WebEngine the async clipboard API rejects the
+ * write while the document is not focused.
  */
 export function useClipboard(resetAfter = 1800): {
   copiedText: Ref<string | null>
@@ -42,7 +42,7 @@ export function useClipboard(resetAfter = 1800): {
 
   const isCopied = (text: string): boolean => copiedText.value === text
 
-  // Иначе таймер добежит до размонтированного компонента и Vue отругается на запись в ref.
+  // Otherwise the timer fires on an unmounted component and Vue complains about the ref write.
   onUnmounted(() => clearTimeout(timer))
 
   return { copiedText, copy, isCopied }

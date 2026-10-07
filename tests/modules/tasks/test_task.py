@@ -1,4 +1,4 @@
-"""CRUD задач: рождение вместе с ребром дерева, проверки пространства, статусы и усечение."""
+"""Task CRUD: born together with its tree edge, workspace checks, statuses and clipping."""
 
 from __future__ import annotations
 
@@ -49,7 +49,7 @@ async def test_create_fills_defaults(db, workspace):
 
 
 async def test_create_writes_the_tree_row_for_a_root_task(db, workspace):
-    """Без строки связи задача дереву не принадлежит — значит она создаётся вместе с задачей."""
+    """Without a link row a task is not part of the tree — so the row is created with the task."""
     row = await task_create(workspace_code=workspace.code, title="Корень")
 
     link = await link_get(row.code)
@@ -114,7 +114,8 @@ async def test_moving_a_task_into_a_foreign_group_is_refused(db, workspace):
 
 
 async def test_unknown_dictionary_value_is_refused_by_name(db, workspace):
-    """Отказ приходит из CRUD со списком допустимых, а не ``IntegrityError`` из драйвера."""
+    """The refusal comes from CRUD with the allowed values listed, not as an ``IntegrityError``
+    from the driver."""
     with pytest.raises(ValueError, match="Unknown task status"):
         await task_create(workspace_code=workspace.code, title="Задача", status="later")
 
@@ -157,12 +158,12 @@ async def test_workspace_listing_filters_by_status_and_group(db, workspace):
 
 
 async def test_workspace_listing_follows_the_manual_order_not_priority(db, workspace):
-    """Порядок списка задаёт расстановка (`sort`), а не важность.
+    """The list order is set by manual placement (`sort`), not by priority.
 
-    Важность из порядка ушла намеренно: список переставляют мышью, и строка, поднятая наверх,
-    возвращалась бы вниз следующим же запросом, если бы сортировал приоритет. Свежая задача
-    встаёт ПОД рядом (`bottom_sort`), поэтому горящая, заведённая второй, стоит второй — важность
-    на её место больше не влияет.
+    Priority was dropped from ordering on purpose: the list is rearranged with the mouse, and a
+    row dragged to the top would drop back down on the very next request if priority sorted it.
+    A fresh task lands BELOW the row (`bottom_sort`), so a burning one created second stands
+    second — priority no longer affects its place.
     """
     await task_create(workspace_code=workspace.code, title="Обычная")
     await task_create(
@@ -186,7 +187,7 @@ async def test_long_title_is_clipped_by_code_points(db, workspace):
 
 
 async def test_the_whole_brief_is_kept_apart(db, workspace):
-    """Постановка живёт в четырёх разных полях, и слой их не сливает в одно."""
+    """The brief lives in four separate fields, and the layer does not merge them into one."""
     row = await task_create(
         workspace_code=workspace.code,
         title="Перевести модуль на группы",
@@ -206,7 +207,8 @@ async def test_the_whole_brief_is_kept_apart(db, workspace):
 
 
 async def test_overlong_plan_is_refused_not_clipped(db, workspace):
-    """План отказывает, в отличие от заголовка: молча срезался бы хвост с последними шагами."""
+    """Unlike the title, the plan is refused: clipping would silently cut off the tail with the
+    last steps."""
     with pytest.raises(ValueError, match="shorten it by"):
         await task_create(
             workspace_code=workspace.code,
@@ -216,7 +218,7 @@ async def test_overlong_plan_is_refused_not_clipped(db, workspace):
 
 
 async def test_workspace_by_codes_skips_what_is_not_live(db, workspace):
-    """Пропавшая и удалённая отвечают одинаково: перед записью разницы между ними нет."""
+    """A missing task and a deleted one answer the same: before a write there is no difference."""
     alive = await task_create(workspace_code=workspace.code, title="Счета")
     gone = await task_create(workspace_code=workspace.code, title="Отчёты")
     await task_delete(gone.code)
@@ -249,7 +251,7 @@ async def test_regroup_with_no_group_unfiles(db, workspace):
 
 
 async def test_regroup_writes_nothing_when_one_code_is_missing(db, workspace):
-    """Смысл пачки — атомарность: половина переложенного выглядит как переложенное целиком."""
+    """The point of a batch is atomicity: a half-refiled batch looks like a fully refiled one."""
     group = await group_create(workspace_code=workspace.code, title="Биллинг")
     row = await task_create(workspace_code=workspace.code, title="Счета")
 

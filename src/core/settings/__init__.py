@@ -1,7 +1,8 @@
-"""Public API подсистемы runtime user-tunable settings.
+"""Public API of the runtime user-tunable settings subsystem.
 
-Re-exports типов полей и аксессор актуального per-module store. Внутренности
-разнесены по модулям пакета (поля, схема, store, реестр, bootstrap, api).
+Re-exports the field types and the accessor for the current per-module store. The
+internals are split across the package's modules (fields, schema, store, registry,
+bootstrap, api).
 """
 
 from __future__ import annotations
@@ -26,7 +27,7 @@ from src.core.settings.schema import ModuleSchema
 
 
 def get_module_store(module: str) -> Any:
-    """Текущий immutable store модуля. RuntimeError, если ещё не загружен."""
+    """The module's current immutable store. RuntimeError if not loaded yet."""
     return get_registry().get(module)
 
 

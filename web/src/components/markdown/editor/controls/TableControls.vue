@@ -1,13 +1,14 @@
 <script setup lang="ts">
-// Панель таблицы: появляется, когда каретка внутри неё, и исчезает, когда вышла.
+// The table toolbar: appears when the caret is inside a table and disappears when it leaves.
 //
-// Почему отдельный компонент, а не кнопки в BubbleToolbar: та панель живёт над ВЫДЕЛЕНИЕМ и без
-// него не показывается, а править колонки и ряды нужно при обычной каретке. Привязка тоже
-// другая — не к выделенному тексту, а к самой таблице: действия относятся к ней целиком.
+// Why a separate component rather than buttons in BubbleToolbar: that toolbar lives over a
+// SELECTION and does not show without one, while columns and rows have to be edited with a plain
+// caret. The anchoring differs too — not to selected text but to the table itself: the actions
+// apply to it as a whole.
 //
-// Ряды добираются и без панели — Tab из последней ячейки и Enter из последнего ряда заводят
-// новый, как в любом текстовом процессоре. Колонки и выравнивание иначе недостижимы, поэтому
-// они здесь и есть главная причина панели существовать.
+// Rows are reachable without the toolbar — Tab from the last cell and Enter from the last row add
+// a new one, as in any word processor. Columns and alignment are unreachable otherwise, so they
+// are the main reason the toolbar exists at all.
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Editor } from '@tiptap/core'
@@ -33,8 +34,8 @@ function place(): void {
   const found = activeTable(editor.state)
   if (!found) return hide()
 
-  // Элемент берём у самого узла, а не у выделения: панель привязана к таблице, и при переходе
-  // между ячейками она обязана стоять на месте, а не прыгать за кареткой.
+  // The element comes from the node itself, not from the selection: the toolbar is anchored to
+  // the table, and moving between cells must leave it in place rather than chasing the caret.
   const dom = editor.view.nodeDOM(found.pos)
   if (!(dom instanceof HTMLElement)) return hide()
 
@@ -52,8 +53,8 @@ const style = computed(() => {
   return { right: `${at.right}px`, top: `${at.top}px`, transform: `translateY(calc(-100% - ${MARGIN}px))` }
 })
 
-// Выделение не переживёт перевода фокуса, поэтому кнопки не должны его забирать: mousedown
-// гасится, клик доходит, каретка остаётся в своей ячейке.
+// The selection will not survive a focus change, so the buttons must not take focus: mousedown
+// is suppressed, the click still arrives, the caret stays in its cell.
 function hold(event: Event): void {
   event.preventDefault()
 }
@@ -82,8 +83,8 @@ function chain() {
 }
 
 function setAlign(value: ColumnAlign): void {
-  // Повторное нажатие снимает выравнивание: у колонки есть состояние «не задано», и добраться
-  // до него надо той же кнопкой, которой его поставили.
+  // A second press clears the alignment: a column has an "unset" state, and it must be reachable
+  // with the same button that set the alignment.
   chain()?.setColumnAlign(align.value === value ? null : value).run()
 }
 </script>

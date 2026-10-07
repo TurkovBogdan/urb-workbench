@@ -1,4 +1,4 @@
-"""Настройки SQLite: состав прагм, их применение на каждом соединении и внешние ключи."""
+"""SQLite settings: the pragma set, applying it on every connection, and foreign keys."""
 
 from __future__ import annotations
 
@@ -64,7 +64,7 @@ async def test_file_database_connection_is_tuned(tmp_path):
 
 @pytest.mark.db
 async def test_settings_survive_a_fresh_connection(tmp_path):
-    """Прагмы соединения сбрасываются при переподключении — слушатель ставит их заново."""
+    """Connection pragmas reset on reconnect — the listener sets them again."""
     config = _file_config(tmp_path / "app.sqlite3")
     engine = create_async_engine(config.database_url, **config.engine_kwargs)
     configure_sqlite(engine, config)
@@ -78,7 +78,7 @@ async def test_settings_survive_a_fresh_connection(tmp_path):
 
 @pytest.fixture
 async def tuned_file_engine(tmp_path):
-    """Движок на файловой базе — только там перехватывается открытие транзакции."""
+    """Engine on a file database — the only place where transaction begin is intercepted."""
     config = _file_config(tmp_path / "app.sqlite3")
     engine = create_async_engine(config.database_url, **config.engine_kwargs)
     configure_sqlite(engine, config)
@@ -91,7 +91,7 @@ async def tuned_file_engine(tmp_path):
 
 @pytest.fixture
 async def tuned_memory_engine():
-    """Движок на базе в памяти со схемой из моделей и полным набором прагм."""
+    """Engine on an in-memory database with the schema from the models and the full pragma set."""
     config = Config(db_provider="sqlite", db_path=":memory:")
     engine = create_async_engine(config.database_url, **config.engine_kwargs)
     configure_sqlite(engine, config)
@@ -104,7 +104,7 @@ async def tuned_memory_engine():
 
 @asynccontextmanager
 async def _writing(engine):
-    """Соединение с объявленным намерением писать — вне ``write_scope`` его ставим сами."""
+    """Connection with a declared intent to write — outside ``write_scope`` we set it ourselves."""
     async with engine.connect() as conn:
         await conn.execution_options(**WRITE_EXECUTION_OPTIONS)
         yield conn
@@ -145,7 +145,7 @@ async def test_child_row_without_parent_is_rejected(tuned_memory_engine):
 
 @pytest.mark.db
 async def test_declared_cascade_is_executed_by_the_engine(tuned_memory_engine):
-    """Каскад объявлен в схеме — с включённой прагмой его исполняет движок, а не CRUD."""
+    """The cascade is declared in the schema — with the pragma on, the engine runs it, not CRUD."""
     task_id = await _add_task_with_log(tuned_memory_engine)
     async with _writing(tuned_memory_engine) as conn:
         await conn.execute(text("DELETE FROM core_tasks WHERE id = :id"), {"id": task_id})
@@ -167,14 +167,14 @@ async def test_foreign_keys_disabled_only_for_the_wrapped_block(tuned_memory_eng
 
 @pytest.mark.db
 async def test_switching_inside_an_open_transaction_is_refused(tuned_file_engine):
-    """Прагма внутри транзакции — пустая операция без ошибки; ловим её чтением обратно."""
+    """A pragma inside a transaction is a silent no-op; we catch it by reading the value back."""
 
     def switch_after_a_statement(connection):
         connection.exec_driver_sql("SELECT 1")
         with foreign_keys_disabled(connection):
             pass
 
-    with pytest.raises(RuntimeError, match="не действует внутри открытой транзакции"):
+    with pytest.raises(RuntimeError, match="has no effect inside an open transaction"):
         async with tuned_file_engine.connect() as conn:
             await conn.run_sync(switch_after_a_statement)
 
@@ -199,7 +199,7 @@ async def test_transaction_flavour_follows_the_declared_intent(tuned_file_engine
 
 @pytest.mark.db
 async def test_orphans_left_by_the_wrapped_block_raise(tuned_memory_engine):
-    """Ради этого проверка и стоит: миграция, уронившая ссылки, не должна пройти молча."""
+    """This is why the check exists: a migration that broke references must not pass silently."""
     task_id = await _add_task_with_log(tuned_memory_engine)
 
     def drop_parent_row(connection):
@@ -208,14 +208,14 @@ async def test_orphans_left_by_the_wrapped_block_raise(tuned_memory_engine):
             connection.exec_driver_sql(f"DELETE FROM core_tasks WHERE id = {task_id}")
             connection.commit()
 
-    with pytest.raises(RuntimeError, match="ссылочной целостности"):
+    with pytest.raises(RuntimeError, match="referential integrity"):
         async with tuned_memory_engine.connect() as conn:
             await conn.run_sync(drop_parent_row)
 
 
 @pytest.mark.db
 async def test_migration_chain_applies_with_foreign_keys_on(tmp_path, monkeypatch):
-    """Вся цепочка на файловой базе: три ревизии пересоздают таблицы, дети — на месте."""
+    """The whole chain on a file database: three revisions recreate tables, children stay put."""
     from src.apps.app.modules import build_modules
     from src.core.database import sqlite as sqlite_module
     from src.core.database.migrations import AlembicRunner
@@ -231,20 +231,20 @@ async def test_migration_chain_applies_with_foreign_keys_on(tmp_path, monkeypatc
     runner = AlembicRunner(modules=build_modules())
     try:
         await runner.upgrade_head(engine)
-        # Второй прогон накатывать нечего — alembic оставляет открытой транзакцию,
-        # в которой читал версии, и проверку надо суметь вернуть всё равно.
+        # The second run has nothing to apply — alembic leaves open the transaction it
+        # read the versions in, and the check must still be restorable.
         await runner.upgrade_head(engine)
         async with engine.connect() as conn:
             assert (await conn.exec_driver_sql("PRAGMA foreign_keys")).scalar() == 1
             assert (await conn.exec_driver_sql("PRAGMA foreign_key_check")).all() == []
-        assert errors == [], "проверку ссылок не удалось вернуть — соединение отбраковано"
+        assert errors == [], "failed to restore the reference check — connection discarded"
     finally:
         await engine.dispose()
 
 
 @pytest.mark.db
 async def test_in_memory_database_stays_usable(tmp_path):
-    """У базы в памяти журнал всегда ``memory``; остальные прагмы применяются как есть."""
+    """An in-memory database always journals in ``memory``; the other pragmas apply as is."""
     config = Config(db_provider="sqlite", db_path=":memory:")
     engine = create_async_engine(config.database_url, **config.engine_kwargs)
     configure_sqlite(engine, config)

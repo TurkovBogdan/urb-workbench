@@ -1,8 +1,8 @@
-"""tasks — модуль хранения задач (группы, дерево задач) внутри рабочего пространства.
+"""tasks — the module that stores tasks (groups, the task tree) inside a workspace.
 
-Доменный модуль под одного разработчика и его агента-исполнителя, **уровень 2**: пространство
-берётся у ``workspace``, а своё — группы и задачи, чья иерархия вынесена в таблицу связей
-``tasks_link``. MCP-поверхности пока нет.
+A domain module for one developer and their executing agent, **level 2**: the workspace comes
+from ``workspace``; its own are groups and tasks, whose hierarchy lives in the separate link table
+``tasks_link``. There is no MCP surface yet.
 """
 
 from src.modules.tasks.module import TasksModule

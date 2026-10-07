@@ -1,14 +1,14 @@
-"""Резолвер рантайм-путей и типизированные пути приложения.
+"""Runtime path resolver and typed application paths.
 
-Работа в двух режимах:
+Works in two modes:
 
-- **Dev** (запуск из исходников): корень — `<project>/runtime/<env>`,
-  где `env` берётся из `APP_ENV` (по умолчанию `dev`).
-- **Prod** (PyInstaller-бинарь, `sys.frozen`): корень — директория, где лежит
-  исполняемый файл. `logs/`, `cache/` и пр. кладутся рядом с бинарём.
+- **Dev** (running from source): the root is `<project>/runtime/<env>`,
+  where `env` comes from `APP_ENV` (default `dev`).
+- **Prod** (PyInstaller binary, `sys.frozen`): the root is the directory holding the
+  executable. `logs/`, `cache/` etc. go next to the binary.
 
-Пользоваться через `AppPath.from_root()` — низкоуровневые функции
-(`resolve_runtime_root`, `project_root`) нужны только для редких случаев.
+Use it through `AppPath.from_root()` — the low-level functions
+(`resolve_runtime_root`, `project_root`) are only for rare cases.
 """
 
 from __future__ import annotations
@@ -22,10 +22,10 @@ from pathlib import Path
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
-# ── Резолвер рантайм-корня ───────────────────────────────────────────────────
+# ── Runtime root resolver ────────────────────────────────────────────────────
 
 def resolve_runtime_root() -> Path:
-    """Frozen → рядом с бинарём; source → `<project>/runtime/<APP_ENV>` (default `dev`)."""
+    """Frozen → next to the binary; source → `<project>/runtime/<APP_ENV>` (default `dev`)."""
     if getattr(sys, "frozen", False):
         return Path(sys.executable).resolve().parent
 
@@ -34,16 +34,16 @@ def resolve_runtime_root() -> Path:
 
 
 def project_root() -> Path:
-    """Корень репозитория (`<project>/`) — для закоммиченных артефактов вроде
-    собранного фронта `web/dist`. Это НЕ рантайм-корень (см. resolve_runtime_root)."""
+    """The repository root (`<project>/`) — for committed artifacts such as the built
+    frontend `web/dist`. This is NOT the runtime root (see resolve_runtime_root)."""
     return _PROJECT_ROOT
 
 
-# ── Типизированные пути приложения ───────────────────────────────────────────
+# ── Typed application paths ──────────────────────────────────────────────────
 
 @dataclass(frozen=True)
 class AppPath:
-    """Каноничные пути приложения; все поля — абсолютные."""
+    """Canonical application paths; every field is absolute."""
 
     root: Path
     logs: Path
@@ -57,7 +57,7 @@ class AppPath:
 
     @staticmethod
     def from_root(root: Path | None = None) -> "AppPath":
-        """Собрать `AppPath` от заданного `root` или от резолвера рантайм-корня."""
+        """Build an `AppPath` from the given `root` or from the runtime root resolver."""
         r = Path(root).resolve() if root is not None else resolve_runtime_root()
         return AppPath(
             root=r,
@@ -73,7 +73,7 @@ class AppPath:
 
 
 def ensure_dirs(paths: AppPath) -> None:
-    """Создать все стандартные директории `AppPath` (idempotent)."""
+    """Create every standard `AppPath` directory (idempotent)."""
     paths.root.mkdir(parents=True, exist_ok=True)
     paths.logs.mkdir(parents=True, exist_ok=True)
     paths.cache.mkdir(parents=True, exist_ok=True)

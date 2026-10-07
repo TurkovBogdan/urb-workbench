@@ -1,5 +1,5 @@
-"""Сервисы модуля ``tasks`` — логика поверх CRUD, не привязанная к поверхности.
+"""``tasks`` module services — logic on top of CRUD that is not tied to a surface.
 
-Здесь живёт то, что нужно и MCP, и (в будущем) HTTP, но не является ни доступом к хранилищу, ни
-описанием инструмента: редактор тела (``body``) и каталог навыков (``skills``).
+This is home to what both MCP and (in the future) HTTP need but that is neither storage access
+nor a tool definition: the body editor (``body``) and the skill catalogue (``skills``).
 """

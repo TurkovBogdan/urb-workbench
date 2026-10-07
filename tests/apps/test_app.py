@@ -1,4 +1,4 @@
-"""app: CLI-флаги, проброс в env (флаг > env), диспетчеризация роли + migrate."""
+"""app: CLI flags, passing them into env (flag > env), role dispatch + migrate."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ import app
 
 
 def _fake_config(**over):
-    """Лёгкий стенд под Config для _run_server/_run_worker (без БД)."""
+    """A lightweight Config stand-in for _run_server/_run_worker (no DB)."""
     base = dict(
         server_host="127.0.0.1", server_port=12200, app_log_level="INFO",
         server_hot_reload=False, server_processes=1,
@@ -24,8 +24,8 @@ def _fake_config(**over):
 
 @pytest.fixture
 def _pin_role_env(monkeypatch):
-    """Зафиксировать role-env валидными значениями, чтобы прямые записи main()
-    откатились на teardown (monkeypatch вернёт исходное)."""
+    """Pin role-env to valid values so that main()'s direct writes are rolled back on teardown
+    (monkeypatch restores the original)."""
     for key, val in (
         ("SERVER_ENABLED", "false"), ("WORKER_ENABLED", "false"),
         ("SERVER_HOT_RELOAD", "false"), ("WORKER_MODULES", ""),
@@ -36,7 +36,7 @@ def _pin_role_env(monkeypatch):
 
 @pytest.mark.pure
 def test_parse_defaults_are_none():
-    """Без флагов — все тогглы None (роль берётся из env)."""
+    """No flags — every toggle is None (the role comes from env)."""
     a = app._parse_args([])
     assert a.backend is None
     assert a.worker is None
@@ -61,10 +61,11 @@ def test_parse_negated_flags():
 
 @pytest.mark.pure
 def test_parse_mcp_stdio_flag():
-    """Три состояния, и роль отличается от её отсутствия по ``is None``, а не по истинности.
+    """Three states, and the role is told from its absence by ``is None``, not by truthiness.
 
-    Голый флаг даёт пустую строку — роль включена, сервер ищем сам. Проверка `if args.mcp_stdio`
-    приняла бы её за «флага нет» и молча запустила бы обычный процесс вместо шима.
+    A bare flag yields an empty string — the role is on, and the server is found on its own. A
+    check `if args.mcp_stdio` would take it for "no flag" and silently launch an ordinary process
+    instead of the shim.
     """
     assert app._parse_args([]).mcp_stdio is None
     assert app._parse_args(["--mcp-stdio"]).mcp_stdio == ""
@@ -73,7 +74,7 @@ def test_parse_mcp_stdio_flag():
 
 @pytest.mark.pure
 def test_parse_mcp_stdio_keeps_the_bare_form_before_another_flag():
-    """`--mcp-stdio --mcp-workspace X` — не «сервер называется --mcp-workspace»."""
+    """`--mcp-stdio --mcp-workspace X` does not mean "the server is called --mcp-workspace"."""
     a = app._parse_args(["--mcp-stdio", "--mcp-workspace", "WORKSPACE@18e948522f"])
 
     assert a.mcp_stdio == ""
@@ -82,7 +83,7 @@ def test_parse_mcp_stdio_keeps_the_bare_form_before_another_flag():
 
 @pytest.mark.pure
 def test_mcp_flags_beat_env(monkeypatch):
-    """Флаг > env, как у остальных ролей; и оба перекрытия видны уже собранному Config."""
+    """Flag > env, as for the other roles; and both overrides are visible to the built Config."""
     monkeypatch.setenv("MCP_STDIO_CODE", "research")
     monkeypatch.setenv("MCP_WORKSPACE", "WORKSPACE@0000000000")
     monkeypatch.setattr(app, "_run_server", lambda c, a: None)
@@ -103,7 +104,7 @@ def test_mcp_flags_beat_env(monkeypatch):
 
 @pytest.mark.pure
 def test_bare_mcp_stdio_leaves_env_alone(monkeypatch):
-    """Голый флаг ничего не перекрывает: пустой код затёр бы настройку установки."""
+    """A bare flag overrides nothing: an empty code would wipe the installation's setting."""
     monkeypatch.setenv("MCP_STDIO_CODE", "research")
     monkeypatch.setattr(app, "_run_server", lambda c, a: None)
     seen = {}
@@ -123,8 +124,8 @@ def test_bare_mcp_stdio_leaves_env_alone(monkeypatch):
 
 @pytest.mark.pure
 def test_update_flags_default_to_the_safe_side():
-    """Ни сигналов по косвенным уликам, ни изменений: и `--dry-run`, и `--stop-unregistered`
-    (гашение процессов без записи в реестре) включаются только явно."""
+    """No signals on circumstantial evidence and no changes: both `--dry-run` and
+    `--stop-unregistered` (stopping processes with no registry record) are opt-in only."""
     plain = app._parse_args(["update"])
     assert (plain.dry_run, plain.stop_unregistered) == (False, False)
     assert app._parse_args(["update", "--stop-unregistered"]).stop_unregistered is True
@@ -133,8 +134,8 @@ def test_update_flags_default_to_the_safe_side():
 
 @pytest.mark.pure
 def test_stop_is_a_subcommand_with_the_same_safe_defaults():
-    """`stop` гасит установку, а не запускает процесс: у него своя пара флагов, и оба выключены
-    по умолчанию — иначе `./run.sh stop` подал бы сигналы по косвенным уликам."""
+    """`stop` shuts the installation down rather than launching a process: it has its own pair of
+    flags, both off by default — otherwise `./run.sh stop` would signal on circumstantial evidence."""
     plain = app._parse_args(["stop"])
     assert plain.command == "stop"
     assert (plain.dry_run, plain.stop_unregistered) == (False, False)
@@ -172,7 +173,7 @@ def test_apply_env_overrides_sets_env(monkeypatch):
 
 @pytest.mark.pure
 def test_apply_env_overrides_skips_unset(monkeypatch):
-    """None-флаги env не трогают (остаётся прежнее значение)."""
+    """None flags leave env alone (the previous value stays)."""
     monkeypatch.setenv("SERVER_ENABLED", "false")
     app._apply_env_overrides(app._parse_args([]))
     import os
@@ -182,7 +183,7 @@ def test_apply_env_overrides_skips_unset(monkeypatch):
 
 @pytest.mark.pure
 def test_host_port_processes_not_pushed_to_env(monkeypatch):
-    """--host/--port/--processes идут в _run_server напрямую, НЕ в env."""
+    """--host/--port/--processes go straight to _run_server, NOT into env."""
     for key in ("SERVER_HOST", "SERVER_PORT", "SERVER_PROCESSES"):
         monkeypatch.delenv(key, raising=False)
     app._apply_env_overrides(
@@ -195,12 +196,12 @@ def test_host_port_processes_not_pushed_to_env(monkeypatch):
     assert "SERVER_PROCESSES" not in os.environ
 
 
-# ── env → Config (флаг > env > дефолт) ──────────────────────────────────────
+# ── env → Config (flag > env > default) ─────────────────────────────────────
 
 
 @pytest.mark.pure
 def test_env_drives_role_in_config(monkeypatch):
-    """env-тогглы доходят до Config (env > дефолт)."""
+    """env toggles reach Config (env > default)."""
     monkeypatch.setenv("SERVER_ENABLED", "false")
     monkeypatch.setenv("WORKER_ENABLED", "true")
     from src.core.config import Config
@@ -213,7 +214,7 @@ def test_env_drives_role_in_config(monkeypatch):
 
 @pytest.mark.pure
 def test_flag_overrides_env(monkeypatch):
-    """Флаг перекрывает env: SERVER_ENABLED=false + --backend → true."""
+    """A flag overrides env: SERVER_ENABLED=false + --backend → true."""
     monkeypatch.setenv("SERVER_ENABLED", "false")
     app._apply_env_overrides(app._parse_args(["--backend"]))
     import os
@@ -221,12 +222,12 @@ def test_flag_overrides_env(monkeypatch):
     assert os.environ["SERVER_ENABLED"] == "true"
 
 
-# ── main(): диспетчеризация роли ─────────────────────────────────────────────
+# ── main(): role dispatch ────────────────────────────────────────────────────
 
 
 @pytest.mark.pure
 def test_main_both_disabled_clean_exit(monkeypatch, _pin_role_env):
-    """Ни SERVER, ни WORKER → НЕ ошибка: чистый выход (None), без запуска."""
+    """Neither SERVER nor WORKER → NOT an error: a clean exit (None), nothing launched."""
     calls = []
     monkeypatch.setattr(app, "_run_server", lambda c, a: calls.append("server"))
     monkeypatch.setattr(app.asyncio, "run", lambda c: calls.append("worker"))
@@ -236,7 +237,7 @@ def test_main_both_disabled_clean_exit(monkeypatch, _pin_role_env):
 
 @pytest.mark.pure
 def test_main_dispatches_to_server(monkeypatch, _pin_role_env):
-    """server_enabled → _run_server, worker-ветку не трогаем."""
+    """server_enabled → _run_server; the worker branch is left alone."""
     calls = []
     monkeypatch.setattr(app, "_run_server", lambda c, a: calls.append("server"))
     monkeypatch.setattr(app.asyncio, "run", lambda c: calls.append("worker"))
@@ -246,13 +247,13 @@ def test_main_dispatches_to_server(monkeypatch, _pin_role_env):
 
 @pytest.mark.pure
 def test_main_pure_worker_runs_lifespan(monkeypatch, _pin_role_env):
-    """Только worker → НЕ _run_server, а asyncio.run(_run_worker)."""
+    """Worker only → NOT _run_server, but asyncio.run(_run_worker)."""
     calls = []
     monkeypatch.setattr(app, "_run_server", lambda c, a: calls.append("server"))
 
     def fake_run(coro):
         calls.append("worker")
-        coro.close()  # не оставляем «coroutine never awaited»
+        coro.close()  # avoid "coroutine never awaited"
 
     monkeypatch.setattr(app.asyncio, "run", fake_run)
     app.main(["--no-backend", "--worker"])
@@ -261,7 +262,7 @@ def test_main_pure_worker_runs_lifespan(monkeypatch, _pin_role_env):
 
 @pytest.mark.pure
 def test_main_pure_worker_hot_reload_branch(monkeypatch, _pin_role_env):
-    """Только worker + hot-reload → watch-супервизор, НЕ прямой asyncio.run."""
+    """Worker only + hot-reload → the watch supervisor, NOT a direct asyncio.run."""
     calls = []
     monkeypatch.setattr(app, "_run_worker_hot_reload", lambda: calls.append("watch"))
     monkeypatch.setattr(app.asyncio, "run", lambda c: calls.append("worker"))
@@ -271,7 +272,7 @@ def test_main_pure_worker_hot_reload_branch(monkeypatch, _pin_role_env):
 
 @pytest.mark.pure
 def test_run_worker_hot_reload_spawns_no_reload_child(monkeypatch):
-    """_run_worker_hot_reload watch'ит src/ и рестартует worker уже с --no-hot-reload."""
+    """_run_worker_hot_reload watches src/ and restarts the worker with --no-hot-reload."""
     rec = {}
     monkeypatch.setitem(
         sys.modules, "watchfiles",
@@ -289,7 +290,7 @@ def test_run_worker_hot_reload_spawns_no_reload_child(monkeypatch):
 
 @pytest.mark.pure
 def test_run_server_hot_reload_branch(monkeypatch):
-    """server_hot_reload=true → uvicorn reload=True, workers НЕ передаётся."""
+    """server_hot_reload=true → uvicorn reload=True, workers is NOT passed."""
     rec = {}
     monkeypatch.setitem(
         sys.modules, "uvicorn",
@@ -303,7 +304,7 @@ def test_run_server_hot_reload_branch(monkeypatch):
 
 @pytest.mark.pure
 def test_run_server_processes_branch(monkeypatch):
-    """server_hot_reload=false → uvicorn workers=N, reload НЕ передаётся."""
+    """server_hot_reload=false → uvicorn workers=N, reload is NOT passed."""
     rec = {}
     monkeypatch.setitem(
         sys.modules, "uvicorn",
@@ -317,7 +318,7 @@ def test_run_server_processes_branch(monkeypatch):
 
 @pytest.mark.pure
 def test_run_server_cli_overrides_config(monkeypatch):
-    """--host/--port/--processes перекрывают значения config."""
+    """--host/--port/--processes override the config values."""
     rec = {}
     monkeypatch.setitem(
         sys.modules, "uvicorn",
@@ -331,12 +332,12 @@ def test_run_server_cli_overrides_config(monkeypatch):
     assert rec["k"]["workers"] == 7
 
 
-# ── _run_worker: scope воркера ───────────────────────────────────────────────
+# ── _run_worker: worker scope ────────────────────────────────────────────────
 
 
 @pytest.mark.pure
 async def test_run_worker_configures_scope(monkeypatch):
-    """_run_worker форсит тикер через configure_worker с scope/ручками из config."""
+    """_run_worker forces the ticker via configure_worker with scope/knobs from config."""
     rec = {}
     from src.core import scheduler
 
@@ -362,12 +363,12 @@ async def test_run_worker_configures_scope(monkeypatch):
     assert rec == {"modules": frozenset({"alpha"}), "max_concurrent": 3, "tick": 9}
 
 
-# ── подкоманда migrate ───────────────────────────────────────────────────────
+# ── the migrate subcommand ───────────────────────────────────────────────────
 
 
 @pytest.mark.pure
 def test_parse_no_command_is_run():
-    """Без подкоманды → command=None (режим запуска)."""
+    """No subcommand → command=None (launch mode)."""
     assert app._parse_args([]).command is None
     assert app._parse_args(["--backend"]).command is None
 
@@ -394,7 +395,7 @@ def test_parse_migrate_rejects_unknown_action():
 
 @pytest.mark.pure
 def test_main_dispatches_to_mcp_stdio(monkeypatch):
-    """`--mcp-stdio` → run_mcp_stdio, минуя server/worker и role-env."""
+    """`--mcp-stdio` → run_mcp_stdio, bypassing server/worker and role-env."""
     calls = []
     monkeypatch.setattr(app, "_run_server", lambda c, a: calls.append("server"))
     monkeypatch.setattr(app.asyncio, "run", lambda c: calls.append("worker"))
@@ -411,7 +412,7 @@ def test_main_dispatches_to_mcp_stdio(monkeypatch):
 
 @pytest.mark.pure
 def test_main_dispatches_to_migrate(monkeypatch):
-    """`migrate` → asyncio.run(_run_migrate), без запуска сервера/воркера."""
+    """`migrate` → asyncio.run(_run_migrate), without launching the server/worker."""
     calls = []
     monkeypatch.setattr(app, "_run_server", lambda c, a: calls.append("server"))
 

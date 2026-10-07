@@ -1,27 +1,27 @@
-// Клиент настроек интерфейса (бэк: /internal/core/interface). Значения приходят действующие —
-// умолчание там, где человек ничего не менял, поэтому доклеивать на фронте нечего.
+// Interface settings client (backend: /internal/core/interface). Values arrive effective — the
+// default wherever the person changed nothing — so the frontend has nothing to fill in.
 //
-// Все четыре вызова молчаливые (`report: false`): значение к моменту запроса уже применено на
-// экране, и тост на каждую настройку был бы шумом на ровном месте. Про упорный отказ докладывает
-// сам механизм обмена — `shared/utils/settings-sync`.
+// All four calls are silent (`report: false`): by the time of the request the value is already
+// applied on screen, and a toast per setting would be pointless noise. A persistent failure is
+// reported by the sync mechanism itself — `shared/utils/settings-sync`.
 import { internalApi } from '@/api/client/internal'
 
 export type SettingType = 'string' | 'number' | 'boolean'
 
 export type SettingValue = string | number | boolean
 
-/** Машинное описание поля: по нему клиент выбирает элемент управления. */
+/** Machine description of a field: the client picks the control by it. */
 export interface SettingSchema {
   key: string
   type: SettingType
   default: SettingValue
-  /** Набор допустимых значений; `null` — ограничен только тип. */
+  /** Set of allowed values; `null` — only the type is constrained. */
   options: SettingValue[] | null
 }
 
 export interface SettingsPayload {
   values: Record<string, SettingValue>
-  /** Приходит только по запросу старта (`include_schema`). */
+  /** Arrives only on the startup request (`include_schema`). */
   schema?: SettingSchema[] | null
 }
 
@@ -40,7 +40,7 @@ export function saveSettings(values: Record<string, SettingValue>): Promise<Sett
   return internalApi.patch<SettingsPayload>(BASE, { values }, SILENT)
 }
 
-/** Сброс к умолчанию: строки исчезают, ответ несёт значения, которыми они заменились. */
+/** Reset to default: the rows disappear, the response carries the values that replaced them. */
 export function resetSettings(keys: string[]): Promise<SettingsPayload> {
   return internalApi.post<SettingsPayload>(`${BASE}/reset`, { keys }, SILENT)
 }

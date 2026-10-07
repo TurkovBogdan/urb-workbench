@@ -14,7 +14,7 @@ const { t } = useI18n()
 const { groupTitle, fieldLabel, fieldDescription } = useSetupLabels()
 
 const groups = ref<SetupGroup[]>([])
-// Локальная working-copy: { ENV_KEY: строковое значение }.
+// Local working copy: { ENV_KEY: string value }.
 const values = reactive<Record<string, string>>({})
 
 const loading = ref(true)
@@ -39,15 +39,15 @@ async function load() {
 
 onActivated(load)
 
-// Видимость реактивна от выбора в форме: postgres-поля скрыты при sqlite и наоборот.
+// Visibility reacts to the form selection: postgres fields are hidden under sqlite and vice versa.
 function visibleFields(group: SetupGroup): SetupField[] {
   return group.fields.filter(
     (f) => !f.visible_when || values[f.visible_when.key] === f.visible_when.equals,
   )
 }
 
-// Плашка-переключатель несёт описание внутри себя, рядом с заголовком; общая подпись
-// снизу для такого поля стала бы вторым экземпляром того же текста.
+// The switch panel carries the description inside itself, next to the title; the regular caption
+// below would be a second copy of the same text for such a field.
 function hasCaptionBelow(field: SetupField): boolean {
   return Boolean(field.description) && field.type !== 'bool'
 }
@@ -187,14 +187,14 @@ async function apply() {
 </template>
 
 <style scoped>
-/* Колонки, а не одна стопка: групп немного, и на широком экране растянутая на всю ширину
-   карточка гонит взгляд через пустоту от подписи поля к его значению.
-   `minmax(320, 440)` — верхняя граница столбца: поле ввода шире ~440px читается хуже, а не
-   лучше, поэтому лишнюю ширину отдаём соседней колонке, а не растягиваем карточку. Число
-   подобрано так, чтобы на типовой ширине контента (~930px) вставали ДВЕ колонки: 460 давало
-   936px на пару и схлопывало раскладку обратно в стопку.
-   `align-items: start` — каждая карточка высотой по своему содержимому; без него грид тянет
-   все карточки строки до самой высокой, и под короткой висит пустое дно. */
+/* Columns, not a single stack: there are few groups, and on a wide screen a full-width card
+   drives the eye across empty space from a field's label to its value.
+   `minmax(320, 440)` — the column's upper bound: an input wider than ~440px reads worse, not
+   better, so extra width goes to the neighbouring column instead of stretching the card. The
+   number is chosen so that TWO columns fit at the typical content width (~930px): 460 gave
+   936px for the pair and collapsed the layout back into a stack.
+   `align-items: start` — each card is as tall as its content; without it the grid stretches
+   every card in a row to the tallest, and a short one gets an empty bottom. */
 .setup-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 440px));
@@ -203,7 +203,7 @@ async function apply() {
   gap: 16px;
 }
 
-/* Одна колонка на узком экране — иначе поля сжимаются до нечитаемых. */
+/* One column on a narrow screen — otherwise the fields shrink until unreadable. */
 @media (max-width: 700px) {
   .setup-grid {
     grid-template-columns: minmax(0, 1fr);

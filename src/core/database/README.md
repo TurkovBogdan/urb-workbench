@@ -2,39 +2,39 @@
 
 Async SQLAlchemy 2.0 + asyncpg + Alembic.
 
-## Жизненный цикл
+## Lifecycle
 
-Engine и session-factory лежат на уровне модуля `runtime.py` — один процесс, один движок. `init_database(settings)` создаёт их, `close_database()` сбрасывает. Создаются внутри lifespan фабрики (`src/core/app_factory.py`).
+The engine and session factory live at module level in `runtime.py` — one process, one engine. `init_database(settings)` creates them, `close_database()` resets them. They are created inside the factory's lifespan (`src/core/app_factory.py`).
 
 ```python
-# Внутри create_app() lifespan:
+# Inside the create_app() lifespan:
 engine = await init_database(settings)
 await AlembicRunner(modules=modules).upgrade_head(engine)
 # ... yield ...
 await close_database()
 ```
 
-Текущий engine — `get_engine()` (или `None`, если ещё не инициализирован).
+The current engine is `get_engine()` (or `None` if not yet initialized).
 
-## Доступ к сессии
+## Session access
 
-Сессией владеет **CRUD**, а не вызывающий код. Каждая CRUD-функция сама открывает `session_scope()` и коммитит на выходе; HTTP-обработчики, сервисы и задачи вызывают CRUD напрямую без `session`-аргумента.
+The session is owned by **CRUD**, not by the caller. Each CRUD function opens `session_scope()` itself and commits on exit; HTTP handlers, services and jobs call CRUD directly, with no `session` argument.
 
-`session_scope()` напрямую — только внутри CRUD и в редких местах, где нужен ad-hoc запрос вне CRUD-слоя:
+`session_scope()` directly — only inside CRUD and in the rare places that need an ad-hoc query outside the CRUD layer:
 
 ```python
 from src.core.database import session_scope
 
 async with session_scope() as session:
     await session.execute(...)
-    # commit на успехе, rollback на исключении
+    # commit on success, rollback on exception
 ```
 
-## Как добавить миграцию для модуля
+## Adding a migration for a module
 
-Каждый модуль в `src/modules/<name>/` хранит свои модели и свою папку ревизий. Ядро ничего не знает о моделях модуля — они регистрируются в `Base.metadata` через импорт `models` в `__init__.py` модуля.
+Each module in `src/modules/<name>/` keeps its own models and its own revisions folder. The core knows nothing about a module's models — they are registered in `Base.metadata` by importing `models` in the module's `__init__.py`.
 
-**1. Модель.** `src/modules/<name>/models.py`:
+**1. Model.** `src/modules/<name>/models.py`:
 
 ```python
 from sqlalchemy.orm import Mapped, mapped_column
@@ -46,12 +46,12 @@ class Vacancy(Base):
     title: Mapped[str]
 ```
 
-**2. Регистрация в SPEC.** `src/modules/<name>/__init__.py`:
+**2. Registration in SPEC.** `src/modules/<name>/__init__.py`:
 
 ```python
 from pathlib import Path
 from src.core.module_spec import ModuleSpec
-from src.modules.<name> import models  # noqa: F401 — регистрация в Base.metadata
+from src.modules.<name> import models  # noqa: F401 — registers in Base.metadata
 from src.modules.<name>.api import router
 
 _NAME = "<short-name>"
@@ -68,32 +68,32 @@ SPEC = ModuleSpec(
 )
 ```
 
-**3. Подключение к сборке.** `src/apps/app/server.py`:
+**3. Wiring into the build.** `src/apps/app/server.py`:
 
 ```python
 from src.modules import <name>
 app = create_app(modules=[headhunter.SPEC, <name>.SPEC], settings=settings)
 ```
 
-**4. Создание ревизии.** Сейчас вручную через alembic CLI с явным `script_location` и `version_locations`; обёртка-скрипт `scripts/db_revision.py` пока не написана (TODO).
+**4. Creating a revision.** For now by hand, through the alembic CLI with an explicit `script_location` and `version_locations`; the wrapper script `scripts/db_revision.py` is not written yet (TODO).
 
-**5. Применение.** Явной командой — `uv run python src/app.py migrate upgrade` (`AlembicRunner(modules=modules).upgrade_head(engine)` собирает `version_locations` из `m.migrations_dir` всех модулей). Старт приложения миграции НЕ накатывает.
+**5. Applying.** With an explicit command — `uv run python src/app.py migrate upgrade` (`AlembicRunner(modules=modules).upgrade_head(engine)` assembles `version_locations` from every module's `m.migrations_dir`). Starting the app does NOT apply migrations.
 
-### Гейт отставшей цепочки (вместо флага авто-миграции)
+### The behind-chain gate (instead of an auto-migrate flag)
 
-Применение миграций всегда явное и всегда снаружи приложения: у пользователя — обновление установки, у разработчика — `src/app.py migrate upgrade`. Ключа, включающего авто-накат на старте, больше нет.
+Applying migrations is always explicit and always done from outside the app: for a user it is the installation update, for a developer `src/app.py migrate upgrade`. The switch that enabled auto-apply on startup is gone.
 
-**Зачем:** в режиме разработки бекенд поднимается с `--hot-reload`, и сохранение файла ревизии перезапускало процесс, который уносил **недописанную** миграцию в живую базу (реальные инциденты: reload применил `ci01_init` с `depends_on` на чужую head и заклинил Alembic; 2026-09-11 то же повторилось на dev-базе).
+**Why:** in development the backend runs with `--hot-reload`, and saving a revision file restarted the process, which carried a **half-written** migration into the live database (real incidents: a reload applied `ci01_init` with `depends_on` pointing at someone else's head and jammed Alembic; on 2026-09-11 the same happened again on the dev database).
 
-**Что делает старт вместо наката** (`app_factory.lifespan` → `_apply_chain_or_degrade`): снимает `AlembicRunner.status`. Пустая база (нет ни одной применённой head) — свежая установка: цепочка накатывается молча. База со схемой, но отставшая, — приложение поднимается в режиме заглушки (`src/core/router/degraded.py`): любой запрос → 503 (HTML браузеру, JSON зонам `/api`, `/mcp`, `/storage`), `/internal/health` отвечает 200 и `{"status": "degraded", "pending": [...]}`, планировщик не стартует. Свериться заранее — `src/app.py migrate check` (dry-run: список pending, БД не трогает, exit 1 при drift).
+**What startup does instead of applying** (`app_factory.lifespan` → `_apply_chain_or_degrade`): it takes `AlembicRunner.status`. An empty database (not a single applied head) is a fresh install: the chain is applied silently. A database that has a schema but is behind — the app comes up in stub mode (`src/core/router/degraded.py`): every request → 503 (HTML to a browser, JSON to the `/api`, `/mcp`, `/storage` zones), `/internal/health` answers 200 with `{"status": "degraded", "pending": [...]}`, the scheduler does not start. To check ahead of time — `src/app.py migrate check` (dry-run: lists pending, does not touch the database, exit 1 on drift).
 
-## Файлы
+## Files
 
 - `runtime.py` — `Base`, `init_database`, `close_database`, `get_engine`, `session_scope`.
-- `migrations.py` — `AlembicRunner(modules)`: программный API Alembic, `path_separator=os`, `version_locations` склеиваются из ModuleSpec'ов.
-- `alembic/env.py` — стандартный env, импортирует `Base.metadata`. Вызывается изнутри `AlembicRunner`.
-- `alembic/script.py.mako` — шаблон ревизии.
+- `migrations.py` — `AlembicRunner(modules)`: the Alembic programmatic API, `path_separator=os`, `version_locations` joined from the ModuleSpecs.
+- `alembic/env.py` — a standard env, imports `Base.metadata`. Called from inside `AlembicRunner`.
+- `alembic/script.py.mako` — the revision template.
 
 ## TODO
 
-- `scripts/db_revision.py` — обёртка над `alembic revision --autogenerate`, которая знает про путь до `versions/` указанного модуля.
+- `scripts/db_revision.py` — a wrapper over `alembic revision --autogenerate` that knows the path to the given module's `versions/`.

@@ -1,7 +1,7 @@
 import type { RouteRecordRaw } from 'vue-router'
 
-// Свой префикс, а не `/tasks`: под `/tasks/…` живёт модуль задач, и меню, подсвечивающее пункт по
-// префиксу пути, зажигало мониторинг на каждой его странице.
+// Its own prefix rather than `/tasks`: the tasks module lives under `/tasks/…`, and the menu, which
+// highlights an item by path prefix, lit up monitoring on every one of its pages.
 export const coreMonitoringRoutes: RouteRecordRaw[] = [
   {
     path: '/monitoring',

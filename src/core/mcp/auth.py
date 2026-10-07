@@ -1,13 +1,13 @@
-"""Bearer-верификатор MCP-серверов — agnostic, без импорта auth-модуля.
+"""Bearer verifier for MCP servers — agnostic, does not import the auth module.
 
-Смонтированное ASGI-подприложение обходит FastAPI ``dependencies=[...]``, поэтому
-auth живёт ВНУТРИ сервера через форковский ``TokenVerifier.verify_token`` — это
-единственная точка, переживающая границу монтажа.
+A mounted ASGI sub-app bypasses FastAPI ``dependencies=[...]``, so auth lives INSIDE the
+server through the fork's ``TokenVerifier.verify_token`` — the only point that survives
+the mount boundary.
 
-Резолвер ``(token, scope) -> принципал | None`` ИНЪЕЦИРУЕТСЯ (его поставляет
-auth-модуль через ``Module.mcp_token_resolver``), ровно как guard'ы вливаются
-через ``Module.guards``: ядро никогда не импортирует модуль. Этот файл —
-backend-only (его тянет только ``mount_mcp_servers`` под ``server_enabled``).
+The ``(token, scope) -> principal | None`` resolver is INJECTED (the auth module supplies
+it via ``Module.mcp_token_resolver``), just as guards flow in through ``Module.guards``:
+the core never imports a module. This file is backend-only (only ``mount_mcp_servers``
+pulls it in, under ``server_enabled``).
 """
 
 from __future__ import annotations
@@ -19,17 +19,17 @@ from fastmcp.server.auth import AccessToken, TokenVerifier
 if TYPE_CHECKING:
     from src.core.mcp.context import TokenResolver
 
-# Auth-scope токена (его определяет auth-модуль). Отличается от *зоны* роутера
-# ``/mcp``: токен другого scope, предъявленный сюда, — бесплатный reject.
+# The token's auth scope (defined by the auth module). Distinct from the router *zone*
+# ``/mcp``: a token of another scope presented here is a free reject.
 _MCP_SCOPE = "mcp"
 
 
 class McpServerTokenVerifier(TokenVerifier):
-    """Резолвит bearer-токен в MCP ``AccessToken`` через инъецированный резолвер.
+    """Resolves a bearer token into an MCP ``AccessToken`` through the injected resolver.
 
-    ``verify_token`` зовёт ``resolve(token, "mcp")`` (проверка, что токен типа
-    ``mcp``) и мапит принципала в ``AccessToken(client_id=str(id), scopes=[group])``;
-    ``None`` верификатора → 401 до инструментов.
+    ``verify_token`` calls ``resolve(token, "mcp")`` (checking the token is of type
+    ``mcp``) and maps the principal to ``AccessToken(client_id=str(id), scopes=[group])``;
+    a ``None`` from the verifier → 401 before any tool runs.
     """
 
     def __init__(self, resolve: "TokenResolver") -> None:

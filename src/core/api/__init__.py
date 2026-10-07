@@ -1,13 +1,13 @@
-"""Стандартные решения для HTTP API ядра: ошибки и обработчики.
+"""Standard building blocks for the core HTTP API: errors and handlers.
 
-Публичная поверхность для модулей:
-- ``ApiError`` / ``ErrorBody`` — единый формат и конструкторы ошибок;
-- ``Paged`` — конверт списка с пагинацией для read-эндпойнтов;
-- ``register_exception_handlers`` — навесить обработчики в ``create_app``.
+Public surface for modules:
+- ``ApiError`` / ``ErrorBody`` — the single error format and its constructors;
+- ``Paged`` — a paginated list envelope for read endpoints;
+- ``register_exception_handlers`` — attach the handlers in ``create_app``.
 
-Ядро НЕ знает о пользователях: принципал и зависимость ``current_user`` живут у
-auth-модуля (провайдера auth, если он добавлен); ядро даёт лишь канал
-``request.state`` и ``ApiError``.
+The core does NOT know about users: the principal and the ``current_user`` dependency live in
+the auth module (the auth provider, if one is added); the core only provides the
+``request.state`` channel and ``ApiError``.
 """
 
 from __future__ import annotations

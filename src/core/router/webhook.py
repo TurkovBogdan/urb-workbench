@@ -1,16 +1,16 @@
-"""Зона ``webhook`` — входящие вебхуки (БОЛВАНКА; пока НЕ смонтирована).
+"""The ``webhook`` zone — incoming webhooks (a STUB; NOT mounted yet).
 
-Параллель ``src/core/router/internal.py`` для зоны ``/webhook``: приём вебхуков от
-внешних источников. Состав — под-роутеры модулей (``Module.webhook_router``);
-защита — зон-guard с умолчанием ``WEBHOOK_DEFAULT_GUARDS`` (проверка подписи).
+The counterpart of ``src/core/router/internal.py`` for the ``/webhook`` zone: receiving webhooks
+from external sources. Contents — the modules' sub-routers (``Module.webhook_router``);
+protection — a zone guard defaulting to ``WEBHOOK_DEFAULT_GUARDS`` (signature check).
 
-Чтобы включить (TODO):
-1. Реализовать и зарегистрировать guard вида ``signature`` (валидация подписи источника
-   по сырому телу запроса) — по образцу guard'ов зоны ``internal`` (``src/core/router/guards/``).
-   Учесть: guard'у нужно СЫРОЕ тело — на уровне зоны/ASGI-middleware не «съедать» body.
-2. Дать модулям под-роутер ``webhook_router`` / ``webhook_router_prefix`` (classvar в
+To enable (TODO):
+1. Implement and register a guard of kind ``signature`` (validating the source's signature
+   over the raw request body) — modelled on the ``internal`` zone guards (``src/core/router/guards/``).
+   Mind: the guard needs the RAW body — the zone/ASGI middleware level must not "consume" it.
+2. Give modules a ``webhook_router`` / ``webhook_router_prefix`` sub-router (classvar in
    ``src/core/module.py``).
-3. Смонтировать в ``create_app`` под флагом (как зону internal):
+3. Mount it in ``create_app`` behind a flag (like the internal zone):
    ``app.include_router(build_webhook_zone(modules), prefix=WEBHOOK_PREFIX,
    dependencies=[Depends(make_zone_guard(registry, default=WEBHOOK_DEFAULT_GUARDS))])``
    + ``validate_guard_rules(...)``.
@@ -25,14 +25,14 @@ from fastapi import APIRouter
 from src.core.module import Module
 
 WEBHOOK_PREFIX = "/webhook"
-WEBHOOK_DEFAULT_GUARDS = ["signature"]  # TODO: guard вида "signature" ещё не реализован
+WEBHOOK_DEFAULT_GUARDS = ["signature"]  # TODO: the "signature" guard kind is not implemented yet
 
 
 def build_webhook_zone(modules: Sequence[Module]) -> APIRouter:
-    """БОЛВАНКА: свежий агрегатор зоны webhook из ``webhook_router`` модулей.
+    """STUB: a fresh webhook-zone aggregator over the modules' ``webhook_router``.
 
-    Пока у ``Module`` нет ``webhook_router`` — берём через ``getattr`` (зона выйдет
-    пустой). После добавления classvar заработает как ``build_internal_zone``.
+    While ``Module`` has no ``webhook_router``, it is read via ``getattr`` (the zone comes out
+    empty). Once the classvar is added it will work like ``build_internal_zone``.
     """
     zone = APIRouter()
     for m in modules:

@@ -1,39 +1,39 @@
 # core/loggers
 
-Каналы логирования: имя → инстанс `CoreLoggerProtocol`. Один канал — один файл `logs/<channel>.log`, никакой иерархии и пропагации в `logging.root`.
+Logging channels: name → `CoreLoggerProtocol` instance. One channel is one file `logs/<channel>.log`, with no hierarchy and no propagation into `logging.root`.
 
-Слеш в имени канала превращается в подпапку: `tasks/hh_vacancy_scrapper` → `logs/tasks/hh_vacancy_scrapper.log`. Подпапки создаются автоматически.
+A slash in a channel name becomes a subfolder: `tasks/hh_vacancy_scrapper` → `logs/tasks/hh_vacancy_scrapper.log`. Subfolders are created automatically.
 
-## Публичный API
+## Public API
 
 ```python
 from src.core.loggers import get_logger, set_logger_factory, LoggerStore
 ```
 
-| Имя | Назначение |
+| Name | Purpose |
 |-----|------------|
-| `get_logger(*channels)` | прокси канала(ов); без аргументов — `core`; ≥2 канала — tee |
-| `set_logger_factory(factory)` | bootstrap: установить фабрику `(channel) -> CoreLoggerProtocol` |
-| `LoggerStore` | реестр каналов; `set/get/reset` для тестов |
+| `get_logger(*channels)` | proxy for the channel(s); no arguments — `core`; ≥2 channels — tee |
+| `set_logger_factory(factory)` | bootstrap: install the `(channel) -> CoreLoggerProtocol` factory |
+| `LoggerStore` | channel registry; `set/get/reset` for tests |
 
-Всё остальное (`CoreLogger`, `_LoggerProxy`, `CoreLoggerProtocol`, `LoggerFactory`) — внутренние детали; импортируются из своих модулей напрямую, когда действительно нужны (bootstrap, тесты).
+Everything else (`CoreLogger`, `_LoggerProxy`, `CoreLoggerProtocol`, `LoggerFactory`) is an internal detail; import it straight from its module when you really need it (bootstrap, tests).
 
-## Каналы по конвенции
+## Channels by convention
 
-Каналы — плоские строки, которые уже используются в коде. Новых не вводим без необходимости:
+Channels are flat strings already used in the code. Don't introduce new ones without a need:
 
-| Канал | Где появляется | Файл |
+| Channel | Where it appears | File |
 |-------|----------------|------|
-| `core` | дефолт `get_logger()` | `logs/core.log` |
+| `core` | the `get_logger()` default | `logs/core.log` |
 | `tasks` | `core/scheduler/{runner,ticker,context}.py` | `logs/tasks.log` |
 | `page_scraper` | `modules/page_scraper/services/*` | `logs/page_scraper.log` |
-| `hh.browser` | `modules/headhunter/browser/*` (включая `scenarios.py`) | `logs/hh.browser.log` |
+| `hh.browser` | `modules/headhunter/browser/*` (including `scenarios.py`) | `logs/hh.browser.log` |
 | `hh.scraper` | `modules/headhunter/scraper/scraper.py` | `logs/hh.scraper.log` |
 | `integrated_browser` | `modules/integrated_browser/*` | `logs/integrated_browser.log` |
 
-## Использование
+## Usage
 
-### Один канал
+### One channel
 
 ```python
 # src/modules/page_scraper/services/gateway.py
@@ -45,64 +45,64 @@ def set_server(...) -> None:
     _LOG.info("server set: %s", endpoint)
 ```
 
-### Канал `core` по умолчанию
+### The default `core` channel
 
 ```python
 _LOG = get_logger()
-_LOG.info("startup")               # пишет в logs/core.log
+_LOG.info("startup")               # writes to logs/core.log
 ```
 
-### Подканал (подпапка)
+### Subchannel (subfolder)
 
-Слеш в имени → файл лежит во вложенной директории. Удобно, когда у одного «домена» (например, `tasks`) много дочерних потоков и хочется группировать их физически:
+A slash in the name → the file lives in a nested directory. Handy when one "domain" (say, `tasks`) has many child streams and you want to group them physically:
 
 ```python
 _LOG = get_logger("tasks/hh_vacancy_scrapper")  # → logs/tasks/hh_vacancy_scrapper.log
 ```
 
-Это просто нейминг файла; для `LoggerStore` канал остаётся плоской строкой `"tasks/hh_vacancy_scrapper"` — отдельным от `"tasks"`. Если нужно писать **и** в общий, **и** в подканал — используй tee.
+This is just file naming; for `LoggerStore` the channel stays the flat string `"tasks/hh_vacancy_scrapper"` — separate from `"tasks"`. To write to **both** the shared channel **and** the subchannel, use a tee.
 
-### Несколько каналов сразу (fan-out)
+### Several channels at once (fan-out)
 
 ```python
 _LOG = get_logger("hh.browser", "tasks")
 _LOG.info("vacancy %s scraped in %.2fs", vacancy_id, elapsed)
-# → строка попадёт в logs/hh.browser.log И в logs/tasks.log
+# → the line lands in logs/hh.browser.log AND in logs/tasks.log
 ```
 
-Tee хорошо ложится и на подканалы — детальный лог в отдельный файл, общий поток — в `tasks`:
+A tee fits subchannels well too — the detailed log goes to its own file, the shared stream to `tasks`:
 
 ```python
 _LOG = get_logger("tasks", "tasks/hh_vacancy_scrapper")
 # → logs/tasks.log + logs/tasks/hh_vacancy_scrapper.log
 ```
 
-`set_level` на tee применяется ко всем каналам сразу.
+`set_level` on a tee applies to all its channels at once.
 
-## Устройство
+## Layout
 
-| Файл | Роль |
+| File | Role |
 |------|------|
-| `logger_protocol.py` | `CoreLoggerProtocol` — минимальный контракт |
-| `logger_store.py` | `LoggerStore` (кеш «канал → инстанс») + `set_logger_factory` |
-| `core_logger.py` | `CoreLogger` — пишет в `logs/<channel>.log`, без stdout |
+| `logger_protocol.py` | `CoreLoggerProtocol` — the minimal contract |
+| `logger_store.py` | `LoggerStore` ("channel → instance" cache) + `set_logger_factory` |
+| `core_logger.py` | `CoreLogger` — writes to `logs/<channel>.log`, no stdout |
 | `logger_proxy.py` | `_LoggerProxy` / `_TeeProxy`, `get_logger` |
-| `__init__.py` | публичный фасад: `get_logger`, `set_logger_factory`, `LoggerStore` |
+| `__init__.py` | public facade: `get_logger`, `set_logger_factory`, `LoggerStore` |
 
-## Прокси: зачем он
+## The proxy: why it exists
 
-`get_logger(...)` возвращает **прокси**, не инстанс. Каждый вызов лога резолвится через `LoggerStore.get(channel)`:
+`get_logger(...)` returns a **proxy**, not an instance. Every log call is resolved through `LoggerStore.get(channel)`:
 
 ```python
-# В модуле, на импорте — bootstrap ещё не отработал.
-_LOG = get_logger("tasks")   # это _LoggerProxy("tasks")
+# In a module, at import time — the bootstrap has not run yet.
+_LOG = get_logger("tasks")   # this is _LoggerProxy("tasks")
 
-# Позже apps/app/server.py выполнит set_logger_factory(...).
-# Следующий вызов уже резолвится через новую фабрику:
-_LOG.info("task started")    # пишет в logs/tasks.log с правильным уровнем
+# Later apps/app/server.py runs set_logger_factory(...).
+# The next call already resolves through the new factory:
+_LOG.info("task started")    # writes to logs/tasks.log at the right level
 ```
 
-Если бы `get_logger` отдавал сам инстанс, модули с `_LOG = get_logger(...)` на уровне модуля захватили бы дефолтный логгер, созданный до bootstrap, и игнорировали бы конфигурацию. `_TeeProxy` устроен так же: на каждый вызов резолвит каждый канал через store.
+If `get_logger` handed out the instance itself, modules with a module-level `_LOG = get_logger(...)` would capture the default logger created before the bootstrap and ignore the configuration. `_TeeProxy` works the same way: on every call it resolves each channel through the store.
 
 ## Bootstrap
 
@@ -127,11 +127,11 @@ def _bootstrap_logger(settings: Settings) -> None:
     set_logger_factory(factory)
 ```
 
-`set_logger_factory` сбрасывает уже закэшированные каналы — ранние импорты до bootstrap не залипают со старой конфигурацией.
+`set_logger_factory` drops the channels already cached — early imports made before the bootstrap don't get stuck with the old configuration.
 
-## Тесты
+## Tests
 
-`tests/core/test_loggers.py` сбрасывает store autouse-фикстурой:
+`tests/core/test_loggers.py` resets the store with an autouse fixture:
 
 ```python
 @pytest.fixture(autouse=True)
@@ -141,15 +141,15 @@ def _reset_store():
     LoggerStore.reset()
 ```
 
-Подмена канала на конкретный инстанс:
+Overriding a channel with a specific instance:
 
 ```python
 custom = CoreLogger(logs_dir=tmp_path, file_name="custom")
-LoggerStore.set(custom, "tasks")   # фиксирует инстанс в канале "tasks"
-LoggerStore.set(None, "tasks")     # снимает override
+LoggerStore.set(custom, "tasks")   # pins the instance to the "tasks" channel
+LoggerStore.set(None, "tasks")     # removes the override
 ```
 
-Подмена фабрики целиком:
+Replacing the whole factory:
 
 ```python
 set_logger_factory(lambda ch: CoreLogger(

@@ -1,10 +1,10 @@
 <script setup lang="ts">
-// Навигация по разделам длинной страницы: липкий столбец ссылок с подсветкой того раздела,
-// который сейчас читают.
+// Section navigation for a long page: a sticky column of links highlighting the section currently
+// being read.
 //
-// Прокручивается не окно, а зона содержимого (`PageLayout` → `.page-layout__content`), поэтому
-// и слушать, и мотать нужно её: `window.scrollY` тут всегда ноль, а `scrollIntoView` увёл бы
-// вместе с зоной весь макет.
+// What scrolls is not the window but the content zone (`PageLayout` → `.page-layout__content`), so
+// that is what to listen to and scroll: `window.scrollY` is always zero here, and `scrollIntoView`
+// would drag the whole layout along with the zone.
 import {
   computed,
   onActivated,
@@ -15,33 +15,33 @@ import {
 } from 'vue'
 
 export interface NavSection {
-  /** `id` элемента раздела на странице. */
+  /** The `id` of the section element on the page. */
   id: string
   label: string
-  /** Показывается рядом с подписью, как счётчик у заголовка раздела. */
+  /** Shown next to the label, like the counter on a section heading. */
   count?: number
-  /** Вложенность: 0 (умолчание) — раздел страницы, 1 — заголовок внутри него. */
+  /** Nesting: 0 (default) — a page section, 1 — a heading inside it. */
   depth?: number
 }
 
 const props = defineProps<{ sections: NavSection[] }>()
 
-// Список — `TransitionGroup`, поэтому ссылка ведёт на компонент, а нужен его корневой узел.
+// The list is a `TransitionGroup`, so the ref points at a component, while its root node is what's needed.
 const root = ref<ComponentPublicInstance | null>(null)
 const listElement = computed(() => (root.value?.$el ?? null) as HTMLElement | null)
 const activeId = ref('')
 
-// Воздух над разделом, к которому перемотали: без него заголовок упирается в самую кромку и
-// читается как обрезанный.
+// Breathing room above a section scrolled to: without it the heading hits the very edge and
+// reads as cut off.
 const SCROLL_OFFSET = 48
 
-// Раздел считается текущим, как только его верх поднялся выше этой линии — не от самого края,
-// иначе подсветка перескакивает уже на первом пикселе прокрутки. Линия ниже места, куда встаёт
-// перемотка, поэтому доехавший раздел сразу же и подсвечивается.
+// A section becomes current once its top rises above this line — not from the very edge,
+// otherwise the highlight jumps on the first pixel of scrolling. The line is below where a
+// scroll-to lands, so a section that has arrived is highlighted right away.
 const ACTIVE_LINE_OFFSET = SCROLL_OFFSET + 48
 
-// Запас до низа, в пределах которого страница считается домотанной. Последний раздел часто
-// короче экрана и по правилу линии не активировался бы вовсе.
+// Margin from the bottom within which the page counts as scrolled to the end. The last section is
+// often shorter than the screen and by the line rule would never activate.
 const BOTTOM_EPSILON = 4
 
 const scroller = computed(
@@ -98,17 +98,17 @@ onMounted(() => {
   syncActive()
 })
 
-// KeepAlive держит страницу живой между визитами: слушатель снят не был, но позиция прокрутки
-// восстанавливается уже после активации — пересчитываем.
+// KeepAlive keeps the page alive between visits: the listener was never removed, but the scroll
+// position is restored only after activation — recompute.
 onActivated(syncActive)
 onBeforeUnmount(unlisten)
 </script>
 
 <template>
   <VCard variant="outlined" rounded="lg" tag="nav" class="section-nav">
-    <!-- Список пунктов меняется дважды: под поиском (разделы уходят и возвращаются) и при переходе
-         на другой артефакт — колонка живёт в общей рамке и переживает его. И там и там смена
-         показывается движением: мгновенная подмена читается как подмена страницы под рукой. -->
+    <!-- The item list changes in two cases: under search (sections leave and come back) and on moving
+         to another artifact — the column lives in the shared frame and survives it. In both the
+         change is shown with motion: an instant swap reads as the page being swapped under your hand. -->
     <TransitionGroup ref="root" tag="div" name="nav-item" class="section-nav__list">
       <button
         v-for="section in sections"
@@ -129,11 +129,11 @@ onBeforeUnmount(unlisten)
 </template>
 
 <style scoped>
-/* Плашка той же породы, что и карточки разделов (outlined + rounded lg приходят пропсами),
-   поэтому оглавление читается как ещё один блок страницы, а не как набор голых ссылок. */
-/* Высоту и липкость задаёт страница (компонент не знает, что стоит рядом с ним в колонке);
-   здесь — только внутреннее устройство: список забирает остаток и прокручивается сам, если
-   оглавление длинного документа выше отведённого места. */
+/* A plate of the same kind as the section cards (outlined + rounded lg come as props), so the
+   table of contents reads as one more page block rather than a set of bare links. */
+/* The page sets height and stickiness (the component doesn't know what sits next to it in the
+   column); here is only the inner structure: the list takes the remainder and scrolls by itself
+   if a long document's table of contents is taller than the space given. */
 .section-nav {
   padding: 6px;
   display: flex;
@@ -149,13 +149,13 @@ onBeforeUnmount(unlisten)
   overflow-y: auto;
 }
 
-/* Схлопывание пунктов опирается на `interpolate-size` (auto ↔ 0); где его нет, список меняется
-   мгновенно, как и раньше. */
+/* Collapsing items relies on `interpolate-size` (auto ↔ 0); where it is unsupported the list
+   changes instantly, as before. */
 .section-nav__list {
   interpolate-size: allow-keywords;
 }
 
-/* Движение здесь служебное: кому оно мешает, тот отключил его в системе. */
+/* The motion here is functional: whoever it bothers has turned it off in the system settings. */
 @media (prefers-reduced-motion: reduce) {
   .nav-item-enter-active,
   .nav-item-leave-active,
@@ -164,8 +164,8 @@ onBeforeUnmount(unlisten)
   }
 }
 
-/* Сброс оформления кнопки: элемент выбран за поведение (не переход, а прокрутка своей же
-   страницы), а выглядеть должен ссылкой — без него браузер рисует серую плашку с рамкой. */
+/* Button style reset: the element is chosen for its behaviour (not navigation but scrolling its
+   own page), yet it must look like a link — without the reset the browser draws a grey plate with a border. */
 .section-nav__link {
   appearance: none;
   border: 0;
@@ -174,8 +174,8 @@ onBeforeUnmount(unlisten)
   display: flex;
   align-items: center;
   gap: 8px;
-  /* Слева шире: там живёт метка текущего раздела, и место под неё занято всегда — иначе
-     подпись дёргалась бы вбок в момент подсветки. */
+  /* Wider on the left: the current-section marker lives there and its space is always reserved —
+     otherwise the label would twitch sideways when highlighted. */
   padding: 7px 10px 7px 20px;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -187,9 +187,9 @@ onBeforeUnmount(unlisten)
   transition: color 0.14s ease, background-color 0.14s ease;
 }
 
-/* Метка — отдельная закруглённая полоска ВНУТРИ пункта, а не его граница: граница обрезалась бы
-   скруглением угла и читалась как брак. Она же растёт из точки в штрих при смене раздела, поэтому
-   переход между пунктами виден движением, а не морганием. */
+/* The marker is a separate rounded bar INSIDE the item, not its border: a border would be clipped by
+   the corner rounding and read as a defect. It also grows from a dot into a stroke when the section
+   changes, so the move between items shows as motion rather than a blink. */
 .section-nav__link::before {
   content: '';
   position: absolute;
@@ -225,9 +225,9 @@ onBeforeUnmount(unlisten)
   background: var(--accent);
 }
 
-/* Вложенный пункт — заголовок внутри раздела: сдвинут под метку родителя и набран мельче,
-   чтобы список читался деревом, а не сплошной лентой. Длинные заголовки обрезаются в одну
-   строку: в узкой колонке перенос на три строки съедает всё оглавление. */
+/* A nested item is a heading inside a section: indented under the parent's marker and set smaller
+   so the list reads as a tree, not a solid strip. Long headings are truncated to one line: in a
+   narrow column wrapping onto three lines eats the whole table of contents. */
 .section-nav__link--nested {
   padding-left: 32px;
   font-size: 12px;
@@ -268,8 +268,8 @@ onBeforeUnmount(unlisten)
   color: var(--text-muted);
 }
 
-/* Узкий экран: отдельного столбца под панель уже нет — она ложится над содержимым строкой
-   ссылок. Липкость там вредна: закреплённая полоса съела бы и без того малую высоту. */
+/* Narrow screen: there is no separate column for the panel any more — it lies above the content as
+   a row of links. Stickiness is harmful there: a pinned strip would eat the already scarce height. */
 @media (max-width: 1099px) {
   .section-nav__list {
     flex-direction: row;
@@ -277,7 +277,7 @@ onBeforeUnmount(unlisten)
     gap: 4px;
   }
 
-  /* В строку метка-штрих не нужна: пункты стоят рядом, и заливка сама показывает текущий. */
+  /* In a row the stroke marker isn't needed: items sit side by side and the fill shows the current one. */
   .section-nav__link {
     padding-inline: 12px;
   }
@@ -287,11 +287,11 @@ onBeforeUnmount(unlisten)
   }
 }
 
-/* Приход и уход пунктов. Пункт не просто гаснет, а схлопывается по высоте — иначе плашка прыгала
-   бы поверх аккуратно тающих строк. Правила стоят ПОСЛЕ `.section-nav__link`: у них одинаковый
-   вес, и собственный `transition` пункта иначе перебивал бы этот.
-   `min-height: 0` обязателен: у элемента колонки-флекса минимальная высота по умолчанию равна его
-   содержимому, и до нуля он не сжался бы — схлопывание вставало бы на строке текста. */
+/* Items entering and leaving. An item doesn't just fade but collapses in height — otherwise the plate
+   would jump over neatly melting rows. These rules come AFTER `.section-nav__link`: they have equal
+   specificity, and the item's own `transition` would otherwise override this one.
+   `min-height: 0` is required: a column-flex item's default minimum height equals its content, so
+   it wouldn't shrink to zero — the collapse would stall at one line of text. */
 .nav-item-enter-active,
 .nav-item-leave-active {
   overflow: hidden;
@@ -317,7 +317,7 @@ onBeforeUnmount(unlisten)
   transform: translateY(-4px);
 }
 
-/* Движение здесь служебное: кому оно мешает, тот отключил его в системе. */
+/* The motion here is functional: whoever it bothers has turned it off in the system settings. */
 @media (prefers-reduced-motion: reduce) {
   .nav-item-enter-active,
   .nav-item-leave-active,

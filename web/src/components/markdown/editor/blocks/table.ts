@@ -1,29 +1,29 @@
-// Таблица — единственное место, где плоская схема уступает, и уступает осознанно.
+// The table is the one place where the flat schema gives way, and it does so deliberately.
 //
-// Остальные блоки ложатся в одну строку markdown, поэтому сериализатору нечего решать. Таблица
-// GFM — минимум три строки и двумерный контейнер, так что буквально это правило на ней не
-// держится. Смысл правила, однако, не в счёте строк: оно запрещает АЛЬТЕРНАТИВНЫЕ формы одного
-// содержимого, из-за которых печать становится догадкой. У таблицы альтернатив нет:
+// Every other block maps onto one markdown line, so the serializer has nothing to decide. A GFM
+// table is at least three lines and a two-dimensional container, so the rule cannot hold for it
+// literally. The point of the rule, though, is not counting lines: it forbids ALTERNATIVE shapes
+// of the same content, which turn printing into guesswork. A table has no alternatives:
 //
-//   - форма фиксирована самим форматом — шапка, разделитель, ряды, и никак иначе;
-//   - ячейка по спецификации GFM держит только строчное содержимое: блока внутри не бывает;
-//   - значит, обойти узлы можно ровно одним способом, и печать остаётся детерминированной.
+//   - its shape is fixed by the format itself — header, delimiter, rows, and nothing else;
+//   - per the GFM spec a cell holds only inline content: there is never a block inside;
+//   - so the nodes can be walked in exactly one way, and printing stays deterministic.
 //
-// Поэтому правило звучит теперь «один блок ↔ один ДЕТЕРМИНИРОВАННЫЙ кусок markdown», а
-// произвольная вложенность, ради запрета которой схема и писалась, не возвращается: внутрь
-// ячейки блок положить нельзя, и схема это запрещает, а не отговаривает.
+// Hence the rule now reads "one block ↔ one DETERMINISTIC piece of markdown", while the arbitrary
+// nesting the schema was written to forbid does not come back: a block cannot be put inside a
+// cell, and the schema forbids it rather than discouraging it.
 //
-// Разметка повторяет рендерер дословно — `div.md-table-wrap > table.md-table > thead/tbody`, —
-// потому что типографику обе зоны берут из одного файла (`markdown/shared/document.css`).
-// Отсюда и отдельные узлы под `thead` и `tbody`: без них полосатость рядов в правке считалась
-// бы с шапки и разошлась бы с просмотром на один ряд.
+// The markup copies the renderer verbatim — `div.md-table-wrap > table.md-table > thead/tbody` —
+// because both zones take their typography from one file (`markdown/shared/document.css`). That
+// is also why `thead` and `tbody` have nodes of their own: without them row striping in the
+// editor would count from the header and be off by one row from the viewer.
 import { Node, mergeAttributes } from '@tiptap/core'
 import type { EditorState, Transaction } from '@tiptap/pm/state'
 import { Plugin, TextSelection } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import type { Node as PMNode } from '@tiptap/pm/model'
 
-/** Выравнивание колонки; `null` — не задано (в markdown это `---` без двоеточий). */
+/** Column alignment; `null` — unset (in markdown, `---` without colons). */
 export type ColumnAlign = 'left' | 'center' | 'right' | null
 
 declare module '@tiptap/core' {
@@ -36,7 +36,7 @@ declare module '@tiptap/core' {
       deleteColumn: () => ReturnType
       setColumnAlign: (align: ColumnAlign) => ReturnType
       deleteTable: () => ReturnType
-      /** Шаг по ячейкам; на последней — новый ряд, как в любом текстовом процессоре. */
+      /** Step through cells; from the last one, a new row — as in any word processor. */
       goToCell: (direction: 1 | -1) => ReturnType
     }
   }
@@ -48,14 +48,15 @@ const ALIGN_CLASS: Record<Exclude<ColumnAlign, null>, string> = {
   right: 'md-align-right',
 }
 
-// ── Узлы ──────────────────────────────────────────────────────────────────────
+// ── Nodes ─────────────────────────────────────────────────────────────────────
 
 export const TableCell = Node.create({
   name: 'tableCell',
-  // Ровно то, что разрешает GFM. Схема запрещает блок внутри ячейки, а не отговаривает от него:
-  // иначе таблица стала бы дверью, через которую вложенность вернулась бы в документ.
+  // Exactly what GFM allows. The schema forbids a block inside a cell rather than discouraging it:
+  // otherwise the table would become a door through which nesting returns to the document.
   content: 'inline*',
-  // Каретка не проваливается между ячейками: Backspace в начале ячейки не сливает её с соседней.
+  // The caret does not fall between cells: Backspace at a cell's start does not merge it with
+  // the neighbour.
   isolating: true,
 
   addAttributes() {
@@ -63,7 +64,7 @@ export const TableCell = Node.create({
       header: {
         default: false,
         parseHTML: (element) => element.tagName === 'TH',
-        // В разметку не уезжает: тег и так говорит всё, а дубль пришлось бы синхронизировать.
+        // Not rendered into markup: the tag already says it all, and a duplicate would need syncing.
         renderHTML: () => ({}),
       },
     }
@@ -93,8 +94,8 @@ export const TableRow = Node.create({
 
 export const TableHead = Node.create({
   name: 'tableHead',
-  // Ровно один ряд: в GFM шапка одна, и схема повторяет это ограничение вместо того, чтобы
-  // проверять его в сериализаторе.
+  // Exactly one row: GFM has a single header, and the schema mirrors that constraint instead of
+  // checking it in the serializer.
   content: 'tableRow',
 
   parseHTML() {
@@ -108,7 +109,7 @@ export const TableHead = Node.create({
 
 export const TableBody = Node.create({
   name: 'tableBody',
-  // Звёздочка, а не плюс: таблица из одной шапки — законный markdown.
+  // A star, not a plus: a header-only table is valid markdown.
   content: 'tableRow*',
 
   parseHTML() {
@@ -128,9 +129,9 @@ export const Table = Node.create({
 
   addAttributes() {
     return {
-      // Выравнивание — свойство КОЛОНКИ, а не ячейки: в markdown оно объявлено один раз в
-      // строке-разделителе. Держать его на каждой ячейке значило бы синхронизировать копии при
-      // любой правке колонки; здесь копия одна, а до ячеек она доезжает декорацией.
+      // Alignment is a property of the COLUMN, not the cell: markdown declares it once in the
+      // delimiter row. Keeping it on every cell would mean syncing copies on every column edit;
+      // here there is one copy, and it reaches the cells as a decoration.
       align: {
         default: [] as ColumnAlign[],
         parseHTML: (element) => {
@@ -147,8 +148,8 @@ export const Table = Node.create({
   },
 
   renderHTML({ HTMLAttributes }) {
-    // Обёртка со своей прокруткой — та же, что ставит рендерер: тела несут таблицы до дюжины
-    // колонок, и без неё широкая таблица растягивала бы страницу.
+    // A wrapper with its own scrolling — the same one the renderer adds: bodies carry tables of up
+    // to a dozen columns, and without it a wide table would stretch the page.
     return [
       'div',
       { class: 'md-table-wrap' },
@@ -180,9 +181,10 @@ export const Table = Node.create({
           const from = tr.selection.from
           tr.replaceSelectionWith(node)
 
-          // Каретка в первую ячейку шапки: таблицу начинают заполнять с заголовков колонок.
-          // Ячейку ищем по документу, а не считаем смещением: `replaceSelectionWith` может
-          // убрать пустой абзац под кареткой, и арифметика на константах разъехалась бы.
+          // Caret into the first header cell: a table is filled in starting from column titles.
+          // The cell is searched for in the document rather than computed as an offset:
+          // `replaceSelectionWith` may remove the empty paragraph under the caret, and constant
+          // arithmetic would drift.
           let target: number | null = null
           tr.doc.nodesBetween(
             Math.max(0, from - 1),
@@ -204,7 +206,7 @@ export const Table = Node.create({
         const width = found.row.childCount
         const row = tableRow.create(null, Array.from({ length: width }, () => tableCell.create({ header: false })))
 
-        // Из шапки ряд добавляется первым в тело: «после шапки» — это начало тела.
+        // From the header, the row goes first in the body: "after the header" is the body's start.
         const at = found.isHeader
           ? found.bodyPos + 1
           : found.rowPos + found.row.nodeSize
@@ -218,13 +220,14 @@ export const Table = Node.create({
 
       deleteRow: () => ({ state, tr, dispatch }) => {
         const found = cellAt(state)
-        // Шапку удалить нельзя — без неё это уже не таблица GFM. Убрать её целиком можно
-        // командой deleteTable, и отказ здесь честнее, чем молчаливое превращение в мусор.
+        // The header cannot be deleted — without it this is no longer a GFM table. The whole
+        // table can go via deleteTable, and refusing here is more honest than silently turning
+        // it into garbage.
         if (!found || found.isHeader) return false
         if (dispatch) {
           tr.delete(found.rowPos, found.rowPos + found.row.nodeSize)
-          // На месте удалённого ряда теперь стоит следующий (или конец тела) — `near` сам найдёт
-          // ближайшую позицию, куда каретка вообще может встать.
+          // The deleted row's place is now taken by the next one (or the body's end) — `near`
+          // finds the closest position where the caret can stand at all.
           const at = Math.min(found.rowPos, tr.doc.content.size)
           tr.setSelection(TextSelection.near(tr.doc.resolve(at), -1))
         }
@@ -247,7 +250,7 @@ export const Table = Node.create({
 
       deleteColumn: () => ({ state, tr, dispatch }) => {
         const found = cellAt(state)
-        // Последнюю колонку не удаляем: таблица без колонок не выражается в markdown вовсе.
+        // The last column is not deleted: a table without columns cannot be expressed in markdown.
         if (!found || found.row.childCount <= 1) return false
         if (dispatch) {
           removeColumn(tr, state, found.tablePos, found.table, found.column)
@@ -283,8 +286,9 @@ export const Table = Node.create({
 
         const target = neighbourCell(found, direction)
         if (target === null) {
-          // Шаг вперёд из последней ячейки заводит новый ряд — так ведёт себя любой текстовый
-          // процессор, и таблица заполняется без похода в меню. Назад из первой — некуда.
+          // Stepping forward from the last cell adds a new row — that is how any word processor
+          // behaves, and the table fills in without a trip to the menu. Back from the first:
+          // nowhere to go.
           if (direction === -1) return false
           return this.editor.commands.addRowAfter()
         }
@@ -301,8 +305,8 @@ export const Table = Node.create({
     return {
       Tab: () => this.editor.commands.goToCell(1),
       'Shift-Tab': () => this.editor.commands.goToCell(-1),
-      // В ячейке нет абзацев, поэтому Enter не делит содержимое, а ведёт вниз — к ячейке под
-      // текущей, а из последнего ряда заводит новый.
+      // A cell has no paragraphs, so Enter does not split the content but moves down — to the
+      // cell below, and from the last row it adds a new one.
       Enter: () => {
         const found = cellAt(this.editor.state)
         if (!found) return false
@@ -321,29 +325,29 @@ export const Table = Node.create({
   },
 })
 
-// ── Поиск по структуре ────────────────────────────────────────────────────────
+// ── Structure lookup ──────────────────────────────────────────────────────────
 
 interface CellRef {
   table: PMNode
   tablePos: number
-  /** Позиция узла `tableBody` — по ней добавляется ряд «после шапки». */
+  /** Position of the `tableBody` node — a row "after the header" is inserted there. */
   bodyPos: number
   row: PMNode
   rowPos: number
   cell: PMNode
   cellPos: number
-  /** Номер колонки, от нуля. */
+  /** Column index, zero-based. */
   column: number
   isHeader: boolean
 }
 
-/** Таблица под кареткой — для хрома, которому нужно к чему привязаться. `null` — каретка вне. */
+/** The table under the caret — for chrome that needs something to anchor to. `null` — caret outside. */
 export function activeTable(state: EditorState): { node: PMNode; pos: number } | null {
   const found = cellAt(state)
   return found ? { node: found.table, pos: found.tablePos } : null
 }
 
-/** Выравнивание колонки под кареткой — чтобы панель показывала текущее состояние, а не гадала. */
+/** Alignment of the column under the caret — so the toolbar shows the current state, not a guess. */
 export function activeColumnAlign(state: EditorState): ColumnAlign {
   const found = cellAt(state)
   if (!found) return null
@@ -382,7 +386,7 @@ function cellAt(state: EditorState): CellRef | null {
   return null
 }
 
-/** Все ряды таблицы подряд — шапка, затем тело — с абсолютной позицией каждого. */
+/** All table rows in order — header, then body — each with its absolute position. */
 function rowsOf(table: PMNode, tablePos: number): { row: PMNode; pos: number }[] {
   const rows: { row: PMNode; pos: number }[] = []
   table.forEach((section, sectionOffset) => {
@@ -394,7 +398,7 @@ function rowsOf(table: PMNode, tablePos: number): { row: PMNode; pos: number }[]
   return rows
 }
 
-/** Позиция каретки в ячейке соседнего ряда той же колонки; `null` — ряда нет. */
+/** Caret position in the same column's cell of the next row; `null` — no such row. */
 function cellBelow(found: CellRef): number | null {
   const rows = rowsOf(found.table, found.tablePos)
   const index = rows.findIndex((entry) => entry.pos === found.rowPos)
@@ -403,7 +407,7 @@ function cellBelow(found: CellRef): number | null {
   return cellStart(next, Math.min(found.column, next.row.childCount - 1))
 }
 
-/** Позиция каретки в следующей (`1`) или предыдущей (`-1`) ячейке; `null` — край таблицы. */
+/** Caret position in the next (`1`) or previous (`-1`) cell; `null` — the table's edge. */
 function neighbourCell(found: CellRef, direction: 1 | -1): number | null {
   const rows = rowsOf(found.table, found.tablePos)
   const rowIndex = rows.findIndex((entry) => entry.pos === found.rowPos)
@@ -425,10 +429,10 @@ function cellStart(entry: { row: PMNode; pos: number }, column: number): number 
   return at + 1
 }
 
-// ── Правка колонок ────────────────────────────────────────────────────────────
+// ── Column edits ──────────────────────────────────────────────────────────────
 
-// Ряды правятся С КОНЦА: вставка в первый ряд сдвинула бы позиции всех следующих, и собранные
-// заранее числа перестали бы указывать туда, куда указывали.
+// Rows are edited FROM THE END: inserting into the first row would shift the positions of all
+// following ones, and numbers collected in advance would stop pointing where they did.
 function insertColumn(tr: Transaction, state: EditorState, tablePos: number, table: PMNode, column: number): void {
   const { tableCell } = state.schema.nodes
   const rows = rowsOf(table, tablePos)
@@ -464,11 +468,11 @@ function setAlign(
   tr.setNodeMarkup(tablePos, undefined, { ...table.attrs, align: update(current) })
 }
 
-// ── Выравнивание на экране ────────────────────────────────────────────────────
+// ── On-screen alignment ───────────────────────────────────────────────────────
 
-// Выравнивание живёт на таблице одним списком, а нужно на каждой ячейке — ровно тот же случай,
-// что у номера пункта списка: производное значение приезжает декорацией, а не дублируется в
-// атрибутах, которые пришлось бы держать в согласии при каждой правке колонки.
+// Alignment lives on the table as one list but is needed on every cell — exactly the same case as
+// a list item's number: the derived value arrives as a decoration rather than being duplicated in
+// attributes that would have to be kept consistent on every column edit.
 function columnAlign(): Plugin {
   return new Plugin({
     props: {

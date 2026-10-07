@@ -1,15 +1,15 @@
-"""Зона ``storage`` — отдача файлов от корня (монтируется на ``/storage``).
+"""The ``storage`` zone — serving files from the root (mounted at ``/storage``).
 
-Параллель ``src/core/router/internal.py``, но префикс — корневой ``/storage`` (не
-``/internal/...``): клиент обращается к файлу по «чистому» URL, пригодному для
-``<img src>`` и прямых ссылок. Состав — под-роутеры модулей (``Module.storage_router``);
-защита — зон-guard с умолчанием ``STORAGE_DEFAULT_GUARDS`` (``auth`` — сессия проекта).
+The counterpart of ``src/core/router/internal.py``, but the prefix is a root-level ``/storage``
+(not ``/internal/...``): the client reaches a file by a "clean" URL, usable in
+``<img src>`` and direct links. Contents — the modules' sub-routers (``Module.storage_router``);
+protection — a zone guard defaulting to ``STORAGE_DEFAULT_GUARDS`` (``auth`` — the project session).
 
-Только ``protected`` ходит через backend (проверка прав → ответ X-Accel-Redirect,
-nginx стримит байты сам). ``public`` отдаёт nginx напрямую с диска, до backend не
-доходит; ``private`` наружу закрыт (nginx ``deny all``).
+Only ``protected`` goes through the backend (permission check → an X-Accel-Redirect response,
+nginx streams the bytes itself). ``public`` is served by nginx straight from disk and never
+reaches the backend; ``private`` is closed to the outside (nginx ``deny all``).
 
-Зона строится СВЕЖЕЙ на каждый ``create_app`` (как internal) — без синглтона.
+The zone is built FRESH on every ``create_app`` (like internal) — no singleton.
 """
 
 from __future__ import annotations
@@ -21,12 +21,12 @@ from fastapi import APIRouter
 from src.core.module import Module
 
 STORAGE_PREFIX = "/storage"
-# Чистое ядро без auth-модуля — умолчание встроенный ``allow_all`` (см. INTERNAL_DEFAULT_GUARDS).
+# The bare core has no auth module, so the default is the built-in ``allow_all`` (see INTERNAL_DEFAULT_GUARDS).
 STORAGE_DEFAULT_GUARDS = ["allow_all"]
 
 
 def build_storage_zone(modules: Sequence[Module]) -> APIRouter:
-    """Свежий агрегатор зоны storage из ``storage_router`` модулей."""
+    """A fresh storage-zone aggregator over the modules' ``storage_router``."""
     zone = APIRouter()
     for m in modules:
         if m.storage_router is not None:

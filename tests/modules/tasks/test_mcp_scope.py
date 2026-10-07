@@ -1,8 +1,9 @@
-"""Резолвер забора: какому пространству принадлежит код.
+"""The fence's resolver: which workspace a code belongs to.
 
-У группы и задачи пространство лежит в своей же строке, у этапа и записи журнала — через
-задачу. Ошибись здесь — и забор начнёт пропускать чужое именно на тех кодах, которые агент
-получает чаще всего: этапы и журнал он читает постранично, а задачу открывает один раз.
+A group and a task carry their workspace in their own row; a stage and a journal entry reach it
+through the task. Get this wrong and the fence starts letting foreign data through on exactly the
+codes the agent receives most often: it reads stages and the journal page by page, while it opens
+a task once.
 """
 
 from __future__ import annotations
@@ -60,7 +61,7 @@ async def test_note_reaches_the_workspace_through_its_task(workspace):
 
 
 async def test_a_code_with_no_row_behind_it_is_not_the_fence_s_business(workspace):
-    """«Не найдено» скажет сам инструмент — его формулировка точнее общей."""
+    """The tool itself says "not found" — its wording is more precise than a generic one."""
     assert await workspace_of(TASK_CODE_PREFIX, "0" * 10) is None
 
 

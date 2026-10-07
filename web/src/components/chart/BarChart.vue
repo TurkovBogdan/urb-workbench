@@ -222,7 +222,7 @@ const bandTicks = computed(() =>
   })),
 )
 
-// Серый фон под отмеченными полосами (на весь шаг — соседние сливаются в блок).
+// Grey background under highlighted bands (the full step — adjacent ones merge into a block).
 const highlightRects = computed(() => {
   if (isHorizontal.value || !props.bandHighlights) return []
   const step = bandScale.value.step()
@@ -484,7 +484,7 @@ function isDimmed(b: Bar): boolean {
   right: 2px;
   z-index: 2;
 }
-/* освобождаем место под иконку-пояснение справа */
+/* make room for the info icon on the right */
 .bar-chart--has-info .bar-chart__legend {
   right: 24px;
 }
@@ -578,7 +578,7 @@ function isDimmed(b: Bar): boolean {
   line-height: 1.6;
 }
 
-/* со столбцом сравнения — добавляем колонку под прошлое значение */
+/* with a comparison bar — add a column for the previous value */
 .bar-chart__tt-row--cmp {
   grid-template-columns: 10px 1fr auto auto;
 }

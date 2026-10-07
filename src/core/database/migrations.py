@@ -1,4 +1,4 @@
-"""Programmatic Alembic runner — собирает version_locations из Module-инстансов."""
+"""Programmatic Alembic runner — assembles version_locations from Module instances."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ _CORE_MIGRATIONS = (
 
 @dataclass(frozen=True)
 class PendingRevision:
-    """Одна миграция, ещё не накатанная на БД."""
+    """One migration not yet applied to the database."""
 
     revision: str
     down_revision: str | tuple[str, ...] | None
@@ -34,11 +34,11 @@ class PendingRevision:
 
 @dataclass(frozen=True)
 class MigrationStatus:
-    """Снимок состояния миграций: где БД, куда должна прийти, что между ними."""
+    """Migration state snapshot: where the database is, where it must get to, what lies between."""
 
     current_heads: tuple[str, ...]
     target_heads: tuple[str, ...]
-    pending: list[PendingRevision]  # в порядке применения (от старых к новым)
+    pending: list[PendingRevision]  # in application order (oldest to newest)
 
     @property
     def up_to_date(self) -> bool:
@@ -46,7 +46,7 @@ class MigrationStatus:
 
 
 class AlembicRunner:
-    """Применяет миграции через Alembic programmatic API."""
+    """Applies migrations through the Alembic programmatic API."""
 
     def __init__(
         self,
@@ -64,7 +64,7 @@ class AlembicRunner:
         return locations
 
     def _base_config(self) -> AlembicConfig:
-        """Config без подключения — для offline/script-операций (ScriptDirectory)."""
+        """Config without a connection — for offline/script operations (ScriptDirectory)."""
         cfg = AlembicConfig()
         cfg.set_main_option("script_location", str(self._script_root))
         cfg.set_main_option("path_separator", "os")
@@ -83,7 +83,7 @@ class AlembicRunner:
         return cfg
 
     def _do_upgrade(self, connection: Connection) -> None:
-        # Миграция — пишущая транзакция: батч-режим переливает данные INSERT-ом из выборки.
+        # A migration is a write transaction: batch mode copies data over with INSERT ... SELECT.
         connection.execution_options(**WRITE_EXECUTION_OPTIONS)
         with foreign_keys_disabled(connection):
             cfg = self._build_config(connection)
@@ -93,18 +93,18 @@ class AlembicRunner:
         script = ScriptDirectory.from_config(self._base_config())
         current = tuple(MigrationContext.configure(connection).get_current_heads())
         heads = tuple(script.get_heads())
-        # pending = предки всех target-head'ов, которых нет среди применённых.
-        # Применённые = current head'ы + все их предки. Считаем именно так (а не
-        # iterate_revisions(heads, current)): тот вариант отдаёт лишь ПОТОМКОВ
-        # current, поэтому новый независимый корень (модуль с down_revision=None,
-        # добавленный к уже наполненной БД) терялся → ложный up_to_date.
+        # pending = ancestors of all target heads that are not among the applied ones.
+        # Applied = the current heads + all their ancestors. Computed exactly this way (not
+        # iterate_revisions(heads, current)): that variant yields only DESCENDANTS of
+        # current, so a new independent root (a module with down_revision=None added to an
+        # already populated database) got lost → a false up_to_date.
         applied = {s.revision for s in script.iterate_revisions(current, "base")}
         pending = [
             s
             for s in script.iterate_revisions(heads, "base")
             if s.revision not in applied
         ]
-        pending.reverse()  # base → head: порядок применения
+        pending.reverse()  # base → head: application order
         return MigrationStatus(
             current_heads=current,
             target_heads=heads,
@@ -120,12 +120,12 @@ class AlembicRunner:
         )
 
     async def status(self, engine: AsyncEngine) -> MigrationStatus:
-        """Dry-run сверка: текущие/целевые head'ы и список pending-миграций (ничего не меняет)."""
+        """Dry-run check: current/target heads and the pending migrations (changes nothing)."""
         async with engine.connect() as connection:
             return await connection.run_sync(self._do_status)
 
     async def upgrade_head(self, engine: AsyncEngine) -> None:
-        """Боевая миграция: накатить ядро и все модули до head."""
+        """Real migration: bring the core and every module up to head."""
         async with engine.connect() as connection:
             await connection.run_sync(self._do_upgrade)
 

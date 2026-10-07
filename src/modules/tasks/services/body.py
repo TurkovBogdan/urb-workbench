@@ -1,28 +1,30 @@
-"""Редактор тела — правки markdown-текста сущности по префиксу её кода.
+"""Body editor — edits to an entity's markdown text, dispatched by its code prefix.
 
-Тело есть у трёх сущностей модуля, и у всех оно называется одинаково — колонкой ``body``:
-у задачи это план, у этапа описание работы, у записи журнала её предмет. Одно имя на весь
-модуль и означает один набор инструментов правки; постановка задачи (``context`` и соседи)
-телом не считается и правится карточкой.
+Three entities in the module have a body, and in all of them it has the same name — the
+``body`` column: for a task it is the plan, for a stage the description of the work, for a
+journal entry its subject. One name across the module means one set of editing tools; the task
+brief (``context`` and its neighbours) does not count as a body and is edited through the card.
 
-Трансформы — чистые функции над строкой; ошибка ввода (не найдено, неоднозначно) →
-``ValueError``. Наружу едет не тело, а **шов**: окно по обе стороны от правки, где сам
-вставленный текст заменён заглушкой. Текст прислал агент; назад ему нужно ровно то, чего он не
-знает, — как вставка легла.
+The transforms are pure functions over a string; an input error (not found, ambiguous) →
+``ValueError``. What travels back is not the body but the **seam**: a window on both sides of
+the edit, with the inserted text itself replaced by a placeholder. The agent sent the text; what
+it needs back is exactly what it does not know — how the insertion landed.
 
-Два правила здесь свои, у соседнего сервера их нет.
+Two rules here are our own; the neighbouring server does not have them.
 
-**Лимит отказывает, а не усекает,** и отказ называет длину РЕЗУЛЬТАТА. Агент дописал две строки
-в почти полное тело и упёрся не в них: скажи ему длину присланного куска — и он будет резать не
-то место.
+**The limit refuses rather than truncates,** and the refusal names the length of the RESULT. The
+agent appended two lines to a nearly full body, and it is not those lines that hit the limit:
+tell it the length of the piece it sent and it will cut in the wrong place.
 
-**Тело начатого этапа не правится.** Впереди план живой, позади застывший: иначе формулировку
-подгонят под результат, и расхождение «обещали одно, сделали другое» исчезнет вместе с
-единственным сигналом, ради которого план ведут. На план задачи и на предмет записи запрет не
-распространяется — первый живёт, пока живёт задача, во втором агент ещё разбирается.
+**The body of a started stage is not edited.** The plan ahead is alive, the plan behind is
+frozen: otherwise the wording gets fitted to the outcome, and the "promised one thing, did
+another" gap disappears together with the only signal the plan is kept for. The ban does not
+apply to the task plan or to a journal entry's subject — the first lives as long as the task
+does, and in the second the agent is still working things out.
 
-Заголовок ищется только вне ограждённого кода: строка ``# comment`` внутри ```` ``` ````-блока
-не заголовок, иначе раздел с примером кода обрывался бы на середине фенса.
+A heading is looked for only outside fenced code: a ``# comment`` line inside a
+```` ``` ```` block is not a heading, otherwise a section with a code example would be cut off
+in the middle of the fence.
 """
 
 from __future__ import annotations
@@ -48,7 +50,7 @@ from src.modules.tasks.models.task import TasksTask
 
 
 class _Holder(NamedTuple):
-    """Что известно про тело этого типа: модель, потолок и как назвать его агенту."""
+    """What is known about this type's body: the model, the cap, and how to name it to the agent."""
 
     model: type
     limit: int
@@ -81,10 +83,11 @@ def _holder_for(code: str) -> _Holder:
 
 
 def _seam(before: str, after: str) -> str:
-    """Шов правки: по ``PREVIEW_WINDOW_CHARS`` символов по обе стороны, текст — заглушкой.
+    """The edit's seam: ``PREVIEW_WINDOW_CHARS`` chars on each side, the text as a placeholder.
 
-    ``…`` ставится только там, где окно обрезано серединой тела: край и так виден по тому, что
-    окно кончилось, а неразличимые эти два случая заставляли бы гадать.
+    ``…`` goes only where the window cuts through the middle of the body: the edge is already
+    visible from the window ending, and if the two cases looked the same, the reader would have
+    to guess.
     """
     head, tail = before[-PREVIEW_WINDOW_CHARS:], after[:PREVIEW_WINDOW_CHARS]
     opening = SEAM_TRUNCATION_MARK if len(before) > PREVIEW_WINDOW_CHARS else ""
@@ -93,13 +96,13 @@ def _seam(before: str, after: str) -> str:
 
 
 def _elided(text: str) -> str:
-    """Предпросмотр фрагмента: начало и конец через маркер пропуска; короткий — целиком."""
+    """A fragment preview: head and tail joined by an elision mark; a short one is shown whole."""
     if len(text) <= PREVIEW_WINDOW_CHARS * 2:
         return text
     return f"{text[:PREVIEW_WINDOW_CHARS]}{PREVIEW_ELISION_MARK}{text[-PREVIEW_WINDOW_CHARS:]}"
 
 
-# ── чистые трансформы ─────────────────────────────────────────────────────────
+# ── pure transforms ───────────────────────────────────────────────────────────
 def op_set(body: str, *, text: str) -> str:
     return text
 
@@ -126,14 +129,14 @@ def op_insert(body: str, *, text: str, anchor: str, position: str) -> tuple[str,
 
 
 def _searchable(find: str) -> str:
-    """Пустая строка встречается везде и нигде не кончается: обход вхождений не завершился бы."""
+    """An empty string occurs everywhere and never ends: walking its occurrences would not stop."""
     if not find:
         raise ValueError("The text to look for must not be empty.")
     return find
 
 
 def _replacement_seams(body: str, *, find: str) -> list[str]:
-    """Швы всех вхождений в порядке документа, каждый — окном по ИСХОДНОМУ телу."""
+    """Seams of every occurrence in document order, each a window over the ORIGINAL body."""
     seams, at = [], body.find(find)
     while at != -1:
         seams.append(_seam(body[:at], body[at + len(find):]))
@@ -160,12 +163,12 @@ def op_replace_all(body: str, *, find: str, text: str) -> tuple[str, list[str]]:
     return body.replace(find, text), seams
 
 
-# ── разбор заголовков ─────────────────────────────────────────────────────────
+# ── heading parsing ───────────────────────────────────────────────────────────
 _FENCE_LINE = re.compile(r"^\s*(?P<marker>`{3,}|~{3,})(?P<info>.*)$")
 
 
 def _heading_level(line: str) -> int:
-    """Уровень markdown-заголовка (число ведущих ``#``), или 0 если строка не заголовок."""
+    """The markdown heading level (number of leading ``#``), or 0 if the line is not a heading."""
     stripped = line.lstrip()
     hashes = len(stripped) - len(stripped.lstrip("#"))
     if hashes == 0:
@@ -174,7 +177,7 @@ def _heading_level(line: str) -> int:
 
 
 def _heading_levels(lines: Sequence[str]) -> list[int]:
-    """Уровень для каждой строки; 0 — не заголовок, в том числе внутри ограждённого кода."""
+    """A level for every line; 0 means not a heading, including lines inside fenced code."""
     levels, opened = [], ""
     for line in lines:
         fence = _FENCE_LINE.match(line)
@@ -198,7 +201,7 @@ class _Scope(NamedTuple):
 
 
 def _block_end(levels: Sequence[int], start: int, limit: int) -> int:
-    """Где обрывается блок заголовка: следующий заголовок того же или старшего уровня."""
+    """Where a heading's block ends: the next heading of the same or a higher level."""
     level = levels[start]
     for index in range(start + 1, limit):
         if levels[index] and levels[index] <= level:
@@ -215,10 +218,10 @@ def _matches(lines, levels, segment: str, scope: _Scope) -> list[int]:
 
 
 def _segment_index(lines, levels, segment: str, scope: _Scope, resolved: Sequence[str]) -> int:
-    """Единственная строка сегмента внутри области; ноль и два совпадения — отказ.
+    """The single line of the segment within the scope; zero or two matches are refused.
 
-    Неоднозначность именно отказ, а не первое совпадение: молча взятый первый раздел переписал
-    бы не тот, о котором агент думал, и узнать об этом было бы неоткуда.
+    Ambiguity is a refusal, not the first match: a silently taken first section would rewrite a
+    section other than the one the agent had in mind, and there would be no way to find out.
     """
     if _heading_level(segment) == 0:
         raise ValueError(
@@ -239,7 +242,7 @@ def _segment_index(lines, levels, segment: str, scope: _Scope, resolved: Sequenc
 
 
 def _heading_index(lines, levels, heading: str) -> int:
-    """Строка заголовка, названного голым заголовком или путём ``A > B``."""
+    """The line of a heading named by a bare heading or by an ``A > B`` path."""
     segments = [segment.strip() for segment in heading.split(HEADING_PATH_SEPARATOR)]
     scope = _Scope(0, len(lines))
     index = _segment_index(lines, levels, segments[0], scope, resolved=[])
@@ -250,11 +253,11 @@ def _heading_index(lines, levels, heading: str) -> int:
 
 
 class SectionCut(NamedTuple):
-    """Что вырезала правка раздела: предпросмотр блока, его длина и оборвавший его заголовок.
+    """What a section edit cut out: a block preview, its length, and the heading that ended it.
 
-    Границу считает сервер по уровню заголовка, так что непредсказуем для агента именно размах
-    выреза: шов вокруг нового текста выглядел бы одинаково аккуратно и при вырезе вдвое шире
-    нужного.
+    The server computes the boundary from the heading level, so what the agent cannot predict is
+    exactly the extent of the cut: the seam around the new text would look just as neat with a
+    cut twice as wide as intended.
     """
 
     removed: str
@@ -263,7 +266,7 @@ class SectionCut(NamedTuple):
 
 
 def op_set_section(body: str, *, heading: str, text: str) -> tuple[str, SectionCut]:
-    """Заменить раздел (от заголовка до следующего равного или старшего уровня) на ``text``."""
+    """Replace a section (from its heading to the next of equal or higher level) with ``text``."""
     lines = body.split("\n")
     levels = _heading_levels(lines)
     start = _heading_index(lines, levels, heading)
@@ -277,12 +280,12 @@ def op_set_section(body: str, *, heading: str, text: str) -> tuple[str, SectionC
     return "\n".join(lines[:start] + text.split("\n") + lines[end:]), cut
 
 
-# ── применение ────────────────────────────────────────────────────────────────
+# ── applying ──────────────────────────────────────────────────────────────────
 Report = TypeVar("Report")
 
 
 def _fits(text: str, holder: _Holder, code: str) -> str:
-    """Результат целиком или отказ, называющий ЕГО длину, а не длину присланного куска."""
+    """The whole result, or a refusal naming ITS length, not the length of the piece sent."""
     if len(text) > holder.limit:
         raise ValueError(
             f"This would make {holder.what} of {code} {len(text)} characters long, and the "
@@ -295,7 +298,7 @@ def _fits(text: str, holder: _Holder, code: str) -> str:
 
 
 def _editable(row, code: str) -> None:
-    """Начатый этап тело не меняет — «позади застывший» как шлюз, а не как просьба."""
+    """A started stage keeps its body — "the plan behind is frozen" as a gate, not a request."""
     if isinstance(row, TasksStage) and row.status != STATUS_PLANNED:
         gone = "finished" if row.status in TASK_STATUSES_TERMINAL else "running"
         raise ValueError(
@@ -308,7 +311,7 @@ def _editable(row, code: str) -> None:
 async def apply_edit(
     code: str, edit: Callable[[str], tuple[str, Report]]
 ) -> tuple[object, Report]:
-    """Применить ``edit(body) -> (новое тело, отчёт)`` к телу сущности ``code`` (с префиксом)."""
+    """Apply ``edit(body) -> (new body, report)`` to the body of entity ``code`` (prefixed)."""
     holder = _holder_for(code)
     bare = strip_prefix(code)
     async with write_scope() as s:
@@ -324,7 +327,7 @@ async def apply_edit(
 
 
 async def apply(code: str, mutate: Callable[[str], str]) -> object:
-    """``apply_edit`` для правки, которой нечего сообщить о себе сверх нового тела."""
+    """``apply_edit`` for an edit that has nothing to report about itself beyond the new body."""
     row, _ = await apply_edit(code, lambda body: (mutate(body), None))
     return row
 

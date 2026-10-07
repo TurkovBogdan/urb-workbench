@@ -20,11 +20,11 @@ the ones you are going to change. A plan without them is a paragraph of intent t
 be checked against afterwards.
 
 ```
-Подход: тариф считается в одном месте (tariff.py:Calculator), инвойс его только зовёт.
-Меняю расчёт, не трогая формат счёта.
+Approach: the tariff is computed in one place (tariff.py:Calculator), the invoice only calls it.
+I change the calculation without touching the invoice format.
 
-Прочитано: src/billing/tariff.py, src/billing/invoice.py, tests/billing/test_tariff.py
-Меняю: src/billing/tariff.py, tests/billing/test_tariff.py
+Read: src/billing/tariff.py, src/billing/invoice.py, tests/billing/test_tariff.py
+Changing: src/billing/tariff.py, tests/billing/test_tariff.py
 ```
 
 The limit refuses instead of trimming, and that is deliberate — the file list lives at the end,
@@ -69,9 +69,9 @@ stage after the one you are on.
 `stage_close` demands it, and it means: the thing someone else could go and look at.
 
 - ✅ `pytest tests/billing -q → 12 passed`
-- ✅ `src/billing/tariff.py:40-88, новый Calculator.apply`
+- ✅ `src/billing/tariff.py:40-88, new Calculator.apply`
 - ✅ `alembic upgrade head → ok, integrity_check clean`
-- ❌ «сделал», «работает», «всё ок»
+- ❌ «done», «works», «all good»
 
 The field is short on purpose: a command's full output does not belong in it, a pointer to the
 command does. A step marked finished with no trace makes every step after it reason on a claim

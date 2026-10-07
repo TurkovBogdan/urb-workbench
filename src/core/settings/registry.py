@@ -1,10 +1,10 @@
-"""Реестр runtime-настроек: схемы, текущие stores, dispatch on_settings_change.
+"""Runtime settings registry: schemas, current stores, on_settings_change dispatch.
 
-Concurrency: один процесс — одна копия реестра. Запись (update/reset) строит
-новый store и атомарно подменяет ссылку в ``self._stores[module]``. Читатели
-видят либо старый, либо новый — но всегда consistent snapshot.
+Concurrency: one process — one copy of the registry. A write (update/reset) builds
+a new store and atomically swaps the reference in ``self._stores[module]``. Readers
+see either the old one or the new one — but always a consistent snapshot.
 
-Tests: модуль-глобальный ``_registry`` обнуляется через fixture, см.
+Tests: the module-global ``_registry`` is reset by a fixture, see
 ``tests/core/settings/conftest.py``.
 """
 
@@ -33,7 +33,7 @@ class SettingsRegistry:
     # ── build phase (sync) ───────────────────────────────────────────────
 
     def register_schema(self, module: "Module") -> None:
-        """Запомнить схему и инстанс модуля. validate_schema → fail-fast."""
+        """Remember the module's schema and instance. validate_schema → fail-fast."""
         assert module.settings_schema is not None
         validate_schema(module.name, module.settings_schema)
         self._schemas[module.name] = module.settings_schema
@@ -42,7 +42,7 @@ class SettingsRegistry:
     # ── runtime phase (async) ────────────────────────────────────────────
 
     async def load_initial(self, module: str) -> None:
-        """Seed defaults, прочитать, собрать store, вызвать on_settings_change."""
+        """Seed defaults, read them, build the store, call on_settings_change."""
         schema = self._schemas[module]
         for f in schema:
             await crud_settings.seed_if_absent(
@@ -51,7 +51,7 @@ class SettingsRegistry:
         await self._reload_and_install(module)
 
     async def update(self, module: str, key: str, raw_value: Any) -> Any:
-        """Validate → upsert → reload → install_store. Возвращает новый store."""
+        """Validate → upsert → reload → install_store. Returns the new store."""
         schema = self._schemas[module]
         f = field_by_key(schema, key)
         value = self._coerce(f, raw_value)
@@ -62,7 +62,7 @@ class SettingsRegistry:
         return await self._reload_and_install(module)
 
     async def reset(self, module: str, key: str) -> Any:
-        """Записать default в БД → reload → install_store. Возвращает новый store."""
+        """Write the default to the DB → reload → install_store. Returns the new store."""
         schema = self._schemas[module]
         f = field_by_key(schema, key)
         await crud_settings.upsert(
@@ -88,7 +88,7 @@ class SettingsRegistry:
         return list(self._schemas.keys())
 
     def clear(self) -> None:
-        """Сбросить состояние реестра (test fixture / повторная сборка app)."""
+        """Reset the registry state (test fixture / rebuilding the app)."""
         self._schemas.clear()
         self._stores.clear()
         self._modules.clear()
@@ -134,14 +134,14 @@ class SettingsRegistry:
         return store
 
     def _install_store(self, module: str, store: Any) -> None:
-        """Атомарный swap + sync-уведомление модуля."""
+        """Atomic swap + synchronous notification of the module."""
         self._stores[module] = store
         m = self._modules.get(module)
         if m is None:
             return
         try:
             m.on_settings_change(store)
-        except Exception as exc:  # noqa: BLE001 — изоляция модуля
+        except Exception as exc:  # noqa: BLE001 — module isolation
             _LOG.exception(
                 "settings: %s.on_settings_change raised %s",
                 module, exc,
@@ -149,7 +149,7 @@ class SettingsRegistry:
 
     @staticmethod
     def _coerce(f: Field, raw: Any) -> Any:
-        """Лёгкая нормализация входа из JSON-API: tuple→list, str→date/datetime."""
+        """Light normalisation of JSON API input: tuple→list, str→date/datetime."""
         from datetime import date, datetime
         from src.core.settings.fields import (
             DateField, DateTimeField, FloatField, IntField,

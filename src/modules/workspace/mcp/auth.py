@@ -1,22 +1,22 @@
-"""Резолвер MCP-токена — черновой, до появления auth-модуля.
+"""The MCP token resolver — a stopgap until an auth module appears.
 
-``mount_mcp_servers`` собирает с модулей **ровно один** ``mcp_token_resolver`` и строит из него
-общий верификатор на все смонтированные серверы. Поставщик обязан быть, и обязан быть один: ни
-одного — монтаж отказывает, двое — тоже.
+``mount_mcp_servers`` collects **exactly one** ``mcp_token_resolver`` from the modules and builds
+from it a shared verifier for all mounted servers. A provider must exist, and there must be only
+one: with none, mounting refuses; with two, likewise.
 
-**Почему это здесь.** Не потому, что авторизация — дело пространства, а потому, что ``workspace``
-стоит на уровне 1: он ниже всех прикладных модулей и переживёт любой из них. Раньше резолвер
-держал ``research`` — эталонный модуль, который по замыслу однажды удаляют, и удаление уронило
-бы MCP целиком, включая чужие серверы. Зависимость от того, что кто-то сверху не исчезнет, —
-это не зависимость, а отложенная поломка.
+**Why it lives here.** Not because authorization is the workspace's business, but because
+``workspace`` sits at level 1: below every application module, it outlives any of them. The
+resolver used to be held by ``research`` — the reference module that was meant to be deleted one
+day, and deleting it would have brought down MCP entirely, other servers included. Depending on
+something above you not disappearing is not a dependency but a deferred breakage.
 
-Проверка простая: предъявленный bearer сверяется со статичным токеном из ENV
-(``Config.mcp_token``). Пусто = локальный режим без проверки (allow-all, dev). Будущий
-auth-модуль заберёт эту роль вместе с выдачей токенов, и тогда объявление уедет к нему — но
-уедет из места, которое не собирались сносить.
+The check is simple: the presented bearer is compared with the static token from ENV
+(``Config.mcp_token``). Empty = local mode with no check (allow-all, dev). A future auth module
+will take over this role along with issuing tokens, and the declaration will move there then —
+but it will move out of a place nobody was planning to tear down.
 
-``fastmcp`` не тянет: только ``Config`` и dataclass. Тип принципала утиный (``id``/``group``),
-как ждёт ``McpServerTokenVerifier``.
+Pulls in no ``fastmcp``: only ``Config`` and a dataclass. The principal type is duck-typed
+(``id``/``group``), as ``McpServerTokenVerifier`` expects.
 """
 
 from __future__ import annotations
@@ -39,7 +39,7 @@ class _StaticPrincipal:
 
 
 async def resolve_mcp_token(token: str, scope: str) -> "McpPrincipal | None":
-    """Bearer → принципал; чужой scope и несовпавший токен — ``None`` (верификатор даст 401)."""
+    """Bearer → principal; a foreign scope or a mismatched token — ``None`` (verifier gives 401)."""
     if scope != _MCP_SCOPE:
         return None
     configured = Config().mcp_token

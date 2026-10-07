@@ -1,19 +1,20 @@
 <script setup lang="ts">
-// Оформление документа под рукой у самого документа: те же группы, что «Оформление документа»,
-// «Оформление блока кода» и «Схемы» на `/settings/interface`, полным составом, в том же порядке и
-// теми же ручками — расходиться наборам нельзя, иначе одна и та же настройка живёт в двух местах
-// с разным именем группы. Где варианты стоят по порядку (гарнитуры, кегли, вес, ширина), ручка —
-// `VSelectStepper`: соседний перебирают подряд, сравнивая результат, и здесь это нужнее, чем на
-// странице настроек, — сравнивают-то по живому тексту рядом.
+// Document appearance at hand right next to the document: the same groups as "Document
+// appearance", "Code block appearance" and "Diagrams" on `/settings/interface`, complete, in the
+// same order and with the same controls — the sets must not diverge, otherwise one and the same
+// setting lives in two places under different group names. Where options are ordered (typefaces,
+// sizes, weight, width), the control is `VSelectStepper`: people step through neighbours one by
+// one comparing the result, and that matters more here than on the settings page — the comparison
+// is against live text right beside it.
 //
-// Подбирают их глазами по живому тексту, а не по образцу на странице настроек: кегль, длина
-// строки и гарнитуры хороши или плохи ИМЕННО на этом теле. Настройка при этом одна и та же
-// (`useSettingsStore`, источник истины — база через `synced`, localStorage под ним лишь кеш до
-// первого кадра), поэтому выбор здесь виден и там. Подписи тоже общие: словарь настроек —
-// их единственный дом.
+// They are picked by eye against live text, not against a sample on the settings page: size, line
+// length and typefaces are good or bad on THIS particular body. The setting is still one and the
+// same (`useSettingsStore`, the source of truth is the database via `synced`, localStorage below it
+// only a cache until the first frame), so a choice made here shows there too. The labels are
+// shared as well: the settings dictionary is their only home.
 //
-// Описаний под полями здесь нет, в отличие от страницы настроек: в колонке шириной 320px они
-// заняли бы больше места, чем сами поля, а объяснять выбор — дело страницы настроек.
+// Unlike the settings page there are no descriptions under the fields: in a 320px rail they would
+// take more room than the fields themselves, and explaining the choice is the settings page's job.
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -35,7 +36,7 @@ const settings = useSettingsStore()
 const { codeVariants, diagramAligns, diagramThemes, readingFonts, headingFonts, monoFonts, diagramFonts } =
   useAppearanceOptions()
 
-// Каждый пункт набран той гарнитурой, которую выбирает: имя семьи говорит меньше, чем её рисунок.
+// Each option is set in the typeface it selects: a family's name says less than its shapes.
 function optionProps(option: DescribedFont) {
   return { style: { fontFamily: option.stack } }
 }
@@ -44,7 +45,7 @@ const sizeOptions = READING_SIZES.map((size) => ({ title: `${size} px`, value: s
 
 const codeSizeOptions = CODE_SIZES.map((size) => ({ title: `${size} px`, value: size }))
 
-// Тем же приёмом, что и гарнитуры: вариант набран своей насыщенностью, а не только назван числом.
+// The same trick as with typefaces: an option is set in its own weight, not just named by a number.
 const weightOptions = READING_WEIGHTS.map((weight) => ({
   title: String(weight),
   value: weight,
@@ -166,8 +167,8 @@ const diagramHeightOptions = computed(() =>
         density="compact"
         hide-details
       />
-      <!-- Плашка без фона: рамку и отбивку ей даёт карточка, а своя обводка внутри списка полей
-           читалась бы как вложенный блок. -->
+      <!-- A panel without a background: the card gives it frame and spacing, and its own outline
+           inside the field list would read as a nested block. -->
       <SwitchPanel
         v-model="settings.typography.codeLineNumbers"
         tone="transparent"
@@ -224,9 +225,10 @@ const diagramHeightOptions = computed(() =>
 </template>
 
 <style scoped>
-/* Карточка не ужимается соседями (`flex: none`), но и не растёт бесконечно: четырнадцать полей
-   выше любой колонки, поэтому высота ограничена долей экрана, а лишнее прокручивается ВНУТРИ
-   рамки. Без предела карточка выдавила бы оглавление под собой из колонки целиком. */
+/* The card isn't squeezed by its neighbours (`flex: none`), but doesn't grow endlessly either:
+   fourteen fields are taller than any rail, so the height is capped at a share of the screen and
+   the rest scrolls INSIDE the frame. Without a cap the card would push the table of contents below
+   it out of the rail entirely. */
 .doc-appearance {
   padding: 0;
   margin-bottom: 12px;
@@ -236,8 +238,8 @@ const diagramHeightOptions = computed(() =>
   min-width: 0;
 }
 
-/* Отбивка принадлежит прокручиваемой полосе, а не карточке: иначе полоса прокрутки встала бы
-   внутри отступа, в 12px от края рамки. */
+/* The padding belongs to the scrolling strip, not the card: otherwise the scrollbar would sit
+   inside the padding, 12px from the frame's edge. */
 .doc-appearance__fields {
   display: flex;
   flex: 1;
@@ -248,9 +250,9 @@ const diagramHeightOptions = computed(() =>
   min-height: 0;
 }
 
-/* Заголовок группы, а не раздела: колонка — не страница настроек, и подпись здесь лишь называет,
-   чем управляют поля под ней. Первая стоит у края, у остальных над собой — воздух побольше
-   межполевого, чтобы группы читались группами. */
+/* A group heading, not a section heading: the rail is not the settings page, and the caption here
+   only names what the fields below control. The first sits at the edge, the others get a bit more
+   air above than between fields, so groups read as groups. */
 .doc-appearance__title {
   margin: 0;
   font-size: 11px;
@@ -264,9 +266,9 @@ const diagramHeightOptions = computed(() =>
   margin-top: 8px;
 }
 
-/* Узкий экран: колонка перестаёт быть липкой и ложится над содержимым, делить с ней высоту экрана
-   больше некому — предел снимается, и поля идут подряд. Прокрутка внутри карточки там была бы
-   второй прокруткой на странице, которая и так прокручивается. */
+/* Narrow screen: the rail stops being sticky and sits above the content, nothing else shares the
+   screen height with it — the cap is lifted and the fields flow in sequence. Scrolling inside the
+   card there would be a second scroll on a page that already scrolls. */
 @media (max-width: 1099px) {
   .doc-appearance {
     max-height: none;

@@ -1,14 +1,14 @@
 import type { RouteRecordRaw } from 'vue-router'
 
-// Раздел модуля задач: список, группы и деталка задачи. Пространства уехали в свой модуль
-// (`features/workspace/routes.ts`).
+// The tasks module section: the list, groups and the task detail page. Workspaces moved to their
+// own module (`features/workspace/routes.ts`).
 //
-// Задача живёт СТРАНИЦЕЙ по собственному адресу, а не окном поверх списка: в ней работают —
-// правят текст, водят статус, ходят по ветке подзадач, — и всё это требует места и своей записи
-// в истории переходов.
+// A task lives as a PAGE at its own URL, not as a dialog over the list: it is where the work
+// happens — editing text, moving the status, walking the subtask branch — and all of that needs
+// room and its own entry in the navigation history.
 export const tasksRoutes: RouteRecordRaw[] = [
-  // Корень раздела — список. Раньше на `/tasks` жил мониторинг планировщика (теперь `/monitoring`),
-  // и старая ссылка не должна упираться в «страница не найдена».
+  // The section root is the list. `/tasks` used to host the scheduler monitoring (now
+  // `/monitoring`), and an old link must not hit "page not found".
   { path: '/tasks', redirect: '/tasks/list' },
   {
     path: '/tasks/list',

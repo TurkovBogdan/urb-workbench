@@ -1,4 +1,4 @@
-"""Константы модуля core_monitoring."""
+"""Constants of the core_monitoring module."""
 
 from __future__ import annotations
 

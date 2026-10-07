@@ -1,19 +1,19 @@
 <script setup lang="ts">
-// Шапка модального окна: заголовок, необязательное описание, крестик и линия к контенту — по
-// образцу формы оплаты. Линию держит шапка, а не контент: контентных блоков у окна бывает
-// несколько (колонки чекаута, вкладки), шапка одна, и линия не должна зависеть от того, что под ней.
+// Modal window header: title, optional description, close × and the rule to the content — modelled
+// on the payment form. The header owns the rule, not the content: a window can have several content
+// blocks (checkout columns, tabs) but one header, and the rule must not depend on what's beneath it.
 import { IconX } from '@tabler/icons-vue'
 import { useI18n } from 'vue-i18n'
 
-// Крестик рисуется ВСЕГДА и пропом не выключается: выход из окна не бывает необязательным, а
-// у блокирующего он и вовсе единственный. Родитель обязан слушать `close`.
+// The × is ALWAYS drawn and no prop turns it off: leaving a window is never optional, and for a
+// blocking one it is the only exit. The parent must listen to `close`.
 withDefaults(defineProps<{
   title: string
-  /** Подзаголовок под заголовком. Без него шапка однострочная, линия остаётся. */
+  /** Subtitle under the title. Without it the header is one line; the rule stays. */
   description?: string
-  /** Линия к контенту. Снимать только у окна БЕЗ контентного блока (`ConfirmDialog`). */
+  /** The rule to the content. Drop it only for a window WITHOUT a content block (`ConfirmDialog`). */
   rule?: boolean
-  /** Идёт работа: закрывать нельзя, но крестик остаётся видимым. */
+  /** Work in progress: closing isn't allowed, but the × stays visible. */
   closeDisabled?: boolean
 }>(), {
   description: undefined,
@@ -28,9 +28,9 @@ const { t } = useI18n()
 
 <template>
   <header class="dlg-head" :class="{ 'dlg-head--rule': rule }">
-    <!-- Заголовок и описание отдаются слотами: в деталке заголовок — правимое поле, а под ним
-         рядом с кодом стоит кнопка. Пропы при этом остаются главным путём: слот нужен там, где
-         строка перестала быть строкой, и заводить ради этого второй компонент шапки незачем. -->
+    <!-- Title and description are exposed as slots: in the detail view the title is an editable
+         field, and under it a button sits next to the code. Props remain the main path: a slot is
+         for where a string stopped being a string, and a second header component isn't worth it. -->
     <div class="dlg-head__text">
       <slot name="title">
         <h2 class="dlg-head__title">{{ title }}</h2>
@@ -40,8 +40,8 @@ const { t } = useI18n()
       </slot>
     </div>
 
-    <!-- Действия стоят ПРАВЕЕ крестика: выход из окна — движение в его левый край, к содержимому,
-         а действия над самим содержимым продолжают ряд наружу. -->
+    <!-- Actions sit to the RIGHT of the ×: leaving the window is a move toward its left edge, toward
+         the content, while actions on the content itself continue the row outward. -->
     <div class="dlg-head__tools">
       <VBtn
         icon
@@ -59,11 +59,12 @@ const { t } = useI18n()
 </template>
 
 <style scoped>
-/* Отступы и кегль сняты с формы оплаты — она и была образцом. */
+/* Paddings and font size are taken from the payment form — it was the model. */
 .dlg-head {
-  /* Крестик выше строки заголовка и без описания растил бы шапку на пустое место. Обе величины
-     держим рядом: бокс кнопки задан явно, отрицательные поля ровно на разницу выводят её из
-     расчёта высоты. Крестик встаёт по центру строки заголовка, высоту шапки задаёт текст. */
+  /* The × is taller than the title line and, without a description, would grow the header by empty
+     space. Both values are kept together: the button box is explicit, and negative margins of
+     exactly the difference take it out of the height calculation. The × centers on the title line;
+     the text sets the header height. */
   --dlg-close-size: 42px;
   --dlg-title-line: 24px;
   --dlg-pad-y: 22px;
@@ -79,8 +80,8 @@ const { t } = useI18n()
 
 .dlg-head--rule { border-bottom: 1px solid var(--border-soft); }
 
-/* Текстовая половина забирает всё, что осталось от ряда действий: в ней может стоять поле, а оно
-   без этого тянулось бы по своему содержимому. */
+/* The text half takes everything the action row leaves: it may hold a field, which would otherwise
+   size to its own content. */
 .dlg-head__text {
   flex: 1;
   min-width: 0;
@@ -96,20 +97,20 @@ const { t } = useI18n()
 
 .dlg-head__description { margin: 4px 0 0; font-size: 13px; color: var(--text-muted); }
 
-/* Отрицательные поля держит РЯД, а не крестик: действий в нём может быть сколько угодно, а из
-   расчёта высоты шапки выводится весь ряд целиком. */
+/* The ROW holds the negative margins, not the ×: it may contain any number of actions, and the whole
+   row is taken out of the header height calculation. */
 .dlg-head__tools {
   display: flex;
   align-items: center;
   flex: none;
   margin-block: var(--dlg-close-shift);
-  /* Вправо ровно настолько, чтобы кромка крайней кнопки отстояла от правого края так же, как от
-     верхнего: сверху ряд уже сдвинут на --dlg-close-shift. */
+  /* Right by just enough that the outermost button's edge sits as far from the right edge as from
+     the top: vertically the row is already shifted by --dlg-close-shift. */
   margin-right: calc(var(--dlg-pad-y) + var(--dlg-close-shift) - var(--dlg-pad-x));
 }
 
-/* Бокс задан явно: у иконочной кнопки он зависит от `density`, а здесь от него зависит сдвиг
-   всего ряда. Слотовым действиям он достаётся тем же правилом — ряд обязан стоять по одной оси. */
+/* The box is explicit: for an icon button it depends on `density`, and here the whole row's shift
+   depends on it. Slotted actions get it via the same rule — the row must stand on one axis. */
 .dlg-head__tools :deep(.v-btn) {
   width: var(--dlg-close-size);
   height: var(--dlg-close-size);

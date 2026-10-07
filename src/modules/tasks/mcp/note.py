@@ -1,11 +1,11 @@
-"""MCP-тулы журнала работы.
+"""Work journal MCP tools.
 
-Вид записи агент выбирает из трёх: ``decision`` / ``finding`` / ``fact``. ``remark`` в
-перечислении нет — замечание пишет постановщик, и инструмента с этим типом у агента не
-существует: обе половины записи, написанные одной рукой, превращают шлюз в самооценку.
+The agent picks an entry kind from three: ``decision`` / ``finding`` / ``fact``. ``remark`` is
+not in the enumeration — a remark is written by the task's author, and the agent has no tool
+with that type: both halves of an entry written by one hand turn the gate into self-assessment.
 
-Порядок значений — от частого к редкому: первое значение перечисления модель выбирает заметно
-чаще прочих, и частый вид должен стоять раньше редкого.
+The values go from most to least frequent: a model picks the first value of an enumeration
+noticeably more often than the others, so the frequent kind must come before the rare one.
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ from src.modules.tasks.crud import note as note_crud
 from src.modules.tasks.dto import AgentNoteCreated, AgentNoteList, AgentNoteRow
 from src.modules.tasks.mcp.scope import require_scope
 
-if TYPE_CHECKING:  # fork fastmcp — только backend (через mcp_server(ctx))
+if TYPE_CHECKING:  # fastmcp fork — backend only (via mcp_server(ctx))
     from fastmcp import FastMCP
 
 

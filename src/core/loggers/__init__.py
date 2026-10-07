@@ -1,12 +1,12 @@
-"""Логгер ядра: каналы поверх ``LoggerStore``.
+"""The core logger: channels on top of ``LoggerStore``.
 
-Использование::
+Usage::
 
     from src.core.loggers import get_logger
 
     _LOG = get_logger("tasks")          # logs/tasks.log
-    _LOG = get_logger()                 # канал "core"
-    _LOG = get_logger("hh.browser", "tasks")  # fan-out в оба канала
+    _LOG = get_logger()                 # the "core" channel
+    _LOG = get_logger("hh.browser", "tasks")  # fan-out to both channels
 """
 
 from __future__ import annotations

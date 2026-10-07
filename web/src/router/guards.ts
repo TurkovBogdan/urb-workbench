@@ -9,16 +9,16 @@ import { i18n } from '@/plugins/i18n'
 
 const APP_NAME = 'Uroboros.Workbench'
 
-// Заголовок вкладки — часть навигации, а не украшение: смена маршрута его не меняет сама,
-// скринридер читает его первым, а вкладок у ресёрча открывают много. Маршрут без `meta.title`
-// оставляет одно имя приложения, а не выдуманную строку.
+// The tab title is part of navigation, not decoration: a route change doesn't update it by itself,
+// a screen reader reads it first, and research work means many open tabs. A route without
+// `meta.title` leaves just the app name rather than a made-up string.
 function applyDocumentTitle(to: RouteLocationNormalized): void {
   const key = to.meta.title
   document.title = key ? `${i18n.global.t(key)} — ${APP_NAME}` : APP_NAME
 }
 
-// После перехода фокус остаётся на ссылке, по которой кликнули: для клавиатуры и скринридера
-// «ничего не произошло» становится буквальным. Переносим его в зону содержимого.
+// After a transition focus stays on the clicked link: for keyboard and screen reader users
+// "nothing happened" becomes literal. Move it to the content zone.
 function focusContent(): void {
   const main = document.querySelector<HTMLElement>('.main-content')
   if (!main) return
@@ -33,11 +33,12 @@ export function setupGuards(router: Router): void {
     // teleported overlay (the activator's mouseleave never fires on a navigating click).
     dismissHoverTooltips()
 
-    // Экран отказа принадлежит адресу, на котором его показали: уходим с адреса — снимаем.
+    // A failure screen belongs to the address it was shown at: leaving the address clears it.
     clearShellError()
 
-    // Раньше, чем смонтируется новая вьюха: она обязана увидеть переход уже начатым, иначе
-    // отложит своё тяжёлое содержимое не на анимацию, а в никуда. Снимает флаг сам переход.
+    // Before the new view mounts: it must see the transition already started, otherwise it would
+    // defer its heavy content not until the animation but into nowhere. The transition itself
+    // clears the flag.
     beginRouteTransition()
 
     // Arm the content-zone loading bar; the show-delay swallows instant swaps.
@@ -51,13 +52,14 @@ export function setupGuards(router: Router): void {
     stopNavigationProgress()
     applyDocumentTitle(to)
     focusContent()
-    // Сорвавшийся переход (повторная навигация на тот же адрес, отмена) до анимации не доходит,
-    // и снять флаг будет некому — страница осталась прежней, а ждать её въезда уже нечего.
+    // A failed transition (repeat navigation to the same address, a cancel) never reaches the
+    // animation, and nobody would clear the flag — the page stayed the same, and there is no
+    // enter left to wait for.
     //
-    // Тем же кончается переход ВНУТРИ одного маршрута (сменился только параметр: задача → её
-    // подзадача): компонент тот же, `<Transition>` его не пересоздаёт и `after-enter` не шлёт.
-    // Оставь флаг поднятым — и всё тяжёлое содержимое, смонтированное после, будет ждать
-    // анимации, которой уже не будет: разметка приезжает пустой.
+    // A transition WITHIN one route ends the same way (only a param changed: task → its subtask):
+    // the component is the same, `<Transition>` doesn't recreate it and doesn't emit
+    // `after-enter`. Leave the flag raised — and all heavy content mounted afterwards will wait
+    // for an animation that will never come: the markup arrives empty.
     if (failure || to.name === from.name) endRouteTransition()
   })
   // Aborted/failed navigation never reaches afterEach — clear the bar here too.

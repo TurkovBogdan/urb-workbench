@@ -35,7 +35,7 @@ async function checkUpstream() {
   try {
     upstream.value = await updateApi.check()
   } catch {
-    // Текст отказа уже показан всплывающим сообщением клиента API; здесь — состояние карточки.
+    // The failure text was already shown as the API client's toast; here is the card's state.
     upstreamError.value = t('about.upstream.unavailable')
   } finally {
     checking.value = false
@@ -46,7 +46,7 @@ onMounted(async () => {
   await loadInstallation()
   await checkUpstream()
 })
-// Возврат на страницу перечитывает только локальное: обращение к remote стоит секунд.
+// Returning to the page reloads only the local facts: a call to the remote costs seconds.
 onActivated(() => { if (!loading.value) loadInstallation() })
 
 const unknown = computed(() => t('about.installed.unknown'))
@@ -71,7 +71,7 @@ const distanceLabel = computed(() => {
 
 const behind = computed(() => (upstream.value?.behind ?? 0) > 0)
 
-// Бэкенд называет причину кодом (локали у него нет) — говорит её страница.
+// The backend names the reason with a code (it has no locale) — the page puts it into words.
 const refusalText = computed(() => {
   const refusal = installation.value?.refusal
   return refusal ? t(`about.refusal.${refusal}`) : ''
@@ -98,8 +98,8 @@ async function startUpdate() {
     return
   }
 
-  // Отказ команды (грязное дерево, недостижимый remote) оставляет бэкенд живым и версию прежней:
-  // молча перезагружать страницу в этом случае — значит не сказать ничего.
+  // A refusal by the command (dirty tree, unreachable remote) leaves the backend alive and the
+  // version unchanged: silently reloading the page in that case would mean saying nothing.
   await loadInstallation()
   if (installation.value?.commit === versionBefore) {
     updating.value = false
@@ -233,8 +233,9 @@ async function startUpdate() {
   font-size: 15px;
 }
 
-/* Две карточки-факта стоят рядом и читаются как пара, поэтому их высоту задаёт ряд, а не
-   содержимое: у правой есть кнопка проверки, у левой нет, и без этого правая была бы выше. */
+/* The two fact cards stand side by side and read as a pair, so their height is set by the row,
+   not the content: the right one has a check button, the left one doesn't, and without this the
+   right one would be taller. */
 .fact-card {
   height: 100%;
   display: flex;

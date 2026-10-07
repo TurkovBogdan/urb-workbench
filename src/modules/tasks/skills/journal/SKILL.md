@@ -27,7 +27,7 @@ reason the kind exists. Close it when it acquires a foundation:
 
 - the requester answered → the resolution is their answer;
 - you went and checked → the resolution is the pointer to the check
-  (`pytest -q → 12 passed`, `tariff.py:88 подтверждает`).
+  (`pytest -q → 12 passed`, `tariff.py:88 confirms it`).
 
 A decision that never acquires either is an assumption you shipped, and it will be visible.
 

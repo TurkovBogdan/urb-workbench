@@ -1,4 +1,4 @@
-"""core_mcp — интроспекция модулей, поднятых как MCP-серверы (read-only UI/API)."""
+"""core_mcp — introspection of modules brought up as MCP servers (read-only UI/API)."""
 
 from __future__ import annotations
 

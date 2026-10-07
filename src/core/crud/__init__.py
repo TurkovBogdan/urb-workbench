@@ -1,4 +1,4 @@
-"""CRUD-функции ядра. Все обновления — точечные UPDATE по id/key."""
+"""Core CRUD functions. Every update is a targeted UPDATE by id/key."""
 
 from src.core.crud import lock, tasks, tasks_logs
 

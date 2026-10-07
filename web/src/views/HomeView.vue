@@ -17,9 +17,9 @@ import PageLayout from '@/layout/templates/PageLayout.vue'
 
 const { t } = useI18n()
 
-// Путь одной задачи слева направо — в том порядке, в каком работа и идёт. Журнал в цепочку не
-// входит намеренно: он не шаг, а то, что пишется на любом из них, и стрелка между шагами про
-// него соврала бы.
+// The path of a single task from left to right — in the order the work actually goes. The journal
+// is deliberately left out of the chain: it is not a step but something written at any of them, and
+// an arrow between steps would misrepresent it.
 const flowSteps = [
   { key: 'workspace', icon: IconLayoutGrid },
   { key: 'brief', icon: IconTarget },

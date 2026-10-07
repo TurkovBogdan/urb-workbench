@@ -1,19 +1,21 @@
 import { ApiError } from './client/createClient'
 import { i18n } from '@/plugins/i18n'
 
-// Человеческий текст отказа. Бэкенд называет понятную ему причину кодом (плюс `params` для
-// подстановки), а текст на языке интерфейса даёт свой словарь:
-//   `<модуль>.<сущность>.<причина>` → `<модуль>.error.<сущность>.<причина>` — словарь фичи;
-//   код без модуля (и коды самого клиента: `network`/`timeout`/`protocol`) → `common.errors.<code>`.
-// Код, которого словарь не знает, и отказ без кода показывают английский запасной текст `error`
-// из ответа; нет и его — общий текст. Работает вне компонентов (сторы, клиент API) — читает
-// глобальный инстанс i18n.
+// Human-readable failure text. The backend names the reason it understands with a code (plus
+// `params` for interpolation), and the text in the interface language comes from our dictionary:
+//   `<module>.<entity>.<reason>` → `<module>.error.<entity>.<reason>` — the feature's dictionary;
+//   a code without a module (and the client's own codes: `network`/`timeout`/`protocol`) →
+//   `common.errors.<code>`.
+// A code the dictionary doesn't know, and a failure without a code, show the English fallback text
+// `error` from the response; failing that, a generic text. Works outside components (stores, the
+// API client) — reads the global i18n instance.
 export function errorText(e: unknown): string {
   const { t, te } = i18n.global
 
   if (e instanceof ApiError) {
-    // Упёрлись в лимит. Ответ несёт `Retry-After`, и назвать секунды честнее, чем «попробуйте
-    // позже»: человек иначе жмёт снова и снова, продлевая себе же окно.
+    // Hit the rate limit. The response carries `Retry-After`, and naming the seconds is more honest
+    // than "try again later": otherwise the person clicks again and again, extending their own
+    // window.
     if (e.status === 429) {
       return e.retryAfter === undefined
         ? t('common.errors.throttled')
@@ -29,8 +31,8 @@ export function errorText(e: unknown): string {
   return e instanceof Error && e.message ? e.message : t('common.errors.generic')
 }
 
-// `common.` — под этим пространством смонтирован общий словарь (`plugins/i18n.ts`); голый
-// `errors.*` промахнулся бы молча.
+// `common.` — the shared dictionary is mounted under this namespace (`plugins/i18n.ts`); a bare
+// `errors.*` would miss silently.
 function dictionaryKey(code: string): string {
   const [module, ...rest] = code.split('.')
   return rest.length ? `${module}.error.${rest.join('.')}` : `common.errors.${code}`

@@ -15,7 +15,7 @@ const taskFolded = ref(true)
 const label = (folded: boolean) =>
   t(folded ? 'design-system.section.counter-button.expand' : 'design-system.section.counter-button.collapse')
 
-// `<\/script>` / `<\/template>` экранированы, чтобы не закрыть блоки этого SFC.
+// `<\/script>` / `<\/template>` are escaped so they don't close this SFC's blocks.
 const usageCode = `<script setup lang="ts">
 import { ref } from 'vue'
 import { IconSubtask } from '@tabler/icons-vue'
@@ -169,8 +169,9 @@ const folded = ref(false)
   overflow: hidden;
 }
 
-/* Образцы повторяют строку имени группы и строку задачи из списка — кегль, вес и отступ кнопки
-   от текста те же, что там, иначе витрина показывала бы не ту кнопку, что стоит на экране. */
+/* The samples mirror the group name row and the task row from the list — the font size, weight and
+   button offset from the text are the same as there, otherwise the showcase would show a different
+   button from the one on screen. */
 .ds-sample {
   display: flex;
   align-items: center;
@@ -216,7 +217,7 @@ const folded = ref(false)
   text-align: right;
 }
 
-/* Колонка кнопки фиксированной ширины: без числа кнопка уже, и подписи строк разъехались бы. */
+/* The button column has a fixed width: without a number the button is narrower, and the row captions would drift. */
 .ds-controls {
   display: grid;
   grid-template-columns: 56px 1fr;

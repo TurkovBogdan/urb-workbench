@@ -126,12 +126,12 @@ async def test_corrupt_db_row_falls_back_to_default(db):
     reg = get_registry()
     m = _M()
     reg.register_schema(m)
-    # Подсадим невалидное значение в БД ДО первой загрузки.
+    # Plant an invalid value in the DB BEFORE the first load.
     await crud.upsert("m", "n", "not-an-int")
     await reg.load_initial("m")
     store = reg.get("m")
     assert store.n == 5  # default
-    # Корректное значение должно быть перезаписано в БД.
+    # The correct value must be written back to the DB.
     row = await crud.get_one("m", "n")
     assert row is not None and row.value == "5"
 
@@ -142,12 +142,12 @@ async def test_orphan_db_row_is_ignored(db):
     m = _M()
     reg.register_schema(m)
     await reg.load_initial("m")
-    # Добавим ключ, которого нет в схеме.
+    # Add a key that is not in the schema.
     await crud.upsert("m", "stale_key", "1")
-    # _reload не должен упасть.
+    # _reload must not fail.
     await reg.update("m", "n", 7)
     assert reg.get("m").n == 7
-    # Orphan-ключ остаётся в БД.
+    # The orphan key stays in the DB.
     row = await crud.get_one("m", "stale_key")
     assert row is not None
 

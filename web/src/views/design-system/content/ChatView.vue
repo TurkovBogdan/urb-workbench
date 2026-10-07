@@ -338,7 +338,7 @@ async function send(text: string) {
           >
             <MessageContent :html="bodies.m3.html" :text="bodies.m3.text" />
           </ChatMessage>
-          <!-- заметка -->
+          <!-- note -->
           <ChatMessage
             side="right"
             tone="warning"
@@ -382,7 +382,7 @@ async function send(text: string) {
               <FileCards :files="clientFiles" />
             </template>
           </ChatMessage>
-          <!-- автоматизация -->
+          <!-- automation -->
           <ChatMessage
             side="left"
             tone="muted"
@@ -431,7 +431,7 @@ async function send(text: string) {
           >
             <MessageContent :html="bodies.m10.html" :text="bodies.m10.text" />
           </ChatMessage>
-          <!-- заметка -->
+          <!-- note -->
           <ChatMessage
             side="right"
             tone="warning"
@@ -450,7 +450,7 @@ async function send(text: string) {
             </template>
             <MessageContent :html="bodies.noteN1.html" :text="bodies.noteN1.text" />
           </ChatMessage>
-          <!-- заметка -->
+          <!-- note -->
           <ChatMessage
             side="right"
             tone="warning"

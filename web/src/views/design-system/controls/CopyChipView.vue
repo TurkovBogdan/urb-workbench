@@ -9,7 +9,7 @@ const { t } = useI18n()
 
 const LONG_PATH = '/mnt/store-dev/agents/mcp/urb-workbench/runtime/prod/storage/private/exports/2026-09-24/tasks.json'
 
-// `<\/script>` / `<\/template>` экранированы, чтобы не закрыть блоки этого SFC.
+// `<\/script>` / `<\/template>` are escaped so they don't close this SFC's blocks.
 const usageCode = `<script setup lang="ts">
 import CopyChip from '@/components/CopyChip.vue'
 <\/script>
@@ -112,7 +112,7 @@ import CopyChip from '@/components/CopyChip.vue'
   overflow: hidden;
 }
 
-/* Образец повторяет шапку страницы задачи: название, под ним код с тем же отступом плашки. */
+/* The sample mirrors the task page header: the name, and under it the code with the same chip offset. */
 .ds-sample { padding: 14px 16px; }
 
 .ds-sample__title {
@@ -147,7 +147,7 @@ import CopyChip from '@/components/CopyChip.vue'
   text-align: right;
 }
 
-/* Колонка плашки фиксированной ширины: у плашек разная длина, а подписи должны стоять в линию. */
+/* The chip column has a fixed width: chips differ in length, while the captions must line up. */
 .ds-controls {
   display: grid;
   grid-template-columns: 220px 1fr;

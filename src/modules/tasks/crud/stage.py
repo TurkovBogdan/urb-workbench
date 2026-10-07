@@ -1,17 +1,17 @@
-"""CRUD ``TasksStage`` — этапы плана. Каждая функция владеет своей сессией.
+"""CRUD for ``TasksStage`` — plan stages. Each function owns its session.
 
-Два правила живут здесь, а не в схеме, потому что оба смотрят сразу на несколько значений одной
-строки и на её соседей:
+Two rules live here rather than in the schema, because both look at several values of a row at
+once and at its siblings:
 
-- **номер по умолчанию** — максимальный по задаче плюс один. Считается в той же транзакции, что
-  и вставка: иначе два подряд заведённых этапа получили бы один номер и упёрлись в уникальный
-  индекс;
-- **закрытие требует доказательства** — переход в ``done`` с пустым ``evidence`` отказывает. Это
-  единственное место, где перевод статуса что-то проверяет, и ради него ``stage_update_status``
-  существует отдельно от общей правки.
+- **default number** — the task's maximum plus one. Computed in the same transaction as the
+  insert: otherwise two stages created back to back would get the same number and hit the unique
+  index;
+- **closing requires evidence** — a move to ``done`` with empty ``evidence`` is refused. This is
+  the only place where a status change checks anything, and it is the reason
+  ``stage_update_status`` exists separately from the general update.
 
-``finished_at`` проставляет система при уходе в терминальный статус, ``started_at`` — при первом
-входе в ``in_progress``. Обе отметки — факты, и повторный переход их не перебивает.
+The system sets ``finished_at`` on entering a terminal status and ``started_at`` on first entering
+``in_progress``. Both marks are facts, and a repeated transition does not overwrite them.
 """
 
 from __future__ import annotations
@@ -42,20 +42,20 @@ from src.modules.tasks.text import clip, fit
 
 
 def _checked(value: str, allowed: tuple[str, ...], what: str) -> str:
-    """Значение из справочника или ``ValueError`` со списком допустимых."""
+    """A value from the vocabulary, or ``ValueError`` listing the allowed ones."""
     if value not in allowed:
         raise ValueError(f"Unknown {what} {value!r}; expected one of {', '.join(allowed)}.")
     return value
 
 
 async def _require_staged_task(s, task_code: str) -> None:
-    """Живая задача С ЭТАПАМИ или отказ.
+    """A live task WITH STAGES, or refuse.
 
-    Две проверки, а не одна. Удалённая задача этапов не принимает — это очевидно. А тип
-    проверяется потому, что этапы есть **только у расширенной**: это и есть граница между ней и
-    стандартной. У стандартной план живёт прозой в теле, и молча заведённый там этап не показал
-    бы себя нигде — интерфейс рисует полотно этапов только расширенной, и строка осталась бы
-    невидимой обеим сторонам.
+    Two checks, not one. A deleted task takes no stages — that much is obvious. The type is checked
+    because stages exist **only on an extended task**: that is exactly the line between it and a
+    standard one. A standard task keeps its plan as prose in the body, and a stage silently created
+    there would show up nowhere — the UI draws the stage board only for an extended task, so the
+    row would stay invisible to both sides.
     """
     stmt = select(TasksTask.type).where(
         TasksTask.code == task_code, TasksTask.deleted_at.is_(None)
@@ -76,22 +76,22 @@ async def _require_staged_task(s, task_code: str) -> None:
 
 
 async def _next_number(s, task_code: str) -> int:
-    """Максимальный номер этапа задачи плюс один; у первой задачи — единица."""
+    """The task's highest stage number plus one; the first stage gets 1."""
     stmt = select(func.max(TasksStage.number)).where(TasksStage.task_code == task_code)
     return ((await s.execute(stmt)).scalar_one_or_none() or 0) + 1
 
 
 async def _free_number(s, task_code: str, number: int, *, moving: str | None = None) -> int:
-    """Номер, свободный в этой задаче, — или отказ с именем того, кто его держит.
+    """A number free in this task — or a refusal naming whoever holds it.
 
-    Без этой проверки занятый номер упирается в уникальный индекс и возвращает
-    ``IntegrityError`` с куском SQL: для человека это шум, для агента — текст, из которого
-    нечего понять и нечем починиться. А переработка плана (схлопнуть два этапа, вставить
-    третий) — самый обычный ход, и на нём это всплывает первым делом.
+    Without this check a taken number hits the unique index and returns an ``IntegrityError``
+    with a chunk of SQL: noise for the person, and for the agent a text it can neither understand
+    nor act on. Reworking a plan (merge two stages, insert a third) is the most ordinary move, and
+    it is the first place this surfaces.
 
-    Перенумерация хвоста здесь НЕ делается намеренно: агент ссылается на «третий этап» прозой
-    в журнале, и молчаливый сдвиг сделал бы такие ссылки ложными. Дыры в нумерации легальны —
-    номер упорядочивает, а не считает.
+    The tail is deliberately NOT renumbered here: the agent refers to "the third stage" in prose in
+    the journal, and a silent shift would make such references false. Gaps in numbering are legal —
+    the number orders, it does not count.
     """
     stmt = select(TasksStage.code, TasksStage.title).where(
         TasksStage.task_code == task_code, TasksStage.number == number
@@ -116,7 +116,7 @@ async def stage_create(
     description: str | None = None,
     body: str | None = None,
 ) -> TasksStage:
-    """Завести этап. Номер не передан — следующий по задаче; занятый — отказ."""
+    """Create a stage. No number given — the task's next one; a taken one — refused."""
     async with write_scope() as s:
         await _require_staged_task(s, task_code)
         place = (
@@ -145,7 +145,7 @@ async def stage_get(code: str) -> TasksStage | None:
 
 
 async def stage_list_by_task(task_code: str) -> list[TasksStage]:
-    """Этапы задачи по номеру: первый сверху — план читается сверху вниз."""
+    """The task's stages by number, first on top — a plan reads top to bottom."""
     stmt = (
         select(TasksStage)
         .where(TasksStage.task_code == task_code)
@@ -164,7 +164,7 @@ async def stage_update(
     number: int | None = None,
     evidence: str | None = None,
 ) -> TasksStage | None:
-    """Обновить переданные поля этапа (``None`` = не трогать). ``None`` в ответе — этапа нет."""
+    """Update the given stage fields (``None`` = leave as is). Returns ``None`` — no such stage."""
     async with write_scope() as s:
         row = await s.get(TasksStage, code)
         if row is None:
@@ -176,8 +176,8 @@ async def stage_update(
         if body is not None:
             row.body = fit(body, BODY_MAX, "stage body")
         if number is not None:
-            # Сама переезжающая строка из проверки исключена: иначе «поставить на свой же
-            # номер» отказывало бы, ссылаясь на саму себя.
+            # The moving row itself is excluded from the check: otherwise "set it to its own
+            # number" would be refused, citing the row itself.
             row.number = await _free_number(s, row.task_code, number, moving=code)
         if evidence is not None:
             row.evidence = clip(evidence, EVIDENCE_MAX)
@@ -187,11 +187,11 @@ async def stage_update(
 
 
 async def stage_update_status(code: str, status: str) -> TasksStage | None:
-    """Сменить статус этапа и проставить отметку фазы.
+    """Change a stage's status and set the phase timestamp.
 
-    Закрытие требует доказательства: ``done`` с пустым ``evidence`` — ``ValueError``. Без этой
-    проверки этап помечался бы сделанным без единого следа работы, а дальше по плану шли бы
-    рассуждения на ложной посылке.
+    Closing requires evidence: ``done`` with empty ``evidence`` is a ``ValueError``. Without this
+    check a stage could be marked done without a single trace of the work, and the rest of the
+    plan would proceed reasoning from a false premise.
     """
     _checked(status, TASK_STATUSES, "stage status")
     async with write_scope() as s:
@@ -211,8 +211,8 @@ async def stage_update_status(code: str, status: str) -> TasksStage | None:
         if status in TASK_STATUSES_TERMINAL and row.finished_at is None:
             row.finished_at = now
         if status == STATUS_CANCELED and row.started_at is None:
-            # Брошенный до старта этап тоже завершён — иначе «закрытые» и «незакрытые» перестают
-            # покрывать все строки, и список планов начинает врать.
+            # A stage abandoned before it started is finished too — otherwise "closed" and "open"
+            # stop covering every row, and the plan list starts lying.
             row.finished_at = now
         await s.flush()
         await s.refresh(row)
@@ -220,23 +220,23 @@ async def stage_update_status(code: str, status: str) -> TasksStage | None:
 
 
 async def stage_delete(code: str) -> bool:
-    """Снести этап физически. ``True`` — строка существовала.
+    """Hard-delete a stage. ``True`` — the row existed.
 
-    Логического удаления у этапа нет: брошенный этап — это статус ``canceled``, а спрятанная
-    строка плана сделала бы историю работы неполной.
+    A stage has no soft delete: an abandoned stage is the ``canceled`` status, and a hidden plan
+    row would leave the history of the work incomplete.
     """
     async with write_scope() as s:
         row = await s.get(TasksStage, code)
         if row is None:
             return False
         await s.execute(sa_delete(TasksStage).where(TasksStage.code == code))
-        # Массовый оператор объектов не даёт — ленте изменений код называем сами.
+        # A bulk statement yields no objects — so we name the code to the change feed ourselves.
         mark_changes(s, "tasks.stage", DELETED, [code])
     return True
 
 
 async def stage_count_by_task_codes(task_codes: list[str]) -> dict[str, int]:
-    """``task_code → сколько в ней этапов`` одним ``GROUP BY`` — для списка задач."""
+    """``task_code → number of its stages`` in one ``GROUP BY`` — for the task list."""
     if not task_codes:
         return {}
     stmt = (

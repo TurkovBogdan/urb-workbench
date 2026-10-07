@@ -4,15 +4,15 @@ import type { TaskInfo } from './api'
 type Identity = Pick<TaskInfo, 'module' | 'code'>
 type Field = 'name' | 'short' | 'description'
 
-// Название/описание задачи живут на бэке (`NAME`/`DESCRIPTION` класса задачи) и
-// приходят в payload. КЛЮЧ перевода выводится из стабильной пары `(module, code)` —
-// бэк отдельный ключ не шлёт.
+// A job's name/description live on the backend (`NAME`/`DESCRIPTION` of the job class) and
+// arrive in the payload. The translation KEY is derived from the stable `(module, code)` pair —
+// the backend sends no separate key.
 //
-// Порядок поиска по полю:
-//   1. `<module>.task.<code>.<field>` — словарь самой фичи модуля
-//   2. `core_monitoring.catalog.<module>.<code>.<field>` — catch-all для модулей без фронт-фичи (напр. `core`)
-//   3. литерал с бэка (`info.name` / `info.description`) — чтобы непереведённые/новые
-//      задачи рисовались, а не текли сырым ключом
+// Lookup order per field:
+//   1. `<module>.task.<code>.<field>` — the module feature's own dictionary
+//   2. `core_monitoring.catalog.<module>.<code>.<field>` — catch-all for modules without a frontend feature (e.g. `core`)
+//   3. the literal from the backend (`info.name` / `info.description`) — so untranslated/new
+//      jobs still render instead of leaking a raw key
 export function useTaskLabels() {
   const { t, te } = useI18n()
 

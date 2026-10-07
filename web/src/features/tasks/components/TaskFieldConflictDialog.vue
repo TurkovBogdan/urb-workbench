@@ -1,16 +1,16 @@
 <script setup lang="ts">
-// Окно конфликта: поле, которое человек правил, тем временем изменили в базе.
+// Conflict dialog: a field the person was editing was changed in the database meanwhile.
 //
-// Решение заранее принято за него: побеждает база — агент уже записал своё и на это
-// рассчитывает, а человек знает, что сам менял. Поэтому окно ничего не спрашивает. Оно говорит,
-// что случилось, и отдаёт набранное человеком, чтобы то не пропало молча: скопировать и
-// вернуть нужное руками. Полный дифф с выбором — следующий шаг, а не этот.
+// The decision is made for them in advance: the database wins — the agent has already written its
+// version and relies on it, while the person knows what they changed. So the dialog asks nothing.
+// It says what happened and hands back what the person typed so it is not lost silently: copy it
+// and restore what is needed by hand. A full diff with a choice is the next step, not this one.
 import { useI18n } from 'vue-i18n'
 
 import CopyChip from '@/components/CopyChip.vue'
 
 defineProps<{
-  /** По одному на поле: подпись поля и то, что человек успел в нём набрать. */
+  /** One per field: the field label and what the person had typed into it. */
   items: { label: string; text: string }[]
 }>()
 
@@ -72,8 +72,8 @@ const { t } = useI18n()
   color: var(--text);
 }
 
-/* Набранное — как есть, со всеми переносами и разметкой: это исходник, который человек будет
-   копировать обратно, а не текст для чтения. */
+/* The typed text as is, with all line breaks and markup: it is source the person will copy back,
+   not text for reading. */
 .conflict__text {
   margin: 0;
   max-height: 240px;

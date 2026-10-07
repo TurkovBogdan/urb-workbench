@@ -1,16 +1,16 @@
-// Куда легла перетащенная строка — одно правило на все контейнеры списка задач.
+// Where a dragged row landed — one rule for every container of the task list.
 //
-// ПОЧЕМУ НЕ `previousElementSibling`. К моменту `onEnd` разметка уже не та, что была в момент
-// броска: `vue-draggable-plus` держит порядок в переданном ему массиве и ОТКАТЫВАЕТ перестановку
-// в DOM, чтобы дальше её сделал Vue из своего списка. Сосед, прочитанный из разметки после
-// отката, — это сосед по старому порядку, то есть неверная позиция. Симптом ровно такой: тащишь
-// строку вверх, а уезжает вниз.
+// WHY NOT `previousElementSibling`. By the time `onEnd` fires, the markup is no longer what it
+// was at the drop: `vue-draggable-plus` keeps the order in the array it was given and REVERTS the
+// DOM reorder so that Vue redoes it from its own list. A neighbour read from the markup after the
+// revert is a neighbour in the old order, i.e. the wrong position. The symptom is exactly this:
+// you drag a row up and it moves down.
 //
-// Поэтому позиция считается по `newIndex` библиотеки и по кодам контейнера, из которых исключена
-// сама переехавшая строка. Правило одинаково работает и когда откат случился, и когда нет, и для
-// переноса в другой контейнер — там переехавшей строки в целевом ряду просто ещё нет.
+// So the position is computed from the library's `newIndex` and from the container's codes with
+// the moved row itself excluded. The rule works the same whether the revert happened or not, and
+// for a move into another container — there the moved row is simply not in the target row yet.
 
-/** Коды строк контейнера в их порядке; переехавшая исключена. */
+/** Codes of the container's rows in order; the moved row excluded. */
 function neighbours(container: HTMLElement, movedCode: string): string[] {
   return [...container.children]
     .map((child) => (child as HTMLElement).dataset?.code)
@@ -18,18 +18,19 @@ function neighbours(container: HTMLElement, movedCode: string): string[] {
 }
 
 /**
- * Код строки, ПОД которую легла переехавшая; `null` — она встала первой.
+ * Code of the row the moved one landed BELOW; `null` — it became first.
  *
- * `newIndex` — место среди всех строк контейнера, поэтому выше неё стоит `newIndex - 1`-я из
- * остальных.
+ * `newIndex` is the position among all rows of the container, so the row above it is the
+ * `newIndex - 1`-th of the others.
  */
 export function anchorAfterDrop(
   container: HTMLElement,
   movedCode: string,
   newIndex: number | undefined,
 ): string | null {
-  // Шапка карточки группы (`GroupDropZone`): места внутри неё нет, задача встаёт в КОНЕЦ ряда
-  // группы — после той, что шапка назвала последней. Так же кладёт задачу и `tasks_regroup`.
+  // The group card header (`GroupDropZone`): it has no positions inside, so the task goes to the
+  // END of the group's row — after the one the header named as last. `tasks_regroup` places a
+  // task the same way.
   if (container.dataset.drop === 'end') {
     const last = container.dataset.after || null
     return last === movedCode ? null : last

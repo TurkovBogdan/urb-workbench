@@ -1,4 +1,4 @@
-"""Удаление задачи: каскад по ветке, восстановление по совпадающей отметке, ``include_deleted``."""
+"""Task deletion: cascade down the branch, restore by a matching stamp, ``include_deleted``."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ pytestmark = pytest.mark.db
 
 
 async def _branch(workspace_code: str):
-    """Ветка: корень и две его подзадачи — глубже дерево не бывает."""
+    """A branch: a root and its two subtasks — the tree never gets deeper than that."""
     root = await task_create(workspace_code=workspace_code, title="Эпик")
     child = await task_create(
         workspace_code=workspace_code, title="Задача", parent_code=root.code
@@ -55,7 +55,7 @@ async def test_deleted_tasks_vanish_from_listings_by_default(db, workspace):
 
 
 async def test_restore_lifts_exactly_the_tasks_that_went_down_together(db, workspace):
-    """Подзадача, удалённая раньше и отдельно, несёт свою отметку — и остаётся удалённой."""
+    """A subtask deleted earlier and on its own carries its own stamp — and stays deleted."""
     root, child, sibling = await _branch(workspace.code)
     await task_delete(sibling.code)
 
@@ -74,7 +74,7 @@ async def test_restore_of_a_live_task_reports_false(db, workspace):
 
 
 async def test_hard_delete_takes_the_branch_and_its_tree_rows(db, workspace):
-    """Иначе потомки остались бы в базе без строки связи — невидимые из любого обхода."""
+    """Otherwise the descendants would stay in the DB without a link row — invisible to any walk."""
     root, child, sibling = await _branch(workspace.code)
 
     assert await task_delete(root.code, hard=True) is True

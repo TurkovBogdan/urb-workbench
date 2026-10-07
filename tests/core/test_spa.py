@@ -1,4 +1,4 @@
-"""spa: middleware раздачи фронта — граница API-префиксов и резолв файла."""
+"""spa: the frontend-serving middleware — the API-prefix boundary and file resolution."""
 
 from __future__ import annotations
 
@@ -9,8 +9,8 @@ from src.core.router.spa import SpaStaticMiddleware, _is_api_path
 _API = ("/api", "/internal", "/storage", "/mcp", "/webhook")
 
 
-async def _noop_app(scope, receive, send):  # pragma: no cover — заглушка downstream
-    raise AssertionError("downstream не должен вызываться для SPA-путей")
+async def _noop_app(scope, receive, send):  # pragma: no cover — downstream stub
+    raise AssertionError("downstream must not be called for SPA paths")
 
 
 @pytest.mark.pure
@@ -21,7 +21,7 @@ async def _noop_app(scope, receive, send):  # pragma: no cover — заглуш�
         ("/api/things", True),
         ("/internal/health", True),
         ("/storage/x", True),
-        ("/apidocs", False),  # префикс должен совпадать по сегменту, не по подстроке
+        ("/apidocs", False),  # the prefix must match on a segment, not a substring
         ("/", False),
         ("/login", False),
         ("/assets/index-abc.js", False),
@@ -41,7 +41,7 @@ def test_spa_response_serves_file_else_index(tmp_path):
 
     index = (tmp_path / "index.html").resolve()
     assert mw._spa_response("/assets/a.js").path == asset.resolve()
-    # deep-link клиентского роутинга → index.html
+    # a client-side routing deep link → index.html
     assert mw._spa_response("/conversations/42").path == index
-    # выход за пределы dist (traversal) → index.html, не файл снаружи
+    # escaping dist (traversal) → index.html, not a file outside it
     assert mw._spa_response("/../secret").path == index

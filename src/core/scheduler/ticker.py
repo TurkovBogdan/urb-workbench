@@ -1,4 +1,4 @@
-"""Тик-цикл: каждые N секунд проверяет реестр и спавнит готовые задачи."""
+"""Tick loop: every N seconds checks the registry and spawns the tasks that are due."""
 
 from __future__ import annotations
 
@@ -18,14 +18,14 @@ from src.core.utils.date import utc_now
 
 
 def is_due(expression: str, now: datetime, last_run_at: datetime | None) -> bool:
-    """Пора ли запускать задачу. ``expression`` — стандартный 5-польный cron."""
+    """Whether the task is due. ``expression`` is a standard 5-field cron."""
     if last_run_at is None:
         return True
     return croniter(expression, last_run_at).get_next(datetime) <= now
 
 
 class Ticker:
-    """Один тик: cleanup zombies → итерация реестра → спавн готовых через семафор."""
+    """One tick: clean up zombies → walk the registry → spawn due tasks through a semaphore."""
 
     def __init__(
         self,
@@ -39,7 +39,7 @@ class Ticker:
         self.tick_seconds = tick_seconds
         self.zombie_threshold = zombie_threshold
         self.shutdown_grace_seconds = shutdown_grace_seconds
-        # Scope: гонять задачи только этих модулей; None — весь реестр.
+        # Scope: run only these modules' tasks; None — the whole registry.
         self.modules = modules
         self._task: asyncio.Task | None = None
         self._stop = asyncio.Event()
@@ -53,7 +53,7 @@ class Ticker:
         self._task = asyncio.create_task(self._loop())
 
     async def stop(self) -> None:
-        """Остановить тик, дождаться активных run_entry до grace, потом отменить."""
+        """Stop ticking, wait up to the grace period for active run_entry calls, then cancel."""
         self._stop.set()
         if self._task is not None:
             try:

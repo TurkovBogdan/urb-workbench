@@ -1,13 +1,14 @@
-"""Каждый код отказа с модулем, который отдаёт бэкенд, переведён на обоих языках интерфейса.
+"""Every module-scoped refusal code the backend returns is translated in both interface languages.
 
-Бэкенд называет понятную ему причину кодом ``<модуль>.<сущность>.<причина>``, а текст даёт
-словарь фичи: ``<модуль>.error.<сущность>.<причина>`` (``web/src/api/errorText.ts``). Код без
-перевода не ломает показ — человек видит английский запасной текст ответа, — поэтому промах молчит
-и ловится здесь. Коды без модуля (``validation_error``, отказы обновления) сюда не входят: у них
-английский запасной текст — законный исход.
+The backend names a reason it understands with a code ``<module>.<entity>.<reason>``, and the text
+comes from the feature dictionary: ``<module>.error.<entity>.<reason>``
+(``web/src/api/errorText.ts``). A code without a translation does not break the display — the
+person sees the response's English fallback text — so the miss is silent and is caught here.
+Codes without a module (``validation_error``, update refusals) are out of scope: for them the
+English fallback text is a legitimate outcome.
 
-Код ищется там, где его пишут: константой в ``errors.py`` модуля и аргументом ``code="…"`` у
-``ApiError``. Читается текстом, поэтому ``pure``.
+A code is looked for where it is written: as a constant in a module's ``errors.py`` and as the
+``code="…"`` argument to ``ApiError``. Read as text, hence ``pure``.
 """
 
 from __future__ import annotations
@@ -57,8 +58,8 @@ def test_codes_are_found():
 
 
 def test_views_show_errors_through_the_dictionary():
-    """Сырой ``e.message`` минует словарь: человек видит английский запасной текст даже тогда,
-    когда у причины есть код и перевод. Отказ показывается через ``errorText``."""
+    """A raw ``e.message`` bypasses the dictionary: the person sees the English fallback text even
+    when the reason has a code and a translation. A refusal is shown through ``errorText``."""
     raw = [
         f"{path.relative_to(FEATURES).as_posix()}:{number}"
         for path in FEATURES.rglob("*")
@@ -73,4 +74,4 @@ def test_views_show_errors_through_the_dictionary():
 @pytest.mark.parametrize("locale", ["ru", "en"])
 @pytest.mark.parametrize("code", _codes())
 def test_code_has_its_text(code: str, locale: str):
-    assert _translation(code, locale), f"нет перевода {code} в features/{code.split('.')[0]}/locales/{locale}.json"
+    assert _translation(code, locale), f"no translation of {code} in features/{code.split('.')[0]}/locales/{locale}.json"

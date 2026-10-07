@@ -1,28 +1,30 @@
 <script setup lang="ts">
-// Выбор иконки из фиксированного набора: серая панель, внутри неё поиск и плитки с прокруткой.
+// Icon choice from a fixed set: a grey panel with a search field and scrolling tiles inside.
 //
-// Набор приходит пропом, а не берётся из реестра: компонент общий, а реестров может быть
-// несколько (сегодня — палитра полок research). Резолвер имени в компонент тоже проп по той же
-// причине — рантайм-поиск по всему @tabler/icons-vue утащил бы в бандл ~6000 компонентов.
+// The set comes as a prop rather than from a registry: the component is shared, and there may be
+// several registries (today — the research shelf palette). The name-to-component resolver is a prop
+// for the same reason — a runtime lookup across all of @tabler/icons-vue would drag ~6000
+// components into the bundle.
 //
-// Ищем ПО КОДУ (`building-factory-2`), а не по переводу: код — то, что уходит в базу, искать по
-// нему однозначно, и второго словаря на 120 строк не нужно. Сам код наружу не печатаем: человек
-// выбирает рисунок, а не строку, и выбранное видно по подсветке плитки.
+// Search is BY CODE (`building-factory-2`), not by translation: the code is what goes to the
+// database, searching by it is unambiguous, and a second 120-line dictionary isn't needed. The code
+// itself isn't printed: the person picks a picture, not a string, and the selection shows by the
+// tile highlight.
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { IconSearch } from '@tabler/icons-vue'
 import type { TablerIcon } from '@/shared/nav'
 
 const props = withDefaults(defineProps<{
-  /** Выбранный код иконки; `null` — ничего не выбрано. */
+  /** The selected icon code; `null` — nothing selected. */
   modelValue?: string | null
-  /** Полный набор кодов в порядке показа. */
+  /** The full set of codes in display order. */
   icons: string[]
-  /** Код → компонент. Неизвестный код резолвер обязан покрыть сам (запасной иконкой). */
+  /** Code → component. The resolver must cover an unknown code itself (with a fallback icon). */
   resolve: (name: string) => TablerIcon
-  /** Высота области плиток; за ней она прокручивается. Поиск остаётся на месте. */
+  /** Height of the tile area; beyond it the area scrolls. The search stays in place. */
   height?: number | string
-  /** Снять лоток: панель рисует тот, кто вкладывает пикер в свою (см. IconColorPicker). */
+  /** Drop the tray: the panel is drawn by whoever nests the picker in theirs (see IconColorPicker). */
   bare?: boolean
 }>(), {
   modelValue: null,
@@ -91,9 +93,9 @@ const scrollHeight = computed(() => (
 </template>
 
 <style scoped>
-/* Панель — утопленный лоток (роль `--surface-sunken`, как у колонок канбана): плитки на нём
-   читаются как лежащие сверху. Внутри три полосы: поиск, разделитель, зона прокрутки. Поиск и
-   линия закреплены, уезжают только плитки. */
+/* The panel is a sunken tray (the `--surface-sunken` role, like kanban columns): tiles on it read as
+   lying on top. Inside are three bands: search, divider, scroll area. The search and the rule are
+   pinned; only the tiles scroll. */
 .icon-picker {
   display: flex;
   flex-direction: column;
@@ -103,8 +105,8 @@ const scrollHeight = computed(() => (
   overflow: hidden;
 }
 
-/* Без лотка остаются только полосы: тот, кто вложил пикер, рисует лоток вокруг всего набора,
-   и второй фон с рамкой внутри читался бы как окно в окне. */
+/* Without the tray only the bands remain: whoever nested the picker draws a tray around the whole
+   set, and a second background with a border inside would read as a window within a window. */
 .icon-picker--bare {
   background: none;
   border: none;
@@ -119,8 +121,8 @@ const scrollHeight = computed(() => (
   background: var(--surface);
 }
 
-/* Линия во всю ширину лотка, а не по полям: она отделяет полосу поиска от содержимого — та же
-   роль, что у линии под шапкой окна. Поэтому отступы живут в полосах, а не на самой панели. */
+/* The rule spans the full tray width, not the padded area: it separates the search band from the
+   content — the same role as the rule under a window header. So the paddings live in the bands, not on the panel. */
 .icon-picker__rule {
   height: 1px;
   background: var(--border);
@@ -161,9 +163,9 @@ const scrollHeight = computed(() => (
   outline-offset: 1px;
 }
 
-/* Выбранная плитка красится акцентом — ИЛИ цветом, если пикер вложен в панель, где цвет уже
-   выбран (`.color-tones` на предке подставляет роли). Наследование переменных и есть связь между
-   двумя выборами: отдельного пропа под это не нужно. */
+/* The selected tile is painted with the accent — OR with the color, if the picker is nested in a
+   panel where a color is already chosen (`.color-tones` on an ancestor supplies the roles). Variable
+   inheritance is the link between the two choices: no separate prop is needed for it. */
 .icon-picker__tile--active,
 .icon-picker__tile--active:hover {
   color: var(--gc-ink, var(--accent));

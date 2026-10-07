@@ -1,28 +1,29 @@
-// Что редактор умеет в этом месте применения.
+// What the editor can do at this point of use.
 //
-// Поля, в которые пишут, разные по природе. У тела задачи есть заголовки, списки и таблицы; у
-// названия этапа — только текст с выделением. Один редактор на оба случая работает лишь при
-// одном условии: **редактор не должен уметь выражать больше, чем принимает хранилище и чем
-// ждёт читатель**. Набор возможностей поэтому не оформление, а часть контракта поля.
+// The fields people write into differ by nature. A task body has headings, lists and tables; a
+// stage title has only text with emphasis. One editor for both cases works on one condition only:
+// **the editor must not be able to express more than the storage accepts and the reader
+// expects**. The feature set is therefore not styling but part of the field's contract.
 //
-// Состав действует сразу на четыре слоя, и в этом весь смысл держать его одним списком:
+// The set acts on four layers at once, and that is the whole point of keeping it as one list:
 //
-//   1. схема — выключенного узла в документе не существует, а не «он есть, но кнопки нет»;
-//   2. разбор — markdown на входе приводится к разрешённому (bridge/restrict.ts), поэтому
-//      вставка чужого текста не может протащить конструкцию мимо схемы;
-//   3. хром — слэш-меню и панель показывают ровно то, что сработает;
-//   4. печать — печатать нечего, чего нет в документе.
+//   1. schema — a disabled node does not exist in the document, rather than "it is there but has
+//      no button";
+//   2. parsing — incoming markdown is reduced to what is allowed (bridge/restrict.ts), so pasting
+//      foreign text cannot smuggle a construct past the schema;
+//   3. chrome — the slash menu and the toolbar show exactly what will work;
+//   4. printing — there is nothing to print that is not in the document.
 //
-// Без пункта 2 остальные бесполезны: пользователь вставит из буфера заголовок, схема его
-// отвергнет, и ProseMirror откажет ВСЕМУ документу разом.
+// Without point 2 the rest are useless: the user pastes a heading from the clipboard, the schema
+// rejects it, and ProseMirror refuses the WHOLE document at once.
 
-/** Блочные конструкции. Абзац в списке не значится: он есть всегда и выключению не подлежит. */
+/** Block constructs. The paragraph is not listed: it is always present and cannot be disabled. */
 export type BlockFeature = 'heading' | 'list' | 'quote' | 'codeBlock' | 'divider' | 'table'
 
-/** Строчные: метки текста и пилюля-ссылка на сущность. */
+/** Inline: text marks and the entity reference pill. */
 export type InlineFeature = 'bold' | 'italic' | 'strike' | 'code' | 'link' | 'entityRef'
 
-/** Хром: ручка перетаскивания блоков и меню по слэшу. */
+/** Chrome: the block drag handle and the slash menu. */
 export type ChromeFeature = 'handle' | 'slash'
 
 export type Feature = BlockFeature | InlineFeature | ChromeFeature
@@ -35,14 +36,14 @@ export const INLINE_FEATURES: readonly InlineFeature[] = [
   'bold', 'italic', 'strike', 'code', 'link', 'entityRef',
 ]
 
-/** Готовые наборы. Имя режима — то, что ставится в разметке; список — то, что он значит. */
+/** Ready-made sets. The mode name is what goes into the markup; the list is what it means. */
 export type EditorMode = 'full' | 'simple'
 
 const FULL: readonly Feature[] = [...BLOCK_FEATURES, ...INLINE_FEATURES, 'handle', 'slash']
 
-// Простой режим: абзац, жирный, курсив — и больше ничего. Блочных конструкций нет ни одной,
-// поэтому нет и хрома: перетаскивать нечего, а меню по слэшу открывалось бы пустым. Слэш в
-// таком поле снова становится обычным символом.
+// Simple mode: paragraph, bold, italic — and nothing else. There are no block constructs at all,
+// hence no chrome either: there is nothing to drag, and the slash menu would open empty. In such
+// a field the slash becomes an ordinary character again.
 const SIMPLE: readonly Feature[] = ['bold', 'italic']
 
 export const MODES: Record<EditorMode, readonly Feature[]> = {
@@ -53,11 +54,10 @@ export const MODES: Record<EditorMode, readonly Feature[]> = {
 export type FeatureSet = ReadonlySet<Feature>
 
 /**
- * Разрешить режим и точечные поправки к нему в один набор.
+ * Resolve a mode and point adjustments to it into one set.
  *
- * `features` заменяет список режима целиком, а не дополняет его: «режим плюс кое-что» читается
- * двусмысленно ровно там, где важна однозначность, — при ответе на вопрос «что это поле
- * принимает».
+ * `features` replaces the mode's list entirely rather than extending it: "mode plus a bit" reads
+ * ambiguously exactly where unambiguity matters — when answering "what does this field accept".
  */
 export function resolveFeatures(mode: EditorMode = 'full', features?: readonly Feature[]): FeatureSet {
   return new Set(features ?? MODES[mode])

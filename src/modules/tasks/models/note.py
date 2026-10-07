@@ -1,22 +1,25 @@
-"""ORM ``tasks_note`` — журнал работы: решения, замечания, находки и факты одной таблицей.
+"""ORM ``tasks_note`` — the work journal: decisions, remarks, findings and facts in one table.
 
-Строка устроена как пара: **предмет** (``title`` + ``body``) и **разрешение** (``resolution``).
-Предмет говорит, что поднято, разрешение — чем закрыто. Отсюда единственное состояние, которое
-здесь есть: запись открыта, пока ``resolution`` пусто, и задача не сдаётся, пока открытые есть.
-Отдельной колонки под это состояние нет — иначе агент проставил бы её сам, минуя условие.
+A row is a pair: the **subject** (``title`` + ``body``) and the **resolution** (``resolution``).
+The subject says what was raised, the resolution says how it was closed. Hence the only state
+there is here: an entry is open while ``resolution`` is empty, and the task cannot be handed in
+while open entries remain. There is no separate column for that state — otherwise the agent
+would set it itself, bypassing the condition.
 
-``type`` решает, что описывает строка и кто пишет каждую её половину:
+``type`` decides what the row describes and who writes each half of it:
 
-- ``decision`` — выбор по ходу работы; предмет пишет агент, разрешение — человек ответом или сам
-  агент указателем на проверку. Решение с пустым разрешением и есть допущение, отдельного вида
-  под него не заводится;
-- ``remark`` — замечание постановщика; предмет пишет ТОЛЬКО человек (инструмента с этим типом у
-  агента нет), разрешение — агент: как учёл;
-- ``finding`` — находка вне задачи; поднимает агент, закрывает человек;
-- ``fact`` — то, что нужно помнить дальше; закрыт в момент записи и в шлюзе не участвует.
+- ``decision`` — a choice made along the way; the agent writes the subject, the resolution comes
+  from the person as a reply or from the agent itself as a pointer to the check. A decision with
+  an empty resolution is an assumption; no separate kind is introduced for it;
+- ``remark`` — a remark from the task's author; ONLY the person writes the subject (the agent has
+  no tool with this type), the agent writes the resolution: how it was taken into account;
+- ``finding`` — a discovery outside the task; the agent raises it, the person closes it;
+- ``fact`` — something to remember going forward; closed the moment it is written and takes no
+  part in the gate.
 
-``created_by`` здесь нет: автор выводится из типа. Таблица дописываемая — ни ``updated_at``, ни
-отметки закрытия: отмена оформляется новой записью, а «когда именно закрыли» читателя не имеет.
+There is no ``created_by``: the author follows from the type. The table is append-only — neither
+``updated_at`` nor a closing timestamp: a retraction is a new entry, and "when exactly it was
+closed" has no reader.
 """
 
 from __future__ import annotations
@@ -44,8 +47,8 @@ class TasksNote(Base):
     __tablename__ = "tasks_note"
     __table_args__ = (
         CheckConstraint(f"type IN ({sql_in(NOTE_TYPES)})", name="ck_tasks_note_type"),
-        # Журнал читают целиком по задаче и в порядке появления — индекс повторяет этот запрос
-        # и покрывает дочернюю сторону FK ``task_code``.
+        # The journal is read whole per task, in order of appearance — the index mirrors that
+        # query and covers the child side of the ``task_code`` FK.
         Index("ix_tasks_note_task_created", "task_code", "created_at"),
         Index("ix_tasks_note_stage", "stage_code"),
     )
@@ -57,9 +60,9 @@ class TasksNote(Base):
             "tasks.code", name="fk_tasks_note_task_code", ondelete="CASCADE"
         ),
     )
-    # Запись о работе по этапу держит ссылку на него; запись про задачу целиком — ``NULL``.
-    # CASCADE, а не SET NULL: этап сносится только вместе с задачей, и осиротевших записей
-    # тут не бывает.
+    # An entry about work on a stage references it; an entry about the task as a whole — ``NULL``.
+    # CASCADE, not SET NULL: a stage is only removed together with its task, so orphaned entries
+    # never occur here.
     stage_code: Mapped[str | None] = mapped_column(
         String(CODE_LEN),
         ForeignKey(

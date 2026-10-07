@@ -1,21 +1,21 @@
-"""ORM ``tasks_link`` — ребро дерева задач: где задача стоит и под кем.
+"""ORM ``tasks_link`` — an edge of the task tree: where a task stands and under whom.
 
-Ровно одна строка на задачу (``task_code`` — и PK, и FK), поэтому «место в дереве» у задачи
-единственно по конструкции, а не по договорённости: второй родитель здесь физически не
-помещается. Без строки связи задача дереву не принадлежит вовсе — поэтому ``task_create``
-заводит её в той же транзакции, что и саму задачу.
+Exactly one row per task (``task_code`` is both the PK and the FK), so a task's "place in the
+tree" is unique by construction, not by convention: a second parent physically does not fit
+here. Without a link row the task does not belong to the tree at all — which is why
+``task_create`` creates it in the same transaction as the task itself.
 
-- ``parent_code`` ``NULL`` — корень пространства (а не «родитель потерялся»): корней у
-  пространства много, и отдельного признака им не нужно.
-- ``sort`` — позиция среди соседей, **больший sort = выше**; шаг ``SORT_STEP`` оставляет место
-  для вставок между соседями без перенумерации списка.
+- ``parent_code`` ``NULL`` — the workspace root (not "the parent got lost"): a workspace has many
+  roots, and they need no separate flag.
+- ``sort`` — the position among siblings, **higher sort = higher up**; the ``SORT_STEP`` gap
+  leaves room for inserts between siblings without renumbering the list.
 
-Дети родителя идут одним полотном: заголовков кучек внутри связи здесь нет, весь порядок несёт
-``sort``.
+A parent's children form a single run: there are no sub-heading buckets inside the link, and
+``sort`` carries the whole order.
 
-``created_at`` тут нет намеренно: время появления ребра — это время появления задачи, а
-дублировать его значит завести второй источник правды. ``updated_at`` есть — он отвечает на
-другой вопрос: когда ветку последний раз двигали.
+There is no ``created_at`` here on purpose: the edge appears when the task does, and duplicating
+that time would create a second source of truth. ``updated_at`` is here — it answers a different
+question: when the branch was last moved.
 """
 
 from __future__ import annotations
@@ -33,8 +33,8 @@ from src.modules.tasks.constants import CODE_LEN, SORT_DEFAULT
 
 class TasksLink(Base):
     __tablename__ = "tasks_link"
-    # Главный запрос дерева — «дети такого-то по порядку»; индекс отдаёт их уже отсортированными
-    # и заодно покрывает дочернюю сторону FK ``parent_code``.
+    # The tree's main query is "the children of X, in order"; the index returns them already
+    # sorted and also covers the child side of the ``parent_code`` FK.
     __table_args__ = (Index("ix_tasks_link_parent_sort", "parent_code", "sort"),)
 
     task_code: Mapped[str] = mapped_column(

@@ -1,11 +1,11 @@
-// Вставка markdown разбирается, а не ложится текстом.
+// Pasted markdown is parsed, not dropped in as text.
 //
-// Без этого расширения скопированный кусок тела вставлялся буквально: `## Заголовок` оставался
-// строкой с решётками, `- пункт` — абзацем с дефисом. Для редактора markdown это худший из
-// возможных ответов: человек вставляет ровно тот формат, которым редактор и живёт.
+// Without this extension a copied piece of a body was pasted literally: `## Heading` stayed a line
+// with hashes, `- item` a paragraph starting with a hyphen. For a markdown editor that is the worst
+// possible answer: the person is pasting exactly the format the editor lives on.
 //
-// Разбор идёт тем же markdownToDoc, что и загрузка тела, поэтому вставка знает всё, что знает
-// загрузка, — включая коды сущностей, которые сразу становятся пилюлями.
+// Parsing goes through the same markdownToDoc as loading a body, so paste knows everything loading
+// knows — including entity codes, which turn into pills right away.
 import { Extension } from '@tiptap/core'
 import { Plugin } from '@tiptap/pm/state'
 import { Slice } from '@tiptap/pm/model'
@@ -13,8 +13,8 @@ import { markdownToDoc } from '../bridge'
 import type { FeatureSet } from '../modes'
 
 export interface MarkdownPasteOptions {
-  /** Возможности поля; `null` — без ограничений. Вставка обязана знать их наравне с загрузкой:
-   *  именно через буфер в поле и попадает конструкция, которой его схема не знает. */
+  /** The field's features; `null` means unrestricted. Paste must know them just as loading does:
+   *  the clipboard is exactly how a construct the field's schema does not know gets into it. */
   features: FeatureSet | null
 }
 
@@ -32,20 +32,20 @@ export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
         props: {
           handlePaste(view, event) {
             const text = event.clipboardData?.getData('text/plain')
-            // HTML в буфере — значит копировали из браузера или редактора; там разметка уже
-            // есть, и разбирать её как markdown значило бы читать текст дважды.
+            // HTML on the clipboard means it was copied from a browser or an editor; the markup
+            // is already there, and parsing it as markdown would read the text twice.
             const html = event.clipboardData?.getData('text/html')
             if (!text || html) return false
 
-            // В блоке кода вставка — это текст, и ничего кроме.
+            // Inside a code block a paste is text and nothing else.
             if (view.state.selection.$from.parent.type.spec.code) return false
 
             const parsed = view.state.schema.nodeFromJSON(markdownToDoc(text, features ?? undefined))
             const fragment = parsed.content
             if (!fragment.childCount) return false
 
-            // Открытые края склеивают первый и последний абзацы вставки с текстом вокруг
-            // каретки — иначе вставка слова посреди строки разорвала бы её на три абзаца.
+            // Open edges merge the first and last pasted paragraphs with the text around the
+            // caret — otherwise pasting a word mid-line would split the line into three paragraphs.
             const openStart = fragment.firstChild?.isTextblock ? 1 : 0
             const openEnd = fragment.lastChild?.isTextblock ? 1 : 0
 

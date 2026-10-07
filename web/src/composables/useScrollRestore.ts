@@ -1,19 +1,19 @@
-// Возврат позиции чтения одним присваиванием не делается: страница, на которую вернулись,
-// собирается не мгновенно. Замер на деталке исследования (возврат с зоны): в момент активации
-// её высота 1145px — данные ещё едут, — через 180мс 5884, ещё через 180 — 7452. Присвоенная
-// сразу позиция сперва упирается в потолок короткой страницы, а потом её сдвигает сам браузер:
-// дорисовка выше окна включает привязку прокрутки (`overflow-anchor`), и 900 превращались
-// в 2469 — ровно на высоту приехавшего куска.
+// Restoring the reading position is not a single assignment: the page we returned to does not
+// assemble instantly. Measured on the research detail page (returning from a zone): at activation
+// its height is 1145px — data still arriving — 180ms later 5884, another 180 later 7452. A
+// position assigned right away first hits the ceiling of the short page, and then the browser
+// itself shifts it: content rendered above the viewport triggers scroll anchoring
+// (`overflow-anchor`), and 900 turned into 2469 — exactly the height of the chunk that arrived.
 //
-// Поэтому цель не ставится, а УДЕРЖИВАЕТСЯ, пока страница до неё дорастает. Отпускаем по трём
-// поводам: цель достигнута и держится, вышло время, либо человек тронул прокрутку сам — его
-// намерение старше нашего.
+// So the target is not set but HELD while the page grows into it. We let go for one of three
+// reasons: the target is reached and holds, time runs out, or the person touched the scroll
+// themselves — their intent outranks ours.
 const HOLD_WINDOW_MS = 1200
 
-// Чем человек забирает прокрутку себе. Отпустить рано нельзя: страница дорастает кусками, и
-// между ними позиция бывает верной случайно — держим всё окно, а не «пока не совпало».
-// `pointerdown` тут не про прокрутку, а про любое касание страницы: клик по оглавлению — тоже
-// перемотка, и спорить с ней мы не вправе.
+// How the person takes the scroll back. Releasing early is not an option: the page grows in chunks,
+// and in between the position can be right by accident — hold for the whole window, not "until it
+// matches". `pointerdown` here is not about scrolling but about any touch on the page: a click in
+// the table of contents is also a jump, and we have no right to fight it.
 const USER_TAKEOVER_EVENTS = ['wheel', 'pointerdown'] as const
 
 export function restoreScrollTop(element: HTMLElement, target: number): void {

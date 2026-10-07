@@ -1,23 +1,23 @@
-"""Счётчики содержимого пространства — точка, которой модули поверх дополняют его карточку.
+"""Workspace content counters — the hook through which the modules above extend its card.
 
-Пространство само не знает, что в нём лежит: зоны и задачи — дело модуля ``tasks``, документы
-будут делом другого модуля, и список «сколько внутри» не может быть зашит здесь, иначе
-зависимость шла бы сверху вниз — от уровня 1 к уровню 2.
+A workspace itself does not know what lives in it: zones and tasks are the ``tasks`` module's
+business, documents will be another module's, and the "how much is inside" list cannot be
+hardwired here, otherwise the dependency would run top-down — from level 1 to level 2.
 
-Поэтому счётчик **регистрируют**: модуль поверх в своём ``configure()`` объявляет ключ, ключ
-подписи для интерфейса и функцию, считающую свои строки разом по списку кодов пространств.
-Карточка пространства показывает то, что зарегистрировано, и ничего не знает о самих сущностях.
+So a counter is **registered**: a module above declares, in its ``configure()``, a key, a label
+key for the interface and a function that counts its rows for a list of workspace codes at once.
+The workspace card shows whatever is registered and knows nothing about the entities themselves.
 
-Считаем пачкой (``codes -> {code: count}``), а не по строке: список пространств помещается на
-экран целиком, и запрос на карточку дал бы N+1 там, где хватает одной группировки.
+We count in a batch (``codes -> {code: count}``), not per row: the workspace list fits on one
+screen, and a query per card would make N+1 where a single grouping is enough.
 
-Подпись счётчика не приезжает строкой: бэкенд отдаёт КЛЮЧ сообщения (``label_key``), а текст
-берёт интерфейс. Иначе русский текст поселился бы в модуле, который про язык ничего не знает, а
-владел бы им не тот, кто владеет самой сущностью.
+A counter's label does not arrive as a string: the backend returns the message KEY
+(``label_key``), and the interface supplies the text. Otherwise Russian text would settle in a
+module that knows nothing about language, owned by someone other than the owner of the entity.
 
-Реестр — process-global, как и реестр задач планировщика: ``configure()`` зовётся один раз на
-сборку приложения, а повторная сборка (тесты поднимают приложение много раз) перезаписывает
-запись по ключу, а не плодит дубли.
+The registry is process-global, like the scheduler's job registry: ``configure()`` is called once
+per application build, and a repeated build (tests bring the app up many times) overwrites the
+entry by key instead of piling up duplicates.
 """
 
 from __future__ import annotations
@@ -30,40 +30,40 @@ CountByCodes = Callable[[list[str]], Awaitable[dict[str, int]]]
 
 @dataclass(frozen=True)
 class WorkspaceCounter:
-    """Объявление счётчика: чем считать, как назвать и в каком порядке показывать."""
+    """A counter declaration: what to count with, what to call it and in which order to show it."""
 
     key: str
-    """Ключ счётчика в ответе API (``groups``/``tasks``); уникален в пределах приложения."""
+    """The counter's key in the API response (``groups``/``tasks``); unique across the app."""
 
     label_key: str
-    """Ключ сообщения интерфейса для подписи — принадлежит модулю, который счётчик завёл."""
+    """The interface message key for the label — owned by the module that created the counter."""
 
     count_by_codes: CountByCodes = field(compare=False)
-    """``[код пространства, …] -> {код: сколько}``. Пространства без строк можно не возвращать."""
+    """``[workspace code, …] -> {code: how many}``. Workspaces without rows may be omitted."""
 
     sort: int = 500
-    """Больший идёт раньше — порядок в карточке задаёт тот, кто счётчик регистрирует."""
+    """Higher goes first — the order on the card is set by whoever registers the counter."""
 
 
 _REGISTRY: dict[str, WorkspaceCounter] = {}
 
 
 def register_counter(counter: WorkspaceCounter) -> None:
-    """Объявить счётчик содержимого пространства (повторная регистрация ключа — замена)."""
+    """Declare a workspace content counter (registering a key again replaces it)."""
     _REGISTRY[counter.key] = counter
 
 
 def registered_counters() -> list[WorkspaceCounter]:
-    """Объявленные счётчики: больший ``sort`` раньше, дальше по ключу — порядок стабилен."""
+    """The declared counters: higher ``sort`` first, then by key — the order is stable."""
     return sorted(_REGISTRY.values(), key=lambda counter: (-counter.sort, counter.key))
 
 
 async def counts_for(codes: list[str]) -> dict[str, dict[str, int]]:
-    """``код пространства -> {ключ счётчика: сколько}`` для всех объявленных счётчиков.
+    """``workspace code -> {counter key: how many}`` for all declared counters.
 
-    Ноль подставляется здесь, а не в считающей функции: «не вернули» и «ничего не нашли» — это
-    один и тот же ответ для карточки, и требовать от каждого модуля заполнять нули значило бы
-    повторять одну и ту же сборку в каждом из них.
+    The zero is filled in here, not in the counting function: "not returned" and "found nothing"
+    are the same answer for the card, and requiring every module to fill in zeros would mean
+    repeating the same assembly in each of them.
     """
     if not codes:
         return {}
@@ -76,7 +76,7 @@ async def counts_for(codes: list[str]) -> dict[str, dict[str, int]]:
 
 
 def reset_counters() -> None:
-    """Очистить реестр — для тестов, которым нужна карточка без чужих счётчиков."""
+    """Clear the registry — for tests that need a card without other modules' counters."""
     _REGISTRY.clear()
 
 

@@ -281,7 +281,7 @@ function errRate(t: TaskInfo): number {
   flex: 1;
 }
 
-/* высота тоггла под строку поиска (VField density=compact → 36px) */
+/* toggle height matched to the search field (VField density=compact → 36px) */
 .filter-row :deep(.v-btn-toggle .v-btn) {
   --v-btn-height: 34px;
 }
@@ -291,7 +291,7 @@ function errRate(t: TaskInfo): number {
 }
 
 /* ── Skeleton ─────────────────────────────────────────────── */
-/* кости заданы глобально (main.scss); тут — раскладка под карточку */
+/* skeleton bones are defined globally (main.scss); here — the layout for the card */
 .skel-sep {
   width: 160px;
 }
@@ -300,7 +300,7 @@ function errRate(t: TaskInfo): number {
 }
 
 .skel-card {
-  /* высота примерно как у реальной карточки, чтобы layout не прыгал */
+  /* roughly the height of a real card, so the layout doesn't jump */
   min-height: 150px;
 }
 .skel-card :deep(.v-skeleton-loader) {
@@ -354,7 +354,7 @@ function errRate(t: TaskInfo): number {
 }
 
 /* ── Card ─────────────────────────────────────────────────── */
-/* surface / border / radius / hover / focus — глобальный дефолт .v-card + .v-card--link */
+/* surface / border / radius / hover / focus — the global default .v-card + .v-card--link */
 .task-card {
   display: flex;
   flex-direction: column;
@@ -393,7 +393,7 @@ function errRate(t: TaskInfo): number {
   flex-wrap: wrap;
 }
 
-/* Единая плашка для состояния, расписания и TTL */
+/* One badge style for state, schedule and TTL */
 .badge {
   display: inline-flex;
   align-items: center;
@@ -477,7 +477,7 @@ function errRate(t: TaskInfo): number {
   margin-top: auto;
 }
 
-/* Подсказка «провалиться в логи» — карточка кликабельна целиком */
+/* "Drill into logs" hint — the whole card is clickable */
 .task-card__open {
   display: inline-flex;
   align-items: center;

@@ -1,12 +1,12 @@
-"""Пределы и канал логов модуля core_interface."""
+"""Limits and log channel of the core_interface module."""
 
 from __future__ import annotations
 
 LOG_CHANNEL = "core_interface"
 
-# Совпадает с колонкой ``core_interface_settings.key``: слишком длинный ключ должен
-# отвергаться проверкой реестра, а не падать на вставке в Postgres (SQLite длину
-# игнорирует, поэтому в dev дефект был бы не виден).
+# Matches the ``core_interface_settings.key`` column: a key that is too long must be rejected
+# by the registry check, not fail on insert into Postgres (SQLite ignores the length, so in dev
+# the defect would go unnoticed).
 KEY_MAX_LENGTH = 128
 
 VALUE_MAX_BYTES = 4096
