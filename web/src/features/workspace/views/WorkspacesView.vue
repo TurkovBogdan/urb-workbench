@@ -1,35 +1,27 @@
 <script setup lang="ts">
-// Пространства: список карточек, одно окно формы на создание и правку, два окна удаления —
-// обратимое и окончательное.
+// Workspaces: a list of full-width rows (`WorkspaceList` — the rows and their drag order), one form
+// dialog for create and edit, two delete dialogs — reversible and final.
 //
-// Пространство — верхний уровень изоляции данных, общий для всех прикладных модулей. Что именно
-// внутри, страница не знает: карточка показывает счётчики, которые объявили модули поверх
-// (`counters` в строке списка). Без них «удалить» было бы предложением подтвердить неизвестное,
-// а с перечислением зон и задач прямо здесь страница правилась бы на каждый новый модуль.
+// A workspace is the top level of data isolation, shared by all application modules. The page
+// doesn't know what exactly is inside: a row shows the counters declared by the modules on top
+// (`counters` in the list row). Without them "delete" would be an offer to confirm the unknown, and
+// with zones and tasks enumerated right here the page would need editing for every new module.
 //
-// Удалённые лежат в том же списке, а не на отдельной странице: они приезжают тем же запросом с
-// флагом, и разводить их по адресам значило бы заводить второй список ради того же набора строк.
-import { computed, onActivated, ref } from 'vue'
+// Deleted ones sit in the same list, not on a separate page: they arrive with the same request
+// plus a flag, and splitting them across addresses would mean a second list for the same rows.
+import { onActivated, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import {
-  IconArchiveOff,
-  IconDotsVertical,
-  IconFlame,
-  IconPencil,
-  IconPlus,
-  IconRefresh,
-  IconTrash,
-} from '@tabler/icons-vue'
+import { IconPlus, IconRefresh } from '@tabler/icons-vue'
 
 import PageLayout from '@/layout/templates/PageLayout.vue'
 import PageHeader from '@/layout/components/PageHeader.vue'
 import SectionError from '@/components/SectionError.vue'
-import { colorVarsByName } from '@/shared/colors'
-import { iconByName } from '@/shared/icons'
-import { fmtDateTime } from '@/shared/utils/date'
+import { pushToast } from '@/composables/useToasts'
 
+import WorkspaceFilters from '../components/WorkspaceFilters.vue'
 import WorkspaceFormDialog from '../components/WorkspaceFormDialog.vue'
 import WorkspaceDeleteDialog from '../components/WorkspaceDeleteDialog.vue'
+import WorkspaceList from '../components/WorkspaceList.vue'
 import WorkspacePurgeDialog from '../components/WorkspacePurgeDialog.vue'
 import { useWorkspacesStore } from '../stores/workspaces.store'
 import type { WorkspaceListRow } from '../api'
@@ -37,15 +29,10 @@ import type { WorkspaceListRow } from '../api'
 const { t } = useI18n()
 const store = useWorkspacesStore()
 
-// Страница живёт в KeepAlive и между переходами не размонтируется. `onActivated` срабатывает и на
-// первый показ, и на каждое возвращение, иначе список остался бы вчерашним; второй вызов из
-// `onMounted` дал бы при первом показе два одинаковых запроса подряд.
+// The page lives in KeepAlive and isn't unmounted between transitions. `onActivated` fires both on
+// first show and on every return, otherwise the list would stay stale; a second call from
+// `onMounted` would make two identical requests in a row on first show.
 onActivated(store.load)
-
-const showDeleted = computed({
-  get: () => store.includeDeleted,
-  set: (value: boolean) => { store.showDeleted(value) },
-})
 
 const editing = ref<WorkspaceListRow | null>(null)
 const removing = ref<WorkspaceListRow | null>(null)
@@ -54,8 +41,8 @@ const formOpen = ref(false)
 const deleteOpen = ref(false)
 const purgeOpen = ref(false)
 
-// Создание и правка — одно окно: пустая карточка отличается от заполненной только тем, что
-// пространства у неё пока нет.
+// Create and edit are one dialog: an empty card differs from a filled one only in that it has no
+// workspace yet.
 function create() {
   editing.value = null
   formOpen.value = true
@@ -71,6 +58,24 @@ function remove(workspace: WorkspaceListRow) {
   deleteOpen.value = true
 }
 
+/** Longer than the default 5 s: the person has to read the line and reach for the button. */
+const UNDO_TIMEOUT = 8000
+
+// A soft delete is answered with the way back right where the eye is: the row has just vanished,
+// and the trash filter is two clicks away from a person who only now noticed the wrong row.
+function onDeleted(workspace: WorkspaceListRow) {
+  void store.load()
+  const title = workspace.title
+  pushToast(t('workspace.delete.done', { title }), 'success', UNDO_TIMEOUT, {
+    label: t('workspace.delete.undo'),
+    run: async () => {
+      if (await store.restore(workspace.code)) {
+        pushToast(t('workspace.delete.restored', { title }), 'success')
+      }
+    },
+  })
+}
+
 function purge(workspace: WorkspaceListRow) {
   purging.value = workspace
   purgeOpen.value = true
@@ -84,16 +89,6 @@ function purge(workspace: WorkspaceListRow) {
       :description="t('workspace.list.description')"
     >
       <template #actions>
-        <!-- Тумблер стоит в шапке списка, а не в карточке фильтров: фильтров у списка нет, и
-             карточка ради одного переключателя была бы рамкой вокруг пустоты. -->
-        <VSwitch
-          v-model="showDeleted"
-          :label="t('workspace.list.show_deleted')"
-          color="primary"
-          density="compact"
-          hide-details
-          class="deleted-switch"
-        />
         <VBtn variant="text" :disabled="store.loading" @click="store.load">
           <template #prepend><IconRefresh :size="16" :class="{ 'icon-spin': store.loading }" /></template>
           {{ t('workspace.list.refresh') }}
@@ -105,16 +100,21 @@ function purge(workspace: WorkspaceListRow) {
       </template>
     </PageHeader>
 
-    <div v-if="store.loading" class="workspace-grid">
-      <VCard v-for="n in 3" :key="n" variant="flat" class="workspace-card skel-card">
-        <VSkeletonLoader type="heading, text, text" />
+    <!-- The search toolbar is its own card ABOVE the list — the anatomy of the groups page and
+         the task list (`FilterPanel` + cards below it). The trash toggle lives here too, not in
+         the header: it narrows what the list shows, like the search. -->
+    <WorkspaceFilters class="mb-3" />
+
+    <div v-if="store.loading" class="skel-list">
+      <VCard v-for="n in 3" :key="n" variant="flat" class="skel-row">
+        <VSkeletonLoader type="list-item-avatar-two-line" />
       </VCard>
     </div>
 
     <SectionError v-else-if="store.error" :error="store.error" />
 
-    <!-- Пустое состояние зовёт завести первое пространство: список, который ничего не предлагает,
-         оставляет человека гадать, чего здесь не хватает. -->
+    <!-- The empty state invites creating the first workspace: a list that offers nothing leaves
+         the person guessing what is missing here. -->
     <div v-else-if="store.isEmpty" class="workspaces-empty">
       <p class="workspaces-empty__title">{{ t('workspace.list.empty') }}</p>
       <p class="workspaces-empty__hint">{{ t('workspace.list.empty_hint') }}</p>
@@ -124,115 +124,24 @@ function purge(workspace: WorkspaceListRow) {
       </VBtn>
     </div>
 
-    <div v-else class="workspace-grid">
-      <!-- Цвет пространства живёт на самой карточке: от него красится плашка иконки. -->
-      <VCard
-        v-for="workspace in store.items"
-        :key="workspace.code"
-        variant="flat"
-        class="workspace-card color-tones"
-        :class="{ 'workspace-card--deleted': workspace.deleted_at }"
-        :style="colorVarsByName(workspace.color)"
-      >
-        <header class="workspace-card__header">
-          <span class="workspace-card__icon">
-            <component :is="iconByName(workspace.icon)" :size="20" :stroke-width="1.6" />
-          </span>
-          <h3 class="workspace-card__title">{{ workspace.title }}</h3>
-
-          <!-- Отметка удаления рядом с именем, а не в подвале: она меняет смысл всей карточки,
-               и узнать о ней надо раньше, чем дойдёшь до счётчиков. -->
-          <VChip v-if="workspace.deleted_at" color="error" variant="tonal" size="x-small">
-            {{ t('workspace.card.deleted') }}
-          </VChip>
-
-          <VMenu location="bottom end" :offset="4">
-            <template #activator="{ props: menu }">
-              <VBtn
-                v-bind="menu"
-                icon
-                variant="text"
-                class="workspace-card__action"
-                :title="t('workspace.card.actions')"
-              >
-                <IconDotsVertical :size="16" :stroke-width="1.6" />
-              </VBtn>
-            </template>
-
-            <!-- Набор действий зависит от состояния: у живого — правка и мягкое удаление,
-                 у удалённого — возврат и снос. Править удалённое бэк не даёт (409), и
-                 показывать пункт, который заведомо откажет, значит врать кнопкой. -->
-            <VList density="compact">
-              <template v-if="!workspace.deleted_at">
-                <VListItem :prepend-icon="IconPencil" @click="edit(workspace)">
-                  <VListItemTitle>{{ t('workspace.card.edit') }}</VListItemTitle>
-                </VListItem>
-                <VListItem
-                  :prepend-icon="IconTrash"
-                  class="workspace-card__menu-danger"
-                  @click="remove(workspace)"
-                >
-                  <VListItemTitle>{{ t('workspace.card.delete') }}</VListItemTitle>
-                </VListItem>
-              </template>
-              <template v-else>
-                <VListItem :prepend-icon="IconArchiveOff" @click="store.restore(workspace.code)">
-                  <VListItemTitle>{{ t('workspace.card.restore') }}</VListItemTitle>
-                </VListItem>
-                <VListItem
-                  :prepend-icon="IconFlame"
-                  class="workspace-card__menu-danger"
-                  @click="purge(workspace)"
-                >
-                  <VListItemTitle>{{ t('workspace.card.purge') }}</VListItemTitle>
-                </VListItem>
-              </template>
-            </VList>
-          </VMenu>
-        </header>
-
-        <p class="workspace-card__desc">{{ workspace.description }}</p>
-
-        <!-- Слева — сколько внутри, справа — когда этого касались: два ответа об одном
-             пространстве, но о разном, и по краям они читаются быстрее, чем в строку.
-             Счётчики не перечислены здесь: их состав задают модули поверх, и карточка рисует
-             то, что приехало, вместе с ключом подписи. Нет ни одного — подвал держит только
-             дату, и это законное состояние установки без прикладных модулей. -->
-        <footer class="workspace-card__footer">
-          <template v-for="(counter, index) in workspace.counters" :key="counter.key">
-            <span class="workspace-card__count" :class="{ 'workspace-card__count--next': index > 0 }">
-              {{ counter.count }}
-            </span>
-            <span class="workspace-card__count-label">{{ t(counter.label_key) }}</span>
-          </template>
-          <span class="workspace-card__updated">
-            {{ fmtDateTime(workspace.updated_at) }}
-            <VTooltip activator="parent" location="top">
-              {{ t('workspace.card.updated_at') }}
-            </VTooltip>
-          </span>
-        </footer>
-      </VCard>
+    <!-- Workspaces exist but the search left none: the way out is clearing the search, not
+         creating a workspace. -->
+    <div v-else-if="store.isFilteredOut" class="workspaces-empty">
+      <p class="workspaces-empty__title">{{ t('workspace.list.nothing_found') }}</p>
+      <VBtn variant="text" size="small" @click="store.query = ''">
+        {{ t('workspace.list.clear_search') }}
+      </VBtn>
     </div>
 
+    <WorkspaceList v-else @edit="edit" @remove="remove" @purge="purge" />
+
     <WorkspaceFormDialog v-model="formOpen" :workspace="editing" @saved="store.load" />
-    <WorkspaceDeleteDialog v-model="deleteOpen" :workspace="removing" @deleted="store.load" />
+    <WorkspaceDeleteDialog v-model="deleteOpen" :workspace="removing" @deleted="onDeleted" />
     <WorkspacePurgeDialog v-model="purgeOpen" :workspace="purging" @purged="store.load" />
   </PageLayout>
 </template>
 
 <style scoped>
-/* Подпись тумблера приглушена, когда он выключен, — так же, как у фильтров в реестрах: полная
-   насыщенность читалась бы как включённое состояние. */
-.deleted-switch {
-  flex: none;
-  margin-right: 8px;
-}
-
-.deleted-switch :deep(.v-selection-control:not(.v-selection-control--dirty) .v-label) {
-  opacity: var(--v-medium-emphasis-opacity);
-}
-
 .workspaces-empty {
   display: flex;
   flex-direction: column;
@@ -256,127 +165,14 @@ function purge(workspace: WorkspaceListRow) {
   color: var(--text-muted);
 }
 
-.workspace-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-  gap: 12px;
-}
-
-.skel-card { min-height: 132px; }
-.skel-card :deep(.v-skeleton-loader) { width: 100%; padding: 0; }
-
-.workspace-card {
+/* The placeholder repeats the list's rhythm (`WorkspaceList`): rows of the same height and gap, so
+   nothing jumps when the real ones arrive. */
+.skel-list {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 18px;
+  gap: 8px;
 }
 
-/* Удалённое приглушено целиком, а не помечено одной меткой: карточка в корзине не должна
-   соперничать за внимание с живыми, стоящими в том же ряду. Наведение возвращает
-   непрозрачность — чтобы прочитать её, не приходится восстанавливать. */
-.workspace-card--deleted {
-  opacity: 0.55;
-}
-
-.workspace-card--deleted:hover {
-  opacity: 1;
-}
-
-.workspace-card__header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.workspace-card__icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 8px;
-  /* Цвет пространства, а без него — акцент приложения: тот же запасной путь, что у иконки. */
-  color: var(--gc-ink, var(--accent));
-  background: var(--gc-fill, var(--accent-soft));
-  flex: none;
-}
-
-.workspace-card__title {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text);
-  margin: 0;
-  line-height: 1.3;
-  flex: 1;
-  min-width: 0;
-}
-
-/* Коробка задана здесь, а не пропсами `size`/`density`: у иконочной кнопки Vuetify считает
-   сторону как `--v-btn-height + 12px`, а density правит только высоту. Незаслоённое правило
-   перебивает `@layer vuetify-components` (см. docs/frontend/vuetify-css-patterns). */
-.workspace-card__action {
-  width: 26px;
-  min-width: 26px;
-  height: 26px;
-  margin-right: -4px;
-  color: var(--text-faint);
-}
-
-.workspace-card__action:hover { color: var(--text); }
-
-.workspace-card__menu-danger :deep(.v-list-item-title) { color: var(--error); }
-.workspace-card__menu-danger :deep(.v-list-item__prepend) { color: var(--error); }
-
-/* Описание фиксировано на две строки: короткие резервируют высоту, длинные обрезаются
-   многоточием — карточки в ряду выравниваются по высоте. */
-.workspace-card__desc {
-  font-size: 12px;
-  color: var(--text-muted);
-  line-height: 1.5;
-  margin: -6px 0 0;
-  min-height: calc(1.5em * 2);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-/* Подвал прижат к низу карточки — карточки в ряду выравниваются по нижней границе. */
-.workspace-card__footer {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  border-top: 1px solid var(--border);
-  padding-top: 12px;
-  margin-top: auto;
-}
-
-.workspace-card__count {
-  font-family: var(--font-mono);
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--text);
-  line-height: 1;
-}
-
-/* Второй счётчик отбит от подписи первого сильнее, чем от своей: иначе «Зон 3 12 Задач»
-   читается как одно число с хвостом. */
-.workspace-card__count--next { margin-left: 8px; }
-
-.workspace-card__count-label {
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
-}
-
-.workspace-card__updated {
-  margin-left: auto;
-  font-size: 11px;
-  color: var(--text-faint);
-  white-space: nowrap;
-}
+.skel-row { min-height: 68px; padding: 14px 16px; }
+.skel-row :deep(.v-skeleton-loader) { width: 100%; padding: 0; background: transparent; }
 </style>

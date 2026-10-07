@@ -1,19 +1,19 @@
-"""HTTP-API модуля ``workspace`` (/internal/workspace): пространство целиком — от списка до purge.
+"""HTTP API of the ``workspace`` module (/internal/workspace): the workspace whole — list to purge.
 
-Здесь только сама сущность и её счётчики как МЕХАНИЗМ: что происходит с зонами и задачами, когда
-пространство удаляют, проверяется в тестах модуля, которому они принадлежат
-(``tests/modules/tasks/test_workspace_cascade.py``). Модуль уровня 1 обязан быть проверяем в
-одиночестве — без единой таблицы модулей поверх.
+Only the entity itself and its counters as a MECHANISM live here: what happens to zones and tasks
+when a workspace is deleted is checked in the tests of the module that owns them
+(``tests/modules/tasks/test_workspace_cascade.py``). A level-1 module must be testable on its
+own — without a single table of the modules above it.
 
-Приложение с роутером поднимает общая фикстура ``client`` (``conftest.py``); она же чистит реестр
-счётчиков, поэтому по умолчанию список в ответе пуст.
+The app with the router is brought up by the shared ``client`` fixture (``conftest.py``); it also
+clears the counter registry, so by default the list in the response is empty.
 """
 
 from __future__ import annotations
 
 import pytest
 
-from src.modules.workspace.constants import CODE_LEN, DESCRIPTION_MAX, TITLE_MAX
+from src.modules.workspace.constants import CODE_LEN, DESCRIPTION_MAX, SORT_DEFAULT, TITLE_MAX
 from src.modules.workspace.crud import workspace as workspace_crud
 from src.modules.workspace.stats import WorkspaceCounter, register_counter
 
@@ -22,20 +22,45 @@ pytestmark = pytest.mark.db
 BASE = "/internal/workspace"
 
 
-# ── список ────────────────────────────────────────────────────────────────────
+# ── list ──────────────────────────────────────────────────────────────────────
 
 
-async def test_list_returns_workspaces_ordered_by_title(client):
-    await workspace_crud.workspace_create(title="Личное")
-    await workspace_crud.workspace_create(title="Автономия")
+async def test_list_orders_by_sort_then_title(client):
+    await workspace_crud.workspace_create(title="Личное", sort=SORT_DEFAULT)
+    await workspace_crud.workspace_create(title="Автономия", sort=SORT_DEFAULT)
+    await workspace_crud.workspace_create(title="Работа", sort=SORT_DEFAULT + 100)
 
     body = (await client.get(BASE)).json()
 
-    assert [row["title"] for row in body] == ["Автономия", "Личное"]
+    assert [row["title"] for row in body] == ["Работа", "Автономия", "Личное"]
+    assert [row["sort"] for row in body] == [SORT_DEFAULT + 100, SORT_DEFAULT, SORT_DEFAULT]
+
+
+async def test_create_takes_the_sort_and_defaults_it(client):
+    placed = await client.post(BASE, json={"title": "Работа", "sort": 900})
+    plain = await client.post(BASE, json={"title": "Личное"})
+
+    assert placed.json()["sort"] == 900
+    assert plain.json()["sort"] == SORT_DEFAULT
+
+
+async def test_update_replaces_the_sort(client):
+    row = await workspace_crud.workspace_create(title="Работа", sort=900)
+
+    body = (await client.put(f"{BASE}/{row.code}", json={"title": "Работа", "sort": 0})).json()
+
+    assert body["sort"] == 0
+    assert (await workspace_crud.workspace_get(row.code)).sort == 0
+
+
+async def test_create_refuses_a_non_integer_sort(client):
+    response = await client.post(BASE, json={"title": "Работа", "sort": "наверх"})
+
+    assert response.status_code == 422
 
 
 async def test_list_tags_the_code_with_its_type(client):
-    """Код в выдаче — ссылка с типом: по ``WORKSPACE@`` его отличают от кодов модулей поверх."""
+    """The code in the output is a typed ref: ``WORKSPACE@`` tells it apart from the codes above."""
     row = await workspace_crud.workspace_create(title="Работа")
 
     body = (await client.get(BASE)).json()
@@ -63,11 +88,11 @@ async def test_list_shows_deleted_with_the_flag(client):
     assert body[0]["deleted_at"] is not None
 
 
-# ── счётчики содержимого (точка расширения) ───────────────────────────────────
+# ── content counters (extension point) ────────────────────────────────────────
 
 
 async def test_list_has_no_counters_when_nothing_is_registered(client):
-    """Ни одного модуля поверх — законное состояние: карточка едет без чисел, а не с нулями."""
+    """No module above is a legitimate state: the card ships with no numbers, not with zeros."""
     await workspace_crud.workspace_create(title="Работа")
 
     body = (await client.get(BASE)).json()
@@ -76,7 +101,7 @@ async def test_list_has_no_counters_when_nothing_is_registered(client):
 
 
 async def test_list_carries_a_registered_counter(client):
-    """Счётчик объявляет модуль поверх; список лишь собирает объявленное — вместе с ключом подписи."""
+    """A module above declares the counter; the list only collects it — label key included."""
     row = await workspace_crud.workspace_create(title="Работа")
 
     async def count(codes: list[str]) -> dict[str, int]:
@@ -95,7 +120,7 @@ async def test_list_carries_a_registered_counter(client):
 
 
 async def test_a_counter_that_skipped_a_workspace_reads_as_zero(client):
-    """«Не вернули» и «ничего не нашли» — один ответ для карточки; ноль подставляет сборка."""
+    """For the card, "not returned" and "found nothing" are one answer; the assembly fills in 0."""
     await workspace_crud.workspace_create(title="Пустое")
 
     async def count(codes: list[str]) -> dict[str, int]:
@@ -111,7 +136,7 @@ async def test_a_counter_that_skipped_a_workspace_reads_as_zero(client):
 
 
 async def test_counters_follow_the_declared_order(client):
-    """Порядок задаёт регистрация (больший ``sort`` раньше), а не то, кто первым поднялся."""
+    """Registration sets the order (higher ``sort`` first), not whoever started up first."""
     await workspace_crud.workspace_create(title="Работа")
 
     async def count(codes: list[str]) -> dict[str, int]:
@@ -129,7 +154,7 @@ async def test_counters_follow_the_declared_order(client):
     assert [counter["key"] for counter in body[0]["counters"]] == ["earlier", "later"]
 
 
-# ── создание ──────────────────────────────────────────────────────────────────
+# ── create ────────────────────────────────────────────────────────────────────
 
 
 async def test_create_returns_201_and_the_card(client):
@@ -147,7 +172,7 @@ async def test_create_returns_201_and_the_card(client):
 
 
 async def test_create_rejects_a_blank_title(client):
-    """Имя из одних пробелов отвергается наравне с пустым: без имени карточку не найти."""
+    """A whitespace-only name is rejected just like an empty one: a nameless card can't be found."""
     response = await client.post(BASE, json={"title": "   "})
 
     assert response.status_code == 422
@@ -159,26 +184,26 @@ async def test_create_rejects_an_overlong_title(client):
     assert response.status_code == 422
 
 
-async def test_create_rejects_an_overlong_description(client):
-    response = await client.post(
-        BASE, json={"title": "Работа", "description": "я" * (DESCRIPTION_MAX + 1)}
-    )
+@pytest.mark.parametrize(("length", "status"), [(DESCRIPTION_MAX, 201), (DESCRIPTION_MAX + 1, 422)])
+async def test_create_holds_the_description_limit(client, length, status):
+    response = await client.post(BASE, json={"title": "Работа", "description": "я" * length})
 
-    assert response.status_code == 422
+    assert response.status_code == status
+    assert len(await workspace_crud.workspace_list()) == (1 if status == 201 else 0)
 
 
 async def test_create_rejects_an_unknown_field(client):
-    """Опечатка в имени поля — отказ, а не тихо проигнорированное значение (``extra=forbid``)."""
+    """A typo in a field name is a refusal, not a silently ignored value (``extra=forbid``)."""
     response = await client.post(BASE, json={"title": "Работа", "colour": "teal"})
 
     assert response.status_code == 422
 
 
-# ── чтение одного ─────────────────────────────────────────────────────────────
+# ── read one ──────────────────────────────────────────────────────────────────
 
 
 async def test_get_accepts_both_code_forms(client):
-    """Префиксный код человек копирует из интерфейса, голый модули отдают друг другу изнутри."""
+    """A person copies the prefixed code from the UI; modules pass the bare one to each other."""
     row = await workspace_crud.workspace_create(title="Работа")
 
     bare = await client.get(f"{BASE}/{row.code}")
@@ -206,7 +231,7 @@ async def test_get_of_a_missing_workspace_is_404(client):
 
 
 async def test_a_foreign_code_prefix_is_a_bad_request(client):
-    """Код чужого типа — перепутанный аргумент, а не пропавшая запись: 400, а не 404."""
+    """A code of another type is a mixed-up argument, not a missing record: 400, not 404."""
     row = await workspace_crud.workspace_create(title="Работа")
 
     response = await client.get(f"{BASE}/AREA@{row.code}")
@@ -214,7 +239,7 @@ async def test_a_foreign_code_prefix_is_a_bad_request(client):
     assert response.status_code == 400
 
 
-# ── правка ────────────────────────────────────────────────────────────────────
+# ── update ────────────────────────────────────────────────────────────────────
 
 
 async def test_update_replaces_the_card(client):
@@ -234,6 +259,20 @@ async def test_update_replaces_the_card(client):
     assert (body["color"], body["icon"]) == ("red", "rocket")
 
 
+@pytest.mark.parametrize(("length", "status"), [(DESCRIPTION_MAX, 200), (DESCRIPTION_MAX + 1, 422)])
+async def test_update_holds_the_description_limit(client, length, status):
+    row = await workspace_crud.workspace_create(title="Работа", description="Старое")
+
+    response = await client.put(
+        f"{BASE}/{row.code}", json={"title": "Дело", "description": "я" * length}
+    )
+
+    assert response.status_code == status
+    kept = await workspace_crud.workspace_get(row.code)
+    expected = ("Дело", "я" * length) if status == 200 else ("Работа", "Старое")
+    assert (kept.title, kept.description) == expected
+
+
 async def test_update_of_a_deleted_workspace_is_a_conflict(client):
     row = await workspace_crud.workspace_create(title="Работа")
     await workspace_crud.workspace_delete(row.code)
@@ -249,7 +288,117 @@ async def test_update_of_a_missing_workspace_is_404(client):
     assert response.status_code == 404
 
 
-# ── мягкое удаление и восстановление ──────────────────────────────────────────
+# ── reorder ───────────────────────────────────────────────────────────────────
+
+
+async def _codes() -> list[str]:
+    return [row.code for row in await workspace_crud.workspace_list()]
+
+
+async def test_reorder_puts_the_workspace_right_under_its_anchor(client):
+    """The position is named by a neighbour: "under Работа" is a place, not a ``sort`` number."""
+    first = await workspace_crud.workspace_create(title="Работа")
+    second = await workspace_crud.workspace_create(title="Личное")
+    third = await workspace_crud.workspace_create(title="Архив")
+
+    response = await client.post(f"{BASE}/{third.code}/reorder", json={"after_code": first.code})
+
+    assert response.status_code == 200
+    assert response.json()["code"] == f"WORKSPACE@{third.code}"
+    assert await _codes() == [first.code, third.code, second.code]
+
+
+async def test_reorder_accepts_both_code_forms(client):
+    """The moved one in the path and the neighbour in the body — prefixed as the list ships them."""
+    first = await workspace_crud.workspace_create(title="Работа")
+    second = await workspace_crud.workspace_create(title="Личное")
+
+    response = await client.post(
+        f"{BASE}/WORKSPACE@{second.code}/reorder",
+        json={"before_code": f"WORKSPACE@{first.code}"},
+    )
+
+    assert response.status_code == 200
+    assert await _codes() == [second.code, first.code]
+
+
+async def test_reorder_folds_the_case_of_the_codes(client):
+    first = await workspace_crud.workspace_create(title="Работа")
+    second = await workspace_crud.workspace_create(title="Личное")
+
+    response = await client.post(
+        f"{BASE}/workspace@{second.code.lower()}/reorder",
+        json={"before_code": f"workspace@{first.code.lower()}"},
+    )
+
+    assert response.status_code == 200
+    assert await _codes() == [second.code, first.code]
+
+
+@pytest.mark.parametrize("body", [{}, "both"], ids=["neither", "both"])
+async def test_reorder_needs_exactly_one_reference_point(client, body):
+    first = await workspace_crud.workspace_create(title="Работа")
+    second = await workspace_crud.workspace_create(title="Личное")
+    if body == "both":
+        body = {"after_code": second.code, "before_code": second.code}
+
+    response = await client.post(f"{BASE}/{first.code}/reorder", json=body)
+
+    assert response.status_code == 400
+    assert await _codes() == [first.code, second.code]
+
+
+async def test_reorder_against_a_deleted_neighbour_is_400(client):
+    first = await workspace_crud.workspace_create(title="Работа")
+    gone = await workspace_crud.workspace_create(title="Удалённое")
+    await workspace_crud.workspace_delete(gone.code)
+
+    response = await client.post(f"{BASE}/{first.code}/reorder", json={"after_code": gone.code})
+
+    assert response.status_code == 400
+
+
+async def test_reorder_with_a_foreign_prefix_is_400(client):
+    first = await workspace_crud.workspace_create(title="Работа")
+    second = await workspace_crud.workspace_create(title="Личное")
+
+    response = await client.post(
+        f"{BASE}/{first.code}/reorder", json={"after_code": f"TASKGROUP@{second.code}"}
+    )
+
+    assert response.status_code == 400
+
+
+async def test_reorder_rejects_an_unknown_field(client):
+    first = await workspace_crud.workspace_create(title="Работа")
+
+    response = await client.post(f"{BASE}/{first.code}/reorder", json={"sort": 900})
+
+    assert response.status_code == 422
+
+
+async def test_reorder_of_a_deleted_workspace_is_404(client):
+    """A deleted one has no place in the list a person drags — the same answer as for a group."""
+    gone = await workspace_crud.workspace_create(title="Удалённое")
+    anchor = await workspace_crud.workspace_create(title="Работа")
+    await workspace_crud.workspace_delete(gone.code)
+
+    response = await client.post(f"{BASE}/{gone.code}/reorder", json={"after_code": anchor.code})
+
+    assert response.status_code == 404
+
+
+async def test_reorder_of_a_missing_workspace_is_404(client):
+    anchor = await workspace_crud.workspace_create(title="Работа")
+
+    response = await client.post(
+        f"{BASE}/{'0' * CODE_LEN}/reorder", json={"after_code": anchor.code}
+    )
+
+    assert response.status_code == 404
+
+
+# ── soft delete and restore ───────────────────────────────────────────────────
 
 
 async def test_delete_is_soft(client):
@@ -293,7 +442,7 @@ async def test_restore_of_a_missing_workspace_is_404(client):
     assert response.status_code == 404
 
 
-# ── физическое удаление ───────────────────────────────────────────────────────
+# ── hard delete ───────────────────────────────────────────────────────────────
 
 
 async def test_purge_removes_the_row(client):
@@ -306,7 +455,7 @@ async def test_purge_removes_the_row(client):
 
 
 async def test_purge_works_on_a_softly_deleted_workspace(client):
-    """Обычный путь из интерфейса: сначала в корзину, потом «удалить навсегда»."""
+    """The usual path from the UI: first to the trash, then "delete forever"."""
     row = await workspace_crud.workspace_create(title="Работа")
     await client.delete(f"{BASE}/{row.code}")
 

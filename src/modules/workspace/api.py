@@ -1,31 +1,34 @@
-"""HTTP-API модуля ``workspace`` (монтируется на ``/internal/workspace`` — см. ``module.py``).
+"""HTTP API of the ``workspace`` module (mounted at ``/internal/workspace`` — see ``module.py``).
 
-Одна поверхность — само пространство: список, создание, чтение, правка, мягкое удаление,
-восстановление и физическое удаление. Заводит и правит его человек (это его раскладка, а не
-результат работы агента), поэтому набор ручек полный.
+One surface — the workspace itself: list, create, read, update, soft delete, restore and hard
+delete. A human creates and edits it (it is their layout, not the product of the agent's work),
+so the set of endpoints is complete.
 
-**Два удаления — две разные ручки, и это намеренно.** ``DELETE /workspace/{code}`` ставит
-отметку: содержимое остаётся на месте, список без флага его не показывает, ``restore`` возвращает
-всё как было. ``DELETE /workspace/{code}/purge`` сносит строку физически, а вместе с ней
-каскадом FK — всё, что модули поверх держали в этом пространстве. Спрятать второе под флагом
-первого значило бы, что необратимое отличается от обратимого одним символом в адресе.
+**Two deletions are two separate endpoints, on purpose.** ``DELETE /workspace/{code}`` sets a
+mark: the contents stay in place, the list hides it unless asked, and ``restore`` brings
+everything back as it was. ``DELETE /workspace/{code}/purge`` removes the row physically, and
+with it — by FK cascade — everything the modules above kept in this workspace. Hiding the second
+behind a flag on the first would mean the irreversible differs from the reversible by one
+character in the URL.
 
-**Счётчики едут со строкой списка, но не принадлежат модулю.** Что лежит внутри пространства,
-знают модули поверх; они же объявляют счётчики (``stats.py``), а список лишь собирает
-объявленное. Поэтому набор чисел в ответе зависит от состава приложения, и пустой список —
-законный ответ. Без них диалог удаления сообщал бы «содержимое исчезнет», не называя, сколько
-именно, — то есть просил бы подтвердить неизвестное.
+**Counters ride along with each list row but do not belong to this module.** What lives inside a
+workspace is known to the modules above; they declare the counters (``stats.py``), and the list
+only collects what was declared. So the set of numbers in the response depends on the
+application's composition, and an empty list is a legitimate answer. Without them the delete
+dialog would say "the contents will disappear" without saying how much — i.e. it would ask to
+confirm something unknown.
 
-**Незнакомое поле в теле — отказ, а не тишина** (``_Body`` на ``extra="forbid"``): опечатка в
-имени поля иначе проезжает молча и даёт 201 с карточкой, где этого значения нет.
+**An unknown field in the body is a refusal, not silence** (``_Body`` with ``extra="forbid"``):
+otherwise a typo in a field name slips through silently and yields 201 with a card lacking that
+value.
 
-**Код на входе принимается в обеих формах** — ``WORKSPACE@<hash>`` и голый хеш: первую человек
-копирует из интерфейса, вторую модули отдают друг другу изнутри. Префикс кода назван по сущности
-и переименование модуля его не касается. Чужой префикс (``GROUP@``) — не
-«не найдено», а перепутанный аргумент, и отвечаем мы на него 400, а не 404, который увёл бы к
-мысли, что запись удалили.
+**A code is accepted on input in both forms** — ``WORKSPACE@<hash>`` and the bare hash: a human
+copies the first from the interface, modules pass the second to each other internally. The code
+prefix is named after the entity, and renaming the module does not affect it. A foreign prefix
+(``TASKGROUP@``) is not "not found" but a mixed-up argument, so we answer it with 400, not a 404
+that would lead to thinking the record was deleted.
 
-Зона ``internal`` в чистом ядре открыта (``allow_all``), guard не нужен.
+The ``internal`` zone in the bare core is open (``allow_all``); no guard needed.
 """
 
 from __future__ import annotations
@@ -42,6 +45,7 @@ from src.modules.workspace.constants import (
     COLOR_MAX,
     DESCRIPTION_MAX,
     ICON_MAX,
+    SORT_DEFAULT,
     TITLE_MAX,
     WORKSPACE_CODE_PREFIX,
 )
@@ -58,26 +62,32 @@ router = APIRouter()
 
 
 class _Body(BaseModel):
-    """Общий предок всех тел запроса: незнакомое поле — отказ, а не тишина.
+    """The common ancestor of all request bodies: an unknown field is a refusal, not silence.
 
-    ``extra="forbid"`` стоит здесь, а не на каждой модели отдельно, ровно чтобы новая ручка не
-    могла завестись без него. На ответных DTO (``dto.py``) запрет не нужен и вреден: их собираем
-    мы сами, а ``from_attributes`` читает атрибуты ORM-строки, где лишнего не бывает.
+    ``extra="forbid"`` sits here rather than on each model, precisely so that a new endpoint
+    cannot be introduced without it. On response DTOs (``dto.py``) the ban is unnecessary and
+    harmful: we build those ourselves, and ``from_attributes`` reads an ORM row's attributes,
+    where nothing extra ever appears.
     """
 
     model_config = ConfigDict(extra="forbid")
 
 
 class WorkspaceBody(_Body):
-    """Тело создания и правки пространства — один набор полей на обе ручки.
+    """The body for creating and editing a workspace — one field set for both endpoints.
 
-    Обрамляющие пробелы у названия срезаются ДО проверки длины, поэтому имя из одних пробелов
-    отвергается наравне с пустым: пространство без названия неразличимо в списке, а «стереть
-    название» — не сценарий. Описание пустым быть вправе: оно необязательно.
+    Surrounding whitespace in the title is stripped BEFORE the length check, so a title of only
+    spaces is rejected just like an empty one: a workspace without a title is indistinguishable
+    in the list, and "erase the title" is not a scenario. The description may be empty: it is
+    optional.
 
-    Имена цвета и иконки с палитрами не сверяются — по той же причине, по которой их не проверяет
-    БД: рисовать их умеет только фронт, и он же переживёт незнакомое имя, а проверка здесь
-    превратила бы расширение палитры в правку двух файлов на двух языках.
+    Colour and icon names are not checked against the palettes — for the same reason the DB does
+    not check them: only the frontend knows how to draw them, and it also survives an unknown
+    name, while a check here would turn extending a palette into editing two files in two
+    languages.
+
+    ``sort`` is the position in the list, higher goes first — as for a task group. It has a
+    default, so a form that does not care about order may omit it.
     """
 
     title: Annotated[
@@ -88,13 +98,27 @@ class WorkspaceBody(_Body):
     ] = ""
     color: str = Field(default="", max_length=COLOR_MAX)
     icon: str = Field(default="", max_length=ICON_MAX)
+    sort: int = SORT_DEFAULT
+
+
+class WorkspaceReorderBody(_Body):
+    """One drag of a row: the workspace it now stands next to.
+
+    Exactly one of the two reference points, as for a task group: both at once would contradict
+    each other, neither would mean "put it somewhere" — either way 400, not a choice made for the
+    caller. No position number: ``sort`` is layout mechanics the mouse cannot aim at.
+    """
+
+    after_code: str | None = None
+    before_code: str | None = None
 
 
 def _code(value: str) -> str:
-    """Голый код пространства из сегмента адреса; чужой тип — 400, а не 404.
+    """The bare workspace code from a path segment; a foreign type is 400, not 404.
 
-    ``bare_code`` отличает «код другой сущности» от «кода нет»: первое чинится правкой вызова,
-    второе — нет, и путать их в ответе значит отправлять клиента искать несуществующую пропажу.
+    ``bare_code`` tells "a code of another entity" from "no such code": the first is fixed by
+    correcting the call, the second is not, and mixing them up in the response sends the client
+    looking for a loss that never happened.
     """
     try:
         return bare_code(value, WORKSPACE_CODE_PREFIX) or ""
@@ -102,12 +126,17 @@ def _code(value: str) -> str:
         raise ApiError.bad_request(str(error)) from error
 
 
-async def _require(code: str) -> Workspace:
-    """Пространство любого состояния или 404.
+def _optional_code(value: str | None) -> str | None:
+    """A neighbour's code from a body field: absent stays absent, a foreign type is 400."""
+    return None if value is None else _code(value)
 
-    Удалённое ищется наравне с живым (``include_deleted=True``): его показывают в списке,
-    восстанавливают и сносят насовсем — для всех трёх сценариев «не найдено» означало бы, что
-    ручка не видит того, что человек прямо сейчас видит на экране.
+
+async def _require(code: str) -> Workspace:
+    """A workspace in any state, or 404.
+
+    A deleted one is looked up on a par with a live one (``include_deleted=True``): it is shown in
+    the list, restored and purged — for all three scenarios "not found" would mean the endpoint
+    does not see what the human sees on screen right now.
     """
     row = await workspace_crud.workspace_get(code, include_deleted=True)
     if row is None:
@@ -118,13 +147,13 @@ async def _require(code: str) -> Workspace:
 @router.get("")
 async def list_workspaces(
     include_deleted: bool = Query(
-        False, description="Показать и удалённые пространства (с отметкой ``deleted_at``)"
+        False, description="Also show deleted workspaces (marked with ``deleted_at``)"
     ),
 ) -> list[WorkspaceListRow]:
-    """Пространства по названию + счётчики, объявленные модулями поверх.
+    """Workspaces top to bottom (``sort``, then title) + the counters declared by the modules above.
 
-    Пагинации нет намеренно: пространство — верхний уровень раскладки, их заводят единицами, и
-    страница здесь была бы органом, который нечего листать.
+    No pagination on purpose: a workspace is the top level of the layout, they are created one at
+    a time, and paging here would be an organ with nothing to page through.
     """
     rows = await workspace_crud.workspace_list(include_deleted=include_deleted)
     codes = [row.code for row in rows]
@@ -153,22 +182,24 @@ async def create_workspace(payload: WorkspaceBody) -> WorkspaceRow:
         description=payload.description,
         color=payload.color,
         icon=payload.icon,
+        sort=payload.sort,
     )
     return WorkspaceRow.model_validate(row)
 
 
 @router.get("/{code}")
 async def get_workspace(code: str) -> WorkspaceRow:
-    """Одно пространство — в том числе удалённое: его состояние видно по ``deleted_at``."""
+    """One workspace — including a deleted one: its state shows in ``deleted_at``."""
     return WorkspaceRow.model_validate(await _require(_code(code)))
 
 
 @router.put("/{code}")
 async def update_workspace(code: str, payload: WorkspaceBody) -> WorkspaceRow:
-    """Полная замена карточки: тело несёт все четыре поля, пустое значение стирает своё.
+    """A full replacement of the card: the body carries every field, an empty value erases its
+    own, and a missing ``sort`` puts the default position back.
 
-    Удалённое не правится — сначала ``restore``. Отвечаем 409, а не 404: запись существует и
-    человек её видит в списке удалённых, просто эта операция сейчас не её.
+    A deleted one is not editable — ``restore`` first. We answer 409, not 404: the record exists
+    and the human sees it in the deleted list; this operation just does not apply to it now.
     """
     bare = _code(code)
     existing = await _require(bare)
@@ -180,7 +211,31 @@ async def update_workspace(code: str, payload: WorkspaceBody) -> WorkspaceRow:
         description=payload.description,
         color=payload.color,
         icon=payload.icon,
+        sort=payload.sort,
     )
+    if row is None:
+        raise ApiError.not_found("Workspace not found", code=WORKSPACE_NOT_FOUND)
+    return WorkspaceRow.model_validate(row)
+
+
+@router.post("/{code}/reorder")
+async def reorder_workspace(code: str, payload: WorkspaceReorderBody) -> WorkspaceRow:
+    """Move a workspace relative to another one — this is how the list is rearranged by dragging.
+
+    The position is named by a neighbour, not a number; CRUD renumbers the list itself.
+    """
+    bare = _code(code)
+    await _require(bare)
+    try:
+        row = await workspace_crud.workspace_reorder(
+            bare,
+            after=_optional_code(payload.after_code),
+            before=_optional_code(payload.before_code),
+        )
+    except ValueError as error:
+        # "Pass exactly one reference point" and "no such neighbour" are both fixed by correcting
+        # the call, not by hunting for a loss — hence 400, not 404.
+        raise ApiError.bad_request(str(error)) from error
     if row is None:
         raise ApiError.not_found("Workspace not found", code=WORKSPACE_NOT_FOUND)
     return WorkspaceRow.model_validate(row)
@@ -188,10 +243,10 @@ async def update_workspace(code: str, payload: WorkspaceBody) -> WorkspaceRow:
 
 @router.delete("/{code}", status_code=204)
 async def delete_workspace(code: str) -> Response:
-    """Мягкое удаление: содержимое остаётся, список без флага его не показывает.
+    """Soft delete: the contents stay, and the list hides it unless asked.
 
-    Повторное удаление уже удалённого не ошибка: CRUD не трогает строку с отметкой, и результат
-    совпадает с желаемым — пространство удалено.
+    Deleting an already deleted one again is not an error: the CRUD leaves a marked row alone,
+    and the outcome matches the intent — the workspace is deleted.
     """
     if not await workspace_crud.workspace_delete(_code(code)):
         raise ApiError.not_found("Workspace not found", code=WORKSPACE_NOT_FOUND)
@@ -200,11 +255,11 @@ async def delete_workspace(code: str) -> Response:
 
 @router.post("/{code}/restore")
 async def restore_workspace(code: str) -> WorkspaceRow:
-    """Снять отметку удаления и вернуть карточку — её тут же показывает список.
+    """Clear the deletion mark and return the card — the list shows it right away.
 
-    Живое пространство восстановить нельзя: это не «уже хорошо», а признак того, что кнопку
-    нажали не на той строке (например, список успел обновиться), и молчаливое «ок» скрыло бы
-    расхождение того, что на экране, с тем, что в базе.
+    A live workspace cannot be restored: that is not "already fine" but a sign the button was
+    pressed on the wrong row (say, the list had refreshed in between), and a silent "ok" would
+    hide the mismatch between what is on screen and what is in the database.
     """
     bare = _code(code)
     existing = await _require(bare)
@@ -216,11 +271,12 @@ async def restore_workspace(code: str) -> WorkspaceRow:
 
 @router.delete("/{code}/purge", status_code=204)
 async def purge_workspace(code: str) -> Response:
-    """Физическое удаление: строка уходит из таблицы, каскад FK уносит содержимое модулей поверх.
+    """Hard delete: the row leaves the table, and the FK cascade takes the modules' contents with it.
 
-    Отдельный адрес, а не флаг у мягкого удаления: разница между «можно вернуть» и «вернуть
-    нечего» не должна прятаться в query-параметре, который легко потерять при копировании
-    вызова. Отметки времени после этого не остаётся — восстанавливать нечего и неоткуда.
+    A separate URL, not a flag on the soft delete: the difference between "can be brought back"
+    and "nothing to bring back" must not hide in a query parameter that is easy to lose when
+    copying a call. No timestamp remains afterwards — there is nothing to restore and nowhere
+    to restore it from.
     """
     if not await workspace_crud.workspace_delete(_code(code), hard=True):
         raise ApiError.not_found("Workspace not found", code=WORKSPACE_NOT_FOUND)

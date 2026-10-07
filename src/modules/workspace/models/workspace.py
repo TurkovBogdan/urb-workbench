@@ -1,31 +1,35 @@
-"""ORM ``workspaces`` — рабочее пространство, верхний уровень изоляции данных.
+"""ORM ``workspaces`` — a workspace, the top level of data isolation.
 
-Пространство не принадлежит никакому прикладному модулю: это ответ на вопрос «в чём я сейчас
-работаю», и модули поверх (задачи сегодня, документация завтра) держат на него ссылку, чтобы
-сузить свои выборки. Отдельный уровень нужен не для разделения доступа (пользователь один), а
-чтобы «работа» и, скажем, «личное» не смешивались в одном списке.
+A workspace belongs to no application module: it answers the question "what am I working in
+right now", and the modules above (tasks today, documentation tomorrow) keep a reference to it to
+narrow their queries. The separate level exists not for access control (there is one user) but
+so that "work" and, say, "personal" do not mix in one list.
 
-Класс назван ``Workspace``, без приставки имени модуля (``TasksGroup`` и соседи её несут): сущность
-здесь одна и совпадает с модулем, и ``WorkspaceWorkspace`` было бы повторением ради схемы
-именования, а не ради ясности. Имя ТАБЛИЦЫ — ``workspaces``, тоже без приставки и по той же
-причине: приставка отвечает на вопрос «чьё это» в модулях, где сущностей несколько
-(``tasks_group``, ``tasks_task``), а здесь на него отвечает само имя, и ``workspace_workspace``
-было бы тем же заиканием на уровне схемы.
+The class is named ``Workspace``, without the module-name prefix (``TasksGroup`` and its
+neighbours carry one): there is a single entity here and it coincides with the module, so
+``WorkspaceWorkspace`` would be repetition for the sake of a naming scheme, not for clarity. The
+TABLE name is ``workspaces``, also unprefixed for the same reason: the prefix answers "whose is
+this" in modules with several entities (``tasks_group``, ``tasks_task``), whereas here the name
+itself answers it, and ``workspace_workspace`` would be the same stutter at the schema level.
 
-Карточка минимальна: ``title``/``description`` (что это), ``icon``/``color`` — оформление
-(``''`` = не выбрано, фронт рисует запасное). Ни иконка, ни цвет в БД не валидируются: рисовать
-их умеет только фронт, а проверка на записи превратила бы расширение палитры в правку двух
-файлов на двух языках.
+The card is minimal: ``title``/``description`` (what it is), ``icon``/``color`` — styling
+(``''`` = not chosen, the frontend draws a fallback). Neither icon nor colour is validated in
+the DB: only the frontend knows how to draw them, and a check on write would turn extending a
+palette into editing two files in two languages.
 
-PK — голый hex-код длиной ``CODE_LEN``; тип-префикс ``WORKSPACE@`` живёт на границе
-(``workspace.codes``), в базе его нет. Удаление логическое (``deleted_at``).
+``sort`` sets the order of workspaces in the list and the switcher, the same way as a task
+group's: **higher sort = higher up**, then by title, then by code — without the second and third
+keys rows with equal ``sort`` (by default they all share one) would swap places between queries.
+
+The PK is a bare hex code of length ``CODE_LEN``; the ``WORKSPACE@`` type prefix lives at the
+boundary (``workspace.codes``) and is not in the database. Deletion is logical (``deleted_at``).
 """
 
 from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Index, String, text
+from sqlalchemy import Index, Integer, String, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.core.database import SoftDeleteMixin
@@ -37,6 +41,7 @@ from src.modules.workspace.constants import (
     COLOR_MAX,
     DESCRIPTION_MAX,
     ICON_MAX,
+    SORT_DEFAULT,
     TITLE_MAX,
 )
 
@@ -44,9 +49,11 @@ from src.modules.workspace.constants import (
 class Workspace(SoftDeleteMixin, Base):
     __tablename__ = "workspaces"
 
-    # Единственная выборка модуля — список: отсев удалённых, затем порядок по названию с кодом
-    # как тайбрейком. Индекс повторяет её целиком, поэтому и колонки идут в этом порядке.
-    __table_args__ = (Index("ix_workspaces_deleted_title", "deleted_at", "title", "code"),)
+    # The module's only query is the list: filter out deleted rows, then order by position, title
+    # and code as the last tiebreaker. The index mirrors it, hence the column order.
+    __table_args__ = (
+        Index("ix_workspaces_deleted_sort", "deleted_at", "sort", "title", "code"),
+    )
 
     code: Mapped[str] = mapped_column(String(CODE_LEN), primary_key=True)
     title: Mapped[str] = mapped_column(String(TITLE_MAX))
@@ -58,6 +65,9 @@ class Workspace(SoftDeleteMixin, Base):
     )
     icon: Mapped[str] = mapped_column(
         String(ICON_MAX), default="", server_default=text("''")
+    )
+    sort: Mapped[int] = mapped_column(
+        Integer, default=SORT_DEFAULT, server_default=text(str(SORT_DEFAULT))
     )
     created_at: Mapped[datetime] = mapped_column(timestamp(), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
