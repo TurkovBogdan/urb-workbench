@@ -1,23 +1,26 @@
-"""MCP-сервер ``workbench`` — один сервер на весь стенд: пространства и работа внутри них.
+"""The ``workbench`` MCP server — one server per installation: workspaces and the work inside them.
 
-Сервер один, а тулы живут по модулям: пространство отдаёт свои из ``workspace/mcp/``, задачи —
-свои отсюда. Собирает всё ``tasks``, потому что он уровнем выше и на ``workspace`` уже опирается;
-обратной сборки быть не может — уровень 1 про задачи не знает.
+There is one server, but the tools live by module: the workspace contributes its own from
+``workspace/mcp/``, tasks contributes its own from here. ``tasks`` assembles the whole thing
+because it is a level higher and already depends on ``workspace``; the reverse assembly is
+impossible — level 1 knows nothing about tasks.
 
-``mcp_server(ctx)`` — конструктор (``McpServerBuilder``), кладётся в
-``TasksModule.mcp_servers["workbench"]``. Импорт ``make_mcp_server`` (→ ``fastmcp``) ОТЛОЖЕН в
-тело функции: объявление словаря в ``module.py`` ссылается на функцию, не вызывая её, →
-``build_modules()`` не тянет форк. Регистрирующие модули держат ``FastMCP`` только под
-``TYPE_CHECKING``.
+``mcp_server(ctx)`` is the builder (``McpServerBuilder``), placed in
+``TasksModule.mcp_servers["workbench"]``. The ``make_mcp_server`` import (→ ``fastmcp``) is
+DEFERRED into the function body: the dict declaration in ``module.py`` references the function
+without calling it, → ``build_modules()`` does not pull in the fork. Registering modules hold
+``FastMCP`` only under ``TYPE_CHECKING``.
 
-**Резолвер токена мы не объявляем.** ``mount_mcp_servers._collect_resolver`` требует ровно
-одного поставщика на всё приложение, и им работает ``workspace`` (``workspace/mcp/auth.py``,
-заглушка до auth-модуля). Объявим второй — монтаж упадёт для всех, включая чужие серверы.
+**We do not declare a token resolver.** ``mount_mcp_servers._collect_resolver`` requires exactly
+one provider for the whole application, and ``workspace`` serves as that provider
+(``workspace/mcp/auth.py``, a stub until there is an auth module). Declare a second one and
+mounting fails for everyone, other modules' servers included.
 
-**Активное пространство.** Сервер ведёт его по подключению, а не по процессу: как и почему —
-``workspace/mcp/session.py``. Для автора нового тула правило короткое: аргумента пространства у
-тула быть не должно, а вместо него — ``require_active()`` или ``require_scope(prefix, bare)``,
-если тул принимает чужой код.
+**The active workspace.** The server tracks it per connection, not per process — how and why is
+in ``workspace/mcp/session.py``. For the author of a new tool the rule is short: a tool must not
+take a workspace argument; instead it calls ``require_active()``, or
+``require_scope(prefix, bare)`` if the tool accepts an entity code that could belong to another
+workspace.
 """
 
 from __future__ import annotations
@@ -49,8 +52,8 @@ _INSTRUCTIONS = (
     "workspace; workspaces_list() marks the active one either way.\n"
     "The binding is yours alone — a second agent working elsewhere does not move it, and it "
     "lasts as long as this connection.\n\n"
-    "CODES. Every entity has a code that says what it is — WORKSPACE@ (a workspace), GROUP@ (a "
-    "standing theme inside one), TASK@, STAGE@ (a step of a task's plan), NOTE@ (a journal "
+    "CODES. Every entity has a code that says what it is — WORKSPACE@ (a workspace), TASKGROUP@ "
+    "(a standing theme inside one), TASK@, STAGE@ (a step of a task's plan), NOTE@ (a journal "
     "entry). Pass a code back whole, exactly as you received it; never invent one. A code from "
     "another workspace is refused by name rather than acted on quietly — that refusal means you "
     "are in the wrong workspace, not that the entity is missing.\n\n"
@@ -88,7 +91,7 @@ _INSTRUCTIONS = (
 
 
 def mcp_server(ctx: "McpServerContext") -> "FastMCP":
-    """Собрать MCP-сервер ``workbench``: пространства (модуль ниже) + работа внутри них."""
+    """Build the ``workbench`` MCP server: workspaces (the module below) + the work inside them."""
     from src.core.mcp import make_mcp_server
 
     mcp = make_mcp_server("workbench", _INSTRUCTIONS, ctx)

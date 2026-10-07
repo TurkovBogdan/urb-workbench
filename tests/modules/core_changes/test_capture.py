@@ -1,8 +1,8 @@
-"""Лента изменений на живых CRUD ``tasks``: что приходит слушателю после каждой записи.
+"""The change feed over the live ``tasks`` CRUD: what reaches a listener after each write.
 
-Сущности объявлены так же, как в бою (``tasks.module.CHANGE_ENTITIES``), и каждое объявление
-проверено созданием, правкой и удалением: забытая или сломанная пометка — это экран, который
-перестал обновляться без единой ошибки.
+Entities are declared exactly as in production (``tasks.module.CHANGE_ENTITIES``), and each
+declaration is checked by create, update and delete: a forgotten or broken mark is a screen that
+stopped refreshing without a single error.
 """
 
 from __future__ import annotations
@@ -33,8 +33,8 @@ pytestmark = pytest.mark.db
 async def db(config: Config):
     engine = await init_database(config)
     from src.core.database.runtime import Base
-    import src.modules.tasks.models  # noqa: F401 — таблицы tasks
-    import src.modules.workspace.models  # noqa: F401 — цель FK ``workspace_code``
+    import src.modules.tasks.models  # noqa: F401 — the tasks tables
+    import src.modules.workspace.models  # noqa: F401 — target of the ``workspace_code`` FK
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -56,7 +56,7 @@ async def workspace(db):
 
 @pytest.fixture
 async def feed(db):
-    """Слушатель шины: ``await feed()`` — всё, что пришло с прошлого вызова, списком изменений."""
+    """Bus listener: ``await feed()`` — everything since the previous call, as a list of changes."""
     async with bus.subscribe() as queue:
 
         async def drain() -> list[dict]:
@@ -83,7 +83,7 @@ async def test_undeclared_writes_publish_nothing(db, feed):
 
 
 async def test_workspace_itself_is_not_in_the_feed(workspace, feed):
-    # Пространства модуль tasks не объявлял — и в ленте их нет, хоть они и меняются.
+    # The tasks module never declared workspaces — so they're not in the feed, though they change.
     await workspace_create(title="Второе")
     assert await feed() == []
 
@@ -96,10 +96,10 @@ async def test_task_created_carries_its_edge_and_refs(workspace, feed):
 
     created = _find(changes, "tasks.task", "created")
     assert created["ids"] == [f"TASK@{task.code}"]
-    assert set(created["refs"]) == {f"WORKSPACE@{workspace.code}", f"GROUP@{group.code}"}
+    assert set(created["refs"]) == {f"WORKSPACE@{workspace.code}", f"TASKGROUP@{group.code}"}
     edge = _find(changes, "tasks.link", "created")
     assert edge["ids"] == [f"TASK@{task.code}"]
-    # Созданное в той же транзакции не сообщается ещё и правкой.
+    # Something created in the same transaction is not also reported as an update.
     assert not [c for c in changes if c["event"] == "updated" and c["entity"] == "tasks.task"]
 
 
@@ -112,8 +112,8 @@ async def test_task_update_reports_old_and_new_group(workspace, feed):
     await task_update(task.code, group_code=second.code)
     updated = _find(await feed(), "tasks.task", "updated")
     assert updated["ids"] == [f"TASK@{task.code}"]
-    # Переезд касается обеих групп: из одной задача ушла, в другую пришла.
-    assert {f"GROUP@{first.code}", f"GROUP@{second.code}"} <= set(updated["refs"])
+    # A move touches both groups: the task left one and arrived in the other.
+    assert {f"TASKGROUP@{first.code}", f"TASKGROUP@{second.code}"} <= set(updated["refs"])
 
 
 async def test_update_without_real_change_publishes_nothing(workspace, feed):
@@ -159,17 +159,17 @@ async def test_reorder_reports_the_moved_edges(workspace, feed):
 async def test_group_lifecycle(workspace, feed):
     group = await group_create(workspace_code=workspace.code, title="Оплаты")
     created = _find(await feed(), "tasks.group", "created")
-    assert created["ids"] == [f"GROUP@{group.code}"]
+    assert created["ids"] == [f"TASKGROUP@{group.code}"]
     assert created["refs"] == [f"WORKSPACE@{workspace.code}"]
 
     await group_update(group.code, title="Деньги")
-    assert _find(await feed(), "tasks.group", "updated")["ids"] == [f"GROUP@{group.code}"]
+    assert _find(await feed(), "tasks.group", "updated")["ids"] == [f"TASKGROUP@{group.code}"]
 
     await group_delete(group.code)
-    assert _find(await feed(), "tasks.group", "updated")["ids"] == [f"GROUP@{group.code}"]
+    assert _find(await feed(), "tasks.group", "updated")["ids"] == [f"TASKGROUP@{group.code}"]
 
     await group_delete(group.code, hard=True)
-    assert _find(await feed(), "tasks.group", "deleted")["ids"] == [f"GROUP@{group.code}"]
+    assert _find(await feed(), "tasks.group", "deleted")["ids"] == [f"TASKGROUP@{group.code}"]
 
 
 async def test_stage_lifecycle_refers_to_its_task(workspace, feed):

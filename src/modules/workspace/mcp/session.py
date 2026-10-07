@@ -1,25 +1,27 @@
-"""Активное рабочее пространство сессии агента: чьё оно и где лежит.
+"""The agent session's active workspace: whose it is and where it is kept.
 
-**Почему это вообще отдельный слой.** MCP-клиент спавнит шим, шим проксирует вызовы на общий
-backend, и backend смонтирован ``stateless_http`` — сессий он не ведёт, а обслуживает сразу все
-подключения и браузер. Поэтому «активное пространство» нельзя держать ни в переменной процесса
-(она одна на всех, и соседняя сессия её затрёт), ни в сессии MCP (её тут нет). Единственное, чем
-одно подключение отличается от другого, — заголовок, который шим себе выдумал при старте
-(``core/mcp_headers``).
+**Why this is a separate layer at all.** The MCP client spawns the shim, the shim proxies calls
+to a shared backend, and the backend is mounted ``stateless_http`` — it keeps no sessions and
+serves all connections and the browser at once. So the "active workspace" can be kept neither in
+a process variable (there is one for everyone, and a neighbouring session would overwrite it)
+nor in the MCP session (there is none here). The only thing that tells one connection from
+another is the header the shim made up for itself at startup (``core/mcp_headers``).
 
-**Где лежит привязка.** В ``core_modules_state`` под ключом сессии — то есть в базе, а не в
-памяти. Шим переживает перезапуск backend (это разные процессы), и привязка в памяти исчезла бы
-посреди работы: агент, час назад выбравший пространство, внезапно получил бы «не выбрано». Строки
-дешевле любой таблицы: хранилище уже есть, миграции не нужно.
+**Where the binding is kept.** In ``core_modules_state`` under the session key — i.e. in the
+database, not in memory. The shim survives a backend restart (they are separate processes), and
+a binding in memory would vanish mid-work: an agent that picked a workspace an hour ago would
+suddenly get "not chosen". Rows are cheaper than any table: the store already exists, no
+migration needed.
 
-**Три уровня разрешения**, от сильного к слабому: привязка этой сессии → пространство из конфига
-запуска (заголовок-умолчание) → отказ. Поэтому проект со своим ``.mcp.json`` стартует уже
-привязанным, а ``workspace_use`` перекрывает конфиг только для своей сессии и файла не трогает.
+**Three levels of resolution**, strongest to weakest: this session's binding → the workspace
+from the launch config (the default header) → refusal. So a project with its own ``.mcp.json``
+starts already bound, while ``workspace_use`` overrides the config only for its own session and
+does not touch the file.
 
-**Вызов без HTTP** (in-memory ``Client`` в тестах, прямой вызов из кода) заголовков не имеет
-вовсе. Такой вызов получает один общий ключ ``_LOCAL_SESSION`` — не ошибку: отсутствие HTTP это
-не сломанный клиент, а другой способ звать. Живой заголовок всегда сильнее этого ключа, и ровно
-это проверяет тест поверх смонтированного сервера.
+**A call without HTTP** (the in-memory ``Client`` in tests, a direct call from code) has no
+headers at all. Such a call gets one shared key, ``_LOCAL_SESSION`` — not an error: no HTTP is
+not a broken client but a different way of calling. A live header always beats this key, and
+that is exactly what the test over the mounted server checks.
 """
 
 from __future__ import annotations
@@ -28,7 +30,7 @@ from datetime import timedelta
 
 from src.core.module_state import module_store
 from src.core.utils.date import utc_now
-from src.modules.workspace.codes import bare_code
+from src.modules.workspace.codes import bare_code, strip_prefix
 from src.modules.workspace.constants import WORKSPACE_CODE_PREFIX
 from src.modules.workspace.crud import workspace as workspace_crud
 from src.modules.workspace.mcp.errors import no_active_workspace
@@ -36,23 +38,25 @@ from src.modules.workspace.models.workspace import Workspace
 
 _STORE = module_store("workspace")
 
-# Префикс ключа в общем хранилище модуля: там же лежит и всё остальное состояние
-# ``workspace``, и без него привязки сессий смешались бы с ним в одном пространстве имён.
+# The key prefix in the module's shared store: the rest of ``workspace``'s state lives there too,
+# and without it the session bindings would mix with it in one namespace.
 _KEY_PREFIX = "mcp_session:"
 
-# Ключ вызова, пришедшего не по HTTP. Имя намеренно говорящее: увидев его в базе, читатель
-# поймёт, что это не чья-то сессия, а общий ящик для вызовов без заголовка.
+# The key for a call that did not come over HTTP. The name is deliberately telling: seeing it in
+# the database, a reader understands it is not somebody's session but a shared box for calls
+# without a header.
 _LOCAL_SESSION = "local"
 
-# Сколько живёт брошенная привязка. Сессии агента исчисляются часами, так что месяц — это
-# «никогда не мешает»; уборка нужна только чтобы таблица не росла вечно от каждого запуска.
+# How long an abandoned binding lives. Agent sessions last hours, so a month means "never gets in
+# the way"; cleanup exists only so the table does not grow forever with every launch.
 _TTL = timedelta(days=30)
 
 
 def _headers() -> dict[str, str]:
-    """Заголовки текущего HTTP-запроса; вне запроса — пусто, без исключения.
+    """The current HTTP request's headers; outside a request — empty, no exception.
 
-    Импорт ``fastmcp`` — в теле функции: модуль тянется и туда, где форка быть не должно.
+    ``fastmcp`` is imported inside the function body: this module is also pulled in where the
+    fork must not be.
     """
     from fastmcp.server.dependencies import get_http_headers
 
@@ -60,18 +64,18 @@ def _headers() -> dict[str, str]:
 
 
 def session_id() -> str:
-    """Ключ сессии: идентификатор из заголовка, иначе общий локальный ящик."""
+    """The session key: the identifier from the header, otherwise the shared local box."""
     from src.core.mcp_headers import MCP_SESSION_HEADER
 
     return _headers().get(MCP_SESSION_HEADER) or _LOCAL_SESSION
 
 
 def _default_code() -> str | None:
-    """Пространство из конфига запуска (заголовок-умолчание), уже голым кодом.
+    """The workspace from the launch config (the default header), already as a bare code.
 
-    Чужой префикс здесь не отказ, а игнор: значение приходит из файла настроек пользователя, и
-    ронять весь сервер из-за опечатки в нём означало бы сделать необязательную настройку
-    обязательной. Отсутствие умолчания агент увидит обычным «пространство не выбрано».
+    A foreign prefix here is ignored rather than refused: the value comes from the user's
+    settings file, and failing the whole server over a typo in it would make an optional setting
+    mandatory. The agent will see a missing default as the ordinary "no workspace chosen".
     """
     from src.core.mcp_headers import MCP_WORKSPACE_HEADER
 
@@ -85,18 +89,22 @@ def _default_code() -> str | None:
 
 
 async def bound_code() -> str | None:
-    """Код пространства, привязанного к этой сессии (без учёта умолчания)."""
+    """The code of the workspace bound to this session (ignoring the default).
+
+    Folded through ``strip_prefix`` on the way out: bindings written before codes went upper
+    case still hold the lower-case hash, and the store is not migrated with the tables.
+    """
     row = await _STORE.get(_KEY_PREFIX + session_id())
-    return row.get("workspace") if isinstance(row, dict) else None
+    return strip_prefix(row.get("workspace")) if isinstance(row, dict) else None
 
 
 async def active_code() -> str | None:
-    """Голый код активного пространства: привязка сессии, иначе умолчание, иначе ``None``."""
+    """The active workspace's bare code: the session binding, else the default, else ``None``."""
     return await bound_code() or _default_code()
 
 
 async def bind(workspace_code: str) -> None:
-    """Привязать сессию к пространству. Время — чтобы брошенные привязки было чем убирать."""
+    """Bind the session to a workspace. The timestamp lets abandoned bindings be cleaned up."""
     await _STORE.set(
         _KEY_PREFIX + session_id(),
         {"workspace": workspace_code, "at": utc_now().isoformat()},
@@ -104,12 +112,12 @@ async def bind(workspace_code: str) -> None:
 
 
 async def require_active() -> Workspace:
-    """Активное пространство строкой или отказ с путём починки.
+    """The active workspace as a row, or a refusal with the way to fix it.
 
-    Пространство читается из базы, а не берётся кодом на веру: привязку могли поставить неделю
-    назад, а пространство с тех пор — удалить. Удалённое тоже отдаём: его задачи никуда не
-    делись, и «не найдено» на живых данных было бы враньём. Пропало совсем — это то же «выбери
-    пространство», потому что чинится тем же.
+    The workspace is read from the database rather than trusting the code: the binding may have
+    been set a week ago and the workspace deleted since. A deleted one is returned too: its tasks
+    have not gone anywhere, and "not found" over live data would be a lie. Gone entirely — that
+    is the same "pick a workspace", because it is fixed the same way.
     """
     code = await active_code()
     row = (
@@ -121,10 +129,10 @@ async def require_active() -> Workspace:
 
 
 async def prune() -> int:
-    """Снести привязки старше ``_TTL``; вернуть, сколько снесли.
+    """Remove bindings older than ``_TTL``; return how many were removed.
 
-    Зовётся при привязке, а не по расписанию: уборка нужна редко, а лишняя задача планировщика
-    ради десятка строк — это орган, который нечем кормить.
+    Called on binding, not on a schedule: cleanup is rarely needed, and an extra scheduler job
+    for a dozen rows would be an organ with nothing to feed it.
     """
     edge = utc_now() - _TTL
     stale = [

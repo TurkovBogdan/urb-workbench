@@ -1,8 +1,9 @@
-"""workbench MCP: редактор тела — швы, границы разделов, лимит и запрет на застывший план.
+"""workbench MCP: the body editor — seams, section bounds, the limit and the frozen-plan ban.
 
-Тело есть у трёх сущностей, и все три правятся одними инструментами. Проверяется не то, что
-текст записался (это тривиально), а то, ЧТО возвращается: агент прислал текст сам, и ценность
-ответа ровно в том, чего он не знал, — как вставка легла и как далеко ушёл вырез.
+Three entities have a body, and all three are edited by the same tools. What is checked is not
+that the text got written (that is trivial) but WHAT comes back: the agent sent the text itself,
+and the answer's value lies exactly in what it did not know — how the insert landed and how far
+the cut reached.
 """
 
 from __future__ import annotations
@@ -31,7 +32,7 @@ async def bound(call, workspace, task):
     return f"TASK@{task.code}"
 
 
-# ── что вообще имеет тело ─────────────────────────────────────────────────────
+# ── what has a body at all ────────────────────────────────────────────────────
 
 
 async def test_all_three_bodies_are_edited_by_the_same_tools(call, bound, task, workspace):
@@ -46,16 +47,16 @@ async def test_all_three_bodies_are_edited_by_the_same_tools(call, bound, task, 
 
 async def test_a_group_has_no_body_and_the_refusal_says_where_the_brief_lives(call, bound):
     with pytest.raises(ToolError, match="has no body to edit"):
-        await call("body_set", code="GROUP@0000000000", text="х")
+        await call("body_set", code="TASKGROUP@0000000000", text="х")
 
 
-# ── шов ───────────────────────────────────────────────────────────────────────
+# ── seam ──────────────────────────────────────────────────────────────────────
 
 
 async def test_the_answer_is_the_seam_not_the_text_the_agent_sent(call, bound):
-    """Присланный текст назад не едет: агент его только что написал и знает.
+    """The text sent is not echoed back: the agent has just written it and knows it.
 
-    Возвращается то, чего он не знал, — во что вставка упёрлась слева и справа.
+    What comes back is what it did not know — what the insert butts against on the left and right.
     """
     await call("body_set", code=bound, text="начало и конец")
 
@@ -70,7 +71,7 @@ async def test_a_long_body_marks_where_the_window_was_cut(call, bound):
 
     added = await call("body_add", code=bound, text="x", position="before", anchor="ЯКОРЬ")
 
-    # Многоточие только там, где окно обрезано серединой тела, — край виден и так.
+    # An ellipsis only where the window is cut mid-body — the edge is visible as it is.
     assert added["edit"].startswith("…") and added["edit"].endswith("…")
 
 
@@ -97,7 +98,7 @@ async def test_a_fragment_that_is_not_there_is_an_error_in_both_modes(call, boun
             await call("body_replace", code=bound, find="три", text="х", mode=mode)
 
 
-# ── разделы ───────────────────────────────────────────────────────────────────
+# ── sections ──────────────────────────────────────────────────────────────────
 
 
 async def test_a_section_runs_to_the_next_heading_of_its_level_or_higher(call, bound):
@@ -109,7 +110,7 @@ async def test_a_section_runs_to_the_next_heading_of_its_level_or_higher(call, b
 
     cut = await call("body_set_section", code=bound, heading="## Подход", text="## Подход\nново\n")
 
-    # Подраздел уехал вместе с разделом, а следующий раздел того же уровня — нет.
+    # The subsection went along with the section; the next section of the same level did not.
     assert "### Деталь" in cut["removed"]
     assert cut["stopped_at"] == "## Файлы"
 
@@ -150,13 +151,13 @@ async def test_a_plain_string_is_not_a_heading(call, bound):
         await call("body_set_section", code=bound, heading="Подход", text="х")
 
 
-# ── лимит ─────────────────────────────────────────────────────────────────────
+# ── limit ─────────────────────────────────────────────────────────────────────
 
 
 async def test_the_limit_names_the_length_of_the_result_not_of_the_piece_sent(call, bound):
-    """Агент дописал две строки в почти полное тело и упёрся НЕ в них.
+    """The agent appended two lines to an almost full body and hit the limit NOT because of them.
 
-    Назови ему длину присланного куска — и он будет сокращать не то место.
+    Tell it the length of the piece it sent, and it will shorten the wrong place.
     """
     await call("body_set", code=bound, text="я" * (BODY_MAX - 2))
 
@@ -167,7 +168,7 @@ async def test_the_limit_names_the_length_of_the_result_not_of_the_piece_sent(ca
     assert "3 too many" in str(caught.value)
 
 
-# ── застывший план ────────────────────────────────────────────────────────────
+# ── frozen plan ───────────────────────────────────────────────────────────────
 
 
 async def test_the_body_of_a_running_stage_is_frozen(call, bound, task):
@@ -179,7 +180,7 @@ async def test_the_body_of_a_running_stage_is_frozen(call, bound, task):
 
 
 async def test_the_plan_of_the_task_stays_editable_while_the_task_lives(call, bound):
-    """Запрет — про этап, а не про длинный текст вообще: план прозой живёт с задачей."""
+    """The ban is about a stage, not long text in general: the prose plan lives with the task."""
     await call("task_status", task_code=bound, status="in_progress")
 
     assert (await call("body_set", code=bound, text="уточнил подход"))["length"] == 14

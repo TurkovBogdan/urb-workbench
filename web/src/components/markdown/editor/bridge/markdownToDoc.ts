@@ -1,34 +1,36 @@
-// Markdown → плоский документ: разбирающая половина моста.
+// Markdown → flat document: the parsing half of the bridge.
 //
-// Токены даёт markdown-it — тот же, что рендерит тела, поэтому конструкция, понятная
-// рендереру, понятна и редактору, а определение кода сущности (REF_CODE) остаётся одно на всё
-// приложение. Дерево markdown-it здесь сплющивается в ряд блоков по правилам схемы (blocks.ts):
-// вложенный список становится пунктом с большим `depth`, абзац цитаты — блоком `quote`.
+// Tokens come from markdown-it — the same one that renders bodies — so a construct the renderer
+// understands is understood by the editor too, and the definition of an entity code (REF_CODE)
+// stays single for the whole app. The markdown-it tree is flattened here into a row of blocks by
+// the schema's rules (blocks.ts): a nested list becomes an item with a larger `depth`, a quote
+// paragraph becomes a `quote` block.
 //
-// Печатающая половина живёт в docToMarkdown.ts; порознь им верить нельзя, поэтому страница
-// дизайн-системы гоняет их друг против друга и показывает расхождение.
+// The printing half lives in docToMarkdown.ts; neither can be trusted alone, so the design-system
+// page runs them against each other and shows any divergence.
 import MarkdownIt from 'markdown-it'
 import type { Token } from 'markdown-it'
 import type { JSONContent } from '@tiptap/core'
-import { REF_CODE, TASK_MARKER, WHOLE_CODE_SPAN } from '../../shared/contracts'
+import { canonicalCode, REF_CODE, TASK_MARKER, WHOLE_CODE_SPAN } from '../../shared/contracts'
 import type { FeatureSet } from '../modes'
 import { restrict } from './restrict'
 
-// Что считается кодом сущности, что — цельным кодом в бэктиках и как выглядит маркер чеклиста,
-// решает `markdown/shared/contracts` — один файл на рендерер и на редактор. Разойдись они, и
-// пилюля поменяла бы смысл на входе в правку.
+// What counts as an entity code, what counts as a whole code in backticks and what a checklist
+// marker looks like is decided by `markdown/shared/contracts` — one file for the renderer and the
+// editor. Were they to diverge, a pill would change meaning on entering edit mode.
 
-// `breaks: false` — одиночный перенос внутри абзаца в теле незначим, поэтому приходит пробелом,
-// а абзац переносится заново на выходе. Единственная нормализация, которую мост делает сознательно.
+// `breaks: false` — a single newline inside a paragraph is insignificant in a body, so it arrives
+// as a space, and the paragraph is re-wrapped on output. The only normalization the bridge makes
+// deliberately.
 const md = new MarkdownIt({ html: false, linkify: true, breaks: false })
 md.linkify.set({ fuzzyLink: false, fuzzyEmail: false })
 
 type Mark = { type: string; attrs?: Record<string, unknown> }
 
 /**
- * @param features набор возможностей поля; опущен — разбираем всё, что умеем. Разбор при этом
- *   идёт полным всегда, а сужение делает отдельный проход (`restrict`): так фильтр читается
- *   одним куском, а не рассыпается по двадцати веткам главного цикла.
+ * @param features the field's feature set; when omitted, parse everything we can. Parsing is
+ *   always full, and narrowing is a separate pass (`restrict`): that way the filter reads as one
+ *   piece instead of being scattered across twenty branches of the main loop.
  */
 export function markdownToDoc(markdown: string, features?: FeatureSet): JSONContent {
   const doc = parseFull(markdown)
@@ -38,8 +40,8 @@ export function markdownToDoc(markdown: string, features?: FeatureSet): JSONCont
 function parseFull(markdown: string): JSONContent {
   const tokens = md.parse(markdown, {})
   const doc: JSONContent = { type: 'doc', content: [] }
-  // Стек держит только открытый строчный блок: блоки не вкладываются, поэтому глубже двух
-  // уровней он не бывает.
+  // The stack holds only the open text block: blocks do not nest, so it never gets deeper than
+  // two levels.
   const stack: JSONContent[] = [doc]
   const ordered: boolean[] = []
   let list: JSONContent | null = null
@@ -52,8 +54,8 @@ function parseFull(markdown: string): JSONContent {
     ;(doc.content ??= []).push(node)
     stack.push(node)
   }
-  // Блок верхнего уровня, попавший внутрь пункта списка (код в пункте, вложенная цитата),
-  // плоской схеме не годится и выбрасывается — см. UNSUPPORTED.
+  // A top-level block that ends up inside a list item (code in an item, a nested quote) does not
+  // fit the flat schema and is dropped — see UNSUPPORTED.
   const addBlock = (node: JSONContent): void => {
     if (!inItem()) (doc.content ??= []).push(node)
   }
@@ -62,9 +64,9 @@ function parseFull(markdown: string): JSONContent {
     const token = tokens[i]
 
     switch (token.type) {
-      // Таблица разбирается отдельной функцией и возвращает индекс своего закрытия: внутри неё
-      // у токенов своя грамматика, и мешать её с плоским разбором блоков значило бы вести в
-      // главном цикле четыре дополнительных состояния.
+      // A table is parsed by a separate function that returns the index of its closing token:
+      // inside it the tokens have a grammar of their own, and mixing it into the flat block
+      // parse would mean tracking four extra states in the main loop.
       case 'table_open': {
         const parsed = parseTable(tokens, i)
         if (parsed.node) addBlock(parsed.node)
@@ -77,7 +79,7 @@ function parseFull(markdown: string): JSONContent {
         break
 
       case 'paragraph_open':
-        // Внутри пункта абзаца не существует: пункт хранит строчное содержимое напрямую.
+        // There is no paragraph inside an item: the item holds inline content directly.
         if (inItem()) break
         open({ type: quoteDepth > 0 ? 'quote' : 'paragraph', content: [] })
         break
@@ -91,8 +93,8 @@ function parseFull(markdown: string): JSONContent {
         stack.pop()
         break
 
-      // Цитата — не контейнер, а признак блока: считаем только глубину, чтобы знать, каким
-      // типом открывать абзацы внутри неё.
+      // A quote is not a container but a block flag: only the depth is counted, to know which
+      // type to open paragraphs inside it with.
       case 'blockquote_open':
         quoteDepth += 1
         break
@@ -122,7 +124,7 @@ function parseFull(markdown: string): JSONContent {
         const item: JSONContent = {
           type: 'listItem',
           attrs: {
-            // Вложенность markdown становится числом: уровень списка минус один.
+            // Markdown nesting becomes a number: the list level minus one.
             depth: Math.max(0, listDepth - 1),
             ordered: ordered[listDepth - 1] ?? false,
             checked: task ? task.checked : null,
@@ -162,31 +164,31 @@ function parseFull(markdown: string): JSONContent {
     }
   }
 
-  // Пустой документ ProseMirror не примет: `doc` требует хотя бы один блок.
+  // ProseMirror will not accept an empty document: `doc` requires at least one block.
   if (!doc.content?.length) doc.content = [{ type: 'paragraph' }]
   return doc
 }
 
-// ── Таблица ───────────────────────────────────────────────────────────────────
+// ── Table ─────────────────────────────────────────────────────────────────────
 
-// Выравнивание markdown-it отдаёт инлайновым стилем на ячейке ШАПКИ — там, где оно и объявлено
-// в разделителе. Забираем его один раз, списком на таблицу: держать копию на каждой ячейке
-// значило бы синхронизировать их при любой правке колонки.
+// markdown-it reports alignment as an inline style on the HEADER cell — where the delimiter row
+// declares it. It is taken once, as one list per table: keeping a copy on every cell would mean
+// syncing them on every column edit.
 const ALIGN_STYLE = /text-align\s*:\s*(left|center|right)/
 
 function alignOf(token: Token): 'left' | 'center' | 'right' | null {
-  // `attrGet` типизирован как `string | number`: значения атрибутов у markdown-it не обязаны
-  // быть строками, хотя `style` ею всегда и приходит.
+  // `attrGet` is typed `string | number`: markdown-it attribute values need not be strings,
+  // although `style` always arrives as one.
   const match = ALIGN_STYLE.exec(String(token.attrGet('style') ?? ''))
   return match ? (match[1] as 'left' | 'center' | 'right') : null
 }
 
 /**
- * Разбор таблицы от `table_open` до парного `table_close`.
+ * Parses a table from `table_open` to its matching `table_close`.
  *
- * Ряды тела приводятся к ширине шапки: markdown-it отдаёт строку такой, какой её написали, а
- * схема и печать рассчитывают на прямоугольник. Недостающие ячейки добираются пустыми, лишние
- * отбрасываются — ровно так же читает такую строку и сам GFM.
+ * Body rows are squared to the header's width: markdown-it returns a row as written, while the
+ * schema and the printer expect a rectangle. Missing cells are filled with empty ones, extra ones
+ * are dropped — exactly how GFM itself reads such a row.
  */
 function parseTable(tokens: Token[], start: number): { node: JSONContent | null; end: number } {
   const align: ('left' | 'center' | 'right' | null)[] = []
@@ -234,8 +236,8 @@ function parseTable(tokens: Token[], start: number): { node: JSONContent | null;
   }
 
   const headRow = head[0]
-  // Шапки нет — таблицы нет: в GFM она обязательна, и собирать узел без неё значило бы отдать
-  // схеме документ, который она отвергнет целиком.
+  // No header, no table: GFM requires it, and building the node without one would hand the
+  // schema a document it rejects as a whole.
   if (!headRow) return { node: null, end: i }
 
   const width = (headRow.content ?? []).length
@@ -258,8 +260,8 @@ function parseTable(tokens: Token[], start: number): { node: JSONContent | null;
   }
 }
 
-// Пункт — чеклистовый, если его абзац открывается `[ ]` / `[x]`. Маркер снимается и с токена,
-// и с его первого ребёнка — ровно как это делает рендерер.
+// An item is a checklist item if its paragraph opens with `[ ]` / `[x]`. The marker is stripped
+// from both the token and its first child — exactly as the renderer does it.
 function taskAt(tokens: Token[], index: number): { checked: boolean } | null {
   const paragraph = tokens[index + 1]
   const inline = tokens[index + 2]
@@ -327,16 +329,17 @@ function inlineContent(children: Token[]): JSONContent[] {
     }
   }
 
-  // ProseMirror запрещает пустые текстовые узлы и отвергает ВЕСЬ документ, если встретит хоть
-  // один — редактор молча остаётся пустым. markdown-it же выдаёт пустой `text` регулярно: на
-  // стыке строчных токенов, в начале строки, открывающейся кодом. Отсев здесь, а не у каждого
-  // источника: любой новый способ породить пустышку иначе снова обнулит документ.
+  // ProseMirror forbids empty text nodes and rejects the WHOLE document if it meets even one —
+  // the editor silently stays empty. markdown-it, meanwhile, emits an empty `text` routinely: at
+  // the junction of inline tokens, at the start of a line that opens with code. The filter lives
+  // here rather than at each source: otherwise any new way of producing an empty node would wipe
+  // the document again.
   return out.filter((node) => node.type !== 'text' || (node.text ?? '').length > 0)
 }
 
-// Код распознаётся только в обычном тексте. Внутри метки ссылки он вложил бы <a> в <a>, и
-// рендерер отказывается там тоже — но метка приезжает сюда уже с меткой ссылки, так что
-// разбиение для неё пропускается.
+// A code is recognized only in plain text. Inside a link label it would nest an <a> in an <a>, and
+// the renderer refuses there too — but the label arrives here already carrying the link mark, so
+// splitting is skipped for it.
 function textWithRefs(text: string, marks: Mark[]): JSONContent[] {
   if (marks.some((mark) => mark.type === 'link')) return [textNode(text, marks)]
 
@@ -358,5 +361,5 @@ function textNode(text: string, marks: Mark[]): JSONContent {
 }
 
 function refNode(code: string): JSONContent {
-  return { type: 'entityRef', attrs: { code } }
+  return { type: 'entityRef', attrs: { code: canonicalCode(code) } }
 }

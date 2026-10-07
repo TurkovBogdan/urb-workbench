@@ -1,7 +1,8 @@
-"""Кодек кодов ``tasks``: надевание и снятие префикса + отказ коду чужого типа.
+"""The ``tasks`` code codec: adding and stripping the prefix + refusing a code of another type.
 
-Префикс — презентация, в базе его нет, поэтому кодек обязан быть идемпотентным на голом коде:
-внутренние значения проходят через ту же границу, что и пришедшие снаружи.
+The prefix is presentation, the database never holds it, so the codec must be idempotent on a bare
+code: internal values pass through the same boundary as the ones arriving from outside. Codes are
+upper case, and the codec folds whatever case comes in.
 """
 
 from __future__ import annotations
@@ -24,20 +25,41 @@ from src.modules.tasks.constants import (
     CODE_LEN,
     TASK_CODE_PREFIX,
 )
-# Чужое тип-слово: коды пространства ходят через наши же границы (``workspace`` в параметрах ручек),
-# и разбирать их модуль обязан по константе владельца, а не по своей копии.
+# A foreign type word: workspace codes pass through our own boundaries (``workspace`` in endpoint
+# params), and the module must parse them by the owner's constant, not by a copy of its own.
 from src.modules.workspace.constants import WORKSPACE_CODE_PREFIX
 
-BARE = "a" * CODE_LEN
+BARE = "A" * CODE_LEN
 
 
 @pytest.mark.pure
-def test_new_code_is_a_bare_hex_of_the_module_length():
+def test_new_code_is_an_upper_case_hex_of_the_module_length():
     code = new_code()
 
     assert len(code) == CODE_LEN
-    assert all(c in "0123456789abcdef" for c in code)
+    assert all(c in "0123456789ABCDEF" for c in code)
     assert new_code() != code
+
+
+@pytest.mark.pure
+@pytest.mark.parametrize(
+    "value", [f"TASK@{BARE.lower()}", f"task@{BARE}", f"Task@{BARE.lower()}", BARE.lower()]
+)
+def test_bare_code_folds_any_case_to_the_stored_upper_case(value):
+    """A code from before the switch (a config, a link in a note) must still find its row."""
+    assert bare_code(value, TASK_CODE_PREFIX) == BARE
+
+
+@pytest.mark.pure
+def test_strip_prefix_folds_case_too():
+    assert strip_prefix(f"group@{BARE.lower()}") == BARE
+
+
+@pytest.mark.pure
+def test_a_foreign_prefix_is_refused_in_any_case():
+    """Folding must not let a lower-case foreign type slip past the type check."""
+    with pytest.raises(ValueError, match="TASKGROUP@ reference"):
+        bare_code(f"taskgroup@{BARE}", TASK_CODE_PREFIX)
 
 
 @pytest.mark.pure
@@ -49,7 +71,7 @@ def test_tagged_puts_the_prefix_on_and_strip_takes_it_off():
 
 @pytest.mark.pure
 def test_strip_prefix_is_idempotent_on_a_bare_code():
-    """Внутреннее значение проходит границу столько раз, сколько нужно, и не портится."""
+    """An internal value crosses the boundary as many times as needed and comes out intact."""
     assert strip_prefix(BARE) == BARE
     assert strip_prefix(strip_prefix(f"AREA@{BARE}")) == BARE
 
@@ -70,15 +92,30 @@ def test_bare_code_accepts_its_own_prefix_and_the_bare_form(value):
 
 @pytest.mark.pure
 def test_bare_code_refuses_a_foreign_prefix_by_naming_both_types():
-    """Чужой код — перепутанный аргумент, а не пропавшая строка; отказ обязан это сказать."""
-    with pytest.raises(ValueError, match="GROUP@ reference"):
+    """A foreign code is a mixed-up argument, not a missing row; the refusal must say so."""
+    with pytest.raises(ValueError, match="TASKGROUP@ reference"):
         bare_code(f"{GROUP_CODE_PREFIX}@{BARE}", TASK_CODE_PREFIX)
+
+
+@pytest.mark.pure
+@pytest.mark.parametrize("value", [f"GROUP@{BARE}", f"group@{BARE.lower()}"])
+def test_the_retired_group_prefix_reads_as_the_current_one(value):
+    """``GROUP@`` codes are already quoted in bodies and journals; the rename must not orphan them."""
+    assert code_prefix(value) == GROUP_CODE_PREFIX
+    assert bare_code(value, GROUP_CODE_PREFIX) == BARE
+
+
+@pytest.mark.pure
+def test_the_retired_group_prefix_is_still_refused_where_a_task_is_expected():
+    """The alias widens what a group code may look like, not what a task code may be."""
+    with pytest.raises(ValueError, match="TASKGROUP@ reference"):
+        bare_code(f"GROUP@{BARE}", TASK_CODE_PREFIX)
 
 
 @pytest.mark.pure
 @pytest.mark.parametrize("value", ["TASK@", f"TASK@TASK@{BARE}", f"@{BARE}@"])
 def test_bare_code_refuses_a_prefix_with_no_single_code_after_it(value):
-    """Пустой хвост в CRUD значит «снять»: обрезанный код молча выносил задачу в корень."""
+    """An empty tail means "unset" in CRUD: a truncated code silently moved the task to the root."""
     with pytest.raises(ValueError, match="is not a TASK@ code"):
         bare_code(value, TASK_CODE_PREFIX)
 

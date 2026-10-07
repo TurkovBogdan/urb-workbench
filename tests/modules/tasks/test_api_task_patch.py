@@ -1,7 +1,7 @@
-"""``PATCH /tasks/{code}`` — частичная правка: меняются только переданные поля.
+"""``PATCH /tasks/{code}`` — a partial update: only the fields sent are changed.
 
-Главное свойство — не откатывать чужое: страница, сохранившая одно поле, не должна вернуть
-остальные к тому виду, в каком она их когда-то загрузила.
+The key property is not reverting someone else's edits: a page that saved one field must not
+return the rest to the state it once loaded them in.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ async def _task(**fields):
 
 async def test_patch_changes_only_the_given_field(client):
     _, task = await _task(context="контекст", criteria="- критерий")
-    # Параллельно «агент» поправил критерии — страница про это не знает.
+    # Meanwhile the "agent" edited the criteria — the page knows nothing about it.
     await task_crud.task_update(task.code, criteria="- критерий агента")
 
     body = (await client.patch(f"{TASKS}/{task.code}", json={"context": "новый контекст"})).json()
@@ -44,7 +44,7 @@ async def test_patch_keeps_group_and_deadline_unless_named(client):
     body = (await client.patch(f"{TASKS}/{task.code}", json={"priority": "high"})).json()
 
     assert body["priority"] == "high"
-    assert body["group_code"] == f"GROUP@{group.code}"
+    assert body["group_code"] == f"TASKGROUP@{group.code}"
     assert body["deadline_at"] is not None
 
 

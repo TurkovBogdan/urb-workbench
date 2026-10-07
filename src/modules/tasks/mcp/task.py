@@ -1,12 +1,12 @@
-"""MCP-тулы задачи — основная поверхность работы агента.
+"""Task MCP tools — the agent's main working surface.
 
-Пять инструментов на четыре сценария: найти, прочитать целиком, завести, изменить, сдвинуть по
-жизненному циклу. Разводить их мельче незачем, сливать — некуда: у смены статуса своё правило
-(отметка фазы и недоступность терминальных значений), у правки своё (правится только то, что
-передано).
+Five tools for four scenarios: find, read in full, create, edit, move along the lifecycle.
+There is no reason to split them finer and nothing to merge them into: the status change has its
+own rule (the phase mark and terminal values being off-limits), the edit has its own (only what
+is passed gets edited).
 
-Ни один из них не принимает пространства: оно у сессии (``workspace/mcp/session.py``), и код из
-чужого отвергается забором (``scope.py``).
+None of them takes a workspace: it belongs to the session (``workspace/mcp/session.py``), and a
+code from another workspace is refused by the fence (``scope.py``).
 """
 
 from __future__ import annotations
@@ -44,22 +44,22 @@ from src.modules.tasks.dto import (
 )
 from src.modules.tasks.mcp.scope import require_active, require_scope
 
-if TYPE_CHECKING:  # fork fastmcp — только backend (через mcp_server(ctx))
+if TYPE_CHECKING:  # fastmcp fork — backend only (via mcp_server(ctx))
     from fastmcp import FastMCP
 
-# Потолок выдачи списка. Стоит здесь, а не аргументом тула: поле в схеме оплачивается каждым
-# вызовом, а нужно оно в одном случае из двадцати — и тогда разрыв ``shown``/``total`` скажет
-# о нём внятнее, чем умолчание, которого агент не видел.
+# The list output cap. It lives here rather than as a tool argument: a field in the schema is
+# paid for on every call, yet it is needed once in twenty — and then the ``shown``/``total`` gap
+# says so more clearly than a default the agent never saw.
 LIST_CAP = 50
 
-# Агрегаты статуса рядом с семью настоящими. Отрицание («не done и не canceled») в перечислении
-# не выразить, а спрашивают про него чаще всего — поэтому у него есть имя.
+# Status aggregates next to the seven real ones. A negation ("not done and not canceled") cannot
+# be expressed in an enumeration, yet it is what gets asked for most often — so it has a name.
 STATUS_UNFINISHED = "unfinished"
 STATUS_ANY = "any"
 
-# Терминальные статусы агенту недоступны. ``done`` — потому что принимает работу постановщик, и
-# это прямое следствие самого частого режима отказа: объявлять победу раньше времени.
-# ``canceled`` — потому что решение «работы не будет» не принимают изнутри работы.
+# Terminal statuses are off-limits to the agent. ``done`` — because the task's author accepts
+# the work, a direct consequence of the most common failure mode: declaring victory too early.
+# ``canceled`` — because the decision "this work will not happen" is not made from inside the work.
 AGENT_STATUSES = tuple(s for s in TASK_STATUSES if s not in TASK_STATUSES_TERMINAL)
 
 _UNFINISHED = AGENT_STATUSES
@@ -76,7 +76,7 @@ def _checked(value: str, allowed: tuple[str, ...], what: str) -> str:
 
 
 async def _rows(tasks: list) -> list[AgentTaskRow]:
-    """Строки скана: поля задачи + место в дереве, одним запросом на весь список."""
+    """Scan rows: task fields + place in the tree, one query for the whole list."""
     codes = [task.code for task in tasks]
     links = await link_crud.link_map_by_task_codes(codes)
     children = await link_crud.link_child_count_by_parent_codes(codes)
@@ -120,7 +120,7 @@ def register(mcp: "FastMCP") -> None:
         Args:
             status: unfinished (default — everything not done or canceled) / any / backlog /
                 planned / in_progress / in_test / in_review / done / canceled.
-            group_code: A GROUP@ code for one theme; an empty string for the tasks filed in no
+            group_code: A TASKGROUP@ code for one theme; an empty string for the tasks filed in no
                 group at all; omit to see every group.
             query: Case-insensitive substring of the title or the goal. Omit to filter only.
         """
@@ -253,7 +253,7 @@ def register(mcp: "FastMCP") -> None:
                 closed with its own evidence). Pick extended when the work outlasts one sitting;
                 a standard task refuses stages and says so.
             priority: burning / high / normal / low / frozen. Default normal.
-            group_code: A GROUP@ code from groups_list; omit to leave it unfiled.
+            group_code: A TASKGROUP@ code from groups_list; omit to leave it unfiled.
             parent_code: A TASK@ code of a top-level task to make this a subtask of it.
             deadline_at: Hard deadline, `YYYY-MM-DD HH:MM:SS` in UTC.
         """
@@ -279,9 +279,9 @@ def register(mcp: "FastMCP") -> None:
             group_code=group_bare,
             parent_code=parent_bare,
             deadline_at=deadline_at,
-            # Авторство называет поверхность, а не вызывающий: значение из аргумента было бы
-            # словом на веру, и отличить заведённое агентом от заведённого человеком стало бы
-            # нечем — а бэклог, наполовину придуманный моделью, нечем и отфильтровать.
+            # Authorship is named by the surface, not by the caller: a value from an argument
+            # would be taken on faith, and there would be no way to tell what the agent created
+            # from what the person created — nor to filter out a backlog half invented by a model.
             created_by=ACTOR_AGENT,
         )
         return AgentTaskCreated(
@@ -324,7 +324,7 @@ def register(mcp: "FastMCP") -> None:
 
         Args:
             task_code: The task to change — a TASK@ code.
-            group_code: A GROUP@ code, or an empty string to take it out of its group. With
+            group_code: A TASKGROUP@ code, or an empty string to take it out of its group. With
                 parent_code="" it files the task as it leaves its branch — one call.
             parent_code: A TASK@ code of a live top-level task to move this under — an
                 unfinished one, unless this task is finished too — or an empty string to make

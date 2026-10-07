@@ -16,16 +16,24 @@ export const REF_TYPES = ['RESEARCH', 'AREA', 'NOTE', 'QUERY', 'SOURCE'] as cons
 export const CODE_LEN = 10
 
 // Carries the `g` flag: both zones scan a text node for every code in it, not just the first.
+// Case-insensitive on purpose: codes are upper case now, but bodies written before still quote them
+// in lower case and must keep resolving. Whoever takes a match folds it with `canonicalCode`.
 export const REF_CODE = new RegExp(
   `(${REF_TYPES.join('|')})@([0-9a-f]{${CODE_LEN}})(?![0-9a-f])`,
-  'g',
+  'gi',
 )
+
+/** The stored form of a matched code — upper case, as the API returns it. */
+export function canonicalCode(code: string): string {
+  return code.toUpperCase()
+}
 
 // A code reads as an identifier, so bodies routinely wrap it in backticks. A code span that is
 // nothing but one code is still a reference, not a literal — anything else in the span (prose,
 // a second code, a fragment) keeps it literal, and a fenced block stays code either way.
 export const WHOLE_CODE_SPAN = new RegExp(
   `^(${REF_TYPES.join('|')})@([0-9a-f]{${CODE_LEN}})$`,
+  'i',
 )
 
 // GFM task list: markdown-it has no rule for it, so the marker is still sitting at the front of

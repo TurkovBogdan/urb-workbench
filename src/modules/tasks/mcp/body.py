@@ -1,18 +1,18 @@
-"""MCP-тулы редактора тела — четыре правки одного и того же текста по коду сущности.
+"""Body editor MCP tools — four edits of the same text, addressed by entity code.
 
-Тело есть у задачи (план), этапа (описание работы) и записи журнала (её предмет), и во всех
-трёх это колонка ``body``. Постановка задачи телом не считается: у неё пять разных полей, и
-``body_set(code, text)`` на них был бы неоднозначен.
+A task (the plan), a stage (the description of the work) and a journal entry (its subject) have
+a body, and in all three it is the ``body`` column. The task brief does not count as a body: it
+has five separate fields, and ``body_set(code, text)`` would be ambiguous across them.
 
-Диспетч, лимиты и запрет на правку начатого этапа — в ``services/body.py``. Здесь только
-описания и форма ответа.
+Dispatch, limits and the ban on editing a started stage live in ``services/body.py``. Only the
+descriptions and the reply shape are here.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from src.modules.tasks.codes import code_prefix, strip_prefix
+from src.modules.tasks.codes import code_prefix, strip_prefix, tagged
 from src.modules.tasks.dto import (
     AgentBodyAdded,
     AgentBodyReplaced,
@@ -22,21 +22,25 @@ from src.modules.tasks.dto import (
 from src.modules.tasks.mcp.scope import require_scope
 from src.modules.tasks.services import body as body_service
 
-if TYPE_CHECKING:  # fork fastmcp — только backend (через mcp_server(ctx))
+if TYPE_CHECKING:  # fastmcp fork — backend only (via mcp_server(ctx))
     from fastmcp import FastMCP
 
 
 async def _fenced(code: str) -> str:
-    """Провести код через забор пространства и вернуть его голую форму.
+    """Pass the code through the workspace fence and return its canonical form.
 
-    Забор здесь нужен ровно так же, как везде: ``STAGE@`` чужой задачи резолвится до её
-    пространства, и правка мимо контура становится отказом, а не тихой записью.
+    The fence is needed here exactly as everywhere else: a ``STAGE@`` of another workspace's task
+    resolves to that task's workspace, and an edit outside the boundary becomes a refusal rather
+    than a silent write.
+
+    Canonical, not as sent: every tool here echoes the code in its answer, and a code sent in
+    lower case must come back the way every other tool returns it — upper case.
     """
     prefix = code_prefix(code)
     bare = strip_prefix(code) or ""
     if prefix:
         await require_scope(prefix, bare)
-    return code
+    return tagged(prefix, bare) if prefix else bare
 
 
 def register(mcp: "FastMCP") -> None:
@@ -60,10 +64,11 @@ def register(mcp: "FastMCP") -> None:
             text: The new body — everything there now is discarded.
                 Markdown, rendered in the interface — skill_get('markdown').
         """
+        canonical = await _fenced(code)
         row = await body_service.apply(
-            await _fenced(code), lambda body: body_service.op_set(body, text=text)
+            canonical, lambda body: body_service.op_set(body, text=text)
         )
-        return AgentBodySet(code=code, length=len(row.body or ""))
+        return AgentBodySet(code=canonical, length=len(row.body or ""))
 
     @mcp.tool()
     async def body_replace(
@@ -95,8 +100,9 @@ def register(mcp: "FastMCP") -> None:
         else:
             raise ValueError("mode must be 'single' or 'all'.")
 
-        _, seams = await body_service.apply_edit(await _fenced(code), edit)
-        return AgentBodyReplaced(code=code, replaced=len(seams), edits=seams)
+        canonical = await _fenced(code)
+        _, seams = await body_service.apply_edit(canonical, edit)
+        return AgentBodyReplaced(code=canonical, replaced=len(seams), edits=seams)
 
     @mcp.tool()
     async def body_set_section(code: str, heading: str, text: str) -> AgentBodySectionSet:
@@ -122,12 +128,13 @@ def register(mcp: "FastMCP") -> None:
                 and the heading goes too. Spliced in verbatim.
                 Markdown, rendered in the interface — skill_get('markdown').
         """
+        canonical = await _fenced(code)
         _, cut = await body_service.apply_edit(
-            await _fenced(code),
+            canonical,
             lambda body: body_service.op_set_section(body, heading=heading, text=text),
         )
         return AgentBodySectionSet(
-            code=code,
+            code=canonical,
             removed=cut.removed,
             removed_length=cut.removed_length,
             stopped_at=cut.stopped_at,
@@ -174,8 +181,9 @@ def register(mcp: "FastMCP") -> None:
         else:
             raise ValueError("position must be 'start', 'end', 'before' or 'after'.")
 
-        _, seam = await body_service.apply_edit(await _fenced(code), edit)
-        return AgentBodyAdded(code=code, edit=seam)
+        canonical = await _fenced(code)
+        _, seam = await body_service.apply_edit(canonical, edit)
+        return AgentBodyAdded(code=canonical, edit=seam)
 
 
 __all__ = ["register"]

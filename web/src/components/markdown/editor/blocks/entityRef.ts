@@ -7,12 +7,12 @@
 import { InputRule, Node, mergeAttributes, nodePasteRule } from '@tiptap/core'
 import { VueNodeViewRenderer } from '@tiptap/vue-3'
 import EntityRefView from './EntityRefView.vue'
-import { REF_CODE } from '../../shared/contracts'
+import { canonicalCode, REF_CODE } from '../../shared/contracts'
 
 // One definition of «what is a code» for the renderer, the parser and the editor. A second
 // pattern here would mean a body where a pill renders but cannot be typed, or the reverse.
-const TYPED_CODE = new RegExp(`${REF_CODE.source}$`)
-const PASTED_CODE = new RegExp(REF_CODE.source, 'g')
+const TYPED_CODE = new RegExp(`${REF_CODE.source}$`, 'i')
+const PASTED_CODE = new RegExp(REF_CODE.source, 'gi')
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -70,7 +70,7 @@ export const EntityRef = Node.create({
       new InputRule({
         find: TYPED_CODE,
         handler: ({ state, range, match }) => {
-          state.tr.replaceWith(range.from, range.to, this.type.create({ code: match[0] }))
+          state.tr.replaceWith(range.from, range.to, this.type.create({ code: canonicalCode(match[0]) }))
         },
       }),
     ]
@@ -82,7 +82,7 @@ export const EntityRef = Node.create({
       nodePasteRule({
         find: PASTED_CODE,
         type: this.type,
-        getAttributes: (match) => ({ code: match[0] }),
+        getAttributes: (match) => ({ code: canonicalCode(match[0]) }),
       }),
     ]
   },

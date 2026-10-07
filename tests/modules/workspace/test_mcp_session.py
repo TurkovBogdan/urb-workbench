@@ -1,8 +1,8 @@
-"""Активное пространство сессии: хранение, умолчание и уборка.
+"""The session's active workspace: storage, default and cleanup.
 
-Здесь слой проверяется напрямую, без MCP-клиента: заголовков у прямого вызова нет, и все эти
-тесты работают в одной локальной сессии — ровно то поведение, которое обещано для вызова вне
-HTTP. Что заголовок доезжает и что сессии не видят друг друга, проверяет
+The layer is tested directly here, without an MCP client: a direct call has no headers, so all
+these tests run in one local session — exactly the behaviour promised for a call outside HTTP.
+That the header gets through and that sessions don't see each other is checked by
 ``tests/modules/tasks/test_mcp_session_http.py``.
 """
 
@@ -26,7 +26,7 @@ async def test_nothing_is_active_until_something_is_chosen(db):
 
 
 async def test_a_call_without_http_lands_in_one_named_session(db):
-    """Вызов вне HTTP — не ошибка, а другой способ звать; ключ у него один и говорящий."""
+    """A call outside HTTP is not an error but another way to call; it gets one telling key."""
     assert session.session_id() == "local"
 
 
@@ -36,6 +36,16 @@ async def test_the_binding_survives_the_call_that_made_it(db):
     await session.bind(workspace.code)
 
     assert await session.active_code() == workspace.code
+
+
+async def test_a_binding_stored_in_lower_case_still_resolves(db):
+    """Bindings written before codes went upper case are not migrated: reading folds them."""
+    workspace = await workspace_create(title="Работа")
+
+    await session.bind(workspace.code.lower())
+
+    assert await session.active_code() == workspace.code
+    assert (await session.require_active()).code == workspace.code
 
 
 async def test_rebinding_replaces_rather_than_accumulates(db):
@@ -56,7 +66,8 @@ async def test_require_active_refuses_with_the_rule_code(db):
 
 
 async def test_a_binding_pointing_at_nothing_reads_as_no_choice(db):
-    """Пространство могли снести после привязки: это то же «выбери», а не внутренняя ошибка."""
+    """The workspace may have been removed after binding: that is the same "pick one", not an
+    internal error."""
     await session.bind("0000000000")
 
     with pytest.raises(WorkspaceScopeError):
@@ -64,7 +75,7 @@ async def test_a_binding_pointing_at_nothing_reads_as_no_choice(db):
 
 
 async def test_work_continues_in_a_workspace_deleted_after_binding(db):
-    """Удалённое пространство свои задачи не теряет — обрывать по нему работу было бы враньём."""
+    """A deleted workspace keeps its tasks — cutting off work in it would be a lie."""
     workspace = await workspace_create(title="Работа")
     await session.bind(workspace.code)
     await workspace_delete(workspace.code)
@@ -73,7 +84,7 @@ async def test_work_continues_in_a_workspace_deleted_after_binding(db):
 
 
 async def test_prune_drops_abandoned_bindings_and_keeps_live_ones(db):
-    """Уборка нужна, чтобы таблица не росла от каждого запуска клиента, — и только для этого."""
+    """Cleanup exists so the table doesn't grow with every client launch — and only for that."""
     workspace = await workspace_create(title="Работа")
     await session.bind(workspace.code)
     store = module_store("workspace")

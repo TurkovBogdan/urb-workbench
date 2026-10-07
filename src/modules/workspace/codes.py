@@ -1,15 +1,20 @@
-"""Коды пространств: генерация, презентационный префикс и его снятие.
+"""Workspace codes: generation, the presentation prefix and its removal.
 
-Тот же приём, что у ``tasks.codes`` и ``research.codes``: хранимый код — **голый hex-хеш** длиной
-``CODE_LEN``, а тип-слово (``WORKSPACE@``) надевается на границе и снимается на входе. Копия
-машинерии здесь, а не общий модуль в ядре, по той же причине, по какой она есть у соседей: длина
-кода и набор префиксов — свойство модуля, и общий на всех генератор связал бы их вместе на
-первом же расхождении.
+The same technique as ``tasks.codes`` and ``research.codes``: the stored code is a **bare hex
+hash** of length ``CODE_LEN``, and the type word (``WORKSPACE@``) is added at the boundary and
+stripped on input. A copy of the machinery lives here rather than in a shared core module for
+the same reason the neighbours have theirs: code length and the prefix set are properties of the
+module, and a generator shared by all would tie them together at the first divergence.
 
-Наружу код уезжает с префиксом только в JSON (``prefixed``), внутренний ``model_dump()``
-остаётся голым. Внутрь ``bare_code`` проверяет, что префикс тот самый: код чужого типа
-(``GROUP@`` там, где ждут пространство) — это перепутанный аргумент, а не пропавшая строка, и
-отказ называет оба типа.
+On the way out a code carries the prefix only in JSON (``prefixed``); the internal
+``model_dump()`` stays bare. On the way in ``bare_code`` checks the prefix is the right one: a
+code of a foreign type (``TASKGROUP@`` where a workspace is expected) is a mixed-up argument, not a
+missing row, and the refusal names both types.
+
+**A code is upper case, whole.** It is generated, stored and returned that way, and every code
+that comes in is folded to upper case before it reaches SQL — so a lower-case code from before
+the switch (a client config, a link in a note) still finds its row. The comparison in the
+database is case-sensitive on both providers; the fold here is what makes the case not matter.
 """
 
 from __future__ import annotations
@@ -23,25 +28,25 @@ from src.modules.workspace.constants import CODE_LEN
 
 
 def new_code() -> str:
-    """Новый код пространства — голый ``CODE_LEN``-hex ``random_hash``."""
-    return random_hash(CODE_LEN)
+    """A new workspace code — a bare ``CODE_LEN``-hex ``random_hash``, upper case."""
+    return random_hash(CODE_LEN).upper()
 
 
 def code_prefix(value: str) -> str:
-    """Тип-слово входного кода (``WORKSPACE`` из ``WORKSPACE@<hash>``); ``""`` — код голый."""
-    return value.split("@", 1)[0] if "@" in value else ""
+    """The type word of an input code (``WORKSPACE`` from ``workspace@<hash>``); ``""`` — bare."""
+    return value.split("@", 1)[0].upper() if "@" in value else ""
 
 
 def strip_prefix(value: str | None) -> str | None:
-    """Граница → хранилище: снять презентационный префикс, оставив голый хеш.
+    """Boundary → store: strip the presentation prefix, leaving the bare hash in upper case.
 
-    Идемпотентно на голом коде (в hex-хеше нет ``@`` → значение возвращается как есть).
+    Idempotent on a bare code (a hex hash has no ``@`` → only the case is folded).
     """
-    return value.rpartition("@")[2] if value else value
+    return value.rpartition("@")[2].upper() if value else value
 
 
 def bare_code(value: str | None, prefix: str) -> str | None:
-    """Голый код сущности типа ``prefix``; чужой префикс — отказ с названием обоих типов."""
+    """The bare code of a ``prefix``-type entity; a foreign prefix — a refusal naming both types."""
     if not value:
         return value
     actual = code_prefix(value)
@@ -55,12 +60,12 @@ def bare_code(value: str | None, prefix: str) -> str | None:
 
 
 def tagged(prefix: str, value: str | None) -> str | None:
-    """Хранилище → граница: презентационная форма голого кода; ``None`` → ``None``."""
+    """Store → boundary: the presentation form of a bare code; ``None`` → ``None``."""
     return value if value is None else f"{prefix}@{value}"
 
 
 def prefixed(prefix: str):
-    """Тип ``str``, чья JSON-форма несёт ``prefix@`` (на вход принимается и голый хеш)."""
+    """A ``str`` type whose JSON form carries ``prefix@`` (a bare hash is accepted on input too)."""
     return Annotated[
         str,
         PlainSerializer(

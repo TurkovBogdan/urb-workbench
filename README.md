@@ -1,93 +1,93 @@
 # urb-workbench
 
-> Рабочий стол разработчика и его агента-исполнителя. Человек ставит задачу, агент ведёт её через MCP, а всё, что он делает, тут же видно человеку страницей в браузере.
+> A workbench for a developer and the agent that does the work. The person sets a task, the agent carries it through MCP, and everything it does shows up for the person right away as a page in the browser.
 
-Приложение состоит из двух половин. Первая — **MCP-сервер `workbench`**: двадцать два инструмента, которыми агент заводит задачи, пишет план, закрывает этапы и ведёт журнал. Вторая — **веб-интерфейс**: то же самое, открытое человеку на чтение и правку. Работа не растворяется вместе с сессией агента — она остаётся в базе и переживает его.
+The application has two halves. The first is the **`workbench` MCP server**: twenty-two tools the agent uses to create tasks, write a plan, close stages and keep a journal. The second is the **web interface**: the same data, open to the person for reading and editing. The work does not dissolve with the agent's session — it stays in the database and outlives it.
 
-## Как устроена работа
+## How work is organized
 
-**Рабочее пространство** — контур изоляции. Ничего не читается поперёк пространств: так отделяется рабочее от личного и один заказчик от другого. Агент выбирает пространство один раз на подключение, после чего ни один инструмент его не принимает аргументом — ошибиться пространством в отдельном вызове физически нельзя.
+A **workspace** is the isolation boundary. Nothing is read across workspaces: that is how work is kept apart from personal matters, and one client from another. The agent picks a workspace once per connection, and after that no tool accepts it as an argument — addressing the wrong workspace in a single call is physically impossible.
 
-Внутри пространства: **группы** — постоянные темы, **задачи** — сама работа. У задачи три глубины ведения, и каждая добавляет один способ работать:
+Inside a workspace there are **groups** — standing topics — and **tasks** — the work itself. A task can be carried at three depths, and each one adds one way of working:
 
-| Тип | Что появляется |
+| Type | What it adds |
 |---|---|
-| `simple` | название и цель; часто это задача человеку, а не агенту |
-| `standard` | плюс постановка (контекст, ограничения, критерии сдачи), план прозой и журнал решений, находок и фактов |
-| `extended` | плюс **этапы**: план, разобранный на шаги, у каждого своё состояние и своё доказательство |
+| `simple` | a title and a goal; often a task for the person rather than the agent |
+| `standard` | plus a brief (context, constraints, acceptance criteria), a plan in prose and a journal of decisions, findings and facts |
+| `extended` | plus **stages**: the plan broken into steps, each with its own state and its own evidence |
 
-Постановку агент дописывает и уточняет в любой задаче, в том числе заведённой человеком, — правку чужой постановки он отмечает записью в журнале. Одного он не делает: не принимает работу. Сделанное он сдаёт в статусе `in_review` — дальше слово за человеком.
+The agent may extend and refine the brief of any task, including one the person created — and it records an edit to someone else's brief as a journal entry. The one thing it does not do is accept the work. It hands finished work over in the `in_review` status — from there the person has the final word.
 
-У каждой сущности свой код с префиксом — `WORKSPACE@`, `GROUP@`, `TASK@`, `STAGE@`, `NOTE@`. Код одновременно адрес страницы и аргумент любого инструмента.
+Every entity has its own prefixed code — `WORKSPACE@`, `TASKGROUP@`, `TASK@`, `STAGE@`, `NOTE@`. The code is both the page address and the argument to any tool.
 
-## Что умеет агент
+## What the agent can do
 
-Двадцать два инструмента, пять групп.
+Twenty-two tools in five groups.
 
-- **Пространство.** Список пространств, выбор активного, список групп.
-- **Работа.** Список и чтение задач, создание, правка, смена статуса.
-- **План.** Добавить этап, изменить, закрыть. Закрыть без доказательства нельзя: аргумент обязателен, и ждут в нём указатель — команду с её итогом, путь к изменённому файлу, сводку дифа.
-- **Журнал.** Добавить запись, закрыть разрешением, перечислить. Записи только добавляются: переписать историю нельзя.
-- **Длинный текст.** План задачи, описание этапа и предмет записи правятся по месту: заменить всё, заменить строку, заменить раздел по заголовку, дописать. В ответ приходит не документ, а **шов правки** — по куску текста с каждой стороны от вставки. Там и видно, что склеилось не так.
+- **Workspace.** List workspaces, pick the active one, list groups.
+- **Work.** List and read tasks, create, edit, change status.
+- **Plan.** Add a stage, edit it, close it. A stage cannot be closed without evidence: the argument is mandatory, and it expects a pointer — a command with its outcome, the path to a changed file, a diff summary.
+- **Journal.** Add an entry, close it with a resolution, list entries. Entries are append-only: history cannot be rewritten.
+- **Long text.** A task's plan, a stage's description and an entry's subject are edited in place: replace everything, replace a line, replace a section by its heading, append. The reply is not the document but the **edit seam** — a slice of text on each side of the insertion. That is where you can see whether something got glued together wrong.
 
-Сверх этих пяти — четыре отдельных инструмента: `delete(code)` (одна дверь на все типы), `interface_open(code)` кладёт сущность человеку на экран, а `skills_list` / `skill_get` отдают справочники самого сервера: как он ждёт постановку, план и журнал и что рисует его интерфейс. Агент читает их до работы, а не после неудачи.
+On top of these five groups there are four standalone tools: `delete(code)` (one door for every type), `interface_open(code)` puts an entity on the person's screen, and `skills_list` / `skill_get` serve the server's own handbooks: how it expects a brief, a plan and a journal, and what its interface renders. The agent reads them before the work, not after a failure.
 
-## Веб-интерфейс
+## Web interface
 
-- **Пространства** — список со счётчиками групп и задач; создание, правка, удаление.
-- **Задачи** и **Группы** — дерево задач с приоритетами и сроками, карточка задачи с постановкой, планом, этапами и журналом; правка на месте.
-- **Интерфейс** — тема, шрифты, оформление текста, блоков кода и схем.
-- **Задачи** в настройках — не те же самые: фоновые задачи планировщика, их запуски и логи. Только чтение.
-- **Сервер** — правка `.env` прямо из интерфейса с перезапуском процесса.
-- **MCP-серверы** — что поднято как MCP-сервер, его инструкции, список инструментов и готовый конфиг подключения.
-- **Версия и обновление** — версия установки, отставание от ветки и кнопка обновления.
+- **Workspaces** — a list with group and task counters; create, edit, delete.
+- **Tasks** and **Groups** — a task tree with priorities and due dates, a task card with the brief, plan, stages and journal; editing in place.
+- **Interface** — theme, fonts, styling of text, code blocks and diagrams.
+- **Job monitoring** — not the same as tasks: the scheduler's background jobs, their runs and logs. Read-only.
+- **Server** — edit `.env` right from the interface, with a process restart.
+- **MCP servers** — what is exposed as an MCP server, its instructions, its tool list and a ready-made connection config.
+- **Version and update** — the installed version, how far it lags behind the branch, and an update button.
 
-## Требования
+## Requirements
 
-Нужны **git** и **uv**; Python, зависимости и базу приложение приносит само.
+You need **git** and **uv**; the application brings Python, its dependencies and its database by itself.
 
-Git ставится менеджером пакетов системы — `apt`, `dnf`, `brew`. Про uv можно не думать: `./install.sh` предложит поставить его официальным установщиком Astral, а тот заодно скачает нужный Python (3.12, версия зафиксирована в `.python-version`).
+Install git with your system package manager — `apt`, `dnf`, `brew`. You don't have to think about uv: `./install.sh` offers to install it with Astral's official installer, which also downloads the right Python (3.12, pinned in `.python-version`).
 
-Базу данных ставить не нужно: по умолчанию используется **SQLite** — один файл, без сервера. PostgreSQL — опция для боевого масштаба (нужен сервер 14+ с созданными базой и пользователем).
+There is no database to install: **SQLite** is the default — a single file, no server. PostgreSQL is an option for production scale (it needs a 14+ server with the database and user already created).
 
-## Установка
+## Installation
 
 ```bash
 git clone https://github.com/TurkovBogdan/urb-workbench.git && cd urb-workbench
 ./install.sh
 ```
 
-Скрипт проверяет инструменты, ставит зависимости и запускает приложение — дальше остаётся открыть интерфейс. Повторный запуск безопасен: он синхронизирует зависимости и поднимает приложение заново.
+The script checks the tools, installs the dependencies and starts the application — all that is left is to open the interface. Running it again is safe: it syncs the dependencies and brings the application up again.
 
-> Пакеты ставятся готовыми бинарными сборками — компилятор и системные dev-библиотеки не нужны. То же самое руками: `uv sync --all-groups`, затем `./run.sh`.
+> Packages are installed as prebuilt binaries — no compiler or system dev libraries are needed. The same by hand: `uv sync --all-groups`, then `./run.sh`.
 
-**Файл `.env` писать не нужно.** Его не существует до первого запуска: приложение создаёт его само со значениями по умолчанию (режим `prod`, SQLite в `runtime/prod/app.sqlite3`) и выписывает себе два секрета — токен MCP-серверов и мастер-ключ шифрования. Дальше файл правится на странице «Сервер» или руками; образцы с комментариями — `.env.example.prod` и `.env.example.dev`.
+**You don't need to write a `.env` file.** It does not exist until the first run: the application creates it with default values (`prod` mode, SQLite at `runtime/prod/app.sqlite3`) and issues itself two secrets — the MCP server token and the encryption master key. After that the file is edited on the "Server" page or by hand; annotated samples are `.env.example.prod` and `.env.example.dev`.
 
-Схема базы разворачивается сама **только на первом запуске, на пустой базе**. Дальше миграции накатывает обновление (`./update.sh`), а не старт приложения: база, отставшая от кода, встречает заглушкой со списком неприменённых ревизий.
+The database schema is deployed automatically **only on the first run, against an empty database**. After that, migrations are applied by the update (`./update.sh`), not by starting the application: a database that has fallen behind the code is met with a stub page listing the unapplied revisions.
 
-## Запуск
+## Running
 
 ```bash
 ./run.sh
 ```
 
-Скрипт поднимает бекенд с фоновым обработчиком в одном процессе и открывает браузер, как только приложение ответит. Тем же заканчивается `./install.sh`. Адрес берётся из `.env` (`SERVER_HOST` / `SERVER_PORT`, по умолчанию `http://127.0.0.1:13410`).
+The script starts the backend together with the background worker in one process and opens the browser as soon as the application responds. `./install.sh` ends the same way. The address comes from `.env` (`SERVER_HOST` / `SERVER_PORT`, default `http://127.0.0.1:13410`).
 
-Остальные команды:
+Other commands:
 
 ```bash
-./run.sh stop        # погасить установку (только её процессы, соседние не трогает)
-./run.sh test        # прогнать тесты; аргументы пробрасываются: ./run.sh test --core
-./run.sh help        # справка
+./run.sh stop        # stop this installation (only its own processes, neighbours are left alone)
+./run.sh test        # run the tests; arguments pass through: ./run.sh test --core
+./run.sh help        # help
 ```
 
-То же самое без обёртки — `uv run python src/app.py --backend --worker`. Флаги `--backend` (HTTP-сервер) и `--worker` (фоновые задачи) можно развести по разным процессам; в одном процессе указываются оба.
+The same without the wrapper: `uv run python src/app.py --backend --worker`. The `--backend` (HTTP server) and `--worker` (background jobs) flags can be split across separate processes; a single process takes both.
 
-## Подключение агента
+## Connecting an agent
 
-Держать сервер запущенным вручную не нужно. MCP-клиент подключается через **stdio-шим**: клиент сам запускает процесс при открытии сессии, тот поднимает бекенд, открывает браузер на главной и передаёт ему вызовы инструментов. Бекенд переживает сессию: следующая подключится к уже работающему.
+There is no need to keep the server running by hand. The MCP client connects through a **stdio shim**: the client itself spawns the process when a session opens, the shim brings up the backend, opens the browser on the home page and forwards tool calls to it. The backend outlives the session: the next one connects to the already running instance.
 
-Готовый конфиг лежит на странице **«MCP-серверы»**: он уже содержит абсолютные пути этой установки и токен. Скопируйте его в настройки клиента (Claude Desktop, Claude Code). Выглядит он так:
+A ready-made config is on the **"MCP servers"** page: it already contains this installation's absolute paths and the token. Copy it into your client's settings (Claude Desktop, Claude Code). It looks like this:
 
 ```json
 {
@@ -98,43 +98,43 @@ git clone https://github.com/TurkovBogdan/urb-workbench.git && cd urb-workbench
         "run", "--directory", "/path/to/urb-workbench",
         "python", "src/app.py", "--mcp-stdio=workbench"
       ],
-      "env": { "MCP_TOKEN": "<токен из .env>" }
+      "env": { "MCP_TOKEN": "<token from .env>" }
     }
   }
 }
 ```
 
-> Путь к `uv` и к проекту (`--directory`) — **абсолютные**. Многие MCP-клиенты стартуют из своего каталога с урезанным PATH, и без `--directory` uv не найдёт проект: «Connection Failed».
+> The paths to `uv` and to the project (`--directory`) are **absolute**. Many MCP clients start from their own directory with a trimmed PATH, and without `--directory` uv won't find the project: "Connection Failed".
 
-Пространство агент выбирает сам (`workspaces_list` → `workspace_use`). Чтобы подключение всегда открывалось в одном и том же, добавьте к аргументам `--mcp-workspace=WORKSPACE@…`: сессия стартует уже привязанной.
+The agent picks the workspace itself (`workspaces_list` → `workspace_use`). To make a connection always open in the same one, add `--mcp-workspace=WORKSPACE@…` to the arguments: the session starts already bound.
 
-## Обновление
-
-```bash
-./update.sh            # обновить
-./update.sh --dry-run  # показать, что будет сделано, ничего не трогая
-```
-
-Команда останавливает работающие экземпляры MCP-сервера, на время работы запрещает поднимать новые и обновляет установку. То же самое делает кнопка «Обновить» на странице «Версия и обновление»: там же видно, на сколько коммитов установка отстала.
-
-## Структура
-
-```
-├── src/       # код: app.py (точка входа), core/ (платформа), modules/ (домены)
-├── web/       # интерфейс на Vue 3; web/dist/ — собранный SPA, лежит в репозитории
-├── runtime/   # данные работающего приложения: база, кеш, логи, резервные копии
-├── tests/     # тесты
-└── tools/     # служебные скрипты (наполнение демо-данными)
-```
-
-Модулей шесть. Прикладных два: `workspace` (рабочие пространства — общий уровень изоляции) и `tasks` (группы, дерево задач, план, журнал и MCP-сервер `workbench`). Остальные четыре инфраструктурные: `core_setup` (правка `.env`), `core_interface` (настройки оформления), `core_monitoring` (фоновые задачи), `core_mcp` (интроспекция MCP-серверов).
-
-## Разработчику
+## Updating
 
 ```bash
-./run.sh dev         # Vite с HMR + бекенд с hot-reload (нужны Node.js 20+ и pnpm)
-./run.sh build-prod  # пересобрать фронт в web/dist
-./run.sh test --core # тесты ядра; полный прогон — ./run.sh test --all
+./update.sh            # update
+./update.sh --dry-run  # show what would be done without touching anything
 ```
 
-Как устроены тесты и какие флаги они понимают — [`tests/README.md`](tests/README.md).
+The command stops running MCP server instances, blocks new ones from starting while it works, and updates the installation. The "Update" button on the "Version and update" page does the same: it also shows how many commits behind the installation is.
+
+## Structure
+
+```
+├── src/       # code: app.py (entry point), core/ (platform), modules/ (domains)
+├── web/       # Vue 3 interface; web/dist/ is the built SPA, kept in the repository
+├── runtime/   # data of the running application: database, cache, logs, backups
+├── tests/     # tests
+└── tools/     # utility scripts (demo data seeding)
+```
+
+There are six modules. Two are application modules: `workspace` (workspaces — the shared isolation level) and `tasks` (groups, the task tree, plan, journal and the `workbench` MCP server). The other four are infrastructure: `core_setup` (editing `.env`), `core_interface` (appearance settings), `core_monitoring` (background jobs), `core_mcp` (MCP server introspection).
+
+## For developers
+
+```bash
+./run.sh dev         # Vite with HMR + backend with hot reload (needs Node.js 20+ and pnpm)
+./run.sh build-prod  # rebuild the frontend into web/dist
+./run.sh test --core # core tests; full run: ./run.sh test --all
+```
+
+How the tests are organized and which flags they understand: [`tests/README.md`](tests/README.md).
