@@ -243,27 +243,26 @@ async function onCreated(): Promise<void> {
 
 <style scoped>
 /* ── Context card (expanded sidebar) ────────────────────────────────────────── */
-/* A fill instead of a border: it lifts the card off the section list without turning it into a
-   form field. The side padding stays at 8px, as on a menu item, so the badge's left edge lines up
-   with the section icons. */
+/* No fill and no padding of its own: the rule under the strip already separates the card from the
+   section list, and a fill read as a second border at the same spot. Hover answers on the chevron,
+   since without a box there is no edge to light. */
 .ws-card {
   display: flex;
   align-items: center;
   gap: 10px;
   width: 100%;
-  padding: 8px;
+  padding: 0;
   border: 0;
-  border-radius: var(--radius);
-  background-color: var(--surface-hi);
+  border-radius: var(--radius-sm);
+  background: none;
   color: var(--text);
   cursor: pointer;
   text-align: left;
-  transition: background-color 0.15s, box-shadow 0.15s;
 }
 
-.ws-card:hover,
-.ws-card[aria-expanded='true'] {
-  box-shadow: inset 0 0 0 1px var(--border);
+.ws-card:hover .ws-card__caret,
+.ws-card[aria-expanded='true'] .ws-card__caret {
+  color: var(--text);
 }
 
 .ws-card:focus-visible {
@@ -286,6 +285,7 @@ async function onCreated(): Promise<void> {
 .ws-card__caret {
   flex: none;
   color: var(--text-faint);
+  transition: color 0.15s;
 }
 
 /* ── Collapsed rail ─────────────────────────────────────────────────────────── */
