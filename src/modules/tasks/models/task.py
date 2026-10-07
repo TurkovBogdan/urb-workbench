@@ -24,8 +24,9 @@ Dates are split by meaning:
 
 - ``deadline_at`` — the deadline, a ``timestamp``: the only date a task is assigned;
 - ``started_at`` / ``completed_at`` / ``canceled_at`` — phase marks, set on status change
-  (``crud/task.py::task_update_status``) and never overwritten afterwards: they are facts, not
-  plans.
+  (``crud/task.py::task_update_status``): they are facts, not plans. The start is never
+  overwritten; the two closing marks are cleared when the task is reopened and stamped anew when
+  it closes again.
 
 The indexes serve the three queries all output consists of: the workspace board by status, the
 layout by group, and the schedule by deadline. All three lead with ``workspace_code`` — the

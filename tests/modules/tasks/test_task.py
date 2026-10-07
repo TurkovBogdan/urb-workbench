@@ -9,6 +9,8 @@ from src.modules.tasks.constants import (
     CODE_LEN,
     PRIORITY_BURNING,
     SORT_DEFAULT,
+    STATUS_BACKLOG,
+    STATUS_CANCELED,
     STATUS_DONE,
     STATUS_IN_PROGRESS,
     TASK_PRIORITY_DEFAULT,
@@ -140,6 +142,44 @@ async def test_status_change_stamps_the_phase_once(db, workspace):
 
     reopened = await task_update_status(task.code, STATUS_IN_PROGRESS)
     assert reopened.started_at == started.started_at
+
+
+async def test_reopening_clears_the_closing_marks(db, workspace):
+    """An open task carries no end date: neither completion nor cancellation survives a reopen."""
+    task = await task_create(workspace_code=workspace.code, title="Задача")
+    await task_update_status(task.code, STATUS_DONE)
+    await task_update_status(task.code, STATUS_IN_PROGRESS)
+    await task_update_status(task.code, STATUS_CANCELED)
+
+    reopened = await task_update_status(task.code, STATUS_BACKLOG)
+
+    assert reopened.completed_at is None and reopened.canceled_at is None
+
+
+async def test_closing_again_stamps_a_fresh_date(db, workspace):
+    task = await task_create(workspace_code=workspace.code, title="Задача")
+    first = (await task_update_status(task.code, STATUS_DONE)).completed_at
+    await task_update_status(task.code, STATUS_IN_PROGRESS)
+
+    again = await task_update_status(task.code, STATUS_DONE)
+
+    assert again.completed_at is not None and again.completed_at >= first
+
+
+async def test_refused_reopen_keeps_the_closing_marks(db, workspace):
+    """A subtask of a closed task is not reopened — and its dates are not cleared on the way."""
+    parent = await task_create(workspace_code=workspace.code, title="Эпик")
+    child = await task_create(
+        workspace_code=workspace.code, title="Часть", parent_code=parent.code
+    )
+    await task_update_status(child.code, STATUS_DONE)
+    await task_update_status(parent.code, STATUS_DONE)
+
+    with pytest.raises(ValueError):
+        await task_update_status(child.code, STATUS_IN_PROGRESS)
+
+    stored = await task_get(child.code)
+    assert stored.status == STATUS_DONE and stored.completed_at is not None
 
 
 async def test_workspace_listing_filters_by_status_and_group(db, workspace):

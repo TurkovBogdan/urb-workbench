@@ -482,7 +482,8 @@ async def test_status_stamps_the_phase(client):
 
 
 async def test_status_keeps_the_first_stamp(client):
-    """Resuming work does not rewrite when the task was started: that is a fact, not a state."""
+    """Resuming work does not rewrite when the task was started: that is a fact, not a state. The
+    cancellation, on the other hand, is no longer true of a resumed task and is cleared."""
     workspace = await _workspace()
     task = await task_crud.task_create(workspace_code=workspace.code, title="Счёт")
     first = (
@@ -499,7 +500,7 @@ async def test_status_keeps_the_first_stamp(client):
     ).json()
 
     assert again["started_at"] == first["started_at"]
-    assert again["canceled_at"] is not None
+    assert again["canceled_at"] is None
 
 
 async def test_status_outside_the_dictionary_is_a_bad_request(client):

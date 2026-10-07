@@ -104,6 +104,9 @@ _STATUS_STAMPS = {
     STATUS_CANCELED: "canceled_at",
 }
 
+# The closing marks, which a reopened task gives back.
+_CLOSING_STAMPS = ("completed_at", "canceled_at")
+
 
 def _checked(value: str, allowed: tuple[str, ...], field: str) -> str:
     """A value from the vocabulary, or a refusal listing the allowed ones.
@@ -684,8 +687,11 @@ async def task_update_status(code: str, status: str) -> TasksTask | None:
     """Change the status and stamp the phase: ``in_progress`` → ``started_at``, ``done`` →
     ``completed_at``, ``canceled`` → ``canceled_at``.
 
-    The stamp is set only the first time: going from ``done`` back to work and back again must not
-    rewrite the date work on the task began — that is a fact, not the current state.
+    The start is set only the first time: going from ``done`` back to work and back again must not
+    rewrite the date work on the task began — that is a fact, not the current state. The closing
+    marks are the opposite: reopening clears ``completed_at`` and ``canceled_at``, because an open
+    task with a completion date would claim an end the work has not reached. Closing it again
+    stamps the date anew.
 
     A closed task holds no open parts — from both sides: a task with open live subtasks is not
     closed, and a subtask of a closed task is not reopened. What to do with the parent then is the
@@ -701,6 +707,8 @@ async def task_update_status(code: str, status: str) -> TasksTask | None:
             await _require_no_open_subtasks(s, row, status)
         else:
             await _require_open_parent_for_status(s, row, status)
+            for closing_field in _CLOSING_STAMPS:
+                setattr(row, closing_field, None)
         row.status = status
         stamp_field = _STATUS_STAMPS.get(status)
         if stamp_field is not None and getattr(row, stamp_field) is None:
