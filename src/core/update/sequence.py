@@ -43,6 +43,7 @@ from src.core.update.stop import (
     execute_stop,
     plan_live_stop,
 )
+from src.core.update.transport import https_options
 
 EXIT_OK = 0
 EXIT_PRECONDITIONS = 1
@@ -69,7 +70,8 @@ REMOTE = "origin"
 
 BRANCH_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]*")
 
-FETCH_COMMAND = ("git", "fetch", "--prune", REMOTE)
+FETCH_ARGUMENTS = ("fetch", "--prune", REMOTE)
+REMOTE_URL_COMMAND = ("git", "remote", "get-url", REMOTE)
 SYNC_COMMAND = ("uv", "sync", "--all-groups")
 # Shipped code, not `AGENTS/tools/…`: `AGENTS/` is not in git, so a tool that lives only in a
 # developer's checkout is missing on exactly the install this command exists for — and it would
@@ -131,10 +133,12 @@ class CommandResult:
 
 @dataclass(frozen=True)
 class StartingPoint:
-    """Where the checkout stood before anything was touched — the rollback target."""
+    """Where the checkout stood before anything was touched — the rollback target — and the git
+    options that reached the remote, so the fetch does not retry a transport already refused."""
 
     branch: str
     head: str
+    remote_options: tuple[str, ...] = ()
 
 
 class UpdateHost:
@@ -527,9 +531,9 @@ def _verify_preconditions(host: UpdateHost, branch: str) -> StartingPoint:
             "fast-forwards a branch, it does not move the install to another line of code"
         )
 
-    _verify_remote_has_branch(host, branch)
+    remote_options = _verify_remote_has_branch(host, branch)
     head = _must_succeed(host.inspect(["git", "rev-parse", "HEAD"])).stdout.strip()
-    return StartingPoint(branch=branch, head=head)
+    return StartingPoint(branch=branch, head=head, remote_options=remote_options)
 
 
 def _stop_and_fast_forward(host: UpdateHost, start: StartingPoint) -> str:
@@ -537,7 +541,7 @@ def _stop_and_fast_forward(host: UpdateHost, start: StartingPoint) -> str:
     host.stop_processes()
     _must_succeed(
         host.execute(
-            FETCH_COMMAND,
+            ("git", *start.remote_options, *FETCH_ARGUMENTS),
             environment_overrides=GIT_NONINTERACTIVE,
             timeout=FETCH_TIMEOUT_SECONDS,
         )
@@ -580,21 +584,54 @@ def _roll_back(host: UpdateHost, start: StartingPoint) -> None:
         raise UpdateRefused(f"dependencies not restored: {restored.describe_failure()}")
 
 
-def _verify_remote_has_branch(host: UpdateHost, branch: str) -> None:
-    """Asked of the remote itself, before anything is stopped.
+def _verify_remote_has_branch(host: UpdateHost, branch: str) -> tuple[str, ...]:
+    """Asked of the remote itself, before anything is stopped; returns the git options that
+    reached it.
 
     The local `refs/remotes/origin/<branch>` is only as fresh as the last fetch, so a branch
     created after the clone would be reported missing by a local lookup; and a fetch that would
     hang on credentials hangs here, with the install still running and unflagged.
+
+    An SSH origin that refuses is asked once more over HTTPS (`transport`) — a missing branch is
+    an answer, not a refusal, and is not retried.
     """
-    probe = host.inspect(
-        ["git", "ls-remote", "--exit-code", "--heads", REMOTE, f"refs/heads/{branch}"],
-        environment_overrides=GIT_NONINTERACTIVE,
-    )
+    probe = _probe_branch(host, branch, ())
+    remote_options: tuple[str, ...] = ()
+    if not probe.succeeded and probe.returncode != LS_REMOTE_NO_MATCH:
+        remote_options = _https_options(host)
+        if remote_options:
+            host.report(f"{REMOTE} refused over SSH, asking over HTTPS: {probe.describe_failure()}")
+            probe = _probe_branch(host, branch, remote_options)
     if probe.returncode == LS_REMOTE_NO_MATCH:
         raise UpdateRefused(f"{REMOTE} has no branch {branch!r}")
     if not probe.succeeded:
         raise UpdateRefused(f"could not ask {REMOTE} for {branch!r}: {probe.describe_failure()}")
+    return remote_options
+
+
+def _probe_branch(
+    host: UpdateHost, branch: str, remote_options: tuple[str, ...]
+) -> CommandResult:
+    return host.inspect(
+        [
+            "git",
+            *remote_options,
+            "ls-remote",
+            "--exit-code",
+            "--heads",
+            REMOTE,
+            f"refs/heads/{branch}",
+        ],
+        environment_overrides=GIT_NONINTERACTIVE,
+    )
+
+
+def _https_options(host: UpdateHost) -> tuple[str, ...]:
+    """Empty when origin has no HTTPS twin — an HTTPS origin that refused has nowhere to go."""
+    remote_url = host.inspect(REMOTE_URL_COMMAND)
+    if not remote_url.succeeded:
+        return ()
+    return https_options(remote_url.stdout.strip())
 
 
 def _resolve_fetched_commit(host: UpdateHost, branch: str) -> str:

@@ -29,6 +29,7 @@ from src.core.update.sequence import (
     REMOTE,
     validate_branch,
 )
+from src.core.update.transport import https_options
 from src.core.version import PROJECT_FILE, Release, installed_release, parse_release
 
 # One fetch at a time per process: two open tabs would otherwise race for the same `.git` locks
@@ -118,8 +119,13 @@ def _dirty() -> bool | None:
 
 
 def _fetch() -> None:
+    """An SSH origin that refuses is fetched once more over HTTPS, as the update itself does."""
     with _fetch_lock:
         result = _git(["fetch", REMOTE], timeout=FETCH_TIMEOUT_SECONDS)
+        if result.returncode != 0:
+            remote_options = https_options(_git_text(["remote", "get-url", REMOTE]) or "")
+            if remote_options:
+                result = _git([*remote_options, "fetch", REMOTE], timeout=FETCH_TIMEOUT_SECONDS)
     if result.returncode != 0:
         raise UpstreamUnreachable(result.stderr.strip() or f"could not reach {REMOTE}")
 

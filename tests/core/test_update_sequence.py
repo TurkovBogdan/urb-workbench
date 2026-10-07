@@ -48,6 +48,8 @@ HEAD_BEFORE = "1111111111111111111111111111111111111111"
 REMOTE_HEAD = "2222222222222222222222222222222222222222"
 DATABASE_FILE = CHECKOUT / "runtime" / "prod" / "app.sqlite3"
 BACKUP_PATH = CHECKOUT / "runtime" / "prod" / "backup" / "app.sqlite3.20260912-010203"
+SSH_REMOTE = "git@github.com:owner/urb-workbench.git"
+HTTPS_OPTIONS = f"-c url.https://github.com/owner/urb-workbench.git.insteadOf={SSH_REMOTE}"
 
 
 def install_config(**over) -> Config:
@@ -71,6 +73,8 @@ class FakeHost(UpdateHost):
         stop_refusal: Exception | None = None,
         backend_comes_up: bool = True,
         stop_unregistered: bool = False,
+        remote_url: str = SSH_REMOTE,
+        ssh_refused: bool = False,
     ) -> None:
         self.events: list[str] = []
         self.inspected: list[str] = []
@@ -92,6 +96,9 @@ class FakeHost(UpdateHost):
         self._pending_failures = list(failing_commands)
         self._stop_refusal = stop_refusal
         self._backend_comes_up = backend_comes_up
+        self._remote_url = remote_url
+        # Only a command carrying `-c url.….insteadOf=…` goes around the refusing transport.
+        self._ssh_refused = ssh_refused
         super().__init__(
             CHECKOUT,
             config=install_config(),
@@ -114,11 +121,16 @@ class FakeHost(UpdateHost):
             "git status --porcelain": self._dirty,
             "git rev-parse --abbrev-ref HEAD": self._current_branch,
             "git rev-parse HEAD": self.head,
+            "git remote get-url origin": self._remote_url,
         }
         command = " ".join(argv)
         self.inspected.append(command)
         self.environments[command] = environment_overrides
-        if command.startswith("git ls-remote --exit-code --heads origin refs/heads/"):
+        if "ls-remote --exit-code --heads origin refs/heads/" in command:
+            if self._ssh_refused and not command.startswith("git -c url."):
+                return CommandResult(
+                    tuple(argv), returncode=128, stderr="git@github.com: Permission denied"
+                )
             if self._remote_head is None:
                 return CommandResult(tuple(argv), returncode=2)
             listing = f"{self._remote_head}\t{argv[-1]}\n"
@@ -287,6 +299,60 @@ def test_the_branch_is_asked_of_the_remote_not_of_the_last_fetch():
     assert run_update(host, branch=BRANCH) == EXIT_OK
     assert f"git ls-remote --exit-code --heads origin refs/heads/{BRANCH}" in host.inspected
     assert host.head == REMOTE_HEAD
+
+
+@pytest.mark.pure
+def test_an_ssh_origin_that_refuses_is_reached_over_https():
+    """The fetch goes straight to HTTPS: SSH already refused, and asking it again costs time with
+    the install stopped."""
+    host = FakeHost(ssh_refused=True)
+
+    assert run_update(host, branch=BRANCH) == EXIT_OK
+    probe = f"git {HTTPS_OPTIONS} ls-remote --exit-code --heads origin refs/heads/{BRANCH}"
+    assert probe in host.inspected
+    assert host.executed[0] == f"git {HTTPS_OPTIONS} fetch --prune origin"
+    assert host.head == REMOTE_HEAD
+    assert any("refused over SSH, asking over HTTPS" in line for line in host.events)
+
+
+@pytest.mark.pure
+def test_the_https_retry_never_waits_for_credentials_either():
+    host = FakeHost(ssh_refused=True)
+
+    run_update(host, branch=BRANCH)
+
+    probe = f"git {HTTPS_OPTIONS} ls-remote --exit-code --heads origin refs/heads/{BRANCH}"
+    for command in (probe, f"git {HTTPS_OPTIONS} fetch --prune origin"):
+        environment = host.environments[command]
+        assert environment is not None, command
+        assert environment["GIT_TERMINAL_PROMPT"] == "0"
+
+
+@pytest.mark.pure
+def test_a_reachable_ssh_origin_is_never_rewritten():
+    host = FakeHost()
+
+    assert run_update(host, branch=BRANCH) == EXIT_OK
+    assert "git remote get-url origin" not in host.inspected
+    assert host.executed[0] == "git fetch --prune origin"
+
+
+@pytest.mark.pure
+def test_a_missing_branch_is_an_answer_and_is_not_retried_over_https():
+    host = FakeHost(remote_head=None)
+
+    assert run_update(host, branch=BRANCH) == EXIT_PRECONDITIONS
+    assert not any(command.startswith("git -c ") for command in host.inspected)
+
+
+@pytest.mark.pure
+def test_a_refusing_origin_without_an_https_twin_is_refused():
+    host = FakeHost(ssh_refused=True, remote_url="https://github.com/owner/urb-workbench.git")
+
+    assert run_update(host, branch=BRANCH) == EXIT_PRECONDITIONS
+    assert host.executed == []
+    assert not any(command.startswith("git -c ") for command in host.inspected)
+    assert any("could not ask origin" in line for line in host.events)
 
 
 @pytest.mark.pure
