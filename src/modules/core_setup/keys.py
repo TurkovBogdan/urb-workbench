@@ -1,12 +1,13 @@
-"""Набор ENV-ключей, редактируемых страницей настроек.
+"""The set of ENV keys edited by the settings page.
 
-Это определение полей формы (что показывать, как вводить, когда показывать), а НЕ
-запрет: локальное приложение, пользователь сам знает, что меняет. Значения пишутся в
-``.env`` как есть, изменения применяются рестартом (Config читается на старте).
+This defines the form's fields (what to show, how to input it, when to show it), NOT a
+restriction: it is a local application, and the user knows what they are changing. Values
+are written to ``.env`` as is; changes take effect on restart (Config is read at startup).
 
-``visible_when`` — условие видимости: поле показывается, только когда ТЕКУЩЕЕ значение
-другого ключа равно заданному (вычисляется на фронте реактивно от выбора в форме).
-Так postgres-поля скрыты при ``DB_PROVIDER=sqlite`` и наоборот.
+``visible_when`` is a visibility condition: the field is shown only when the CURRENT value of
+another key equals the given one (computed reactively on the frontend from the form's
+selection). That is how the postgres fields are hidden under ``DB_PROVIDER=sqlite`` and vice
+versa.
 """
 
 from __future__ import annotations
@@ -16,7 +17,7 @@ from dataclasses import dataclass, field
 
 @dataclass(frozen=True)
 class VisibleWhen:
-    """Поле видно, когда значение ``key`` в форме равно ``equals``."""
+    """The field is visible when the form's value of ``key`` equals ``equals``."""
 
     key: str
     equals: str
@@ -24,11 +25,11 @@ class VisibleWhen:
 
 @dataclass(frozen=True)
 class SetupField:
-    """Одно редактируемое поле: ENV-ключ + код группы + английские название/описание + как вводить.
+    """One editable field: ENV key + group code + English label/description + how to input it.
 
-    Название и описание — английский запасной текст: форма показывает перевод из своего словаря
-    по ключу поля (``setup.field.<KEY>``), а эти строки — когда перевода нет. Они же уходят
-    комментарием в ``.env``.
+    The label and description are English fallback text: the form shows the translation from
+    its own dictionary by the field key (``setup.field.<KEY>``), and these strings only when
+    there is no translation. They also go into ``.env`` as a comment.
     """
 
     key: str
@@ -43,26 +44,39 @@ class SetupField:
 
 _POSTGRES = VisibleWhen("DB_PROVIDER", "postgres")
 _SQLITE = VisibleWhen("DB_PROVIDER", "sqlite")
+# The form keeps a bool as the string the switch writes back (`String(true)`).
+_DEV_MODE = VisibleWhen("APP_DEV_MODE", "true")
 
-# Код группы — ключ её подписи в словаре формы (``setup.group.<код>``); подпись здесь — запасная.
+# A group code is the key of its label in the form's dictionary (``setup.group.<code>``); the
+# label here is the fallback.
+_APP = "app"
 _DB = "database"
 _SERVER = "server"
 _WORKER = "worker"
-_UPDATE = "update"
 
 GROUP_LABELS: dict[str, str] = {
+    _APP: "Application",
     _DB: "Database",
     _SERVER: "Server",
     _WORKER: "Background jobs",
-    _UPDATE: "Update",
 }
 
-# Линии кода, которые ведёт проект: stable-установка следует за `main`, рабочая — за `dev`.
-# Список закрытый не из недоверия, а потому что ветка идёт в аргументы git: свободный ввод здесь
-# — это опечатка, которая выясняется уже после остановки установки.
+# The code lines the project maintains: the stable installation follows `main`, the working one
+# follows `dev`. The list is closed not out of distrust but because the branch goes into git's
+# arguments: free input here is a typo discovered only after the installation has stopped.
 UPDATE_BRANCHES = ("main", "dev")
 
 FIELDS: tuple[SetupField, ...] = (
+    SetupField(
+        "UPDATE_BRANCH", _APP, "choice", "Update branch",
+        "Branch the installation updates to (origin/<branch>); the update fast-forwards "
+        "and refuses to run if the checkout is on another branch",
+        choices=UPDATE_BRANCHES,
+    ),
+    SetupField(
+        "APP_DEV_MODE", _APP, "bool", "Developer mode",
+        "Development tools and diagnostics in the interface",
+    ),
     SetupField(
         "DB_PROVIDER", _DB, "choice", "Database provider",
         "postgres — an external server (full-featured); sqlite — a local file, nothing to install",
@@ -109,6 +123,7 @@ FIELDS: tuple[SetupField, ...] = (
     SetupField(
         "SERVER_VITE_PORT", _SERVER, "int", "Vite port (development)",
         "Frontend dev server port; needed only for local development",
+        visible_when=_DEV_MODE,
     ),
     SetupField(
         "WORKER_ENABLED", _WORKER, "bool", "Background jobs",
@@ -121,12 +136,6 @@ FIELDS: tuple[SetupField, ...] = (
     SetupField(
         "WORKER_MAX_CONCURRENT_RUNS", _WORKER, "int", "Concurrent jobs",
         "Maximum number of jobs running at once",
-    ),
-    SetupField(
-        "UPDATE_BRANCH", _UPDATE, "choice", "Update branch",
-        "Branch the installation updates to (origin/<branch>); the update fast-forwards "
-        "and refuses to run if the checkout is on another branch",
-        choices=UPDATE_BRANCHES,
     ),
 )
 

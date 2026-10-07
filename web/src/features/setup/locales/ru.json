@@ -15,12 +15,13 @@
     "restart_timeout": "Сервер не вернулся за 30 секунд — проверьте процесс вручную."
   },
   "group": {
+    "app": "Приложение",
     "database": "База данных",
     "server": "Сервер",
-    "worker": "Фоновые задачи",
-    "update": "Обновление"
+    "worker": "Фоновые задачи"
   },
   "field": {
+    "APP_DEV_MODE": { "label": "Режим разработчика", "description": "Инструменты разработки и диагностика в интерфейсе" },
     "DB_PROVIDER": { "label": "Провайдер БД", "description": "postgres — внешний сервер (полноценный); sqlite — локальный файл, без установки" },
     "DB_PATH": { "label": "Файл SQLite", "description": "Путь к файлу БД; пусто — runtime/<профиль>/app.sqlite3" },
     "DB_HOST": { "label": "Хост БД", "description": "Адрес сервера PostgreSQL" },

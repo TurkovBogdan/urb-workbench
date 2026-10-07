@@ -15,12 +15,13 @@
     "restart_timeout": "The server didn't come back within 30 seconds — check the process manually."
   },
   "group": {
+    "app": "Application",
     "database": "Database",
     "server": "Server",
-    "worker": "Background jobs",
-    "update": "Update"
+    "worker": "Background jobs"
   },
   "field": {
+    "APP_DEV_MODE": { "label": "Developer mode", "description": "Development tools and diagnostics in the interface" },
     "DB_PROVIDER": { "label": "Database provider", "description": "postgres — an external server (full-featured); sqlite — a local file, nothing to install" },
     "DB_PATH": { "label": "SQLite file", "description": "Path to the database file; empty — runtime/<profile>/app.sqlite3" },
     "DB_HOST": { "label": "Database host", "description": "PostgreSQL server address" },
