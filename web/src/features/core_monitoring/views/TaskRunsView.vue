@@ -25,8 +25,8 @@ const { taskName, taskDescription } = useTaskLabels()
 const task = ref<TaskInfo | null>(null)
 const runs = ref<TaskRunInfo[]>([])
 const total = ref(0)
-const loading = ref(true)        // первичная загрузка / смена задачи → скелет
-const refreshing = ref(false)    // фоновое обновление (фильтр/сортировка/страница/кнопка)
+const loading = ref(true)        // initial load / job switch → skeleton
+const refreshing = ref(false)    // background refresh (filter/sort/page/button)
 const error = ref<string | null>(null)
 
 const page = ref(1)
@@ -36,7 +36,8 @@ const sortBy = ref<string>('started_at')
 const sortDir = ref<'asc' | 'desc'>('desc')
 
 const PAGE_SIZES = [10, 25, 50, 100, 200]
-// null = все (clearable). Подпись — из словаря по коду статуса, сам код уходит в запрос.
+// null = all (clearable). The label comes from the dictionary by status code; the code itself
+// goes into the request.
 const RUN_STATUSES: TaskRunInfo['status'][] = ['running', 'success', 'error']
 
 const statusOptions = computed(() =>
@@ -63,7 +64,7 @@ async function loadRuns() {
     })
     runs.value = r.items
     total.value = r.total
-    // При обновлении страницы/фильтра/сортировки инвалидируем кэш логов и схлопываем строки.
+    // On a page/filter/sort change, invalidate the log cache and collapse the rows.
     expanded.value = []
     logsByRun.value = {}
     logsError.value = {}
@@ -74,8 +75,8 @@ async function loadRuns() {
   }
 }
 
-// Полная (пере)загрузка деталки. Деталка НЕ кэшируется: на каждый вход показываем
-// скелет и тянем свежие данные, чтобы не «подвисали» данные предыдущей задачи.
+// Full (re)load of the detail page. The detail page is NOT cached: on every entry we show the
+// skeleton and fetch fresh data, so the previous job's data doesn't "linger".
 async function reload() {
   loading.value = true
   error.value = null
@@ -99,7 +100,7 @@ async function reload() {
 onActivated(reload)
 watch([() => props.module, () => props.code], reload)
 
-// ── filter / pagination handlers (явные, без watch — чтобы не было двойной загрузки)
+// ── filter / pagination handlers (explicit, no watch — to avoid a double load)
 function onFilterChange(value: TaskRunInfo['status'] | null) {
   statusFilter.value = value
   page.value = 1
@@ -148,7 +149,7 @@ const headers = computed(() => [
   { title: t('core_monitoring.runs.col.error'), key: 'error_text', sortable: false },
 ])
 
-// VDataTable приводит item-value к строке.
+// VDataTable coerces item-value to a string.
 const expanded = ref<string[]>([])
 const logsByRun = ref<Record<number, TaskRunLog[]>>({})
 const logsLoading = ref<Record<number, boolean>>({})
@@ -226,7 +227,7 @@ function fmtPayload(p: Record<string, unknown> | null): string {
       </div>
     </VCard>
 
-    <!-- Open = fresh data: показываем скелет, а не данные предыдущей задачи -->
+    <!-- Open = fresh data: show the skeleton, not the previous job's data -->
     <VCard v-if="loading" variant="outlined" rounded="lg" class="runs-card">
       <VSkeletonLoader type="table-row-divider@8" />
     </VCard>
@@ -383,27 +384,24 @@ function fmtPayload(p: Record<string, unknown> | null): string {
 }
 
 .runs-card :deep(.v-data-table__tr td) {
-  border-bottom: 1px solid var(--border-soft) !important;
-  padding-top: 8px !important;
-  padding-bottom: 8px !important;
+  border-bottom: 1px solid var(--border-soft);
+  padding-top: 8px;
+  padding-bottom: 8px;
 }
 
 .runs-card :deep(.v-data-table__tr:last-child td) {
-  border-bottom: none !important;
+  border-bottom: none;
 }
 
+/* Hover comes from the shared data-table rule in main.scss, painted on the cells. */
 .runs-card :deep(.v-data-table__tr:nth-child(even)) {
   background: rgba(var(--v-theme-on-surface), 0.015);
 }
 
-.runs-card :deep(.v-data-table__tr:hover) {
-  background: rgba(var(--v-theme-primary), 0.06) !important;
-}
-
 .runs-card :deep(.run-detail-row > td) {
   background: rgba(var(--v-theme-on-surface), 0.025);
-  border-bottom: 1px solid var(--border-soft) !important;
-  padding: 0 16px !important;
+  border-bottom: 1px solid var(--border-soft);
+  padding: 0 16px;
 }
 
 .detail-pre {

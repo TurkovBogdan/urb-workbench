@@ -225,11 +225,11 @@ const { t } = useI18n()
   padding: 3px 8px;
   font-size: 11px;
   color: var(--accent);
+}
 
-  &--blue {
-    background: var(--legacy-info-blue-10);
-    border-color: var(--legacy-info-blue-25);
-    color: var(--legacy-info-text);
-  }
+.spin-pill--blue {
+  background: var(--legacy-info-blue-10);
+  border-color: var(--legacy-info-blue-25);
+  color: var(--legacy-info-text);
 }
 </style>

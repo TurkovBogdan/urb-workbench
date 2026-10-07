@@ -1,24 +1,26 @@
 <script setup lang="ts">
-// Ряд корней одной карточки группы и перетаскивание между карточками.
+// The root row of one group card and dragging between cards.
 //
-// Отдельным компонентом, а не куском списка, ровно по одной причине: sortable заводится НА
-// КОНТЕЙНЕР, а контейнеров столько же, сколько карточек. Композабл живёт в setup, и на переменное
-// число секций его иначе не позвать. По той же причине дети одного родителя живут в своём
-// компоненте (`TaskSubtree`): у них свой контейнер и свой ряд соседей.
+// A separate component rather than a piece of the list, for exactly one reason: a sortable is
+// created ON A CONTAINER, and there are as many containers as cards. The composable lives in
+// setup, and there is no other way to call it for a variable number of sections. For the same
+// reason one parent's children live in their own component (`TaskSubtree`): they have their own
+// container and their own sibling row.
 //
-// ПЕРЕТАСКИВАЕТСЯ ВЕТКА ЦЕЛИКОМ: корень уезжает вместе со своими подзадачами, потому что они
-// лежат внутри его обёртки.
+// THE WHOLE BRANCH IS DRAGGED: a root moves together with its subtasks because they sit inside its
+// wrapper.
 //
-// Жест собран на Pointer Events (`forceFallback: true`), а не на нативном HTML5 DnD. Нативный
-// оправдан только для файлов из ОС и переноса между окнами: от пальца он не шлёт событий ни в
-// одном мобильном браузере, не даёт управлять превью и запрещает прокрутку во время жеста.
+// The gesture is built on Pointer Events (`forceFallback: true`), not native HTML5 DnD. Native DnD
+// is justified only for files from the OS and moves between windows: it sends no events for a
+// finger in any mobile browser, gives no control over the preview and blocks scrolling during the
+// gesture.
 //
-// Взять можно за РУЧКУ, а не за строку целиком: иначе жест отнимает у строки выделение текста, а
-// на тач-устройстве — прокрутку списка.
+// A row is grabbed by its HANDLE, not as a whole: otherwise the gesture steals text selection from
+// the row, and on a touch device — list scrolling.
 //
-// Мышь — не единственный путь: те же перестановки есть пунктами меню строки. Это не удобство, а
-// требование — WCAG 2.2 SC 2.5.7 просит альтернативу перетаскиванию одним нажатием указателя, а
-// меню, открываемое с клавиатуры, закрывает заодно и SC 2.1.1.
+// The mouse is not the only way: the same moves exist as row menu items. This is not a nicety but
+// a requirement — WCAG 2.2 SC 2.5.7 asks for a single-pointer alternative to dragging, and a menu
+// that opens from the keyboard covers SC 2.1.1 as well.
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useDraggable } from 'vue-draggable-plus'
@@ -29,22 +31,22 @@ import { anchorAfterDrop } from '../drag'
 import { useTasksStore, type TaskSection } from '../stores/tasks.store'
 import type { TaskListRow } from '../api'
 
-/** Ход анимации перестановки соседей — штатный FLIP библиотеки. */
+/** Duration of the sibling reorder animation — the library's stock FLIP. */
 const ANIMATION_MS = 150
 
 const props = defineProps<{
   section: TaskSection
-  /** Код задачи, на которую уходили со списка: её строка остаётся отмеченной. */
+  /** Code of the task the person navigated to from the list: its row stays marked. */
   openCode?: string | null
-  /** Сколько подзадач у каждой задачи — считает список, здесь только показ. */
+  /** How many subtasks each task has — the list counts, this only displays. */
   childCounts: Map<string, number>
   /**
-   * Порядок в этой выдаче можно менять.
+   * The order in these results can be changed.
    *
-   * Выключается на сужённом списке: там показана ВЫБОРКА, а не раскладка — ветки не рисуются,
-   * соседи по группе на экране не все, и перестановка относительно видимого соседа означала бы
-   * не то, что человек видит. Ручка при этом прячется: жест, который ничего не делает, хуже
-   * отсутствующего.
+   * Off on a narrowed list: it shows a SELECTION, not the layout — branches are not drawn, not all
+   * group siblings are on screen, and reordering relative to a visible neighbour would mean
+   * something other than what the person sees. The handle is hidden then: a gesture that does
+   * nothing is worse than an absent one.
    */
   reorderable?: boolean
 }>()
@@ -56,11 +58,11 @@ const emit = defineEmits<{
   remove: [code: string]
   restore: [code: string]
   /**
-   * Строка переехала: под какую легла, в какой она группе и чья она теперь.
+   * The row moved: which row it landed under, which group it is in and whose child it is now.
    *
-   * `group` отсутствует — группу не трогаем; `parent` отсутствует — родителя не трогаем, `null` —
-   * открепить. Те же три ключа уезжают в один запрос: одно движение мышью не должно показывать
-   * промежуточных состояний.
+   * `group` absent — the group is untouched; `parent` absent — the parent is untouched, `null` —
+   * detach. The same three keys go into one request: a single mouse movement must not show
+   * intermediate states.
    */
   move: [payload: {
     code: string
@@ -71,17 +73,17 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-// Стор нужен ради одного — свёрнута ли ветка под строкой: состояние живёт там, рядом со
-// свёрнутостью карточек групп, и держится до смены пространства.
+// The store is needed for one thing — whether the branch under a row is collapsed: that state
+// lives there, next to the collapsed state of group cards, and holds until the workspace changes.
 const store = useTasksStore()
 
-/** Ключ группы в разметке: пустая строка — «Без группы», её код в `dataset` иначе неотличим от отсутствия. */
+/** Group key in markup: empty string — "No group", otherwise its code in `dataset` is indistinguishable from absence. */
 const groupKey = computed(() => props.section.group?.code ?? '')
 
 const container = ref<HTMLElement | null>(null)
 
-// Список, который двигает сама библиотека. Рисуем мы не его, а `section.branches` из стора —
-// он остаётся источником правды, а этот массив нужен sortable, чтобы вести своё состояние.
+// The list the library itself moves around. We render not it but `section.branches` from the
+// store — that stays the source of truth, and this array exists for sortable to keep its state.
 const codes = ref<string[]>([])
 
 watch(
@@ -91,29 +93,29 @@ watch(
 )
 
 const sortable = useDraggable(container, codes, {
-  // Общее имя sortable-группы у всех карточек — этим и работает перенос задачи в чужую группу.
-  // `put` открыт: сюда падают и корни из соседних карточек, и подзадачи, вытащенные из веток, —
-  // второе и есть открепление.
+  // All cards share one sortable group name — that is what makes moving a task into another group
+  // work. `put` is open: both roots from neighbouring cards and subtasks pulled out of branches
+  // land here — the latter is detaching.
   group: { name: 'tasks', pull: true, put: true },
   handle: '.drag-handle',
   draggable: '.task-drag',
-  // Ручка принадлежит ТОМУ контейнеру, в котором лежит. Без этого жест начинают оба sortable
-  // разом — внешний берёт ветку, внутренний подзадачу, — и не двигается ничто: два захвата
-  // спорят за один указатель. Селектором это не выразить (`.task-subtree` отфильтровал бы и сам
-  // вложенный контейнер вместе с его строками), поэтому решает функция: чей это контейнер.
+  // A handle belongs to THE container it sits in. Without this both sortables start the gesture at
+  // once — the outer takes the branch, the inner the subtask — and nothing moves: two grabs fight
+  // over one pointer. A selector cannot express this (`.task-subtree` would also filter out the
+  // nested container itself with its rows), so a function decides: whose container is it.
   filter: (event: Event) =>
     (event.target as HTMLElement | null)?.closest('.task-subtree, .task-rows') !== container.value,
   animation: ANIMATION_MS,
-  // Pointer Events вместо нативного DnD (см. шапку файла).
+  // Pointer Events instead of native DnD (see the file header).
   forceFallback: true,
   fallbackOnBody: true,
   ghostClass: 'task-drag--ghost',
   chosenClass: 'task-drag--chosen',
   dragClass: 'task-drag--drag',
   fallbackClass: 'task-drag--preview',
-  // Порог захвата: короткое движение по строке остаётся кликом, а не начинает перенос.
+  // Grab threshold: a short movement over a row stays a click rather than starting a move.
   fallbackTolerance: 4,
-  // Автопрокрутка нужна, когда карточка не помещается в экран целиком.
+  // Auto-scroll is needed when a card does not fit on screen entirely.
   scroll: true,
   scrollSensitivity: 80,
   onStart: () => { store.dragging = true },
@@ -125,16 +127,17 @@ const sortable = useDraggable(container, codes, {
     const to = event.to as HTMLElement
     const from = event.from as HTMLElement
     const sameContainer = to === from
-    // Жест кончился там же, где начался: ветку подняли и положили обратно. Запрос на это слать
-    // нельзя — позиция названа соседом, и «после соседа сверху» для нетронутого ряда означает
-    // перестановку, которой никто не просил.
+    // The gesture ended where it started: the branch was lifted and put back. No request must be
+    // sent for this — the position is named by a neighbour, and "after the neighbour above" for an
+    // untouched row means a reorder nobody asked for.
     if (sameContainer && event.oldIndex === event.newIndex) return
-    // Брошена на шапку СВОЕЙ же карточки: в конец своего ряда её так не отправить — шапка значит
-    // «в эту группу», а она уже в ней. Жест без смысла, и запроса он не стоит.
+    // Dropped onto the header of its OWN card: this cannot send it to the end of its own row — the
+    // header means "into this group", and it is already there. A pointless gesture, not worth a
+    // request.
     if (to.dataset.drop === 'end' && to.dataset.group === groupKey.value) return
-    // Сюда приходит только перенос КОРНЯ — своего или из соседней карточки: `onEnd` достаётся
-    // тому sortable, с которого жест начался, а вытащенную из ветки подзадачу разбирает её
-    // собственный контейнер (`TaskSubtree`), он же и знает, что это открепление.
+    // Only a ROOT move arrives here — own or from a neighbouring card: `onEnd` goes to the sortable
+    // the gesture started from, while a subtask pulled out of a branch is handled by its own
+    // container (`TaskSubtree`), which also knows that this is a detach.
     emit('move', {
       code,
       after: anchorAfterDrop(to, code, event.newIndex),
@@ -149,9 +152,9 @@ watch(
   { immediate: true },
 )
 
-// ── Тот же перенос без мыши ───────────────────────────────────────────────────
-// «Выше» — встать после того, кто стоял через одного: иначе перестановка с соседом ничего не
-// меняет. «Ниже» — после ближайшего соседа снизу.
+// ── The same move without a mouse ─────────────────────────────────────────────
+// "Up" — land after the one two places above: otherwise swapping with the neighbour changes
+// nothing. "Down" — after the nearest neighbour below.
 
 function neighbourFor(code: string, direction: -1 | 1): string | null | undefined {
   const order = props.section.branches.map((node) => node.task.code)
@@ -173,9 +176,9 @@ function step(code: string, direction: -1 | 1): void {
 }
 
 /**
- * Из ветки пришло перемещение. Перестановка среди сестёр уезжает как есть; открепление — тоже,
- * но если группу не назвали (так бывает у пункта меню: места броска у него нет), карточка
- * подставляет свою — открепиться «в никуда» задача не может, она обязана где-то встать.
+ * A move arrived from a branch. A reorder among siblings is passed on as is; a detach too, but if
+ * no group was named (as with the menu item: it has no drop point), the card fills in its own — a
+ * task cannot detach "into nowhere", it must land somewhere.
  */
 function fromSubtree(payload: {
   code: string
@@ -198,10 +201,10 @@ function fromSubtree(payload: {
     :class="{ 'task-rows--empty': !section.branches.length }"
     :data-group="groupKey"
   >
-    <!-- Подпись пустой секции лежит ВНУТРИ контейнера sortable, а не рядом с ним: контейнер без
-         детей схлопнулся бы в ноль, и попасть в него курсором с веткой было бы не во что.
-         Перетаскиваются только `.task-drag`, поэтому подпись остаётся на месте и в жесте не
-         участвует — она лишь держит высоту и объясняет, зачем эта карточка тут стоит. -->
+    <!-- The empty-section caption sits INSIDE the sortable container, not next to it: a container
+         without children would collapse to zero, leaving nothing to hit with a dragged branch.
+         Only `.task-drag` elements are dragged, so the caption stays put and takes no part in the
+         gesture — it only holds the height and explains why this card is here. -->
     <p v-if="!section.branches.length" class="task-rows__hint">
       {{ t('tasks.task.list.group_empty') }}
     </p>
@@ -249,9 +252,9 @@ function fromSubtree(payload: {
 </template>
 
 <style scoped>
-/* ── Пустая секция ─────────────────────────────────────────────────────────────
-   Высота задана здесь, а не подписью внутри: подпись уедет, как только в группу что-нибудь
-   положат, а цель для переноса обязана быть достаточно крупной, чтобы в неё попасть рукой. */
+/* ── Empty section ─────────────────────────────────────────────────────────────
+   The height is set here, not by the caption inside: the caption goes away as soon as something
+   is put into the group, and a drop target must be large enough to hit by hand. */
 .task-rows--empty {
   display: flex;
   align-items: center;
@@ -266,13 +269,13 @@ function fromSubtree(payload: {
   color: var(--text-faint);
 }
 
-/* ── Ветка ─────────────────────────────────────────────────────────────────────
-   Обёртка существует ради перетаскивания: своей внешности у неё нет, но именно она ездит —
-   вместе со всеми строками внутри. */
+/* ── Branch ────────────────────────────────────────────────────────────────────
+   The wrapper exists for dragging: it has no look of its own, but it is what moves — together
+   with all the rows inside. */
 .task-branch + .task-branch { border-top: 1px solid var(--border-soft); }
 
-/* Состояния жеста общие для веток и подзадач: и те и другие ездят обёрткой `.task-drag`, и
-   выглядеть одинаковый жест обязан одинаково. */
+/* Gesture states are shared by branches and subtasks: both move as a `.task-drag` wrapper, and the
+   same gesture must look the same. */
 :deep(.task-drag--ghost) {
   opacity: 0.4;
   background: var(--accent-soft);
@@ -280,20 +283,21 @@ function fromSubtree(payload: {
 
 :deep(.task-drag--ghost) .task-row { background: transparent; }
 
-/* Превью под курсором: приподнято тенью и слегка уменьшено — «взято в руку». В движении
-   меняются только `transform` и `opacity`: свойства, которые не заставляют браузер
-   пересчитывать раскладку на каждый кадр. */
-:deep(.task-drag--preview) {
+/* While a branch is held, its rows do not react to hover: a highlight under the cursor at that
+   moment would mean "drop here", and a branch cannot be dropped into itself. */
+:deep(.task-drag--chosen) .task-row:hover { background: transparent; }
+</style>
+
+<!-- Not `scoped`: with `fallbackOnBody` the preview is a clone appended straight to `<body>`, so no
+     ancestor carries this component's scope attribute and a `:deep` rule never matched it. -->
+<style>
+/* The preview under the cursor, lifted by a shadow — "picked up". Opacity and transform are not
+   set here: SortableJS writes both inline on the clone (0.8, and the translate that moves it). */
+.task-drag--preview {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
-  opacity: 0.95;
-  transform: scale(0.99);
   cursor: grabbing;
 }
-
-/* Пока ветку держат, её строки не отвечают на наведение: подсветка под курсором в этот момент
-   означала бы «сюда положить», а положить в самого себя нельзя. */
-:deep(.task-drag--chosen) .task-row:hover { background: transparent; }
 </style>

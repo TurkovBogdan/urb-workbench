@@ -10,8 +10,9 @@ import { navigationLoading } from '@/router/progress'
 import { endRouteTransition } from '@/composables/useRouteTransition'
 import { shellError } from '@/composables/useShellError'
 import { useLayoutStore } from '@/layout/store'
-// Оболочка собирает модули — панель их не знает: выбор пространства приезжает в её слот отсюда,
-// как маршруты модулей приезжают в роутер (см. conventions/frontend.md — два яруса импорта).
+// The shell assembles the modules — the sidebar doesn't know them: the workspace switcher arrives
+// in its slot from here, just as module routes arrive in the router (see conventions/frontend.md —
+// two import tiers).
 import WorkspaceSwitcher from '@/features/workspace/components/WorkspaceSwitcher.vue'
 import ChangesIndicator from '@/layout/components/ChangesIndicator.vue'
 
@@ -75,14 +76,14 @@ const transitionName = computed(() => route.meta.transition ?? 'page')
            layout at a time (no two full-height pages overlapping). `appear` runs
            the enter once on first paint (after the boot splash). Order must be
            Transition > KeepAlive > component. -->
-      <!-- Отказ, при котором смотреть на маршруте нечего, рисуется ВМЕСТО содержимого и на
-           том же адресе: уход на отдельный `/403` стёр бы единственную улику — что человек
-           открывал. Снимает его следующая навигация (гвард роутера). -->
+      <!-- A failure that leaves nothing to look at on the route is drawn INSTEAD of the content
+           and at the same address: redirecting to a separate `/403` would erase the only clue —
+           what the person had opened. The next navigation clears it (router guard). -->
       <ErrorScreen v-if="shellError" :kind="shellError" class="h-100" />
-      <!-- Конец въезда — единственный момент, когда точно известно, что анимация отыграна:
-           до него страницы придерживают тяжёлое содержимое (useRouteTransition). Отменённый
-           въезд (следующая навигация обогнала анимацию) считается тем же концом — ждать
-           перехода, которого уже нет, нельзя. -->
+      <!-- The end of the enter is the only moment the animation is known to have played out:
+           until then pages hold back heavy content (useRouteTransition). A cancelled enter
+           (the next navigation overtook the animation) counts as the same end — waiting for a
+           transition that no longer exists is not an option. -->
       <RouterView v-else v-slot="{ Component }">
         <Transition
           :name="transitionName"
@@ -98,11 +99,11 @@ const transitionName = computed(() => route.meta.transition ?? 'page')
       </RouterView>
     </VMain>
 
-    <!-- Отказ, который экран не показал сам, всплывает сюда: сообщение поверх всего, вне
-         зоны содержимого, поэтому переживает смену маршрута. -->
+    <!-- A failure the screen didn't show itself surfaces here: a message on top of everything,
+         outside the content zone, so it survives a route change. -->
     <ToastStack />
 
-    <!-- Тихий признак ленты изменений: что обновилось в данных — мелко, в углу, на пару секунд. -->
+    <!-- The change feed's quiet signal: what changed in the data — small, in the corner, for a couple of seconds. -->
     <ChangesIndicator v-if="!fullscreen" />
   </VApp>
 </template>
@@ -110,16 +111,17 @@ const transitionName = computed(() => route.meta.transition ?? 'page')
 <style scoped>
 /* ── Mobile top bar ─────────────────────────────────────────────────────── */
 .app-topbar {
-  background: var(--sidebar-bg) !important;  /* inline style from theme */
-  border-bottom: 1px solid var(--border-soft) !important;
-  box-shadow: none !important;
+  background: var(--sidebar-bg);
+  border-bottom: 1px solid var(--border-soft);
+  box-shadow: none;
 }
 .app-topbar :deep(.v-toolbar__content) {
   padding-inline: 8px;
   gap: 4px;
 }
-.app-topbar__menu {
-  color: var(--text-muted) !important;
+/* Specific enough to outweigh main.scss's text-button color, hover included. */
+.app-topbar .app-topbar__menu.v-btn {
+  color: var(--text-muted);
 }
 .app-topbar__brand {
   display: flex;

@@ -52,9 +52,9 @@ async function copy() {
 
 const resolvedVariant = () => props.variant ?? 'icon'
 
-// Однострочник рисуется командной плашкой, и нумеровать в нём нечего: единственная «1» слева
-// ничего не различает, а плашку сдвигает. Запрет живёт здесь, а не в месте применения: снаружи
-// про вид блока знать не обязаны — настройка нумерации общая на все блоки тела.
+// A one-liner is drawn as a command plate, and there is nothing to number: a lone "1" on the left
+// distinguishes nothing and shifts the plate. The rule lives here, not at the call site: outside
+// code needn't know about the block variant — the numbering setting is shared by all body blocks.
 const numbersShown = () => lineNumbers.value && resolvedVariant() !== 'compact'
 </script>
 
@@ -230,18 +230,18 @@ const numbersShown = () => lineNumbers.value && resolvedVariant() !== 'compact'
 
 /* Reset the global `code` chip (accent colour, border, padding, size) that main.scss paints on
    every bare `code` — inside a highlighted panel it would draw a box around the whole listing.
-   Кегль сбрасывается в `inherit` наравне с остальным: он там тоже прибит (12px), и без сброса
-   размер листинга держал бы он, а от `pre` менялась бы только высота строки. */
+   The font size is reset to `inherit` along with the rest: it is pinned there too (12px), and
+   without the reset it would hold the listing size, with `pre` changing only the line height. */
 .code-block__body :deep(code) {
-  background: transparent !important;
-  color: inherit !important;
-  border: none !important;
-  border-radius: 0 !important;
-  padding: 0 !important;
-  font-size: inherit !important;
+  background: transparent;
+  color: inherit;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  font-size: inherit;
 }
 
-/* Strip any token-level backgrounds the theme may inject */
+/* Strip any token-level backgrounds the theme may inject — Shiki writes them inline */
 .code-block__body :deep(span) {
   background: transparent !important;
 }
@@ -256,8 +256,8 @@ const numbersShown = () => lineNumbers.value && resolvedVariant() !== 'compact'
   border-radius: 0;
   border: none;
   font-family: var(--font-mono);
-  /* Кегль листинга задаёт место, где блок стоит: в теле документа его выбирает человек
-     (`--code-size` приходит из зоны чтения), в дизайн-системе и панелях остаётся литерал. */
+  /* The listing font size is set by where the block sits: in a document body the person picks it
+     (`--code-size` comes from the reading zone), in the design system and panels a literal remains. */
   font-size: var(--code-size, 12px);
   line-height: 1.65;
 }

@@ -17,16 +17,16 @@ import { DEFAULT_DIAGRAM_FONT, DIAGRAM_FONTS, fontFamilyName } from '@/constants
 import { useSettingsStore } from '@/stores/settings'
 import CodeBlock from './CodeBlock.vue'
 
-// Схема из тела документа: mermaid-исходник → SVG. В теле она стоит превью по ширине колонки,
-// разглядывают её в полноэкранном режиме — с зумом и панорамой, как на доске. Всё, что не
-// отрисовалось (неизвестный тип, синтаксис за пределами парсера), падает обратно в блок кода:
-// читатель всё равно видит исходник, а тело не ломается.
+// A diagram from a document body: mermaid source → SVG. In the body it sits as a preview fitted
+// to the column width; it is examined in fullscreen — with zoom and pan, like on a whiteboard.
+// Anything that fails to render (unknown type, syntax beyond the parser) falls back to a code
+// block: the reader still sees the source, and the body doesn't break.
 const props = defineProps<{ code: string }>()
 
 const { t } = useI18n()
 
-// Движок рендера — 1.6 МБ (почти весь вес — раскладка ELK), поэтому он приезжает отдельным
-// чанком по первой схеме на странице, а не в основном бандле. Промис общий на приложение.
+// The render engine is 1.6 MB (almost all of it the ELK layout), so it arrives as a separate
+// chunk on the first diagram of a page rather than in the main bundle. The promise is app-wide.
 let engine: Promise<typeof import('beautiful-mermaid')> | null = null
 
 function loadEngine() {
@@ -34,8 +34,8 @@ function loadEngine() {
   return engine
 }
 
-// Тип диаграммы задаёт первая непустая строка исходника, а не тег фенса (тег всегда `mermaid`).
-// Значение — подпись для шапки; отсутствие ключа означает «этот тип рендерер не умеет».
+// The diagram type comes from the first non-empty source line, not the fence tag (always `mermaid`).
+// The value is the header label; a missing key means "the renderer can't do this type".
 const DIAGRAM_LABEL: Record<string, string> = {
   graph: 'flowchart',
   flowchart: 'flowchart',
@@ -52,12 +52,12 @@ const label = computed(() => {
   return DIAGRAM_LABEL[header?.trim().split(/\s+/)[0] ?? ''] ?? ''
 })
 
-// Цвета уезжают в SVG ссылками на токены темы, а не их значениями: библиотека кладёт каждый
-// в CSS-переменную на самом <svg> и выводит из них остальную палитру через color-mix(). Смена
-// ночной/дневной темы переписывает токены на <html> и доезжает сюда каскадом — без перерисовки
-// схемы и без повторной раскладки. Задан весь набор до единого: имена переменных у библиотеки
-// совпадают с именами токенов приложения, и незаданная досталась бы схеме из общего каскада —
-// то есть случайно, а не по решению.
+// Colors go into the SVG as references to theme tokens, not their values: the library puts each
+// into a CSS variable on the <svg> itself and derives the rest of the palette via color-mix().
+// Switching the dark/light theme rewrites the tokens on <html> and reaches here through the
+// cascade — no redraw and no re-layout. The full set is specified: the library's variable names
+// match the app's token names, and an unset one would reach the diagram from the general
+// cascade — by accident, not by decision.
 const THEME_COLORS = {
   bg: 'var(--surface)',
   fg: 'var(--text)',
@@ -68,11 +68,11 @@ const THEME_COLORS = {
   border: 'var(--border)',
 }
 
-// Готовая палитра движка задаёт только часть ролей, а остальные он выводит из `bg`+`fg` запасным
-// значением внутри `var(--surface, …)`. Токены приложения зовутся ровно так же и объявлены на
-// корне документа — до схемы запасное значение не доходит, вместо него подставляется цвет
-// приложения, и на тёмной палитре плашки выходят белыми. Поэтому роли заполняются целиком; доли
-// взяты те же, что у движка в его собственных выводах.
+// A built-in engine palette sets only some roles and derives the rest from `bg`+`fg` as a fallback
+// inside `var(--surface, …)`. The app's tokens have exactly the same names and are declared on the
+// document root — the fallback never reaches the diagram, the app color is substituted instead,
+// and on a dark palette the boxes come out white. So all roles are filled in; the shares are the
+// same ones the engine uses in its own derivations.
 const PALETTE_BLEND = { line: 50, accent: 85, muted: 40, surface: 3, border: 20 }
 
 function wholePalette(palette: DiagramColors): DiagramColors {
@@ -88,15 +88,15 @@ function wholePalette(palette: DiagramColors): DiagramColors {
   }
 }
 
-// Рендерер вписывает в <style> схемы @import шрифтов с Google Fonts. Приложение локальное, а
-// гарнитуры у него свои (styles/fonts.scss) — запрос наружу и не нужен, и не дойдёт при работе
-// без сети.
+// The renderer writes a Google Fonts @import into the diagram's <style>. The app is local and has
+// its own typefaces (styles/fonts.scss) — the outbound request is neither needed nor would it get
+// through when working offline.
 const FONT_IMPORT = /^\s*@import url\('https:\/\/fonts\.googleapis\.com[^\n]*\n/gm
 
-// Гарнитуры подключены субсетами с `font-display: swap` и качаются только когда понадобились —
-// то есть в момент первой схемы. Раскладка к этому моменту уже посчитана, поэтому подмена
-// шрифта на лету сдвигает подписи прямо на глазах. Ждём нужные начертания до вставки SVG.
-// Строка-образец обязана нести кириллицу и латиницу: субсет качается под конкретный текст.
+// Typefaces are loaded as subsets with `font-display: swap` and fetched only when needed — that is,
+// at the first diagram. By then the layout is already computed, so swapping the font on the fly
+// shifts the labels in plain view. Wait for the needed faces before inserting the SVG.
+// The sample string must carry both Cyrillic and Latin: a subset is fetched for specific text.
 const FONT_SAMPLE = 'Схема Diagram 123'
 
 async function loadFontFaces(family: string): Promise<void> {
@@ -111,8 +111,8 @@ const family = computed(() =>
   fontFamilyName(DIAGRAM_FONTS, settings.diagrams.font, DEFAULT_DIAGRAM_FONT),
 )
 
-// Оформление блока уезжает в CSS переменными: выравнивание — автополями (ширина у блока по
-// содержимому, поэтому центрирование делается именно так), потолок высоты — `none`, когда его сняли.
+// Block styling goes to CSS as variables: alignment via auto margins (the block is as wide as its
+// content, so that is how centering is done), the height cap as `none` when it has been lifted.
 const frame = computed(() => ({
   '--diagram-side-margin': diagramAlign(settings.diagrams.align) === 'center' ? 'auto' : '0',
   '--diagram-max-height':
@@ -129,9 +129,9 @@ async function draw() {
   }
   try {
     const [{ renderMermaidSVG, THEMES }] = await Promise.all([loadEngine(), loadFontFaces(family.value)])
-    // Готовая палитра приносит собственный фон, поэтому прозрачность снимается вместе с ней:
-    // иначе схема осталась бы на фоне карточки и половина палитры пропала бы. Неизвестный код
-    // (палитра исчезла из движка) — это системные цвета, а не пустая схема.
+    // A built-in palette brings its own background, so transparency is turned off along with it:
+    // otherwise the diagram would sit on the card background and half the palette would vanish.
+    // An unknown code (the palette disappeared from the engine) means system colors, not an empty diagram.
     const palette = THEMES[settings.diagrams.theme]
     svg.value = renderMermaidSVG(props.code, {
       ...(palette ? wholePalette(palette) : THEME_COLORS),
@@ -146,16 +146,16 @@ async function draw() {
 }
 
 onMounted(draw)
-// Гарнитура и палитра запекаются в разметку схемы, поэтому их смена — перерисовка. Исключение
-// одно: системная палитра уезжает в SVG ссылками на токены приложения, и смена ночной/дневной
-// темы доезжает до неё каскадом, без повторной раскладки.
+// The typeface and palette are baked into the diagram markup, so changing them means a redraw.
+// One exception: the system palette goes into the SVG as references to app tokens, and a
+// dark/light theme switch reaches it through the cascade, without re-layout.
 watch([() => props.code, family, () => settings.diagrams.theme], draw)
 
-// ── Полноэкранный режим: зум к курсору, панорама перетаскиванием ──────────────
+// ── Fullscreen mode: zoom toward the pointer, pan by dragging ─────────────────
 const ZOOM_LIMITS = { min: 0.2, max: 8 }
 const ZOOM_STEP = 1.15
-// Доля кадра, которую занимает вписанная схема: воздух по краям нужен, чтобы крайние блоки не
-// упирались в панель управления и в границу экрана.
+// Share of the frame a fitted diagram occupies: breathing room at the edges keeps the outermost
+// boxes from running into the control panel and the screen edge.
 const FIT_MARGIN = 0.92
 
 const fullscreen = ref(false)
@@ -199,8 +199,8 @@ function clamp(scale: number): number {
   return Math.min(ZOOM_LIMITS.max, Math.max(ZOOM_LIMITS.min, scale))
 }
 
-// Зум держит точку под курсором на месте — иначе на пятикратном увеличении интересный узел
-// уезжает за кадр с первым же щелчком колеса.
+// Zoom keeps the point under the pointer in place — otherwise at 5x the node of interest slides
+// out of frame on the very first wheel click.
 function zoomAt(clientX: number, clientY: number, factor: number) {
   const frame = stage.value?.getBoundingClientRect()
   if (!frame) return
@@ -222,10 +222,10 @@ function onWheel(event: WheelEvent) {
   zoomAt(event.clientX, event.clientY, event.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP)
 }
 
-// Перетаскивание панорамирует только с зажатым пробелом — иначе из схемы нельзя выделить текст,
-// а он в ней настоящий: это SVG, а не картинка. При панорамировании выделение подавляется: без
-// `preventDefault` браузер на том же нажатии начинает тянуть выделение, и схема едет вместе с
-// подсвеченным текстом.
+// Dragging pans only while Space is held — otherwise text couldn't be selected in the diagram,
+// and it is real text: this is SVG, not an image. Selection is suppressed while panning: without
+// `preventDefault` the browser starts extending a selection on the same press, and the diagram
+// moves along with highlighted text.
 function onPointerDown(event: PointerEvent) {
   if (!spaceHeld.value) return
   event.preventDefault()
@@ -352,9 +352,10 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-/* Место под схему занимается заранее: первый чанк движка весит полтора мегабайта, и без резерва
-   документ подпрыгивал бы в момент его приезда. Сам блок пустой — рамка и заливка нарисовали бы
-   объект, которого ещё нет; остаётся только строка о том, что происходит. */
+/* Space for the diagram is reserved up front: the engine's first chunk weighs a megabyte and a
+   half, and without a reservation the document would jump when it arrives. The block itself is
+   empty — a border and fill would draw an object that doesn't exist yet; only a line saying what
+   is happening remains. */
 .diagram-loading {
   display: flex;
   align-items: center;
@@ -366,15 +367,15 @@ onBeforeUnmount(() => {
   color: var(--text-faint);
 }
 
-/* Крутилка серая, а не акцентная: загрузка схемы — не событие, о котором стоит сообщать цветом.
-   Красится штрих, а не цвет текста: у `VProgressCircular` в умолчаниях проекта стоит
-   `color: primary`, и утилитарный класс от него перебивает `color` со своим `!important`. */
+/* The spinner is grey, not accent: a diagram loading is not an event worth signalling with color.
+   The stroke is painted directly, so the accent `color` every spinner gets from main.scss and the
+   theme defaults does not matter here. */
 .diagram-loading :deep(.v-progress-circular__overlay) {
   stroke: var(--text-faint);
 }
 
-/* Ширина по содержимому: рамка на наведении обводит схему, а не пустую полосу до правого края.
-   Потолок — вся доступная ширина, дальше схема ужимается. */
+/* Width fits the content: the hover border outlines the diagram, not an empty strip up to the
+   right edge. The cap is the full available width; beyond it the diagram shrinks. */
 .diagram {
   width: fit-content;
   max-width: 100%;
@@ -390,17 +391,17 @@ onBeforeUnmount(() => {
   background: var(--surface);
 }
 
-/* Схема выровнена по левому краю, а не по центру: текст вокруг ограничен колонкой чтения, и
-   узкая схема, поставленная по центру полной ширины, отрывается от этой колонки — документ
-   перестаёт читаться сверху вниз одной вертикалью. */
+/* The diagram is left-aligned, not centered: the surrounding text is bound to the reading column,
+   and a narrow diagram centered across the full width breaks away from that column — the document
+   stops reading top to bottom along one vertical. */
 .diagram__preview {
   display: flex;
   justify-content: flex-start;
 }
 
-/* Превью всегда вписано: разглядывают схему не здесь, а в полноэкранном режиме, поэтому
-   горизонтальной прокрутки в теле документа нет. Потолок высоты — настройка: длинная схема иначе
-   выдавливает текст, ради которого её и открыли. */
+/* The preview is always fitted: the diagram is examined in fullscreen, not here, so there is no
+   horizontal scrolling in the document body. The height cap is a setting: otherwise a long
+   diagram crowds out the text the document was opened for. */
 .diagram__preview :deep(svg) {
   max-width: 100%;
   max-height: var(--diagram-max-height, 420px);
@@ -408,8 +409,8 @@ onBeforeUnmount(() => {
   height: auto;
 }
 
-/* Подпись говорит не что это, а что с этим делать: тип схемы читатель видит по самой схеме,
-   а вот про полный экран догадаться неоткуда. */
+/* The caption says not what this is but what to do with it: the reader sees the diagram type
+   from the diagram itself, but has no way to guess about fullscreen. */
 .diagram__hint {
   display: flex;
   align-items: center;
@@ -423,7 +424,9 @@ onBeforeUnmount(() => {
 .viewer {
   position: relative;
   width: 100vw;
-  height: 100vh;
+  /* dvh, not vh: on mobile 100vh is taller than the screen while the address bar shows, and the
+     bottom of the viewer — its controls included — would sit under it. */
+  height: 100dvh;
   background: var(--bg);
 }
 
@@ -435,8 +438,8 @@ onBeforeUnmount(() => {
   cursor: default;
 }
 
-/* Пока пробел зажат, холст — инструмент перемещения, а не текст: выделение выключено целиком,
-   иначе даже подавленное на нажатии оно оживает от привычного двойного клика или Ctrl+A. */
+/* While Space is held the canvas is a move tool, not text: selection is disabled entirely,
+   otherwise, even suppressed on press, it comes back on a habitual double-click or Ctrl+A. */
 .viewer__stage--grab {
   cursor: grab;
   user-select: none;
@@ -444,18 +447,18 @@ onBeforeUnmount(() => {
 
 .viewer__stage--grabbing { cursor: grabbing; }
 
-/* Начало координат в левом верхнем углу: расчёт зума к курсору исходит из того, что масштаб
-   растёт от этой точки, а не от центра кадра.
+/* The origin is at the top-left corner: the zoom-to-pointer math assumes scale grows from this
+   point, not from the frame center.
 
-   `will-change: transform` здесь был вреден: слой уезжает на композитор, растрируется один раз
-   в исходном масштабе и дальше растягивается картинкой — векторная схема становилась мыльной.
-   Без него браузер перерисовывает SVG на каждом шаге зума, и линии остаются резкими. */
+   `will-change: transform` was harmful here: the layer moves to the compositor, is rasterized once
+   at the original scale and then stretched as a bitmap — the vector diagram turned blurry.
+   Without it the browser redraws the SVG on every zoom step and the lines stay sharp. */
 .viewer__canvas {
   transform-origin: 0 0;
 }
 
-/* Сброс обязателен: панель уезжает в оверлей за пределы приложения, где браузер рисует на
-   `<button>` серую плашку с рамкой — общего сброса у проекта нет. */
+/* The reset is required: the panel is teleported to an overlay outside the app, where the browser
+   draws a grey plate with a border on a `<button>` — the project has no global reset. */
 .viewer__btn {
   display: inline-flex;
   align-items: center;
@@ -492,10 +495,10 @@ onBeforeUnmount(() => {
   background: rgb(0 0 0 / 12%);
 }
 
-/* Управление всегда светлое, в обеих темах: холст под ним — то тёмный, то белый, и панель,
-   красящаяся вместе с темой, на половине схем тонула бы. Отсюда же собственные цвета вместо
-   токенов — это не элемент интерфейса приложения, а инструмент поверх изображения. Правила
-   стоят после кнопочных: плашку рисуют они, а не сброс внутри. */
+/* The controls are always light, in both themes: the canvas beneath is sometimes dark, sometimes
+   white, and a panel that followed the theme would drown on half the diagrams. Hence its own
+   colors instead of tokens — this is not an app UI element but a tool over an image. These rules
+   come after the button ones: they draw the plate, not the reset inside. */
 .viewer__close,
 .viewer__controls {
   position: absolute;
@@ -511,8 +514,8 @@ onBeforeUnmount(() => {
   height: 34px;
 }
 
-/* Панель зума стоит по центру нижнего края — с ней работают глазами по центру кадра, а правый
-   верхний угол занят закрытием. */
+/* The zoom panel sits at the center of the bottom edge — the eyes work around the frame center,
+   and the top-right corner is taken by the close button. */
 .viewer__controls {
   left: 50%;
   bottom: 20px;

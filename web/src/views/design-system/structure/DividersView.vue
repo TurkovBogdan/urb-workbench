@@ -246,9 +246,9 @@ const { t } = useI18n()
   padding: 4px 0;
 }
 
-/* Custom color: main.scss overrides border-color via !important,
-   so a more specific selector is needed for a custom color */
-:deep(.divider-accent) { border-color: var(--accent) !important; }
+/* Custom color: main.scss sets every divider's border-color, so a more specific selector is
+   needed for a custom one */
+:deep(.divider-accent) { border-color: var(--accent); }
 
 .ds-demo {
   display: flex;

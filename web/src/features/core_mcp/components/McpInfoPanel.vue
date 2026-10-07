@@ -16,7 +16,7 @@ defineProps<{
   version?: string | null
   instructions?: string | null
   tools: McpToolInfo[]
-  /** JSON-конфиг для копирования в клиент (Claude и пр.). */
+  /** JSON config to copy into a client (Claude etc.). */
   connectionConfig?: string | null
   connectionLang?: string
   /** Cold-load skeleton (no data yet). */
@@ -334,7 +334,7 @@ function open(tool: McpToolInfo) {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding-top: 16px !important;
+  padding-top: 16px;
 }
 
 .tool-dialog__desc {

@@ -52,9 +52,8 @@ withDefaults(defineProps<{
   flex-direction: column;
   gap: 8px;
   padding: 10px 12px;
-  /* Light-grey card sitting on the white column. (!important beats the global
-     `.v-card { background: var(--surface) !important }` in main.scss.) */
-  background: var(--surface-hi) !important;
+  /* Light-grey card sitting on the white column — outweighs the global `.v-card` background. */
+  background: var(--surface-hi);
   border-color: var(--border-soft);
 }
 

@@ -1,7 +1,6 @@
 import { h } from 'vue'
 import { createVuetify } from 'vuetify'
-import * as components from 'vuetify/components'
-import * as directives from 'vuetify/directives'
+import { VLayout } from 'vuetify/components/VLayout'
 import { VDateInput } from 'vuetify/labs/VDateInput'
 import { createVueI18nAdapter } from 'vuetify/locale/adapters/vue-i18n'
 import { useI18n } from 'vue-i18n'
@@ -73,8 +72,12 @@ const tablerAliases: Record<string, TablerIcon> = {
 }
 
 export default createVuetify({
-  components: { ...components, VDateInput },
-  directives,
+  // Core components and directives come in per template through vite-plugin-vuetify's autoImport;
+  // importing them all here pulled the whole library into the bundle. Labs are not auto-imported.
+  // VLayout is registered for its stylesheet: VApp puts `.v-layout` / `.v-layout--full-height` on
+  // the root but does not import VLayout.css, and without it the app grows past the viewport
+  // instead of scrolling inside its content.
+  components: { VDateInput, VLayout },
   // Vuetify component strings follow the active vue-i18n locale (reads `$vuetify.*`).
   // Cast: the adapter expects a loosely-typed I18n<any>; our instance is narrowed
   // to the literal message tree, which is structurally compatible at runtime.
@@ -88,13 +91,13 @@ export default createVuetify({
     sets: { tabler },
   },
 
-  // Дефолтные пропы — убирают нужду писать их везде в шаблонах
+  // Default props — no need to repeat them everywhere in templates
   defaults: {
     VTextField:    { variant: 'outlined' },
-    // Мультиселекты по умолчанию рендерят выбранное чипами в нашем стиле
-    // (.v-select--multiple .v-chip в main.scss); closableChips даёт ×-удаление
-    // прямо в поле. Vuetify включает чипы и для одиночного выбора — там CSS
-    // возвращает им вид простого текста (.v-select--single .v-chip в main.scss).
+    // Multi-selects render the selection as chips in our style by default
+    // (.v-select--multiple .v-chip in main.scss); closableChips gives ×-removal
+    // right in the field. Vuetify enables chips for single selection too — there CSS
+    // turns them back into plain text (.v-select--single .v-chip in main.scss).
     VSelect:       { variant: 'outlined', chips: true, closableChips: true },
     VAutocomplete: { variant: 'outlined', chips: true, closableChips: true },
     VCombobox:     { variant: 'outlined', chips: true, closableChips: true },
@@ -107,8 +110,8 @@ export default createVuetify({
     VRangeSlider:  { color: 'primary' },
     VDivider:      { color: 'outline' },
     VBtn:          { variant: 'flat', elevation: 0 },
-    // Кликабельная карточка по умолчанию плоская, без ripple — Material-волна
-    // не вписывается в flat-язык (подсветка идёт обводкой, см. .v-card--link в main.scss).
+    // A clickable card is flat by default, no ripple — the Material wave doesn't fit
+    // the flat language (highlighting is done with an outline, see .v-card--link in main.scss).
     VCard:         { ripple: false },
     VBtnGroup:     { variant: 'outlined', divided: true, elevation: 0 },
     VBtnToggle:    { variant: 'outlined', divided: true, elevation: 0 },
@@ -160,8 +163,8 @@ export default createVuetify({
       },
       dark: {
         dark: true,
-        // Vuetify парсит цвета как hex для построения rgba-оверлеев — oklch() даёт warn.
-        // Значения соответствуют токенам в styles/main.scss.
+        // Vuetify parses colours as hex to build rgba overlays — oklch() triggers a warning.
+        // The values match the tokens in styles/main.scss.
         colors: {
           background:           '#0F1115',  // --bg
           surface:              '#1A1E26',  // --surface
@@ -180,7 +183,7 @@ export default createVuetify({
           outline:              '#2A2F3A',  // --border
         },
         variables: {
-          // Прозрачности — Vuetify использует их в rgba() для оверлеев и текста
+          // Opacities — Vuetify uses them in rgba() for overlays and text
           'high-emphasis-opacity':   1,
           'medium-emphasis-opacity': 0.6,
           'disabled-opacity':        0.38,

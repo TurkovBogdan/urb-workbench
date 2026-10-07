@@ -193,9 +193,9 @@ function reload() {
   border: 1px solid var(--border-soft);
   border-radius: var(--radius);
   overflow: hidden;
-
-  &--pad { padding: 8px; }
 }
+
+.ds-card--pad { padding: 8px; }
 
 .ds-row {
   display: grid;
@@ -225,9 +225,9 @@ function reload() {
   align-items: center;
   flex-wrap: wrap;
   gap: 12px;
-
-  &--block { display: block; }
 }
+
+.ds-controls--block { display: block; }
 
 /* Bone color/shimmer are set globally in main.scss.
    Here we only set width: otherwise inline-flex collapses full-width bones to 0. */

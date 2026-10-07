@@ -1,22 +1,22 @@
 <script setup lang="ts">
-// Индикатор ленты изменений: мелкая светлая строка в правом верхнем углу.
+// The change feed indicator: a small faint line in the top right corner.
 //
-// Нужен тому, кто знает, куда смотреть, — остальных отвлекать не должен. Поэтому он крошечный,
-// серый, не ловит курсор и живёт ~2 секунды: крутилка и «что обновилось», потом гаснет. Показан
-// всегда только последний случай — лента бывает частой, и очередь из сообщений превратила бы
-// тихий признак в мерцание.
+// It is for those who know where to look — it must not distract anyone else. So it is tiny, grey,
+// doesn't catch the pointer and lives ~2 seconds: a spinner and "what was updated", then it fades.
+// Only the latest occurrence is ever shown — the feed can be frequent, and a queue of messages
+// would turn a quiet sign into flicker.
 //
-// Имя сущности показывается как есть (`tasks.task`): лента сущностей не знает, а подпись для
-// каждой завёл бы каждый модуль — ради строки, на которую смотрят разработчик и агент.
+// The entity name is shown as is (`tasks.task`): the feed doesn't know entities, and a label for
+// each would have every module add one — for a line that only the developer and the agent look at.
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { useChangesStore, type Change } from '@/stores/changes'
 
-/** Сколько видна строка после последнего случая. */
+/** How long the line stays visible after the latest occurrence. */
 const VISIBLE_MS = 2000
 
-/** Сколько кодов показать; остальные — числом, иначе массовое изменение займёт полэкрана. */
+/** How many codes to show; the rest as a number, otherwise a bulk change would fill half the screen. */
 const IDS_SHOWN = 1
 
 const { t } = useI18n()
@@ -49,8 +49,8 @@ onBeforeUnmount(() => clearTimeout(timer))
 </script>
 
 <template>
-  <!-- Для читалки — вежливое объявление: оно не перебивает, а договаривается, когда человек
-       закончит. Видимое и произносимое — одна и та же строка. -->
+  <!-- A polite announcement for screen readers: it doesn't interrupt but waits until the person
+       is done. What is shown and what is spoken are the same line. -->
   <Transition name="changes-indicator">
     <div v-if="visible" class="changes-indicator" role="status" aria-live="polite">
       <VProgressCircular indeterminate size="9" width="1.5" class="changes-indicator__spin" />
@@ -60,8 +60,8 @@ onBeforeUnmount(() => clearTimeout(timer))
 </template>
 
 <style scoped>
-/* Угол, а не поток страницы: строка висит над шапкой и ничего не сдвигает. Курсор она не ловит —
-   под ней бывают кнопки шапки. */
+/* A corner, not the page flow: the line floats over the header and shifts nothing. It doesn't
+   catch the pointer — header buttons can sit under it. */
 .changes-indicator {
   position: fixed;
   top: 6px;
@@ -80,12 +80,12 @@ onBeforeUnmount(() => clearTimeout(timer))
   user-select: none;
 }
 
-/* `!important` — против цвета, который крутилкам ставят умолчания темы (`plugins/vuetify.ts`,
-   акцентный): здесь она обязана быть такой же серой, как текст, иначе оранжевая точка в углу
-   тянет взгляд сильнее всей строки. */
+/* Against the accent every spinner gets (theme defaults in `plugins/vuetify.ts`, the global
+   `.v-progress-circular` rule in main.scss): here it must be as grey as the text, otherwise an
+   orange dot in the corner draws the eye more than the whole line. */
 .changes-indicator__spin {
   flex: none;
-  color: var(--text-faint) !important;
+  color: var(--text-faint);
 }
 
 .changes-indicator__text {

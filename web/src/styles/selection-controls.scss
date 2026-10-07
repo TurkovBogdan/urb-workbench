@@ -1,0 +1,65 @@
+// ── Radio ─────────────────────────────────────────────────────────────────────
+// The classic radio — a ring, and a solid dot inside it when picked — drawn in the app's palette,
+// for every VRadio at once.
+//
+// Vuetify draws a radio with the `radioOn` / `radioOff` icon aliases, which here are Tabler's
+// outline `circle-dot` / `circle` (plugins/vuetify.ts): a thin stroke with a pin-point dot that
+// reads as an icon, not as a control. The glyph is hidden and the `.v-icon` box itself becomes the
+// control — one element in both states, so the change between them can be animated, which two
+// swapped glyphs cannot.
+//
+// Geometry is all even — a 20px ring, 2px border, 10px dot — so the dot sits exactly 3px from the
+// border on every side; an odd step leaves half a pixel the browser rounds one way, and the dot
+// sits off-centre.
+//
+// The dot is the ring's background showing through an inset shadow of the surface color: the
+// shadow covers the whole inside when off (8px) and leaves the dot when on (3px). A shadow width
+// transitions; a gradient or a swapped element would snap. The surface is the fill on purpose:
+// the ring stays white on a tinted card, like a native radio.
+//
+// Off, the ring is `--text-faint` — a control at rest needs 3:1 against the page, and `--border`
+// is too pale for that. On, it takes the control's color (`color` prop, `primary` by default),
+// which Vuetify puts on the icon as `currentColor`. Hover and focus keep Vuetify's halo
+// (`.v-selection-control__input::before`): it is the classic feedback and already follows the
+// color. Disabled keeps Vuetify's dimming.
+// `font-size` and `min-width` too: Vuetify sizes an icon as `1em` square with a `1em` minimum
+// width, so with the default 24px font the box came out a 24×20 oval. `opacity` too: Vuetify dims
+// an unpicked radio's icon to medium emphasis, which would grey the white fill along with the ring.
+.v-radio .v-selection-control__input > .v-icon {
+  box-sizing: border-box;
+  font-size: 20px;
+  width: 20px;
+  min-width: 20px;
+  height: 20px;
+  opacity: 1;
+  border: 2px solid var(--text-faint);
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: inset 0 0 0 8px var(--surface);
+  // `color` is in the list for the picked ring, which is `currentColor`: Vuetify swaps the icon's
+  // color the instant a radio is unpicked, so without it the fading ring started from the text
+  // color and flashed near-black for a frame before easing to grey.
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+
+  > svg { display: none; }
+}
+
+.v-radio.v-selection-control--dirty .v-selection-control__input > .v-icon {
+  border-color: currentColor;
+  background: currentColor;
+  box-shadow: inset 0 0 0 3px var(--surface);
+}
+
+// An unpicked radio under the pointer hints at the color it would take.
+.v-radio:not(.v-selection-control--dirty):not(.v-selection-control--disabled):hover
+  .v-selection-control__input > .v-icon {
+  border-color: var(--accent);
+}
+
+// Reduced motion: the dot appears at once, colors still change.
+@media (prefers-reduced-motion: reduce) {
+  .v-radio .v-selection-control__input > .v-icon { transition: color 0.15s ease, border-color 0.15s ease; }
+}
