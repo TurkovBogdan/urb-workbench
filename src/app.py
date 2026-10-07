@@ -242,6 +242,12 @@ def _apply_env_overrides(args: argparse.Namespace) -> None:
         os.environ["WORKER_ENABLED"] = "true" if args.worker else "false"
     if args.hot_reload is not None:
         os.environ["SERVER_HOT_RELOAD"] = "true" if args.hot_reload else "false"
+    # In env, not only in `args`: the running app has to know the address it is bound to — the
+    # settings page predicts from it where a restart will move the server (core_setup/restart.py).
+    if args.host is not None:
+        os.environ["SERVER_HOST"] = args.host
+    if args.port is not None:
+        os.environ["SERVER_PORT"] = str(args.port)
     if args.debug_delay is not None:
         os.environ["SERVER_DEBUG_DELAY_MS"] = str(args.debug_delay)
     if args.worker_module is not None:
@@ -257,8 +263,8 @@ def _run_server(config, args: argparse.Namespace) -> None:
     WORKER_ENABLED."""
     import uvicorn
 
-    host = args.host or config.server_host
-    port = args.port or config.server_port
+    host = config.server_host
+    port = config.server_port
     log_level = config.app_log_level.lower()
     if config.server_hot_reload:
         # --reload is incompatible with processes>1: the reload supervisor holds one process.

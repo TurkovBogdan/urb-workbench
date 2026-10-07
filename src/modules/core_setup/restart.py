@@ -18,7 +18,11 @@ import asyncio
 import os
 import sys
 from pathlib import Path
+from typing import TypedDict
 
+from pydantic import ValidationError
+
+from src.core.config import Config
 from src.core.loggers import get_logger
 
 _LOG = get_logger()
@@ -44,4 +48,36 @@ def schedule_restart(*, hot_reload: bool, delay: float = 0.5) -> None:
     asyncio.get_running_loop().call_later(delay, action)
 
 
-__all__ = ["schedule_restart"]
+class Move(TypedDict):
+    host: str
+    port: int
+    from_host: str
+    from_port: int
+
+
+def predict_move(*, hot_reload: bool, bound_host: str, bound_port: int) -> Move | None:
+    """Where the restarted process will listen, if not where it listens now; ``None`` — it stays.
+
+    Call after ``.env`` is written. Under hot-reload the supervisor keeps its socket through the
+    rebuild, so a new host/port in ``.env`` waits for a full restart. Otherwise ``os.execv``
+    inherits this process's environment, and a fresh ``Config()`` reads exactly what the new image
+    will: the environment first (``--host``/``--port`` included, see ``src/app.py``), then ``.env``.
+    """
+    if hot_reload:
+        return None
+    try:
+        fresh = Config()
+    except ValidationError:
+        # The new image will not start with this config either; there is no address to follow.
+        return None
+    if (fresh.server_host, fresh.server_port) == (bound_host, bound_port):
+        return None
+    return Move(
+        host=fresh.server_host,
+        port=fresh.server_port,
+        from_host=bound_host,
+        from_port=bound_port,
+    )
+
+
+__all__ = ["Move", "predict_move", "schedule_restart"]

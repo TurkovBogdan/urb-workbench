@@ -7,7 +7,13 @@ import PageLayout from '@/layout/templates/PageLayout.vue'
 import PageHeader from '@/layout/components/PageHeader.vue'
 import SwitchPanel from '@/components/SwitchPanel.vue'
 import { errorText } from '@/api/errorText'
+import {
+  beginShellApplying,
+  announceShellMove,
+  endShellApplying,
+} from '@/composables/useShellApplying'
 import { getSetup, applySetup, isBackendUp, type SetupGroup, type SetupField } from '../api'
+import { relocatedOrigin, isOriginUp } from '../relocation'
 import { useSetupLabels } from '../labels'
 
 const { t } = useI18n()
@@ -20,7 +26,6 @@ const values = reactive<Record<string, string>>({})
 const loading = ref(true)
 const error = ref<string | null>(null)
 const applying = ref(false)
-const restarting = ref(false)
 
 async function load() {
   loading.value = true
@@ -56,31 +61,42 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms))
 }
 
-async function waitForRestart() {
+async function waitForRestart(isUp: () => Promise<boolean>): Promise<boolean> {
   await sleep(1000)
   for (let attempt = 0; attempt < 30; attempt++) {
-    if (await isBackendUp()) {
-      window.location.reload()
-      return
-    }
+    if (await isUp()) return true
     await sleep(1000)
   }
-  restarting.value = false
-  error.value = t('setup.error.restart_timeout')
+  return false
 }
 
 async function apply() {
   applying.value = true
   error.value = null
+  beginShellApplying()
   try {
-    await applySetup({ ...values })
-    applying.value = false
-    restarting.value = true
-    await waitForRestart()
+    const { moves_to } = await applySetup({ ...values })
+    const origin = relocatedOrigin(moves_to)
+    if (origin) {
+      announceShellMove(origin)
+      if (await waitForRestart(() => isOriginUp(origin))) {
+        const { pathname, search, hash } = window.location
+        window.location.assign(`${origin}${pathname}${search}${hash}`)
+        return
+      }
+      error.value = t('setup.error.moved_timeout', { address: origin })
+    } else {
+      if (await waitForRestart(isBackendUp)) {
+        window.location.reload()
+        return
+      }
+      error.value = t('setup.error.restart_timeout')
+    }
   } catch (e) {
     error.value = errorText(e)
-    applying.value = false
   }
+  endShellApplying()
+  applying.value = false
 }
 </script>
 
@@ -91,14 +107,13 @@ async function apply() {
       :description="t('setup.page.description')"
     >
       <template #actions>
-        <VBtn variant="text" :disabled="loading || applying || restarting" @click="load">
+        <VBtn variant="text" :disabled="loading || applying" @click="load">
           <template #prepend><IconRefresh :size="16" /></template>
           {{ t('setup.action.refresh') }}
         </VBtn>
         <VBtn
           color="primary"
-          :loading="applying"
-          :disabled="restarting"
+          :disabled="loading || applying"
           @click="apply"
         >
           <template #prepend><IconDeviceFloppy :size="18" /></template>
@@ -120,13 +135,6 @@ async function apply() {
       @click:close="error = null"
     >
       {{ error }}
-    </VAlert>
-
-    <VAlert v-if="restarting" type="info" variant="tonal" class="mb-4">
-      <div class="d-flex align-center ga-3">
-        <VProgressCircular indeterminate size="20" width="2" />
-        {{ t('setup.status.restarting') }}
-      </div>
     </VAlert>
 
     <template v-if="!loading">
@@ -151,7 +159,7 @@ async function apply() {
                 v-model="values[field.key]"
                 :items="field.choices"
                 :label="fieldLabel(field)"
-                :disabled="applying || restarting"
+                :disabled="applying"
                 density="comfortable"
                 hide-details
               />
@@ -160,7 +168,7 @@ async function apply() {
                 :model-value="values[field.key] === 'true'"
                 :title="fieldLabel(field)"
                 :description="fieldDescription(field)"
-                :disabled="applying || restarting"
+                :disabled="applying"
                 @update:model-value="values[field.key] = String($event)"
               />
               <VTextField
@@ -168,7 +176,7 @@ async function apply() {
                 v-model="values[field.key]"
                 :label="fieldLabel(field)"
                 :type="field.type === 'int' ? 'number' : field.secret ? 'password' : 'text'"
-                :disabled="applying || restarting"
+                :disabled="applying"
                 density="comfortable"
                 hide-details
               />

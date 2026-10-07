@@ -38,9 +38,19 @@ export interface SetupPayload {
   groups: SetupGroup[]
 }
 
+/** A new listen address after the restart, next to the one it leaves. */
+export interface ServerMove {
+  host: string
+  port: number
+  from_host: string
+  from_port: number
+}
+
 export interface ApplyResult {
   status: string
   applied: string[]
+  /** `null` — the server comes back where it is now. */
+  moves_to: ServerMove | null
 }
 
 const BASE = '/core/setup'

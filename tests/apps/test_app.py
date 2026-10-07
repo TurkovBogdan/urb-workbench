@@ -182,17 +182,21 @@ def test_apply_env_overrides_skips_unset(monkeypatch):
 
 
 @pytest.mark.pure
-def test_host_port_processes_not_pushed_to_env(monkeypatch):
-    """--host/--port/--processes go straight to _run_server, NOT into env."""
+def test_host_port_pushed_to_env_processes_not(monkeypatch):
+    """--host/--port reach env, so the running app knows its real address (the settings page
+    predicts a move from it); --processes goes straight to _run_server."""
     for key in ("SERVER_HOST", "SERVER_PORT", "SERVER_PROCESSES"):
-        monkeypatch.delenv(key, raising=False)
+        # setenv first: delenv of an absent key records nothing to restore, and the direct
+        # os.environ writes below would outlive the test.
+        monkeypatch.setenv(key, "")
+        monkeypatch.delenv(key)
     app._apply_env_overrides(
         app._parse_args(["--host", "0.0.0.0", "--port", "9", "--processes", "4"])
     )
     import os
 
-    assert "SERVER_HOST" not in os.environ
-    assert "SERVER_PORT" not in os.environ
+    assert os.environ["SERVER_HOST"] == "0.0.0.0"
+    assert os.environ["SERVER_PORT"] == "9"
     assert "SERVER_PROCESSES" not in os.environ
 
 
@@ -317,15 +321,16 @@ def test_run_server_processes_branch(monkeypatch):
 
 
 @pytest.mark.pure
-def test_run_server_cli_overrides_config(monkeypatch):
-    """--host/--port/--processes override the config values."""
+def test_run_server_binds_config_address_and_cli_processes(monkeypatch):
+    """The address comes from Config (--host/--port arrive there through env); --processes
+    overrides the config value directly."""
     rec = {}
     monkeypatch.setitem(
         sys.modules, "uvicorn",
         types.SimpleNamespace(run=lambda *a, **k: rec.update(a=a, k=k)),
     )
-    cfg = _fake_config(server_host="127.0.0.1", server_port=12200, server_processes=1)
-    args = app._parse_args(["--host", "0.0.0.0", "--port", "9", "--processes", "7"])
+    cfg = _fake_config(server_host="0.0.0.0", server_port=9, server_processes=1)
+    args = app._parse_args(["--processes", "7"])
     app._run_server(cfg, args)
     assert rec["k"]["host"] == "0.0.0.0"
     assert rec["k"]["port"] == 9

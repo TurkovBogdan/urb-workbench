@@ -6,13 +6,11 @@
   },
   "action": {
     "refresh": "Refresh",
-    "apply": "Save and restart"
-  },
-  "status": {
-    "restarting": "The server is restarting with the new configuration…"
+    "apply": "Save"
   },
   "error": {
-    "restart_timeout": "The server didn't come back within 30 seconds — check the process manually."
+    "restart_timeout": "The server didn't come back within 30 seconds — check the process manually.",
+    "moved_timeout": "The server didn't answer at {address} within 30 seconds. The settings are saved — check the process and open the address manually."
   },
   "group": {
     "app": "Application",

@@ -197,6 +197,11 @@
     },
     "resync": "reconnected — refreshing the screen"
   },
+  "applying": {
+    "title": "Applying changes",
+    "description": "The server is restarting with the new settings. The page reloads by itself as soon as it is back.",
+    "moving": "The server is restarting at a new address. The page opens there by itself as soon as it answers:"
+  },
   "editor": {
     "placeholder": "Type / for commands…",
     "placeholder_plain": "Start typing…",

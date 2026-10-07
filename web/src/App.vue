@@ -5,10 +5,12 @@ import { useDisplay } from 'vuetify'
 import { IconMenu2, IconX } from '@tabler/icons-vue'
 import AppSidebar from '@/layout/components/AppSidebar.vue'
 import ErrorScreen from '@/components/ErrorScreen.vue'
+import ApplyingScreen from '@/components/ApplyingScreen.vue'
 import ToastStack from '@/components/ToastStack.vue'
 import { navigationLoading } from '@/router/progress'
 import { endRouteTransition } from '@/composables/useRouteTransition'
 import { shellError } from '@/composables/useShellError'
+import { shellApplying, isShellApplying } from '@/composables/useShellApplying'
 import { useLayoutStore } from '@/layout/store'
 // The shell assembles the modules — the sidebar doesn't know them: the workspace switcher arrives
 // in its slot from here, just as module routes arrive in the router (see conventions/frontend.md —
@@ -34,6 +36,7 @@ const transitionName = computed(() => route.meta.transition ?? 'page')
          Hidden on desktop (permanent rail) and on fullscreen routes (404). -->
     <VAppBar
       v-if="mobile && !fullscreen"
+      :inert="isShellApplying"
       class="app-topbar"
       flat
       height="54"
@@ -53,12 +56,13 @@ const transitionName = computed(() => route.meta.transition ?? 'page')
       <VSpacer />
     </VAppBar>
 
-    <AppSidebar v-if="!fullscreen">
+    <AppSidebar v-if="!fullscreen" :inert="isShellApplying">
       <template #context="{ collapsed }">
         <WorkspaceSwitcher :collapsed="collapsed" />
       </template>
     </AppSidebar>
-    <VMain class="main-content">
+    <!-- `inert` with the banner up: the layout is hidden under it, and Tab must not walk into it. -->
+    <VMain class="main-content" :inert="isShellApplying">
       <!-- Navigation loading bar — pinned to the top of the content zone, right of
            the sidebar. Driven by the router guards (router/progress.ts); fades in
            only when a hop crosses the show-delay (e.g. a lazy chunk download). -->
@@ -105,6 +109,8 @@ const transitionName = computed(() => route.meta.transition ?? 'page')
 
     <!-- The change feed's quiet signal: what changed in the data — small, in the corner, for a couple of seconds. -->
     <ChangesIndicator v-if="!fullscreen" />
+
+    <ApplyingScreen v-if="shellApplying" :moving-to="shellApplying.movingTo" />
   </VApp>
 </template>
 
