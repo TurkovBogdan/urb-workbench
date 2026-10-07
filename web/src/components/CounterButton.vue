@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Counter button: icon, number and collapse arrow — one target.
+// Counter button: icon (optional), number and collapse arrow — one target.
 //
 // One for the whole app: both a task row with subtasks and a group card header carry it. While
 // there were two styles they drifted apart — the group count was set differently from the row
@@ -15,8 +15,8 @@ import type { Component } from 'vue'
 import { IconChevronDown, IconChevronRight } from '@tabler/icons-vue'
 
 const props = defineProps<{
-  /** What is being counted: subtasks for a row, tasks for a group. */
-  icon: Component
+  /** What is being counted: subtasks for a row. Not passed — the number and arrow remain. */
+  icon?: Component
   /** Not passed — no number, the icon and arrow remain. Zero is shown: it is an answer too. */
   count?: number
   /** Content is collapsed: the arrow points sideways, where it will slide out from. */
@@ -37,7 +37,7 @@ const emit = defineEmits<{ toggle: [] }>()
     @click.stop="emit('toggle')"
     @keydown.enter.stop
   >
-    <component :is="props.icon" :size="14" :stroke-width="1.6" />
+    <component :is="props.icon" v-if="props.icon" :size="14" :stroke-width="1.6" />
     <span v-if="props.count !== undefined" class="counter-button__number">{{ props.count }}</span>
     <component :is="props.folded ? IconChevronRight : IconChevronDown" :size="14" :stroke-width="1.8" />
     <VTooltip activator="parent" location="top">{{ props.label }}</VTooltip>
