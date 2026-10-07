@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import PageLayout from '@/layout/templates/PageLayout.vue'
 import PageHeader from '@/layout/components/PageHeader.vue'
+import LimitField from '@/components/LimitField.vue'
 import { IconSearch, IconUser, IconLock, IconMail, IconEye, IconEyeOff, IconCalendar } from '@tabler/icons-vue'
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -21,6 +22,13 @@ const v13 = ref('')
 const v14 = ref('')
 const v15 = ref('')
 const v16 = ref('')
+
+const limitTitle = ref('')
+const limitDescription = ref('')
+const limitThreshold = ref('Shows up only past 80% of the limit')
+const limitWarning = ref('Close to the limit, still room left')
+const limitDanger = ref('Almost at the limit — only a word or two left')
+const limitOver = ref('This text is longer than the limit allows it to be.')
 
 const showPwd = ref(false)
 
@@ -270,6 +278,65 @@ const { t } = useI18n()
               persistent-hint counter maxlength="256" rows="2" auto-grow />
           </div>
           <span class="ds-spec" style="padding-top: 10px">description + counter</span>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Length limit -->
+    <section class="ds-section">
+      <h6 class="mb-3">{{ t('design-system.section.inputs.limit') }}</h6>
+      <div class="ds-card">
+
+        <div class="ds-row ds-row--center">
+          <span class="ds-tag">field</span>
+          <div class="ds-controls">
+            <LimitField v-model="limitTitle" :max-length="40" label="Title" variant="outlined" hide-details />
+          </div>
+          <span class="ds-spec">LimitField</span>
+        </div>
+
+        <div class="ds-row ds-row--start">
+          <span class="ds-tag" style="padding-top: 10px">textarea</span>
+          <div class="ds-controls">
+            <LimitField v-model="limitDescription" :max-length="256" multiline label="Description"
+              variant="outlined" rows="2" auto-grow hide-details />
+          </div>
+          <span class="ds-spec" style="padding-top: 10px">multiline</span>
+        </div>
+
+        <div class="ds-row ds-row--start">
+          <span class="ds-tag" style="padding-top: 10px">threshold</span>
+          <div class="ds-controls">
+            <LimitField v-model="limitThreshold" :max-length="64" :limit-threshold="80" multiline
+              label="Note" variant="outlined" rows="2" auto-grow hide-details />
+          </div>
+          <span class="ds-spec" style="padding-top: 10px">limit-threshold=80</span>
+        </div>
+
+        <div class="ds-row ds-row--center">
+          <span class="ds-tag">warning</span>
+          <div class="ds-controls">
+            <LimitField v-model="limitWarning" :max-length="48" label="Title" variant="outlined" hide-details />
+          </div>
+          <span class="ds-spec">≥ 70%</span>
+        </div>
+
+        <div class="ds-row ds-row--center">
+          <span class="ds-tag">danger</span>
+          <div class="ds-controls">
+            <LimitField v-model="limitDanger" :max-length="48" label="Title" variant="outlined" hide-details />
+          </div>
+          <span class="ds-spec">≥ 90%</span>
+        </div>
+
+        <div class="ds-row ds-row--start">
+          <span class="ds-tag" style="padding-top: 10px">over</span>
+          <div class="ds-controls">
+            <LimitField v-model="limitOver" :max-length="48" multiline label="Summary"
+              variant="outlined" rows="2" auto-grow hide-details />
+          </div>
+          <span class="ds-spec" style="padding-top: 10px">stored before the limit</span>
         </div>
 
       </div>
