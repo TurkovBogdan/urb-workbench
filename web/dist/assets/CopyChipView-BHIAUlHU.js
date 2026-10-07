@@ -1,0 +1,16 @@
+import{bz as d,dp as a,bo as p,dP as l,bn as s,bu as n,d8 as e,d1 as i,b9 as r,cK as _,b8 as m}from"./index-bQ8JD7MY.js";import{P as h}from"./PageHeader-DJLuOWzP.js";import{C as c}from"./CopyChip-UM2_Hc41.js";import{C as y}from"./CodeBlock-Bx5z_eQ0.js";import"./IconCopy-BJepVxHY.js";import"./useClipboard-BujU-jJ-.js";const g={class:"ds-page"},u={class:"ds-section"},v={class:"mb-1"},C={class:"ds-note"},b={class:"ds-card ds-sample"},x={class:"ds-sample__title"},w={class:"ds-section"},f={class:"mb-3"},k={class:"ds-card"},A={class:"ds-row"},V={class:"ds-controls"},P={class:"ds-caption"},B={class:"ds-row"},N={class:"ds-controls"},O={class:"ds-caption"},S={class:"ds-row"},I={class:"ds-controls"},F={class:"ds-caption"},K={class:"ds-row"},T={class:"ds-controls"},X={class:"ds-caption"},j={class:"ds-section"},E={class:"mb-3"},G="/mnt/store-dev/agents/mcp/urb-workbench/runtime/prod/storage/private/exports/2026-09-24/tasks.json",H=`<script setup lang="ts">
+import CopyChip from '@/components/CopyChip.vue'
+<\/script>
+
+<template>
+  <!-- Entity code: the value is the label -->
+  <CopyChip :text="task.code" hint="Copy code" />
+
+  <!-- Show it short, copy it whole -->
+  <CopyChip :text="token" label="wmVd…A5OF0" />
+</template>
+
+<style scoped>
+/* Idle color sets where it's used */
+.muted-row { --copy-chip-color: var(--text-faint); }
+</style>`,R=d({__name:"CopyChipView",setup(z){const{t:o}=a();return(D,t)=>(_(),p(r,null,{default:l(()=>[s("div",g,[n(h,{title:e(o)("design-system.page.copy-chip.title"),description:e(o)("design-system.page.copy-chip.description"),"back-to":"/design-system"},null,8,["title","description"]),s("section",u,[s("h6",v,i(e(o)("design-system.section.copy-chip.in_context")),1),s("p",C,i(e(o)("design-system.section.copy-chip.in_context_note")),1),s("div",b,[s("p",x,i(e(o)("design-system.section.copy-chip.title_sample")),1),n(c,{text:"TASK@e9891c96d0",hint:e(o)("common.action.copy_code"),class:"ds-sample__code"},null,8,["hint"])])]),s("section",w,[s("h6",f,i(e(o)("design-system.section.copy-chip.variants")),1),s("div",k,[s("div",A,[t[0]||(t[0]=s("span",{class:"ds-tag"},"text",-1)),s("div",V,[n(c,{text:"GROUP@26be3ee9c2"}),s("span",P,i(e(o)("design-system.section.copy-chip.code")),1)]),t[1]||(t[1]=s("span",{class:"ds-spec"},":text",-1))]),s("div",B,[t[2]||(t[2]=s("span",{class:"ds-tag"},"label",-1)),s("div",N,[n(c,{text:"wmVdvA4AkjdySRX4irvwkIN4lX5n3EXB15NPi9A5OF0",label:"wmVd…A5OF0"}),s("span",O,i(e(o)("design-system.section.copy-chip.label")),1)]),t[3]||(t[3]=s("span",{class:"ds-spec"},":label",-1))]),s("div",S,[t[4]||(t[4]=s("span",{class:"ds-tag"},"long",-1)),s("div",I,[n(c,{text:G}),s("span",F,i(e(o)("design-system.section.copy-chip.long")),1)]),t[5]||(t[5]=s("span",{class:"ds-spec"},"max-width: 100%",-1))]),s("div",K,[t[6]||(t[6]=s("span",{class:"ds-tag"},"hint",-1)),s("div",T,[n(c,{text:"TASK@1eb0940a10",hint:e(o)("common.action.copy_code")},null,8,["hint"]),s("span",X,i(e(o)("design-system.section.copy-chip.hint")),1)]),t[7]||(t[7]=s("span",{class:"ds-spec"},":hint",-1))])])]),s("section",j,[s("h6",E,i(e(o)("design-system.section.copy-chip.usage")),1),n(y,{code:H,lang:"vue"})])])]),_:1}))}}),Q=m(R,[["__scopeId","data-v-8fa014da"]]);export{Q as default};
