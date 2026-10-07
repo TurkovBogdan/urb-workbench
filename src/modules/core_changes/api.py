@@ -1,65 +1,105 @@
-"""Поток изменений для фронта: ``GET /internal/core/changes/stream``, Server-Sent Events.
+"""The changes feed for the frontend: a WebSocket at ``/internal/core/changes/ws``.
 
-SSE, а не WebSocket: связь нужна в одну сторону, а браузерный ``EventSource`` сам переподключается
-после обрыва. Это обычный HTTP-ответ, который не кончается, — та же зона, те же guard'ы, тот же
-прокси Vite в dev, без новых зависимостей.
+WebSocket, not SSE: a browser keeps at most six HTTP/1.1 connections per origin, and an SSE
+stream holds one of them for as long as the tab is open — four tabs left two slots for every
+request of every tab, and the interface stalled. A WebSocket does not count against that pool.
 
-Кадры:
+The channel is one-way: the backend talks, the tab listens. Whatever the tab sends is read and
+dropped — the read is there to notice that the tab is gone.
 
-- ``changes`` — сообщение транзакции:
-  ``{"origin": "<id вкладки>" | null, "changes": [{"entity", "event", "ids", "refs"}, …]}``.
-  ``origin`` — вкладка, сделавшая правку (``origin.py``): по нему вкладка узнаёт эхо своих
-  сохранений. Пустой ``ids`` — массовая операция без названных кодов: слушатель перечитывает
-  всё своё;
-- ``resync`` — вкладка отстала и её буфер сброшен: перечитать всё, что на экране;
-- комментарий ``: ping`` — раз в ``PING_SECONDS``, чтобы простаивающее соединение не закрыл
-  кто-нибудь по дороге и чтобы разрыв замечался, а не висел.
+Frames are JSON objects named by ``event``:
 
-Пропущенное за время обрыва не досылается: шина ничего не хранит (``bus.py``). Первый кадр
-``retry`` задаёт паузу переподключения, а сам факт переподключения фронт понимает как «перечитай».
+- ``hello`` — the first frame, ``{"event": "hello", "ping": <seconds>}``: the tab arms its
+  watchdog by that interval;
+- ``changes`` — a transaction's message under ``data``:
+  ``{"origin": "<tab id>" | null, "changes": [{"entity", "event", "ids", "refs"}, …]}``.
+  ``origin`` is the tab that made the edit (``origin.py``): it lets a tab recognise the echo of
+  its own saves. An empty ``ids`` is a bulk operation with no named codes: the listener
+  re-reads everything it holds;
+- ``resync`` — the tab fell behind and its buffer was dropped: re-read everything on screen;
+- ``ping`` — every ``PING_SECONDS`` of quiet, so that a dead link (a laptop back from sleep, a
+  backend gone without a close) is noticed by the tab rather than waited on.
+
+What was missed during a drop is not re-sent: the bus stores nothing (``bus.py``). The frontend
+treats the reconnect itself as "re-read".
+
+The handshake checks ``Origin``. CORS does not cover WebSocket, so without the check any page
+open in the same browser could connect and read the feed. Allowed are the backend's own origin
+and the dev origins of ``cors_origins``; a client that sends no ``Origin`` is not a browser and
+is let through.
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
 from collections.abc import AsyncIterator
+from contextlib import aclosing
+from urllib.parse import urlsplit
 
-from fastapi import APIRouter
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, WebSocket
 
 from src.modules.core_changes.bus import Message, bus
 
 PING_SECONDS = 15
-RETRY_MS = 2000
+
+# The WebSocket close code for a refused policy check (RFC 6455).
+POLICY_VIOLATION = 1008
 
 router = APIRouter()
 
 
 def _frame(message: Message) -> str:
-    return f"event: {message.event}\ndata: {message.data}\n\n"
+    # ``data`` is already JSON, serialized once at publish for every listener.
+    return f'{{"event": "{message.event}", "data": {message.data}}}'
 
 
 async def _frames() -> AsyncIterator[str]:
     async with bus.subscribe() as queue:
-        yield f"retry: {RETRY_MS}\n: connected\n\n"
+        yield json.dumps({"event": "hello", "ping": PING_SECONDS})
         while True:
             try:
                 message = await asyncio.wait_for(queue.get(), timeout=PING_SECONDS)
             except TimeoutError:
-                yield ": ping\n\n"
+                yield json.dumps({"event": "ping"})
                 continue
             yield _frame(message)
 
 
-@router.get("/stream")
-async def stream() -> StreamingResponse:
-    # ``X-Accel-Buffering: no`` — на случай прокси перед бэком: буферизованный поток доходил бы
-    # пачками раз в несколько секунд, то есть переставал бы быть живым.
-    return StreamingResponse(
-        _frames(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
+def origin_allowed(origin: str | None, host: str | None, dev_origins: list[str]) -> bool:
+    if origin is None:
+        return True
+    return urlsplit(origin).netloc == host or origin in dev_origins
 
 
-__all__ = ["PING_SECONDS", "RETRY_MS", "router"]
+async def _send(websocket: WebSocket) -> None:
+    async with aclosing(_frames()) as frames:
+        async for frame in frames:
+            await websocket.send_text(frame)
+
+
+async def _until_closed(websocket: WebSocket) -> None:
+    while (await websocket.receive())["type"] != "websocket.disconnect":
+        pass
+
+
+@router.websocket("/ws")
+async def feed(websocket: WebSocket) -> None:
+    headers = websocket.headers
+    dev_origins = websocket.app.state.config.cors_origins
+    if not origin_allowed(headers.get("origin"), headers.get("host"), dev_origins):
+        await websocket.close(code=POLICY_VIOLATION)
+        return
+    await websocket.accept()
+    sending = asyncio.create_task(_send(websocket))
+    listening = asyncio.create_task(_until_closed(websocket))
+    try:
+        await asyncio.wait({sending, listening}, return_when=asyncio.FIRST_COMPLETED)
+    finally:
+        for task in (sending, listening):
+            task.cancel()
+        # A send into a socket the tab has just closed fails; the tab is gone either way.
+        await asyncio.gather(sending, listening, return_exceptions=True)
+
+
+__all__ = ["PING_SECONDS", "POLICY_VIOLATION", "origin_allowed", "router"]

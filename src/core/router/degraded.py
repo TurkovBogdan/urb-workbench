@@ -2,7 +2,8 @@
 
 `mark_degraded(app, pending)` records the verdict in `app.state`; `PendingMigrationsGate`
 answers every request 503 (JSON under the machine zones, an HTML stub elsewhere) while it is
-set, with `/internal/health` exempt and reporting `degraded` at 200. A stub rather than a raising
+set, with `/internal/health` exempt and reporting `degraded` at 200; a WebSocket is closed with
+1013 (try again later). A stub rather than a raising
 lifespan: an installation whose database is behind the code must still be able to say so.
 """
 
@@ -14,12 +15,15 @@ from html import escape
 from fastapi import FastAPI
 from starlette.responses import HTMLResponse, JSONResponse, Response
 from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.websockets import WebSocket
 
 from src.core.router.api import API_PREFIX
 from src.core.router.mcp import MCP_PREFIX
 from src.core.router.storage import STORAGE_PREFIX
 
 DEGRADED_STATUS_CODE = 503
+# The WebSocket close code for "try again later" (RFC 6455 registry).
+SOCKET_TRY_AGAIN_LATER = 1013
 HEALTH_STATUS_OK = "ok"
 HEALTH_STATUS_DEGRADED = "degraded"
 PENDING_MIGRATIONS_CODE = "migrations_pending"
@@ -60,10 +64,13 @@ class PendingMigrationsGate:
         self._exempt_path = exempt_path
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        gated = scope["type"] == "http" and scope["path"] != self._exempt_path
+        gated = scope["type"] in ("http", "websocket") and scope["path"] != self._exempt_path
         pending = degraded_pending(scope["app"]) if gated else None
         if pending is None:
             await self._app(scope, receive, send)
+            return
+        if scope["type"] == "websocket":
+            await _refuse_socket(WebSocket(scope, receive, send))
             return
         await _refusal(scope["path"], pending)(scope, receive, send)
 
@@ -73,6 +80,13 @@ def mount_degraded_gate(app: FastAPI, *, health_path: str) -> None:
     the outermost — the gate must sit outside `mount_spa`'s middleware, which would otherwise
     answer browser GETs with the SPA before the gate ever ran."""
     app.add_middleware(PendingMigrationsGate, exempt_path=health_path)
+
+
+async def _refuse_socket(websocket: WebSocket) -> None:
+    # Accepted and then closed rather than refused at the handshake: a refused handshake reaches
+    # the browser as a bare 1006, while 1013 tells the client this is temporary, not a fault.
+    await websocket.accept()
+    await websocket.close(code=SOCKET_TRY_AGAIN_LATER, reason=PENDING_MIGRATIONS_CODE)
 
 
 def _refusal(path: str, pending: Sequence[str]) -> Response:
@@ -144,6 +158,7 @@ __all__ = [
     "MACHINE_ZONE_PREFIXES",
     "PENDING_MIGRATIONS_CODE",
     "PendingMigrationsGate",
+    "SOCKET_TRY_AGAIN_LATER",
     "degraded_pending",
     "health_payload",
     "mark_degraded",

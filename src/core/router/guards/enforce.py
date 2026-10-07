@@ -1,24 +1,24 @@
-"""Навешивание guard'ов на маршруты и их применение — три стадии одного слоя.
+"""Attaching guards to routes and enforcing them — three stages of one layer.
 
-- **Объявление** — ``@guard("вид", *аргументы)`` кладёт на функцию-эндпоинт
-  непрозрачное правило ``(вид, *аргументы)`` (только данные, ядро их не парсит);
-  ``guard_rules``/``is_allow_all``/``is_deny_all`` читают эти метки обратно.
-- **Исполнение** — ``make_zone_guard`` строит ``zone_guard`` (зон-зависимость): на
-  каждый запрос ``allow_all``/``deny_all`` он знает сам, остальные виды резолвит по
-  реестру (умолчание зоны + виды меток, по порядку, первый ``raise`` останавливает).
-- **Валидация** — ``validate_guard_rules`` на сборке проверяет, что все упомянутые
-  виды зарегистрированы (декоратор сам не может — отрабатывает при импорте, до реестра).
+- **Declaration** — ``@guard("kind", *args)`` puts an opaque rule ``(kind, *args)`` on the
+  endpoint function (data only, the core does not parse it);
+  ``guard_rules``/``is_allow_all``/``is_deny_all`` read these marks back.
+- **Execution** — ``make_zone_guard`` builds ``zone_guard`` (a zone dependency): on
+  every request it handles ``allow_all``/``deny_all`` itself and resolves the other kinds through
+  the registry (zone default + mark kinds, in order; the first ``raise`` stops it).
+- **Validation** — ``validate_guard_rules`` checks at build time that every referenced
+  kind is registered (the decorator cannot — it runs at import, before the registry exists).
 """
 
 from __future__ import annotations
 
-from fastapi import Request
+from starlette.requests import HTTPConnection
 
 from src.core.router.guards.registry import GuardFn, GuardRegistry
 
 
 def guard(kind: str, *args: str):
-    """Навесить на эндпоинт правило ``(вид, *аргументы)``. Ядро его не интерпретирует."""
+    """Attach a ``(kind, *args)`` rule to the endpoint. The core does not interpret it."""
 
     def deco(fn):
         fn.__guards__ = (*getattr(fn, "__guards__", ()), (kind, *args))
@@ -28,7 +28,7 @@ def guard(kind: str, *args: str):
 
 
 def guard_rules(endpoint) -> tuple:
-    """Все правила маршрута: кортеж ``(вид, *аргументы)``."""
+    """All of the route's rules: a tuple of ``(kind, *args)``."""
     return getattr(endpoint, "__guards__", ())
 
 
@@ -41,32 +41,32 @@ def is_deny_all(endpoint) -> bool:
 
 
 def make_zone_guard(registry: GuardRegistry, default: list[str]) -> GuardFn:
-    """Зон-зависимость: ``default`` — умолчательные виды зоны (default-on).
+    """A zone dependency: ``default`` is the zone's default kinds (default-on).
 
-    ``allow_all``/``deny_all`` исполняются сразу; иначе прогоняем умолчание зоны +
-    виды меток по порядку, каждый — через реестр. Пусто ⇒ ``deny_all`` (фолбэк).
+    ``allow_all``/``deny_all`` execute at once; otherwise run the zone default +
+    the mark kinds in order, each through the registry. Empty ⇒ ``deny_all`` (fallback).
     """
 
-    async def zone_guard(request: Request) -> None:
-        endpoint = request.scope["endpoint"]
+    async def zone_guard(connection: HTTPConnection) -> None:
+        endpoint = connection.scope["endpoint"]
         if is_allow_all(endpoint):
-            return await registry.resolve("allow_all")(request)
+            return await registry.resolve("allow_all")(connection)
         if is_deny_all(endpoint):
-            return await registry.resolve("deny_all")(request)
+            return await registry.resolve("deny_all")(connection)
         kinds = (*default, *(rule[0] for rule in guard_rules(endpoint)))
         for kind in kinds or ("deny_all",):
-            await registry.resolve(kind)(request)
+            await registry.resolve(kind)(connection)
 
     return zone_guard
 
 
 def validate_guard_rules(app, registry: GuardRegistry, *, defaults=()) -> None:
-    """Проверить на сборке, что все виды guard'ов зарегистрированы.
+    """Check at build time that every guard kind is registered.
 
-    Сканирует виды в ``@guard(...)`` на всех маршрутах ``app`` и умолчательные
-    виды зоны (``defaults``). Незарегистрированный вид ⇒ ``RuntimeError`` на
-    старте («guard должен быть зарегистрирован до использования»). Декоратор
-    отрабатывает при импорте, поэтому проверка — здесь, после сбора реестра.
+    Scans the kinds in ``@guard(...)`` on every route of ``app`` and the zone's default
+    kinds (``defaults``). An unregistered kind ⇒ ``RuntimeError`` at
+    startup ("a guard must be registered before use"). The decorator
+    runs at import, so the check lives here, after the registry is assembled.
     """
     unknown: list[str] = []
     for kind in defaults:
@@ -82,7 +82,7 @@ def validate_guard_rules(app, registry: GuardRegistry, *, defaults=()) -> None:
                 unknown.append(f'@guard("{rule[0]}") @ {path}')
     if unknown:
         raise RuntimeError(
-            "guard-виды не зарегистрированы в реестре: " + ", ".join(unknown)
+            "guard kinds not registered in the registry: " + ", ".join(unknown)
         )
 
 
