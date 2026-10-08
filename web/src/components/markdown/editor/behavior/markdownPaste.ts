@@ -49,7 +49,14 @@ export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
             const openStart = fragment.firstChild?.isTextblock ? 1 : 0
             const openEnd = fragment.lastChild?.isTextblock ? 1 : 0
 
-            view.dispatch(view.state.tr.replaceSelection(new Slice(fragment, openStart, openEnd)).scrollIntoView())
+            // Marked the way ProseMirror marks its own paste: the length limit cuts a paste to fit
+            // instead of refusing it, and it tells a paste by this mark.
+            view.dispatch(
+              view.state.tr
+                .replaceSelection(new Slice(fragment, openStart, openEnd))
+                .scrollIntoView()
+                .setMeta('uiEvent', 'paste'),
+            )
             return true
           },
         },

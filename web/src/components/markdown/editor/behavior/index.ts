@@ -6,5 +6,6 @@
 // (the drag source highlight, the flash after a move) or in `controls/`.
 export { BlockMoves, type MoveTarget } from './blockMoves'
 export { DragSource } from './dragSource'
+export { LENGTH_LIMIT_BYPASS, LengthLimit } from './lengthLimit'
 export { MarkdownPaste } from './markdownPaste'
 export { useDragPreview, type DragPreview } from './useDragPreview'

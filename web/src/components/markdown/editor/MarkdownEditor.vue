@@ -21,7 +21,14 @@ import { Placeholder } from '@tiptap/extension-placeholder'
 import DragHandle from '@tiptap/extension-drag-handle-vue-3'
 import { IconGripVertical } from '@tabler/icons-vue'
 import { EntityRef, FlatBlocks } from './blocks'
-import { BlockMoves, DragSource, MarkdownPaste, useDragPreview } from './behavior'
+import {
+  BlockMoves,
+  DragSource,
+  LENGTH_LIMIT_BYPASS,
+  LengthLimit,
+  MarkdownPaste,
+  useDragPreview,
+} from './behavior'
 import {
   BubbleToolbar, SlashMenuExtension, SlashMenuPopup, TableControls,
   createSlashItems, useSlashMenu,
@@ -36,7 +43,10 @@ const props = withDefaults(defineProps<{
   mode?: EditorMode
   /** An exact feature list instead of a mode; when set, the mode is ignored entirely. */
   features?: readonly Feature[]
-  /** Length limit of the STORED markdown. Unset — no counter. */
+  /**
+   * Hard length limit of the STORED markdown: typing stops at it and a paste is cut to fit (see
+   * behavior/lengthLimit.ts). Unset — no limit and no counter.
+   */
   maxLength?: number
   /**
    * The fill level, in percent, from which the counter shows. `0` — always visible while the field
@@ -124,13 +134,25 @@ let syncing = false
 const chars = ref(props.modelValue.length)
 const focused = ref(false)
 
+// The same thresholds as `LimitField`: input stops at the limit, so the counter warns in advance —
+// yellow from 70% full, red from 90% — and a cut never comes as a surprise.
+const WARNING_FROM = 70
+const DANGER_FROM = 90
+
 const over = computed(() => props.maxLength !== undefined && chars.value > props.maxLength)
+const fill = computed(() => props.maxLength === undefined ? 0 : chars.value / props.maxLength * 100)
+
+const limitLevel = computed(() => {
+  if (fill.value >= DANGER_FROM) return 'is-danger'
+  if (fill.value >= WARNING_FROM) return 'is-warning'
+  return ''
+})
 
 const showLimit = computed(() => {
   if (props.maxLength === undefined) return false
   if (over.value) return true
   if (!focused.value) return false
-  return chars.value / props.maxLength * 100 >= props.limitThreshold
+  return fill.value >= props.limitThreshold
 })
 
 const editor = useEditor({
@@ -190,6 +212,8 @@ const editor = useEditor({
     // Paste must know the feature set just as loading does: the clipboard is how things the
     // field's schema does not know get into it.
     MarkdownPaste.configure({ features }),
+    // The limit is hard: typing stops at it and a paste is cut to fit, as in a native field.
+    LengthLimit.configure({ maxLength: props.maxLength }),
     // Block moves come bundled with the handle: without block constructs there is nothing to
     // rearrange, and the SC 2.5.7 alternative path is needed exactly where dragging exists.
     ...(has('handle')
@@ -232,7 +256,8 @@ const drag = useDragPreview(editor, handlePos)
 watch(() => props.modelValue, (value) => {
   if (value === mine || !editor.value) return
   syncing = true
-  editor.value.commands.setContent(markdownToDoc(value, features))
+  // The value comes from the database: it is shown as stored, even longer than the limit.
+  editor.value.chain().setMeta(LENGTH_LIMIT_BYPASS, true).setContent(markdownToDoc(value, features)).run()
   syncing = false
   mine = value
   chars.value = value.length
@@ -277,7 +302,11 @@ function move(target: 'up' | 'down' | 'start' | 'end'): void {
       class="editor"
       :class="[
         `editor--${props.variant}`,
-        { 'is-dragging': drag.dragging.value, 'editor--readonly': props.readonly },
+        {
+          'is-dragging': drag.dragging.value,
+          'editor--readonly': props.readonly,
+          'editor--limited': props.maxLength !== undefined,
+        },
       ]"
       @dragstart="onDragStart"
       @dragend="drag.end"
@@ -330,7 +359,7 @@ function move(target: 'up' | 'down' | 'start' | 'end'): void {
 
       <!-- The counter sits in the bottom padding strip and is absolutely positioned: appearing
            and disappearing with focus, it must not move a single line of text. -->
-      <div v-if="showLimit" class="editor__limit" :class="{ 'is-over': over }">
+      <div v-if="showLimit" class="editor__limit" :class="limitLevel">
         {{ chars }} / {{ props.maxLength }}
       </div>
 
@@ -393,12 +422,12 @@ function move(target: 'up' | 'down' | 'start' | 'end'): void {
 }
 
 /* A field inside someone else's card: the card provides border and surface, and its padding the
-   side spacing. Our own would add to it, and the field's text would misalign with the section
-   heading above. */
+   spacing on every side. Our own would add to it — the text would misalign with the section
+   heading above, and under the last line the card would end with a gap twice its top one. */
 .editor--plain .editor__body {
   --editor-gutter: 0px;
 
-  padding: 2px 0 20px;
+  padding: 2px 0;
 }
 
 /* While a drag is in progress the zone says so itself: an accent border with a soft halo. A
@@ -666,9 +695,28 @@ function move(target: 'up' | 'down' | 'start' | 'end'): void {
   user-select: none;
 }
 
-/* Overflow is not a shade but a different state: text past the limit will not reach the database,
-   and that must be said in the same colour the app uses for a refusal. */
-.editor__limit.is-over {
+/* Inside someone else's card the counter lines up with the card's right edge, where the text column
+   ends, and keeps about the same distance from the card's bottom edge as from its right one (the
+   card's 16px padding). That takes a narrow strip under the text — only in a field that has a
+   counter at all — with the counter reaching down into the card's padding. */
+.editor--plain.editor--limited .editor__body {
+  padding-bottom: 12px;
+}
+
+.editor--plain .editor__limit {
+  right: 0;
+  bottom: -4px;
+}
+
+/* Yellow — "the limit is near", red — "you'll hit it in a couple of words", and red as well for a
+   body that arrived over the limit. Theme colours, as in `LimitField`: in the light theme warning
+   is a dark amber, pure yellow on white would not be readable. */
+.editor__limit.is-warning {
+  color: rgb(var(--v-theme-warning));
+  font-weight: 500;
+}
+
+.editor__limit.is-danger {
   color: rgb(var(--v-theme-error));
   font-weight: 500;
 }
