@@ -12,6 +12,8 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppDialog from '@/components/AppDialog.vue'
+import HelpHint from '@/components/HelpHint.vue'
+import LimitField from '@/components/LimitField.vue'
 import { errorText } from '@/api/errorText'
 
 import {
@@ -81,11 +83,6 @@ const error = ref<string | null>(null)
 const groups = ref<GroupRow[]>([])
 
 const creating = computed(() => props.task === null)
-
-// The counter shows what is LEFT, not what is typed: the person's question is always "how much
-// more fits".
-const titleLeft = computed(() => TASK_TITLE_MAX - title.value.length)
-const descriptionLeft = computed(() => TASK_DESCRIPTION_MAX - description.value.length)
 
 // An empty title is not saved: without it the row is indistinguishable in the list. The backend
 // strips whitespace before the length check — so here too a whitespace-only string counts as
@@ -239,26 +236,33 @@ async function save() {
     <!-- Field order goes from "what is it" to "when": title and description, then the
          classification (type, status, priority, group), then dates, and the long body last. -->
     <div class="task-form">
-      <VTextField
+      <!-- The same limit counter as the task page's editors and the group form: input stops at
+           the limit, and the counter warns in advance. -->
+      <LimitField
         v-model="title"
         :label="t('tasks.task.form.name')"
-        :maxlength="TASK_TITLE_MAX"
-        :hint="t('tasks.task.form.left', { count: titleLeft })"
+        :max-length="TASK_TITLE_MAX"
         variant="outlined"
-        persistent-hint
+        hide-details
         autofocus
       />
 
-      <VTextarea
+      <LimitField
         v-model="description"
         :label="t('tasks.task.form.description')"
-        :maxlength="TASK_DESCRIPTION_MAX"
-        :hint="t('tasks.task.form.left', { count: descriptionLeft })"
+        :max-length="TASK_DESCRIPTION_MAX"
+        multiline
+        auto-grow
         variant="outlined"
         rows="2"
-        auto-grow
-        persistent-hint
-      />
+        hide-details
+      >
+        <!-- Inside the field, not in the label: a floating label ignores the pointer, and the
+             explanation would never open. -->
+        <template #append-inner>
+          <HelpHint :text="t('tasks.task.detail.hint.description')" />
+        </template>
+      </LimitField>
 
       <!-- Type comes BEFORE the long fields: it decides which of them are shown at all, and
            picking it after the form has expanded to full screen would rearrange fields under the
@@ -316,15 +320,18 @@ async function save() {
       <VTextarea
         v-model="context"
         :label="t('tasks.task.form.context')"
-        :hint="t('tasks.task.form.context_hint')"
         :maxlength="TASK_CONTEXT_MAX"
         :disabled="loadingBody"
         :loading="loadingBody"
         variant="outlined"
         rows="4"
         auto-grow
-        persistent-hint
-      />
+        hide-details
+      >
+        <template #append-inner>
+          <HelpHint :text="t('tasks.task.detail.hint.context')" />
+        </template>
+      </VTextarea>
 
       <!-- Constraints, criteria and plan are shown from type `standard` up: a simple task has none,
            and empty fields would stretch the form to full screen without asking anything. -->
@@ -332,41 +339,50 @@ async function save() {
         <VTextarea
           v-model="constraints"
           :label="t('tasks.task.form.constraints')"
-          :hint="t('tasks.task.form.constraints_hint')"
           :maxlength="TASK_CONSTRAINTS_MAX"
           :disabled="loadingBody"
           variant="outlined"
           rows="3"
           auto-grow
-          persistent-hint
-        />
+          hide-details
+        >
+          <template #append-inner>
+            <HelpHint :text="t('tasks.task.detail.hint.constraints')" />
+          </template>
+        </VTextarea>
 
         <VTextarea
           v-model="criteria"
           :label="t('tasks.task.form.criteria')"
-          :hint="t('tasks.task.form.criteria_hint')"
           :maxlength="TASK_CRITERIA_MAX"
           :disabled="loadingBody"
           variant="outlined"
           rows="3"
           auto-grow
-          persistent-hint
-        />
+          hide-details
+        >
+          <template #append-inner>
+            <HelpHint :text="t('tasks.task.detail.hint.criteria')" />
+          </template>
+        </VTextarea>
       </template>
 
       <VTextarea
         v-if="layout.plan"
         v-model="body"
         :label="t('tasks.task.form.body')"
-        :hint="t('tasks.task.form.body_hint')"
         :maxlength="BODY_MAX"
         :disabled="loadingBody"
         :loading="loadingBody"
         variant="outlined"
         rows="5"
         auto-grow
-        persistent-hint
-      />
+        hide-details
+      >
+        <template #append-inner>
+          <HelpHint :text="t('tasks.task.detail.hint.body')" />
+        </template>
+      </VTextarea>
 
       <VAlert v-if="error" type="error" variant="tonal" density="compact">{{ error }}</VAlert>
     </div>

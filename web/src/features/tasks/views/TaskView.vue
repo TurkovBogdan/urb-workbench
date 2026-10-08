@@ -656,14 +656,16 @@ async function purge() {
             {{ task.parent.title }}
           </button>
 
-          <!-- Every text card has a title and below it a subtitle: WHAT to write in this field. The
-               hint sits in the header, not in the empty field, because it is needed not only when
-               empty: a filled card without it does not say what was expected of it. An empty field
-               shows the editor's own hint — how to add a block with the "/" command. -->
+          <!-- Every text card says in its header WHAT to write in this field, behind a "?" right
+               after the title: the explanation is longer than a line and, read once, is not needed
+               at every look. The hint sits in the header, not in the empty field, because it is
+               needed not only when empty: a filled card without it does not say what was expected
+               of it. An empty field shows the editor's own hint — how to add a block with the "/"
+               command. -->
           <VCard variant="outlined" rounded="lg" class="task-page__card">
             <SectionHeader
               :title="t('tasks.task.detail.description')"
-              :description="t('tasks.task.detail.hint.description')"
+              :hint="t('tasks.task.detail.hint.description')"
             />
             <!-- The goal is one or two sentences, hence simple mode: paragraph, bold, italic. A
                  heading or table has no place in a goal, and the schema simply does not know them. -->
@@ -685,7 +687,7 @@ async function purge() {
           <VCard variant="outlined" rounded="lg" class="task-page__card">
             <SectionHeader
               :title="t('tasks.task.detail.context')"
-              :description="t('tasks.task.detail.hint.context')"
+              :hint="t('tasks.task.detail.hint.context')"
             />
             <MarkdownEditor
               :model-value="draft.context"
@@ -706,7 +708,7 @@ async function purge() {
           <VCard v-if="layout.brief" variant="outlined" rounded="lg" class="task-page__card">
             <SectionHeader
               :title="t('tasks.task.detail.constraints')"
-              :description="t('tasks.task.detail.hint.constraints')"
+              :hint="t('tasks.task.detail.hint.constraints')"
             />
             <MarkdownEditor
               :model-value="draft.constraints"
@@ -724,7 +726,7 @@ async function purge() {
           <VCard v-if="layout.brief" variant="outlined" rounded="lg" class="task-page__card">
             <SectionHeader
               :title="t('tasks.task.detail.criteria')"
-              :description="t('tasks.task.detail.hint.criteria')"
+              :hint="t('tasks.task.detail.hint.criteria')"
             />
             <MarkdownEditor
               :model-value="draft.criteria"
@@ -742,7 +744,7 @@ async function purge() {
           <VCard v-if="layout.plan" variant="outlined" rounded="lg" class="task-page__card">
             <SectionHeader
               :title="t('tasks.task.detail.body')"
-              :description="t('tasks.task.detail.hint.body')"
+              :hint="t('tasks.task.detail.hint.body')"
             />
             <MarkdownEditor
               :model-value="draft.body"
