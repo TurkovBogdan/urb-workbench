@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from fastapi import FastAPI, HTTPException
 from httpx import ASGITransport, AsyncClient
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from src.core.api import ApiError, register_exception_handlers
 
@@ -14,6 +14,11 @@ pytestmark = pytest.mark.pure
 
 class _Body(BaseModel):
     n: int
+
+
+class _Strict(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    n: int = 0
 
 
 @pytest.fixture
@@ -83,6 +88,25 @@ async def test_validation_error_collects_fields(client):
     body = r.json()
     assert body["code"] == "validation_error"
     assert "n" in body["fields"]
+
+
+@pytest.mark.parametrize("name", ["body", "path", "query"])
+async def test_a_field_named_like_a_source_keeps_its_name(name):
+    """Only the leading source is dropped from ``loc``: a field called ``body`` — a stale
+    client's old key — used to vanish into ``"_"``, and the refusal named nothing to fix."""
+    app = FastAPI()
+    register_exception_handlers(app)
+
+    @app.post("/strict")
+    async def _strict(payload: _Strict):
+        return {"n": payload.n}
+
+    transport = ASGITransport(app=app, raise_app_exceptions=False)
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        r = await c.post("/strict", json={name: "x"})
+
+    assert r.status_code == 422
+    assert list(r.json()["fields"]) == [name]
 
 
 async def test_unhandled_exception_is_500(client):
