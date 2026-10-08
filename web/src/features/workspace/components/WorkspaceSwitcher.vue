@@ -4,9 +4,8 @@
 // A workspace is a CONTEXT, not a place: switching it opens nothing and leads nowhere, it only
 // answers the question "what am I working in right now".
 //
-// The button is a context card rather than a field or a menu row: a frameless row of the same
-// metrics as the items below read as one more section, and an outlined select read as a form input
-// dropped into the navigation.
+// The button is a sidebar row rather than a field: an outlined select read as a form input dropped
+// into the navigation.
 //
 // The panel is a widget of its own on `VMenu`, not a `VSelect`: it needs a search that keeps the
 // keyboard (↑/↓/Enter while the caret stays in the query), and a footer with actions — neither has
@@ -158,7 +157,7 @@ async function onCreated(): Promise<void> {
           v-if="store.currentWorkspace"
           :icon="store.currentWorkspace.icon"
           :color="store.currentWorkspace.color"
-          :width="28"
+          :width="props.collapsed ? 22 : 20"
         />
         <IconStack2 v-else :size="18" :stroke-width="1.7" />
 
@@ -243,26 +242,28 @@ async function onCreated(): Promise<void> {
 
 <style scoped>
 /* ── Context card (expanded sidebar) ────────────────────────────────────────── */
-/* No fill and no padding of its own: the rule under the strip already separates the card from the
-   section list, and a fill read as a second border at the same spot. Hover answers on the chevron,
-   since without a box there is no edge to light. */
+/* The box mirrors a menu item (`.nav-item` in main.scss: 36px, the same radius and font): the card
+   stands above them in one column, and metrics of its own would pull it out of their row. The 8px
+   side padding is the item's too, so the badge lines up with the section icons. */
 .ws-card {
   display: flex;
   align-items: center;
   gap: 10px;
   width: 100%;
-  padding: 0;
+  min-height: 36px;
+  padding-inline: 8px;
   border: 0;
   border-radius: var(--radius-sm);
   background: none;
   color: var(--text);
   cursor: pointer;
   text-align: left;
+  transition: background-color 0.15s;
 }
 
-.ws-card:hover .ws-card__caret,
-.ws-card[aria-expanded='true'] .ws-card__caret {
-  color: var(--text);
+.ws-card:hover,
+.ws-card[aria-expanded='true'] {
+  background-color: var(--surface-hi);
 }
 
 .ws-card:focus-visible {
@@ -274,8 +275,7 @@ async function onCreated(): Promise<void> {
   flex: 1;
   min-width: 0;
   font-size: 13px;
-  font-weight: 600;
-  line-height: 18px;
+  font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -285,7 +285,6 @@ async function onCreated(): Promise<void> {
 .ws-card__caret {
   flex: none;
   color: var(--text-faint);
-  transition: color 0.15s;
 }
 
 /* ── Collapsed rail ─────────────────────────────────────────────────────────── */
@@ -296,7 +295,7 @@ async function onCreated(): Promise<void> {
   align-items: center;
   justify-content: center;
   width: 100%;
-  min-height: 40px;
+  min-height: 36px;
   border: 0;
   background: none;
   border-radius: var(--radius-sm);
