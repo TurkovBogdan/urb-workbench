@@ -64,7 +64,7 @@ from src.modules.tasks.crud.link import (
 from src.modules.tasks.errors import GROUP_HAS_TASKS, TaskRuleError
 from src.modules.tasks.models.group import TasksGroup
 from src.modules.tasks.models.link import TasksLink
-from src.modules.tasks.models.note import TasksNote
+from src.modules.tasks.models.journal import TasksJournal
 from src.modules.tasks.models.stage import TasksStage
 from src.modules.tasks.models.task import TasksTask
 from src.modules.tasks.text import clip, fit
@@ -497,8 +497,8 @@ async def task_search_codes(
 
     if in_journal:
         stmt = (
-            select(TasksNote.task_code, TasksNote.title, TasksNote.body, TasksNote.resolution)
-            .join(TasksTask, TasksTask.code == TasksNote.task_code)
+            select(TasksJournal.task_code, TasksJournal.title, TasksJournal.body, TasksJournal.resolution)
+            .join(TasksTask, TasksTask.code == TasksJournal.task_code)
             .where(TasksTask.workspace_code == workspace_code)
         )
         async with session_scope() as s:

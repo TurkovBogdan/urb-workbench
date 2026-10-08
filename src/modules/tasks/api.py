@@ -63,7 +63,7 @@ from src.modules.tasks.constants import (
     GROUP_DESCRIPTION_MAX,
     GROUP_TASK_DISPOSALS,
     ICON_MAX,
-    NOTE_CODE_PREFIX,
+    JOURNAL_CODE_PREFIX,
     SORT_DEFAULT,
     STAGE_CODE_PREFIX,
     TASK_CODE_PREFIX,
@@ -73,15 +73,15 @@ from src.modules.tasks.constants import (
     TITLE_MAX,
 )
 from src.modules.tasks.crud import group as group_crud
+from src.modules.tasks.crud import journal as journal_crud
 from src.modules.tasks.crud import link as link_crud
-from src.modules.tasks.crud import note as note_crud
 from src.modules.tasks.crud import stage as stage_crud
 from src.modules.tasks.crud import task as task_crud
 from src.modules.tasks.errors import (
     GROUP_DELETED,
     GROUP_NOT_DELETED,
     GROUP_NOT_FOUND,
-    NOTE_NOT_FOUND,
+    JOURNAL_NOT_FOUND,
     STAGE_NOT_FOUND,
     TASK_DELETED,
     TASK_NOT_DELETED,
@@ -91,7 +91,7 @@ from src.modules.tasks.errors import (
 from src.modules.tasks.dto import (
     GroupListRow,
     GroupRow,
-    NoteRow,
+    JournalRow,
     StageRow,
     TaskDetail,
     TaskListRow,
@@ -580,7 +580,7 @@ async def _detail(row: TasksTask) -> TaskDetail:
     )
     parent_rows = await _rows([parent], include_deleted=True) if parent else []
     stages = await stage_crud.stage_list_by_task(row.code)
-    notes = await note_crud.note_list_by_task(row.code)
+    journal = await journal_crud.journal_list_by_task(row.code)
     return TaskDetail(
         **TaskRow.model_validate(row).model_dump(),
         context=row.context,
@@ -596,7 +596,7 @@ async def _detail(row: TasksTask) -> TaskDetail:
         parent=parent_rows[0] if parent_rows else None,
         children=await _rows(children, include_deleted=deleted),
         stages=[StageRow.model_validate(stage) for stage in stages],
-        notes=[NoteRow.model_validate(note) for note in notes],
+        journal=[JournalRow.model_validate(entry) for entry in journal],
     )
 
 
@@ -1026,7 +1026,7 @@ async def delete_stage(code: str) -> Response:
 # ── journal ───────────────────────────────────────────────────────────────────
 
 
-class NoteBody(_Body):
+class JournalBody(_Body):
     """Body for creating a journal entry: kind, subject and, for a fact, the resolution up front.
 
     ``stage_code`` ties the entry to a stage; without it the entry belongs to the task as a whole.
@@ -1041,37 +1041,37 @@ class NoteBody(_Body):
     stage_code: str | None = None
 
 
-class NoteResolutionBody(_Body):
+class JournalResolutionBody(_Body):
     """An entry's resolution — what it is closed with."""
 
     resolution: str
 
 
-def _note_code(value: str) -> str:
+def _journal_code(value: str) -> str:
     """Bare journal entry code from a path segment."""
-    return _bare(value, NOTE_CODE_PREFIX) or ""
+    return _bare(value, JOURNAL_CODE_PREFIX) or ""
 
 
-@router.get("/tasks/{code}/notes")
-async def list_notes(
+@router.get("/tasks/{code}/journal")
+async def list_journal(
     code: str,
     type: str | None = Query(None, description="Only entries of this kind"),
     open_only: bool = Query(False, description="Only unresolved entries"),
-) -> list[NoteRow]:
+) -> list[JournalRow]:
     """The task's journal in order of appearance."""
     bare = _task_code(code)
     await _require_task(bare)
-    rows = await note_crud.note_list_by_task(bare, type=type, open_only=open_only)
-    return [NoteRow.model_validate(row) for row in rows]
+    rows = await journal_crud.journal_list_by_task(bare, type=type, open_only=open_only)
+    return [JournalRow.model_validate(row) for row in rows]
 
 
-@router.post("/tasks/{code}/notes", status_code=201)
-async def create_note(code: str, payload: NoteBody) -> NoteRow:
+@router.post("/tasks/{code}/journal", status_code=201)
+async def create_journal_entry(code: str, payload: JournalBody) -> JournalRow:
     """Append an entry to a live task's journal."""
     bare = _task_code(code)
     _live(await _require_task(bare))
     try:
-        row = await note_crud.note_create(
+        row = await journal_crud.journal_create(
             task_code=bare,
             type=payload.type,
             title=payload.title,
@@ -1081,19 +1081,19 @@ async def create_note(code: str, payload: NoteBody) -> NoteRow:
         )
     except ValueError as error:
         raise ApiError.bad_request(str(error)) from error
-    return NoteRow.model_validate(row)
+    return JournalRow.model_validate(row)
 
 
-@router.post("/notes/{code}/resolve")
-async def resolve_note(code: str, payload: NoteResolutionBody) -> NoteRow:
+@router.post("/journal/{code}/resolve")
+async def resolve_journal_entry(code: str, payload: JournalResolutionBody) -> JournalRow:
     """Close an entry with a resolution.
 
-    Closing it again answers 409: the journal is append-only, and rewriting a resolution after the
-    fact would bend history to fit the outcome. Changed your mind — write a new entry.
+    Closing it again answers 409: a resolution is written once, and rewriting it after the fact
+    would bend history to fit the outcome. Changed your mind — write a new entry.
     """
-    bare = _note_code(code)
+    bare = _journal_code(code)
     try:
-        row = await note_crud.note_resolve(bare, payload.resolution)
+        row = await journal_crud.journal_resolve(bare, payload.resolution)
     except TaskRuleError as error:
         # 409, not 400: the entry exists and is valid — it is the state that does not fit, as when
         # editing a deleted row.
@@ -1101,22 +1101,22 @@ async def resolve_note(code: str, payload: NoteResolutionBody) -> NoteRow:
     except ValueError as error:
         raise ApiError.bad_request(str(error)) from error
     if row is None:
-        raise ApiError.not_found("Journal entry not found", code=NOTE_NOT_FOUND)
-    return NoteRow.model_validate(row)
+        raise ApiError.not_found("Journal entry not found", code=JOURNAL_NOT_FOUND)
+    return JournalRow.model_validate(row)
 
 
-@router.delete("/notes/{code}", status_code=204)
-async def delete_note(code: str) -> Response:
+@router.delete("/journal/{code}", status_code=204)
+async def delete_journal_entry(code: str) -> Response:
     """Hard delete an entry — a person's endpoint, never exposed to the agent."""
-    if not await note_crud.note_delete(_note_code(code)):
-        raise ApiError.not_found("Journal entry not found", code=NOTE_NOT_FOUND)
+    if not await journal_crud.journal_delete(_journal_code(code)):
+        raise ApiError.not_found("Journal entry not found", code=JOURNAL_NOT_FOUND)
     return Response(status_code=204)
 
 
 __all__ = [
     "GroupBody",
-    "NoteBody",
-    "NoteResolutionBody",
+    "JournalBody",
+    "JournalResolutionBody",
     "StageBody",
     "StageStatusBody",
     "TaskCreateBody",

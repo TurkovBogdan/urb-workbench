@@ -18,7 +18,7 @@ bare code: applying it to internal values is safe.
 
 **A code is upper case, whole** — prefix and hash: ``TASK@3F9A0C21BE``. It is generated, stored
 and returned that way, and every incoming code is folded to upper case on the way in, prefix
-included — so a lower-case code from before the switch (in a client config, a note, a link in a
+included — so a lower-case code from before the switch (in a client config, a journal entry, a link in a
 body) still finds its row. The database compares case-sensitively on both providers; the fold
 here is what makes the case not matter. The rows written before the switch were converted by
 ``tsm_007_codes_upper``.

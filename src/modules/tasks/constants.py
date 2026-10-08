@@ -27,11 +27,13 @@ from __future__ import annotations
 GROUP_CODE_PREFIX = "TASKGROUP"
 TASK_CODE_PREFIX = "TASK"
 STAGE_CODE_PREFIX = "STAGE"
-NOTE_CODE_PREFIX = "NOTE"
+JOURNAL_CODE_PREFIX = "JOURNAL"
 
 # Retired type words still accepted on input, mapped to the current one. Codes already written into
 # task bodies, journals and agents' notes keep resolving; output never uses them.
-LEGACY_CODE_PREFIXES = {"GROUP": GROUP_CODE_PREFIX}
+# ``NOTE`` is the journal's word until 2026-10-09: it is being freed for documents, and once they
+# take it this mapping gives way to a lookup that tells an old journal code from a document.
+LEGACY_CODE_PREFIXES = {"GROUP": GROUP_CODE_PREFIX, "NOTE": JOURNAL_CODE_PREFIX}
 
 # Entity code length in hex characters. The agent retypes the code into every call and pays for it
 # in tokens: 10 characters instead of 22 save ~6.8 tokens per reference. It cannot be shorter — at
@@ -62,7 +64,7 @@ CRITERIA_MAX = 2048
 # The agent's work on a task, three fields in the order the work goes: the plan written before the
 # code changes, the progress diary kept along the way, the result written at hand-over. Each
 # answers its own question — intent, course, outcome — and sections inside one field would blur
-# them. ``PROGRESS_MAX`` is provisional: the live journal puts 90% of tasks under 8.7k of notes.
+# them. ``PROGRESS_MAX`` is provisional: the live journal puts 90% of tasks under 8.7k of entries.
 PLAN_MAX = 8192
 PROGRESS_MAX = 16384
 RESULT_MAX = 2048
@@ -70,7 +72,7 @@ RESULT_MAX = 2048
 # writing a story instead of a reference will not work.
 EVIDENCE_MAX = 1024
 # Journal: the subject of an entry and its resolution.
-NOTE_BODY_MAX = 2048
+JOURNAL_BODY_MAX = 2048
 RESOLUTION_MAX = 1024
 # Width of columns holding a value from the vocabularies below (status/priority/type/actor). The
 # longest value is ``in_progress`` (11), with room for a future word or two.
@@ -175,22 +177,22 @@ GROUP_TASK_DISPOSALS = (GROUP_TASKS_UNGROUP, GROUP_TASKS_MOVE, GROUP_TASKS_DELET
 # ── journal entry type ──
 # What the row describes. Ordered from frequent to rare: the agent picks the first value of an
 # enumeration noticeably more often than the rest, so the frequent kind must come before the rare.
-NOTE_DECISION = "decision"
-NOTE_REMARK = "remark"
-NOTE_FINDING = "finding"
-NOTE_FACT = "fact"
-NOTE_TYPES = (NOTE_DECISION, NOTE_REMARK, NOTE_FINDING, NOTE_FACT)
+JOURNAL_DECISION = "decision"
+JOURNAL_REMARK = "remark"
+JOURNAL_FINDING = "finding"
+JOURNAL_FACT = "fact"
+JOURNAL_TYPES = (JOURNAL_DECISION, JOURNAL_REMARK, JOURNAL_FINDING, JOURNAL_FACT)
 # Kinds that can be open at all. ``fact`` is closed the moment it is written — it awaits nothing.
-NOTE_TYPES_OPENABLE = (NOTE_DECISION, NOTE_REMARK, NOTE_FINDING)
+JOURNAL_TYPES_OPENABLE = (JOURNAL_DECISION, JOURNAL_REMARK, JOURNAL_FINDING)
 # Kinds whose being unresolved blocks hand-off. A decision without a resolution is an assumption,
 # and whoever made it must lift it; a remark is a request from the brief's author, and the executor
 # must address it. A finding is NOT included: it is about work outside this task, the person
 # triages it in their own order, and if we counted it alongside, the very first finding would lock
 # hand-off forever.
-NOTE_TYPES_BLOCKING = (NOTE_DECISION, NOTE_REMARK)
+JOURNAL_TYPES_BLOCKING = (JOURNAL_DECISION, JOURNAL_REMARK)
 # Kinds the agent creates. ``remark`` is the brief author's word, and the agent has no tool for it:
 # both halves of an entry written by one hand turn the gate into self-assessment.
-NOTE_TYPES_BY_AGENT = (NOTE_DECISION, NOTE_FINDING, NOTE_FACT)
+JOURNAL_TYPES_BY_AGENT = (JOURNAL_DECISION, JOURNAL_FINDING, JOURNAL_FACT)
 
 # ── actor kind ──
 # Who created the row. The same vocabulary as the task type's, but a different meaning (authorship,
@@ -226,16 +228,16 @@ __all__ = [
     "GROUP_TASKS_UNGROUP",
     "GROUP_TASK_DISPOSALS",
     "ICON_MAX",
-    "NOTE_BODY_MAX",
-    "NOTE_CODE_PREFIX",
-    "NOTE_DECISION",
-    "NOTE_FACT",
-    "NOTE_FINDING",
-    "NOTE_REMARK",
-    "NOTE_TYPES",
-    "NOTE_TYPES_BLOCKING",
-    "NOTE_TYPES_BY_AGENT",
-    "NOTE_TYPES_OPENABLE",
+    "JOURNAL_BODY_MAX",
+    "JOURNAL_CODE_PREFIX",
+    "JOURNAL_DECISION",
+    "JOURNAL_FACT",
+    "JOURNAL_FINDING",
+    "JOURNAL_REMARK",
+    "JOURNAL_TYPES",
+    "JOURNAL_TYPES_BLOCKING",
+    "JOURNAL_TYPES_BY_AGENT",
+    "JOURNAL_TYPES_OPENABLE",
     "PLAN_MAX",
     "PRIORITY_BURNING",
     "PRIORITY_FROZEN",

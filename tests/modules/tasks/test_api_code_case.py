@@ -12,14 +12,16 @@ import re
 import pytest
 
 from src.modules.tasks.crud import group as group_crud
-from src.modules.tasks.crud import note as note_crud
+from src.modules.tasks.crud import journal as journal_crud
 from src.modules.tasks.crud import stage as stage_crud
 from src.modules.tasks.crud import task as task_crud
 
 pytestmark = pytest.mark.db
 
 API = "/internal/workbench"
-_CODE = re.compile(r"\b(?:WORKSPACE|GROUP|TASK|STAGE|NOTE)@[0-9A-Za-z]{10}", re.IGNORECASE)
+_CODE = re.compile(
+    r"\b(?:WORKSPACE|TASKGROUP|GROUP|TASK|STAGE|JOURNAL|NOTE)@[0-9A-Za-z]{10}", re.IGNORECASE
+)
 
 
 def low(prefix: str, bare: str) -> str:
@@ -38,7 +40,7 @@ async def world(workspace):
         workspace_code=workspace.code, title="Эпик", group_code=group.code, type="extended"
     )
     stage = await stage_crud.stage_create(task_code=task.code, title="Модели")
-    await note_crud.note_create(task_code=task.code, type="fact", title="Факт")
+    await journal_crud.journal_create(task_code=task.code, type="fact", title="Факт")
     return workspace.code, group.code, task.code, stage.code
 
 
@@ -51,9 +53,9 @@ async def world(workspace):
         lambda w, g, t, s: f"{API}/tasks/search?workspace={low('WORKSPACE', w)}&query=Факт&in_journal=true",
         lambda w, g, t, s: f"{API}/tasks/{low('TASK', t)}",
         lambda w, g, t, s: f"{API}/tasks/{low('TASK', t)}/stages",
-        lambda w, g, t, s: f"{API}/tasks/{low('TASK', t)}/notes",
+        lambda w, g, t, s: f"{API}/tasks/{low('TASK', t)}/journal",
     ],
-    ids=["groups?workspace", "groups/{code}", "tasks?workspace&group", "tasks/search", "tasks/{code}", "stages", "notes"],
+    ids=["groups?workspace", "groups/{code}", "tasks?workspace&group", "tasks/search", "tasks/{code}", "stages", "journal"],
 )
 async def test_reads_take_a_lower_case_code(client, world, url):
     response = await client.get(url(*world))
@@ -81,15 +83,47 @@ async def test_body_codes_are_folded_on_create(client, world):
     assert body["code"] == body["code"].upper()
 
 
-async def test_a_stage_and_a_note_take_lower_case_codes_on_write(client, world):
+async def test_a_stage_and_a_journal_entry_take_lower_case_codes_on_write(client, world):
     _, _, task, stage = world
 
     renamed = await client.put(f"{API}/stages/{low('STAGE', stage)}", json={"title": "Схема"})
-    noted = await client.post(
-        f"{API}/tasks/{low('TASK', task)}/notes",
-        json={"type": "fact", "title": "Ещё", "stage_code": low("STAGE", stage)},
+    added = await client.post(
+        f"{API}/tasks/{low('TASK', task)}/journal",
+        json={"type": "decision", "title": "Ещё", "stage_code": low("STAGE", stage)},
     )
 
     assert renamed.status_code == 200, renamed.text
-    assert noted.status_code == 201, noted.text
-    assert noted.json()["stage_code"] == f"STAGE@{stage}"
+    assert added.status_code == 201, added.text
+    assert added.json()["stage_code"] == f"STAGE@{stage}"
+    assert added.json()["code"].startswith("JOURNAL@")
+
+
+@pytest.mark.parametrize("word", ["journal", "note", "Note"])
+async def test_a_journal_entry_resolves_by_its_code_and_by_the_retired_note_word(client, world, word):
+    """``NOTE@`` was the journal's code until 2026-10-09; codes quoted before still resolve, in any
+    case, and the answer carries the current word."""
+    _, _, task, _ = world
+    entry = await journal_crud.journal_create(task_code=task, type="decision", title="Решение")
+
+    response = await client.post(
+        f"{API}/journal/{word}@{entry.code.lower()}/resolve", json={"resolution": "проверено"}
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["code"] == f"JOURNAL@{entry.code}"
+    assert (await journal_crud.journal_get(entry.code)).resolution == "проверено"
+
+
+@pytest.mark.parametrize("word", ["journal", "note"])
+async def test_a_journal_entry_is_deleted_by_its_code_and_by_the_retired_note_word(
+    client, world, word
+):
+    _, _, task, _ = world
+    kept = await journal_crud.journal_create(task_code=task, type="fact", title="Остаётся")
+    gone = await journal_crud.journal_create(task_code=task, type="fact", title="Уходит")
+
+    response = await client.delete(f"{API}/journal/{word}@{gone.code.lower()}")
+
+    assert response.status_code == 204, response.text
+    assert await journal_crud.journal_get(gone.code) is None
+    assert await journal_crud.journal_get(kept.code) is not None

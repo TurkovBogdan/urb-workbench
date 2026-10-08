@@ -15,8 +15,8 @@ from __future__ import annotations
 
 import pytest
 
-from src.modules.tasks.constants import NOTE_DECISION, NOTE_FACT, TYPE_EXTENDED
-from src.modules.tasks.crud.note import note_create, note_resolve
+from src.modules.tasks.constants import JOURNAL_DECISION, JOURNAL_FACT, TYPE_EXTENDED
+from src.modules.tasks.crud.journal import journal_create, journal_resolve
 from src.modules.tasks.crud.stage import stage_create, stage_update
 from src.modules.tasks.crud.task import (
     task_create,
@@ -132,13 +132,13 @@ async def test_plan_scope_covers_the_stages_too(db, workspace):
     assert await task_search_codes(workspace.code, "сначала бэк", in_brief=True) == []
 
 
-async def test_journal_scope_reads_the_notes(db, workspace):
+async def test_journal_scope_reads_the_entries(db, workspace):
     row = await task_create(
         workspace_code=workspace.code, title="С журналом", type=TYPE_EXTENDED
     )
-    await note_create(
+    await journal_create(
         task_code=row.code,
-        type=NOTE_FACT,
+        type=JOURNAL_FACT,
         title="Замер до работы",
         body="1491 passed",
     )
@@ -165,10 +165,10 @@ async def test_journal_scope_reads_the_resolution(db, workspace):
     row = await task_create(
         workspace_code=workspace.code, title="С решением", type=TYPE_EXTENDED
     )
-    note = await note_create(
-        task_code=row.code, type=NOTE_DECISION, title="Куда класть области поиска"
+    entry = await journal_create(
+        task_code=row.code, type=JOURNAL_DECISION, title="Куда класть области поиска"
     )
-    await note_resolve(note.code, "Переходник живёт в search.ts")
+    await journal_resolve(entry.code, "Переходник живёт в search.ts")
 
     assert await task_search_codes(workspace.code, "ПЕРЕХОДНИК", in_journal=True) == [row.code]
 
@@ -181,14 +181,14 @@ async def test_scopes_combine_and_a_task_comes_back_once(db, workspace):
         type=TYPE_EXTENDED,
         context="общее слово",
     )
-    await note_create(
-        task_code=both.code, type=NOTE_FACT, title="И тут общее слово"
+    await journal_create(
+        task_code=both.code, type=JOURNAL_FACT, title="И тут общее слово"
     )
     journal_only = await task_create(
         workspace_code=workspace.code, title="Только журнал", type=TYPE_EXTENDED
     )
-    await note_create(
-        task_code=journal_only.code, type=NOTE_FACT, title="И здесь общее слово"
+    await journal_create(
+        task_code=journal_only.code, type=JOURNAL_FACT, title="И здесь общее слово"
     )
 
     found = await task_search_codes(
@@ -207,7 +207,7 @@ async def test_search_stays_inside_its_workspace(db, workspace):
     assert await task_search_codes(workspace.code, "панель", in_brief=True) == []
 
 
-async def test_stages_and_notes_of_a_stranger_do_not_leak_in(db, workspace):
+async def test_stages_and_journal_of_a_stranger_do_not_leak_in(db, workspace):
     """A stage and an entry don't know their workspace — the join to the task holds the boundary.
 
     Separate from the previous test: there the boundary is checked on the task's own column, here
@@ -218,7 +218,7 @@ async def test_stages_and_notes_of_a_stranger_do_not_leak_in(db, workspace):
         workspace_code=stranger.code, title="Чужая", type=TYPE_EXTENDED
     )
     await stage_create(task_code=alien.code, title="Чужой шаг", body="редкое слово")
-    await note_create(task_code=alien.code, type=NOTE_FACT, title="редкое слово")
+    await journal_create(task_code=alien.code, type=JOURNAL_FACT, title="редкое слово")
 
     assert await task_search_codes(
         workspace.code, "редкое слово", in_plan=True, in_journal=True

@@ -20,9 +20,8 @@ from __future__ import annotations
 STAGE_EVIDENCE_REQUIRED = "stage_evidence_required"
 """The stage cannot be closed: its evidence of completion is empty."""
 
-NOTE_ALREADY_RESOLVED = "note_already_resolved"
-"""The journal entry is already resolved: the resolution cannot be rewritten, the journal is
-append-only."""
+JOURNAL_ALREADY_RESOLVED = "journal_already_resolved"
+"""The journal entry is already resolved: a resolution is written once."""
 
 # HTTP-layer refusals: a person reads these too. The interface looks code
 # ``tasks.<entity>.<reason>`` up as ``tasks.error.<entity>.<reason>``; the response text is the
@@ -36,7 +35,7 @@ TASK_NOT_FOUND = "tasks.task.not_found"
 TASK_DELETED = "tasks.task.deleted"
 TASK_NOT_DELETED = "tasks.task.not_deleted"
 STAGE_NOT_FOUND = "tasks.stage.not_found"
-NOTE_NOT_FOUND = "tasks.note.not_found"
+JOURNAL_NOT_FOUND = "tasks.journal.not_found"
 
 
 class TaskRuleError(ValueError):
@@ -57,8 +56,8 @@ __all__ = [
     "GROUP_HAS_TASKS",
     "GROUP_NOT_DELETED",
     "GROUP_NOT_FOUND",
-    "NOTE_ALREADY_RESOLVED",
-    "NOTE_NOT_FOUND",
+    "JOURNAL_ALREADY_RESOLVED",
+    "JOURNAL_NOT_FOUND",
     "STAGE_EVIDENCE_REQUIRED",
     "STAGE_NOT_FOUND",
     "TASK_DELETED",

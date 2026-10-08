@@ -6,7 +6,7 @@ reverse dependency and cannot be: the lower-level module knows nothing about tas
 
 Five tables: ``tasks_group`` → ``tasks`` (the task itself, named after the module — ``tasks_task``
 would be a stutter), the task's place in the tree is split out into ``tasks_link`` (an edge:
-parent + position), and the work plan into ``tasks_stage`` (stages) and ``tasks_note``
+parent + position), and the work plan into ``tasks_stage`` (stages) and ``tasks_journal``
 (journal). The schema is built by ``tsm_*`` migrations on portable types — the chain runs on both
 SQLite (dev) and PostgreSQL. It starts at ``tsm_001_group``: the module does not create the
 workspace table — it belongs to ``workspace``, and our first revision only declares
@@ -56,7 +56,7 @@ from src.modules.tasks.crud import group as group_crud
 from src.modules.tasks.crud import task as task_crud
 from src.modules.tasks.constants import (
     GROUP_CODE_PREFIX,
-    NOTE_CODE_PREFIX,
+    JOURNAL_CODE_PREFIX,
     STAGE_CODE_PREFIX,
     TASK_CODE_PREFIX,
 )
@@ -95,9 +95,9 @@ CHANGE_ENTITIES = (
         refs=(Code("task_code", TASK_CODE_PREFIX),),
     ),
     ChangeEntity(
-        "tasks.note",
-        models.TasksNote,
-        id=Code("code", NOTE_CODE_PREFIX),
+        "tasks.journal",
+        models.TasksJournal,
+        id=Code("code", JOURNAL_CODE_PREFIX),
         refs=(Code("task_code", TASK_CODE_PREFIX), Code("stage_code", STAGE_CODE_PREFIX)),
     ),
 )

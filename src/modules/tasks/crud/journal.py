@@ -1,9 +1,9 @@
-"""CRUD for ``TasksNote`` — the work journal. Each function owns its session.
+"""CRUD for ``TasksJournal`` — the work journal. Each function owns its session.
 
 Entries are never deleted by the agent and never re-titled, and this layer has no entry edit at
 all; the one editable part is the body, which only the MCP content handler writes
-(``mcp/content/note.py``). ``note_resolve`` fills the resolution **once**. A repeat call on an already resolved entry is
-refused — otherwise history could be rewritten to fit the outcome, and analysing a failure would
+(``mcp/content/journal.py``). ``journal_resolve`` fills the resolution **once**. A repeat call on
+an already resolved entry is refused — otherwise history could be rewritten to fit the outcome, and analysing a failure would
 stop meaning anything. A reversal is recorded as a new entry, not as an edit of the old one.
 
 Who writes which half of a row is not this layer's call: that is the surface (MCP/HTTP) — the agent
@@ -22,15 +22,15 @@ from src.core.database import session_scope, write_scope
 from src.modules.core_changes import DELETED, mark_changes
 from src.modules.tasks.codes import new_code
 from src.modules.tasks.constants import (
-    NOTE_BODY_MAX,
-    NOTE_TYPES,
-    NOTE_TYPES_OPENABLE,
+    JOURNAL_BODY_MAX,
+    JOURNAL_TYPES,
+    JOURNAL_TYPES_OPENABLE,
     RESOLUTION_MAX,
     TASK_TYPES_WITH_PLAN,
     TITLE_MAX,
 )
-from src.modules.tasks.errors import NOTE_ALREADY_RESOLVED, TaskRuleError
-from src.modules.tasks.models.note import TasksNote
+from src.modules.tasks.errors import JOURNAL_ALREADY_RESOLVED, TaskRuleError
+from src.modules.tasks.models.journal import TasksJournal
 from src.modules.tasks.models.stage import TasksStage
 from src.modules.tasks.models.task import TasksTask
 from src.modules.tasks.text import clip
@@ -71,7 +71,7 @@ async def _require_stage_of(s, stage_code: str, task_code: str) -> None:
         )
 
 
-async def note_create(
+async def journal_create(
     *,
     task_code: str,
     type: str,
@@ -79,28 +79,28 @@ async def note_create(
     body: str | None = None,
     stage_code: str | None = None,
     resolution: str | None = None,
-) -> TasksNote:
+) -> TasksJournal:
     """Create a journal entry.
 
     ``resolution`` at creation makes sense only for ``fact``: a fact is resolved the moment it is
     written and has nothing to wait for. The other types start open and are closed by
-    ``note_resolve``.
+    ``journal_resolve``.
     """
-    if type not in NOTE_TYPES:
+    if type not in JOURNAL_TYPES:
         raise ValueError(
-            f"Unknown note type {type!r}; expected one of {', '.join(NOTE_TYPES)}."
+            f"Unknown journal entry type {type!r}; expected one of {', '.join(JOURNAL_TYPES)}."
         )
     async with write_scope() as s:
         await _require_planned_task(s, task_code)
         if stage_code:
             await _require_stage_of(s, stage_code, task_code)
-        row = TasksNote(
+        row = TasksJournal(
             code=new_code(),
             task_code=task_code,
             stage_code=stage_code or None,
             type=type,
             title=clip(title, TITLE_MAX),
-            body=clip(body, NOTE_BODY_MAX),
+            body=clip(body, JOURNAL_BODY_MAX),
             resolution=clip(resolution, RESOLUTION_MAX),
         )
         s.add(row)
@@ -109,29 +109,29 @@ async def note_create(
     return row
 
 
-async def note_get(code: str) -> TasksNote | None:
+async def journal_get(code: str) -> TasksJournal | None:
     async with session_scope() as s:
-        return await s.get(TasksNote, code)
+        return await s.get(TasksJournal, code)
 
 
-async def note_list_by_task(
+async def journal_list_by_task(
     task_code: str, *, type: str | None = None, open_only: bool = False
-) -> list[TasksNote]:
+) -> list[TasksJournal]:
     """The task's journal in order of appearance; can be narrowed to one type or to open entries."""
     stmt = (
-        select(TasksNote)
-        .where(TasksNote.task_code == task_code)
-        .order_by(TasksNote.created_at.asc(), TasksNote.code.asc())
+        select(TasksJournal)
+        .where(TasksJournal.task_code == task_code)
+        .order_by(TasksJournal.created_at.asc(), TasksJournal.code.asc())
     )
     if type is not None:
-        stmt = stmt.where(TasksNote.type == type)
+        stmt = stmt.where(TasksJournal.type == type)
     if open_only:
-        stmt = stmt.where(TasksNote.resolution == "")
+        stmt = stmt.where(TasksJournal.resolution == "")
     async with session_scope() as s:
         return list((await s.execute(stmt)).scalars().all())
 
 
-async def note_resolve(code: str, resolution: str) -> TasksNote | None:
+async def journal_resolve(code: str, resolution: str) -> TasksJournal | None:
     """Resolve an entry. ``None`` — no such entry; already resolved — ``TaskRuleError``.
 
     Whitespace is stripped BEFORE the emptiness check: otherwise a whitespace-only string would
@@ -141,12 +141,12 @@ async def note_resolve(code: str, resolution: str) -> TasksNote | None:
     if not text:
         raise ValueError("Resolution cannot be empty — an entry is closed by what was decided.")
     async with write_scope() as s:
-        row = await s.get(TasksNote, code)
+        row = await s.get(TasksJournal, code)
         if row is None:
             return None
         if row.resolution:
             raise TaskRuleError(
-                NOTE_ALREADY_RESOLVED,
+                JOURNAL_ALREADY_RESOLVED,
                 f"Entry {code!r} is already resolved, and a resolution is written once — "
                 "record a new entry instead of rewriting this one.",
             )
@@ -156,51 +156,51 @@ async def note_resolve(code: str, resolution: str) -> TasksNote | None:
     return row
 
 
-async def note_delete(code: str) -> bool:
+async def journal_delete(code: str) -> bool:
     """Hard-delete an entry. Not exposed to the agent — cleaning the journal is the person's job."""
     async with write_scope() as s:
-        row = await s.get(TasksNote, code)
+        row = await s.get(TasksJournal, code)
         if row is None:
             return False
-        await s.execute(sa_delete(TasksNote).where(TasksNote.code == code))
+        await s.execute(sa_delete(TasksJournal).where(TasksJournal.code == code))
         # A bulk statement yields no objects — so we name the code to the change feed ourselves.
-        mark_changes(s, "tasks.note", DELETED, [code])
+        mark_changes(s, "tasks.journal", DELETED, [code])
     return True
 
 
-async def note_open_count_by_task_codes(
-    task_codes: list[str], *, types: tuple[str, ...] = NOTE_TYPES_OPENABLE
+async def journal_open_count_by_task_codes(
+    task_codes: list[str], *, types: tuple[str, ...] = JOURNAL_TYPES_OPENABLE
 ) -> dict[str, int]:
     """``task_code → number of open entries`` of the given types.
 
-    ``fact`` is not in ``NOTE_TYPES_OPENABLE`` at all: it is resolved the moment it is written and
+    ``fact`` is not in ``JOURNAL_TYPES_OPENABLE`` at all: it is resolved the moment it is written and
     waits for nothing. The other three do wait, but for **different** things — hence the parameter.
 
     For display to the person, everything open is counted. For the **hand-off count** — only
-    ``NOTE_TYPES_BLOCKING`` (decision and remark): those are the executor's to settle. A finding
+    ``JOURNAL_TYPES_BLOCKING`` (decision and remark): those are the executor's to settle. A finding
     is not counted here — it is addressed to the person, who triages it in their own order. The
     count is reported, not enforced: the hand-off itself is never refused for it.
     """
     if not task_codes:
         return {}
     stmt = (
-        select(TasksNote.task_code, func.count())
+        select(TasksJournal.task_code, func.count())
         .where(
-            TasksNote.task_code.in_(task_codes),
-            TasksNote.resolution == "",
-            TasksNote.type.in_(types),
+            TasksJournal.task_code.in_(task_codes),
+            TasksJournal.resolution == "",
+            TasksJournal.type.in_(types),
         )
-        .group_by(TasksNote.task_code)
+        .group_by(TasksJournal.task_code)
     )
     async with session_scope() as s:
         return {code: count for code, count in (await s.execute(stmt)).all()}
 
 
 __all__ = [
-    "note_create",
-    "note_delete",
-    "note_get",
-    "note_list_by_task",
-    "note_open_count_by_task_codes",
-    "note_resolve",
+    "journal_create",
+    "journal_delete",
+    "journal_get",
+    "journal_list_by_task",
+    "journal_open_count_by_task_codes",
+    "journal_resolve",
 ]

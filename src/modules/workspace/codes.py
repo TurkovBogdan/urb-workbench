@@ -13,7 +13,7 @@ missing row, and the refusal names both types.
 
 **A code is upper case, whole.** It is generated, stored and returned that way, and every code
 that comes in is folded to upper case before it reaches SQL — so a lower-case code from before
-the switch (a client config, a link in a note) still finds its row. The comparison in the
+the switch (a client config, a link in a text) still finds its row. The comparison in the
 database is case-sensitive on both providers; the fold here is what makes the case not matter.
 """
 

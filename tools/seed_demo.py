@@ -35,10 +35,10 @@ from src.core.database import close_database, init_database
 from src.core.utils.date import utc_now
 from src.modules.tasks.constants import (
     ACTOR_AGENT,
-    NOTE_DECISION,
-    NOTE_FACT,
-    NOTE_FINDING,
-    NOTE_REMARK,
+    JOURNAL_DECISION,
+    JOURNAL_FACT,
+    JOURNAL_FINDING,
+    JOURNAL_REMARK,
     PRIORITY_BURNING,
     PRIORITY_FROZEN,
     PRIORITY_HIGH,
@@ -57,7 +57,7 @@ from src.modules.tasks.constants import (
 )
 from src.modules.tasks.crud import group as group_crud
 from src.modules.tasks.crud import link as link_crud
-from src.modules.tasks.crud import note as note_crud
+from src.modules.tasks.crud import journal as journal_crud
 from src.modules.tasks.crud import stage as stage_crud
 from src.modules.tasks.crud import task as task_crud
 from src.modules.workspace.crud import workspace as workspace_crud
@@ -147,15 +147,15 @@ DEV_TASKS = [
              "body": "Serialising the old field in the list response breaks — investigating."},
             {"title": "Frontend and column removal", "description": "Client update and legacy removal", "status": STATUS_PLANNED},
         ],
-        "notes": [
-            {"type": NOTE_DECISION, "title": "Dual write for the duration of the move",
+        "journal": [
+            {"type": JOURNAL_DECISION, "title": "Dual write for the duration of the move",
              "body": "Write to both tables, read from the new one. Otherwise a rollback loses a day of payments.",
              "resolution": "Checked on a database copy: no discrepancies"},
-            {"type": NOTE_DECISION, "title": "What to do with invoices from before 2024",
+            {"type": JOURNAL_DECISION, "title": "What to do with invoices from before 2024",
              "body": "Move them, or keep them in an archive table? No answer yet — not moving them for now."},
-            {"type": NOTE_FACT, "title": "Rows in pricing_plan: 1842", "body": "61 of them live",
+            {"type": JOURNAL_FACT, "title": "Rows in pricing_plan: 1842", "body": "61 of them live",
              "resolution": "recorded"},
-            {"type": NOTE_FINDING, "title": "N+1 on the invoice list in `crud/invoice.py`",
+            {"type": JOURNAL_FINDING, "title": "N+1 on the invoice list in `crud/invoice.py`",
              "body": "Every row fetches its plan with a separate query. Not part of this task."},
         ],
         "children": [
@@ -187,8 +187,8 @@ DEV_TASKS = [
             {"title": "Fix and pin with a test", "status": STATUS_DONE,
              "evidence": "pytest tests/modules/billing/test_api_invoice.py -q → 12 passed"},
         ],
-        "notes": [
-            {"type": NOTE_REMARK, "title": "Check the edit form too, not only the create form",
+        "journal": [
+            {"type": JOURNAL_REMARK, "title": "Check the edit form too, not only the create form",
              "body": "From the task's author, during the work.", "resolution": "Checked — same bug there, fixed both"},
         ],
     },
@@ -207,8 +207,8 @@ DEV_TASKS = [
             {"title": "Token fix", "status": STATUS_DONE, "evidence": "web/src/styles/tokens.css:41"},
             {"title": "Screen walkthrough", "description": "Tasks, groups, workspaces, research", "status": STATUS_IN_PROGRESS},
         ],
-        "notes": [
-            {"type": NOTE_FACT, "title": "Contrast was 1.02:1", "body": "Measured in DevTools", "resolution": "recorded"},
+        "journal": [
+            {"type": JOURNAL_FACT, "title": "Contrast was 1.02:1", "body": "Measured in DevTools", "resolution": "recorded"},
         ],
     },
     {
@@ -225,8 +225,8 @@ DEV_TASKS = [
         # between the levels would remain words in the handbook.
         "plan": "Grouping in a computed, the backend sets the order. Touched stores/tasks.store.ts "
                 "(sections) and components/TaskListTable.vue.",
-        "notes": [
-            {"type": NOTE_DECISION, "title": "The \"No group\" section goes last",
+        "journal": [
+            {"type": JOURNAL_DECISION, "title": "The \"No group\" section goes last",
              "body": "It is the remainder, not a theme on par with the others.", "resolution": "Agreed with the task's author"},
         ],
     },
@@ -241,8 +241,8 @@ DEV_TASKS = [
         "constraints": "- ask first: dependency upgrades with breaking changes",
         "criteria": "1. The full test run is green on 3.13\n2. The frontend build is unaffected",
         "plan": "A run on a branch first, then an update of the installation's environment.",
-        "notes": [
-            {"type": NOTE_DECISION, "title": "Waiting for an asyncpg release that supports 3.13",
+        "journal": [
+            {"type": JOURNAL_DECISION, "title": "Waiting for an asyncpg release that supports 3.13",
              "body": "Otherwise it has to be built from source."},
         ],
     },
@@ -345,15 +345,15 @@ CLIENT_TASKS = [
             {"title": "Abandoned webhook approach", "status": STATUS_CANCELED,
              "description": "Their side does not send webhooks — dropped"},
         ],
-        "notes": [
-            {"type": NOTE_REMARK, "title": "The deadline cannot move, acceptance is on the 30th",
+        "journal": [
+            {"type": JOURNAL_REMARK, "title": "The deadline cannot move, acceptance is on the 30th",
              "body": "From the client on a call."},
-            {"type": NOTE_DECISION, "title": "Idempotency by their order_id, not ours",
+            {"type": JOURNAL_DECISION, "title": "Idempotency by their order_id, not ours",
              "body": "Their id is stable across retries; ours is generated on insert.",
              "resolution": "Checked: a retry does not create a duplicate"},
-            {"type": NOTE_FINDING, "title": "Their test environment returns 500 on an empty list",
+            {"type": JOURNAL_FINDING, "title": "Their test environment returns 500 on an empty list",
              "body": "Not our area, but their team should be told."},
-            {"type": NOTE_FACT, "title": "Their API timeout is 8 s per request",
+            {"type": JOURNAL_FACT, "title": "Their API timeout is 8 s per request",
              "body": "Measured over 50 requests, median 3.1 s", "resolution": "recorded"},
         ],
     },
@@ -379,7 +379,7 @@ CLIENT_TASKS = [
 TASK_SPEC_KEYS = frozenset({
     "title", "description", "context", "constraints", "criteria", "plan", "progress", "result",
     "type", "status", "priority", "group", "created_by", "deadline_days", "deleted",
-    "stages", "notes", "children",
+    "stages", "journal", "children",
 })
 
 
@@ -432,17 +432,17 @@ async def seed_task(*, workspace_code: str, spec: dict, groups: dict[str, str], 
                 await stage_crud.stage_update_status(stage.code, STATUS_IN_PROGRESS)
             await stage_crud.stage_update_status(stage.code, stage_status)
 
-    for note_spec in spec.get("notes", []):
-        await note_crud.note_create(
+    for entry_spec in spec.get("journal", []):
+        await journal_crud.journal_create(
             task_code=task.code,
-            type=note_spec["type"],
-            title=note_spec["title"],
-            body=note_spec.get("body", ""),
-            resolution=note_spec.get("resolution", "") if note_spec["type"] == NOTE_FACT else "",
+            type=entry_spec["type"],
+            title=entry_spec["title"],
+            body=entry_spec.get("body", ""),
+            resolution=entry_spec.get("resolution", "") if entry_spec["type"] == JOURNAL_FACT else "",
         )
-        if note_spec.get("resolution") and note_spec["type"] != NOTE_FACT:
-            entries = await note_crud.note_list_by_task(task.code)
-            await note_crud.note_resolve(entries[-1].code, note_spec["resolution"])
+        if entry_spec.get("resolution") and entry_spec["type"] != JOURNAL_FACT:
+            entries = await journal_crud.journal_list_by_task(task.code)
+            await journal_crud.journal_resolve(entries[-1].code, entry_spec["resolution"])
 
     for child in spec.get("children", []):
         await seed_task(workspace_code=workspace_code, spec=child, groups=groups, parent_code=task.code)

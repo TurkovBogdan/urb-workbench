@@ -20,7 +20,7 @@ from src.modules.core_changes.entities import clear_entities, register_entity
 from src.modules.tasks.constants import TYPE_EXTENDED
 from src.modules.tasks.crud.group import group_create, group_delete, group_update
 from src.modules.tasks.crud.link import link_reorder
-from src.modules.tasks.crud.note import note_create, note_delete, note_resolve
+from src.modules.tasks.crud.journal import journal_create, journal_delete, journal_resolve
 from src.modules.tasks.crud.stage import stage_create, stage_delete, stage_update
 from src.modules.tasks.crud.task import task_create, task_delete, task_restore, task_update
 from src.modules.tasks.module import CHANGE_ENTITIES
@@ -188,20 +188,20 @@ async def test_stage_lifecycle_refers_to_its_task(workspace, feed):
     assert _find(await feed(), "tasks.stage", "deleted")["ids"] == [f"STAGE@{stage.code}"]
 
 
-async def test_note_lifecycle_refers_to_its_task(workspace, feed):
+async def test_journal_lifecycle_refers_to_its_task(workspace, feed):
     task = await task_create(workspace_code=workspace.code, title="Выпуск", type=TYPE_EXTENDED)
     await feed()
 
-    note = await note_create(task_code=task.code, type="decision", title="Берём SSE")
-    created = _find(await feed(), "tasks.note", "created")
-    assert created["ids"] == [f"NOTE@{note.code}"]
+    entry = await journal_create(task_code=task.code, type="decision", title="Берём SSE")
+    created = _find(await feed(), "tasks.journal", "created")
+    assert created["ids"] == [f"JOURNAL@{entry.code}"]
     assert created["refs"] == [f"TASK@{task.code}"]
 
-    await note_resolve(note.code, "Решено")
-    assert _find(await feed(), "tasks.note", "updated")["ids"] == [f"NOTE@{note.code}"]
+    await journal_resolve(entry.code, "Решено")
+    assert _find(await feed(), "tasks.journal", "updated")["ids"] == [f"JOURNAL@{entry.code}"]
 
-    await note_delete(note.code)
-    assert _find(await feed(), "tasks.note", "deleted")["ids"] == [f"NOTE@{note.code}"]
+    await journal_delete(entry.code)
+    assert _find(await feed(), "tasks.journal", "deleted")["ids"] == [f"JOURNAL@{entry.code}"]
 
 
 async def test_failed_write_publishes_nothing(workspace, feed):
@@ -219,9 +219,9 @@ async def test_content_edits_reach_the_feed_for_every_field(workspace, feed):
 
     task = await task_create(workspace_code=workspace.code, title="Выпуск", type=TYPE_EXTENDED)
     stage = await stage_create(task_code=task.code, title="Сборка")
-    note = await note_create(task_code=task.code, type="decision", title="Берём SSE")
-    codes = {"TASK": f"TASK@{task.code}", "STAGE": f"STAGE@{stage.code}", "NOTE": f"NOTE@{note.code}"}
-    entities = {"TASK": "tasks.task", "STAGE": "tasks.stage", "NOTE": "tasks.note"}
+    entry = await journal_create(task_code=task.code, type="decision", title="Берём SSE")
+    codes = {"TASK": f"TASK@{task.code}", "STAGE": f"STAGE@{stage.code}", "JOURNAL": f"JOURNAL@{entry.code}"}
+    entities = {"TASK": "tasks.task", "STAGE": "tasks.stage", "JOURNAL": "tasks.journal"}
     await feed()
 
     for (prefix, field), handler in MCP_CONTENT_HANDLERS.items():

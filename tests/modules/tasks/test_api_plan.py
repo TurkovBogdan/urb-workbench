@@ -1,7 +1,7 @@
 """The plan's HTTP API: stages, the journal, and what the task detail returns in one response.
 
 This tests the boundary, not the rules: the rules themselves live in ``test_stage.py`` and
-``test_note.py``. What matters to the endpoint is different — which status a refusal answers
+``test_journal.py``. What matters to the endpoint is different — which status a refusal answers
 with, whether the rule CODE travels with it (the interface shows its own wording by that code
 rather than an English phrase from deep inside the CRUD), and whether stages and the journal
 arrive inside the task card.
@@ -12,22 +12,22 @@ from __future__ import annotations
 import pytest
 
 from src.modules.tasks.constants import (
-    NOTE_DECISION,
-    NOTE_FACT,
+    JOURNAL_DECISION,
+    JOURNAL_FACT,
     STATUS_DONE,
     TYPE_EXTENDED,
 )
-from src.modules.tasks.crud import note as note_crud
+from src.modules.tasks.crud import journal as journal_crud
 from src.modules.tasks.crud import stage as stage_crud
 from src.modules.tasks.crud import task as task_crud
-from src.modules.tasks.errors import NOTE_ALREADY_RESOLVED, STAGE_EVIDENCE_REQUIRED
+from src.modules.tasks.errors import JOURNAL_ALREADY_RESOLVED, STAGE_EVIDENCE_REQUIRED
 from src.modules.workspace.crud import workspace as workspace_crud
 
 pytestmark = pytest.mark.db
 
 TASKS = "/internal/workbench/tasks"
 STAGES = "/internal/workbench/stages"
-NOTES = "/internal/workbench/notes"
+JOURNAL = "/internal/workbench/journal"
 
 
 async def _task(title: str = "Перенести тарифы"):
@@ -145,39 +145,39 @@ async def test_a_foreign_prefix_in_the_stage_segment_is_400(client):
 # ── journal ───────────────────────────────────────────────────────────────────
 
 
-async def test_note_create_returns_an_open_entry(client):
+async def test_journal_create_returns_an_open_entry(client):
     task = await _task()
 
     response = await client.post(
-        f"{TASKS}/{task.code}/notes",
-        json={"type": NOTE_DECISION, "title": "Взяли SSE", "body": "поток односторонний"},
+        f"{TASKS}/{task.code}/journal",
+        json={"type": JOURNAL_DECISION, "title": "Взяли SSE", "body": "поток односторонний"},
     )
 
     assert response.status_code == 201
     body = response.json()
     assert body["resolution"] == ""
-    assert body["code"].startswith("NOTE@")
+    assert body["code"].startswith("JOURNAL@")
 
 
-async def test_note_create_with_an_unknown_type_is_400(client):
+async def test_journal_create_with_an_unknown_type_is_400(client):
     task = await _task()
 
     response = await client.post(
-        f"{TASKS}/{task.code}/notes", json={"type": "мысль", "title": "Что-то"}
+        f"{TASKS}/{task.code}/journal", json={"type": "мысль", "title": "Что-то"}
     )
 
     assert response.status_code == 400
 
 
-async def test_note_list_narrows_to_open_entries(client):
+async def test_journal_list_narrows_to_open_entries(client):
     task = await _task()
-    await note_crud.note_create(
-        task_code=task.code, type=NOTE_FACT, title="Факт", resolution="записано"
+    await journal_crud.journal_create(
+        task_code=task.code, type=JOURNAL_FACT, title="Факт", resolution="записано"
     )
-    await note_crud.note_create(task_code=task.code, type=NOTE_DECISION, title="Решение")
+    await journal_crud.journal_create(task_code=task.code, type=JOURNAL_DECISION, title="Решение")
 
     body = (
-        await client.get(f"{TASKS}/{task.code}/notes", params={"open_only": True})
+        await client.get(f"{TASKS}/{task.code}/journal", params={"open_only": True})
     ).json()
 
     assert [row["title"] for row in body] == ["Решение"]
@@ -185,12 +185,12 @@ async def test_note_list_narrows_to_open_entries(client):
 
 async def test_resolve_closes_the_entry(client):
     task = await _task()
-    note = await note_crud.note_create(
-        task_code=task.code, type=NOTE_DECISION, title="Куда девать agent"
+    entry = await journal_crud.journal_create(
+        task_code=task.code, type=JOURNAL_DECISION, title="Куда девать agent"
     )
 
     body = (
-        await client.post(f"{NOTES}/{note.code}/resolve", json={"resolution": "в standard"})
+        await client.post(f"{JOURNAL}/{entry.code}/resolve", json={"resolution": "в standard"})
     ).json()
 
     assert body["resolution"] == "в standard"
@@ -199,21 +199,21 @@ async def test_resolve_closes_the_entry(client):
 async def test_second_resolve_is_409_with_the_rule_code(client):
     """The journal is append-only: a repeat is not a "bad request" but a state conflict."""
     task = await _task()
-    note = await note_crud.note_create(
-        task_code=task.code, type=NOTE_DECISION, title="Куда девать agent"
+    entry = await journal_crud.journal_create(
+        task_code=task.code, type=JOURNAL_DECISION, title="Куда девать agent"
     )
-    await note_crud.note_resolve(note.code, "в standard")
+    await journal_crud.journal_resolve(entry.code, "в standard")
 
     response = await client.post(
-        f"{NOTES}/{note.code}/resolve", json={"resolution": "нет, в extended"}
+        f"{JOURNAL}/{entry.code}/resolve", json={"resolution": "нет, в extended"}
     )
 
     assert response.status_code == 409
-    assert response.json()["code"] == NOTE_ALREADY_RESOLVED
+    assert response.json()["code"] == JOURNAL_ALREADY_RESOLVED
 
 
 async def test_resolve_of_a_missing_entry_is_404(client):
-    response = await client.post(f"{NOTES}/0000000000/resolve", json={"resolution": "готово"})
+    response = await client.post(f"{JOURNAL}/0000000000/resolve", json={"resolution": "готово"})
 
     assert response.status_code == 404
 
@@ -234,7 +234,7 @@ async def test_task_detail_carries_the_brief_the_plan_and_both_lists(client):
         result="Модели и API на месте",
     )
     await stage_crud.stage_create(task_code=task.code, title="Модели")
-    await note_crud.note_create(task_code=task.code, type=NOTE_DECISION, title="Решение")
+    await journal_crud.journal_create(task_code=task.code, type=JOURNAL_DECISION, title="Решение")
 
     body = (await client.get(f"{TASKS}/{task.code}")).json()
 
@@ -246,7 +246,8 @@ async def test_task_detail_carries_the_brief_the_plan_and_both_lists(client):
     assert body["result"] == "Модели и API на месте"
     assert "body" not in body
     assert [row["title"] for row in body["stages"]] == ["Модели"]
-    assert [row["title"] for row in body["notes"]] == ["Решение"]
+    assert [row["title"] for row in body["journal"]] == ["Решение"]
+    assert "notes" not in body
 
 
 async def test_task_list_row_carries_neither_stages_nor_journal(client):

@@ -37,7 +37,7 @@ from src.core.utils.date import DatetimeUTCStr
 from src.modules.tasks.codes import prefixed
 from src.modules.tasks.constants import (
     GROUP_CODE_PREFIX,
-    NOTE_CODE_PREFIX,
+    JOURNAL_CODE_PREFIX,
     SORT_DEFAULT,
     STAGE_CODE_PREFIX,
     TASK_CODE_PREFIX,
@@ -54,7 +54,7 @@ WorkspaceCode = prefixed(WORKSPACE_CODE_PREFIX)
 GroupCode = prefixed(GROUP_CODE_PREFIX)
 TaskCode = prefixed(TASK_CODE_PREFIX)
 StageCode = prefixed(STAGE_CODE_PREFIX)
-NoteCode = prefixed(NOTE_CODE_PREFIX)
+JournalCode = prefixed(JOURNAL_CODE_PREFIX)
 
 
 class GroupRow(BaseModel):
@@ -146,7 +146,7 @@ class StageRow(BaseModel):
     updated_at: DatetimeUTCStr
 
 
-class NoteRow(BaseModel):
+class JournalRow(BaseModel):
     """A journal entry: the subject (``title`` + ``body``) and the resolution.
 
     There is no separate "open" flag: it is derived from an empty ``resolution``, and keeping a
@@ -155,7 +155,7 @@ class NoteRow(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    code: NoteCode
+    code: JournalCode
     task_code: TaskCode
     stage_code: StageCode | None = None
     type: str
@@ -192,7 +192,7 @@ class TaskDetail(TaskListRow):
     parent: TaskListRow | None = None
     children: list[TaskListRow] = []
     stages: list[StageRow] = []
-    notes: list[NoteRow] = []
+    journal: list[JournalRow] = []
 
 
 # A group as the agent sees it: where to put a task and what is already there. No styling (color,
@@ -268,10 +268,10 @@ class AgentStageRow(BaseModel):
 
 # A journal entry. There is no "open" flag — it is derived from an empty ``resolution``, and
 # keeping a computable flag alongside would create a second source of truth for the same thing.
-class AgentNoteRow(BaseModel):
+class AgentJournalRow(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    code: NoteCode
+    code: JournalCode
     type: str
     title: str
     body: str = ""
@@ -312,8 +312,8 @@ class AgentTaskDetail(AgentScope):
     canceled_at: DatetimeUTCStr | None = None
     children: list[AgentTaskRow] = []
     stages: list[AgentStageRow] = []
-    open_notes: list[AgentNoteRow] = []
-    closed_notes: int = 0
+    open_entries: list[AgentJournalRow] = []
+    closed_entries: int = 0
     unfinished_stages: int = 0
 
 
@@ -328,19 +328,19 @@ class AgentStageCreated(AgentScope):
     number: int
 
 
-class AgentNoteCreated(AgentScope):
-    code: NoteCode
+class AgentJournalCreated(AgentScope):
+    code: JournalCode
 
 
 # A status change response carries not only the new status but also what still hangs on the
-# task: this is the one moment the agent thinks about it. ``blocking_notes`` are those that block
-# hand-off (decision and remark); ``open_notes`` additionally counts findings, which the person
-# triages.
+# task: this is the one moment the agent thinks about it. ``blocking_entries`` are the open
+# journal entries the executor settles (decision and remark); ``open_entries`` additionally counts
+# findings, which the person triages. Neither refuses the hand-off — they are counted.
 class AgentTaskStatus(AgentScope):
     code: TaskCode
     status: str
-    open_notes: int = 0
-    blocking_notes: int = 0
+    open_entries: int = 0
+    blocking_entries: int = 0
     unfinished_stages: int = 0
 
 
@@ -352,8 +352,8 @@ class AgentStageChanged(AgentScope):
     task_status: str
 
 
-class AgentNoteList(AgentScope):
-    notes: list[AgentNoteRow] = []
+class AgentJournalList(AgentScope):
+    entries: list[AgentJournalRow] = []
 
 
 # ── content editor ────────────────────────────────────────────────────────────
@@ -407,9 +407,9 @@ __all__ = [
     "AgentContentSet",
     "AgentGroupList",
     "AgentGroupRow",
-    "AgentNoteCreated",
-    "AgentNoteList",
-    "AgentNoteRow",
+    "AgentJournalCreated",
+    "AgentJournalList",
+    "AgentJournalRow",
     "AgentStageChanged",
     "AgentStageCreated",
     "AgentStageRow",
@@ -422,8 +422,8 @@ __all__ = [
     "GroupCode",
     "GroupListRow",
     "GroupRow",
-    "NoteCode",
-    "NoteRow",
+    "JournalCode",
+    "JournalRow",
     "StageCode",
     "StageRow",
     "TaskCode",
