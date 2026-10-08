@@ -65,8 +65,8 @@ producing selective compliance; five that matter beat twenty that do not.
 
 ## Which fields a task actually needs
 
-`simple` — a title and a goal, nothing else: no brief, no plan, no journal. Often a job for a
-person rather than for you.
+`simple` — a title, a goal and the context: what to know before starting. No constraints, no
+criteria, no plan, no journal. Often a job for a person rather than for you.
 `standard` — the four fields above, a plan written as prose, and a journal. The normal profile.
 `extended` — the same plus **stages**: the plan broken into steps, each with its own state and
 its own evidence. That is the whole difference, and it is a real one — a step is a thing you can

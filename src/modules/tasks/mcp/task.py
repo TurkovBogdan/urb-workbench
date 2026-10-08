@@ -248,8 +248,8 @@ def register(mcp: "FastMCP") -> None:
                 reference implementation, a domain term. Markdown.
             constraints: What may change, what to ask about first, what must never be touched.
             criteria: Checkable conditions of done, one per line, each with what proves it.
-            type: simple (a title and a goal, nothing else) / standard (brief, plan as prose,
-                journal) / extended (all of that plus stages — the plan broken into steps, each
+            type: simple (a title, a goal and the context, nothing else) / standard (the full
+                brief, plan as prose, journal) / extended (all of that plus stages — the plan broken into steps, each
                 closed with its own evidence). Pick extended when the work outlasts one sitting;
                 a standard task refuses stages and says so.
             priority: burning / high / normal / low / frozen. Default normal.
