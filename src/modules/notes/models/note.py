@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import String, text
+from sqlalchemy import Index, String, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.core.database import SoftDeleteMixin
@@ -30,6 +30,8 @@ from src.modules.notes.constants import BODY_MAX, CODE_LEN, DESCRIPTION_MAX, TIT
 
 class Note(SoftDeleteMixin, Base):
     __tablename__ = "notes"
+    # The list of every document: live ones, newest change first.
+    __table_args__ = (Index("ix_notes_deleted_updated", "deleted_at", "updated_at"),)
 
     code: Mapped[str] = mapped_column(String(CODE_LEN), primary_key=True)
     title: Mapped[str] = mapped_column(String(TITLE_MAX))

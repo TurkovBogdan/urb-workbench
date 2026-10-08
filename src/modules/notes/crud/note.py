@@ -1,4 +1,5 @@
-"""CRUD for ``Note`` — the service the consumers build on. Each function owns its own session.
+"""CRUD for ``Note`` — the service the consumers build on. Each function owns its own session,
+except that ``note_create`` can join the consumer's.
 
 Nothing here asks who the note is for: a consumer creates a note, keeps its code in a link table
 of its own, and reads it back by that code. A note without any link is legitimate — the module
@@ -13,9 +14,11 @@ events from the session's objects, and a bulk statement would reach a listener w
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import AsyncIterator, Iterable
+from contextlib import asynccontextmanager
 
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import defer
 
 from src.core.database import session_scope, write_scope
@@ -33,15 +36,35 @@ def _title(value: str) -> str:
     return title
 
 
-async def note_create(*, title: str, description: str | None = None, body: str | None = None) -> Note:
-    """Create a note; over a limit or an empty title — ``ValueError``, and nothing is written."""
+@asynccontextmanager
+async def _writing(session: AsyncSession | None) -> AsyncIterator[AsyncSession]:
+    """The caller's transaction when given, else one of our own."""
+    if session is not None:
+        yield session
+        return
+    async with write_scope() as s:
+        yield s
+
+
+async def note_create(
+    *,
+    title: str,
+    description: str | None = None,
+    body: str | None = None,
+    session: AsyncSession | None = None,
+) -> Note:
+    """Create a note; over a limit or an empty title — ``ValueError``, and nothing is written.
+
+    ``session`` — the consumer's open write transaction: the note and the consumer's link to it
+    are then written together, and a refused link leaves no note behind.
+    """
     row = Note(
         code=new_code(),
         title=_title(title),
         description=fit(description, DESCRIPTION_MAX, "Note description"),
         body=fit(body, BODY_MAX, "Note body"),
     )
-    async with write_scope() as s:
+    async with _writing(session) as s:
         s.add(row)
         await s.flush()
         await s.refresh(row)

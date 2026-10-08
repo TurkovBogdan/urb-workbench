@@ -35,7 +35,7 @@ entity of another module: an import from `src.modules.tasks`, a `task_code` colu
 "task" in a response.
 
 Not here yet, each its own piece of work: versions and protection against concurrent edits,
-search, the agent's tools.
+search. The agent's tools belong to the consumers — `tasks` has `task_note_*`.
 
 ## Which way the dependency points
 
@@ -51,14 +51,23 @@ knowing who held them.
 
 | Table | Columns | Revisions |
 | --- | --- | --- |
-| `notes` | `code` (PK, hex of length `CODE_LEN`), `title` (128), `description` (512), `body` (65536), `deleted_at`, `created_at`, `updated_at` | `ntm_001_notes` — the table |
+| `notes` | `code` (PK, hex of length `CODE_LEN`), `title` (128), `description` (512), `body` (65536), `deleted_at`, `created_at`, `updated_at` | `ntm_001_notes` — the table, `ntm_002_notes_list_index` — `ix_notes_deleted_updated` for the list of every document |
 
 One table — `notes`, without the module-name prefix: the module and the entity are one.
 
-The table will be the target of the consumers' FKs, and `depends_on` may only point at a
-revision that is not the head of its chain. The first consumer therefore needs a revision of this
-module on top of `ntm_001_notes` — the same split `workspace` has between `wkm_001` and
-`wkm_002`.
+The table is the target of the consumers' FKs, and `depends_on` may only point at a revision
+that is not the head of its chain. So the creating revision is buried under the next one, the
+same split `workspace` has between `wkm_001` and `wkm_002`: a consumer depends on
+`ntm_001_notes`, never on the head.
+
+## Consumers
+
+| Module | Link table | What a note is there |
+| --- | --- | --- |
+| `tasks` | `tasks_note` (`note_code` PK) | a task note: created with its task, belongs to that one task |
+
+A consumer that creates a note together with its link passes its own write transaction to
+`note_create(session=…)`: a refused link then leaves no note behind.
 
 The database holds the bare hex code in upper case. `NOTE@` is added at the boundary and stripped
 on input, in any case (`codes.py`, a copy of its own — the module cannot import a neighbour's); a
