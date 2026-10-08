@@ -234,7 +234,7 @@ async function removeGroup(fate: { tasks?: GroupTaskDisposal; target?: string })
           <template #prepend><IconFolderPlus :size="16" /></template>
           {{ t('tasks.group.list.add') }}
         </VBtn>
-        <VBtn color="primary" variant="flat" :disabled="!workspace" @click="create">
+        <VBtn variant="text" :disabled="!workspace" @click="create">
           <template #prepend><IconPlus :size="16" /></template>
           {{ t('tasks.task.list.add') }}
         </VBtn>
