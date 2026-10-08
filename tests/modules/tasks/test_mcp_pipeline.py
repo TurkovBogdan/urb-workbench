@@ -194,8 +194,12 @@ async def test_a_journal_entry_is_never_deleted(call, workspace, brief):
         "note_add", task_code=f"TASK@{brief.code}", type="fact", title="tariff.py:88"
     )
 
-    with pytest.raises(ToolError, match="append-only"):
+    with pytest.raises(ToolError, match="A journal entry is not deleted"):
         await call("delete", code=note["code"])
+
+    assert [row["code"] for row in (await call("notes_list", task_code=f"TASK@{brief.code}"))["notes"]] == [
+        note["code"]
+    ]
 
 
 async def test_only_the_extended_task_takes_stages(call, workspace):

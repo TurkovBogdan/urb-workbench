@@ -147,8 +147,8 @@ async def note_resolve(code: str, resolution: str) -> TasksNote | None:
         if row.resolution:
             raise TaskRuleError(
                 NOTE_ALREADY_RESOLVED,
-                f"Entry {code!r} is already resolved — record a new entry instead of "
-                "rewriting this one; the journal is append-only.",
+                f"Entry {code!r} is already resolved, and a resolution is written once — "
+                "record a new entry instead of rewriting this one.",
             )
         row.resolution = text
         await s.flush()

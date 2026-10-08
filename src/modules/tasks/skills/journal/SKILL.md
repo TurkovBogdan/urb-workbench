@@ -5,15 +5,23 @@ description: Read before the first journal entry of a task — which kind a line
 
 # The journal of a task
 
-One stream per task. An entry is never deleted, and its point and its verdict are never
-rewritten; changing your mind is a new entry pointing at the old one. What you *can* do later is
-add detail to its body, and **close** it — once — by saying what settled it.
+One stream per task. An entry is not deleted, and changing your mind is a new entry pointing at
+the old one. What you *can* do later is work on its body, and **close** it — once — by saying
+what settled it.
 
 An entry has two halves. The **subject** (`title` + `body`) says what came up. The
-**resolution** says what settled it. Open means the resolution is still empty. The `body` is
-content — `content_add(code, "body", …)` and its neighbours edit it, and the tools do not stop
-you rewriting it. Use that to add what you worked out, not to make an entry say something it
-did not: the title and the resolution stay as written.
+**resolution** says what settled it. Open means the resolution is still empty.
+
+What the tools let you change after the fact:
+
+| Part | Changed by |
+|---|---|
+| `title` | nothing — set once by `note_add` |
+| `body` | `content_set` / `content_replace` / `content_set_section` / `content_add`, on any entry and any state |
+| `resolution` | `note_resolve`, once; a second call is refused |
+
+The body being editable is for adding what you worked out — the option you checked, the line
+that confirmed it — not for making an entry say something it did not.
 
 The journal is not the progress diary. "Migration written → CRUD next" is where the work is, and
 it goes to the task's `progress`. The journal keeps what someone will later ask about: why it is
@@ -56,8 +64,10 @@ an exact string, write it down.
 
 ### `remark` — the requester's word about your work
 
-Not yours to write. You will see them in the journal and you close them, with what you did about
-it. An entry whose halves are written by the same hand answers to nobody.
+Not yours to write: `note_add` has no such type. You will see them in the journal and you close
+them, with what you did about it. An entry whose halves are written by the same hand answers to
+nobody — so your answer goes in the resolution, and the requester's words in the body stay
+theirs, even though the content tools would reach them.
 
 ## What holds up the hand-over
 

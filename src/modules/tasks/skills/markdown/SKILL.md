@@ -45,11 +45,17 @@ call flow. A diagram of three boxes that a sentence already said is worse than t
 
 ## Length
 
-Every content field edited through `content_set` and its neighbours is refused rather than
-trimmed when it goes over, and the refusal names the length of the result and how much over you
-are. So are `plan`, `progress` and `result` whichever way they are written, and the body passed
-to `stage_add`. This matters for plans specifically: the file list sits at the end, so trimming
-would remove the part worth keeping.
+What happens over a limit depends on the **tool**, not only on the field:
+
+- `content_set` and its neighbours **refuse** on every content field, and the refusal names the
+  length of the result and how much over you are;
+- `plan`, `progress` and `result` are refused whichever way they are written, and so is the
+  body passed to `stage_add`;
+- everything else — including `context`, `constraints` and `criteria` passed to `task_create` /
+  `task_update`, and the body passed to `note_add` — is **cut without a word** (second table).
+
+Refusing matters for plans specifically: the file list sits at the end, so trimming would remove
+the part worth keeping.
 
 | Content field | Limit |
 |---|---|
@@ -63,16 +69,14 @@ would remove the part worth keeping.
 
 If a plan is pressing the limit, the detail belongs in stages (an extended task) or a subtask.
 
-The other text fields — and the brief and the entry body when passed to `task_create`,
-`task_update` or `note_add` — are cut at their limit **without a word**. Stay under these, and
-read the task back when a field was long:
+Cut without a word — stay under these, and read the task back when a field was long:
 
-| Field | Limit |
+| Field, and the tool that writes it | Limit |
 |---|---|
 | title (task, stage, entry, group) | 128 |
 | goal `description`, stage `description` | 512 |
-| group `description` | 128 — refused over it, not cut |
-| `context` | 4048 |
-| `constraints`, `criteria` | 2048 |
-| entry body passed to `note_add` | 2048 |
+| group `description` — refused over it, not cut | 128 |
+| `context` via `task_create` / `task_update` | 4048 |
+| `constraints`, `criteria` via `task_create` / `task_update` | 2048 |
+| entry body via `note_add` | 2048 |
 | `evidence`, `resolution` | 1024 |

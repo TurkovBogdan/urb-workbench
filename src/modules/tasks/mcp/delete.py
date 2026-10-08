@@ -5,8 +5,8 @@ while they differ in exactly one thing — the cascade, which is bound to the ty
 here in a single list.
 
 Types that have no deletion hit a refusal that names the reason and what to do instead. The
-refusal here is not "forbidden" but a teaching channel: the journal is append-only, the layout
-belongs to the person, and the irreversible stays with the person too.
+refusal here is not "forbidden" but a teaching channel: a journal entry is history that stays,
+the layout belongs to the person, and the irreversible stays with the person too.
 """
 
 from __future__ import annotations
@@ -33,8 +33,9 @@ _DELETABLE = (TASK_CODE_PREFIX, STAGE_CODE_PREFIX)
 # Why not — per type. The text reaches the agent as is, so it names the way out, not the ban.
 _REFUSALS = {
     NOTE_CODE_PREFIX: (
-        "A journal entry is never deleted — the journal is append-only, and a history you can "
-        "edit answers nothing. Changed your mind: write a new entry pointing at the old one."
+        "A journal entry is not deleted — it is the history of how the work went, and a gap in "
+        "it answers nothing. Changed your mind: write a new entry pointing at the old one; "
+        "detail to add goes to its body with content_add(code, \"body\", …)."
     ),
     GROUP_CODE_PREFIX: (
         "Removing a group is the person's to do: the tasks filed there keep pointing at it, and "

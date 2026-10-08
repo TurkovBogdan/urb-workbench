@@ -92,9 +92,9 @@ def register(mcp: "FastMCP") -> None:
     async def note_resolve(note_code: str, resolution: str) -> AgentNoteRow:
         """Close a journal entry with what settled it.
 
-        Once only: the journal is append-only, and a resolution rewritten after the fact turns
-        the history into a story about how it was always going to work. Changed your mind — new
-        entry.
+        Once only: a second call on a resolved entry is refused — a resolution rewritten after
+        the fact turns the history into a story about how it was always going to work. Changed
+        your mind — new entry.
 
         A decision is settled by what it now rests on: the requester's answer, or your own check
         with the pointer to it. A remark is settled by how you took it into account.

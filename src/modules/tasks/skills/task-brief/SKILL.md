@@ -67,7 +67,8 @@ producing selective compliance; five that matter beat twenty that do not.
 
 `simple` — a title, a goal and the context: what to know before starting. No constraints, no
 criteria, no plan, no journal. Often a job for a person rather than for you.
-`standard` — the four fields above, a plan written as prose, and a journal. The normal profile.
+`standard` — the four fields above, the executor's work in three fields (`plan`, `progress`,
+`result`), and a journal. The normal profile.
 `extended` — the same plus **stages**: the plan broken into steps, each with its own state and
 its own evidence. That is the whole difference, and it is a real one — a step is a thing you can
 be part-way through, and tracking that only pays off when the work outlasts one sitting. Reach
