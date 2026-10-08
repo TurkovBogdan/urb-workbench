@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
+import HelpHint from './HelpHint.vue'
+
 // Section header — the in-page sibling of PageHeader: a title and optional description on the
 // left, an optional slot on the right (counter, button, badge). `level` sets BOTH the semantic tag
 // (h1…h6) AND the font size, so nested sections give a proper document structure rather than a
@@ -15,6 +17,8 @@ const props = withDefaults(defineProps<{
   level?: 1 | 2 | 3 | 4 | 5 | 6
   /** A number next to the title: how many items the section holds in total. */
   count?: number
+  /** An explanation behind a "?" right after the title — for what is read once, not every time. */
+  hint?: string
   /** Data is still loading — placeholders of their size stand in for the title and description. */
   loading?: boolean
 }>(), {
@@ -22,6 +26,7 @@ const props = withDefaults(defineProps<{
   description: undefined,
   level: 2,
   count: undefined,
+  hint: undefined,
   loading: false,
 })
 
@@ -44,6 +49,7 @@ const tag = computed(() => `h${props.level}` as const)
           <component :is="tag" class="section-header__title">
             {{ title }}
             <span v-if="count !== undefined" class="section-header__count">{{ count }}</span>
+            <HelpHint v-if="hint" :text="hint" />
           </component>
         </slot>
         <p v-if="description || $slots.description" class="section-header__desc">
