@@ -1,6 +1,6 @@
 ---
 name: journal
-description: Read before the first journal entry of a task — which kind a line is, what closing one means, and which of them hold up the hand-over.
+description: Read before the first journal entry of a task — which kind a line is, what closing one means, and which of them are counted at hand-over.
 ---
 
 # The journal of a task
@@ -51,8 +51,8 @@ A decision that never acquires either is an assumption you shipped, and it will 
 A defect, a debt, a strangeness in code *outside* this task. Write it the moment you see it:
 without somewhere to put it, it dies with the session and gets paid for again next time.
 
-A finding does **not** hold up your hand-over. It is addressed to a person, who triages it in
-their own order, and you have no way to close it — so it is not counted against you.
+A finding is not counted against your hand-over: it is addressed to a person, who triages it in
+their own order.
 
 ### `fact` — something to remember
 
@@ -69,12 +69,14 @@ them, with what you did about it. An entry whose halves are written by the same 
 nobody — so your answer goes in the resolution, and the requester's words in the body stay
 theirs, even though the content tools would reach them.
 
-## What holds up the hand-over
+## What is counted at hand-over
 
-`task_status(…, "in_review")` reports two numbers, and they are not the same:
+`task_status(…, "in_review")` hands the task over whatever is still open — it does not refuse.
+It reports two numbers, and they are not the same:
 
 - **blocking** — open `decision` and `remark`. Both are yours to settle: a decision needs its
-  foundation, a remark needs your answer. Clear them before handing over.
+  foundation, a remark needs your answer. Settle them before handing over, so the person does
+  not receive an assumption or an unanswered request.
 - **open** — the above plus findings, which are the person's to triage.
 
 ## Attaching to a stage

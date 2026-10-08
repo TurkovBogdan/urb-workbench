@@ -176,11 +176,10 @@ async def note_open_count_by_task_codes(
     ``fact`` is not in ``NOTE_TYPES_OPENABLE`` at all: it is resolved the moment it is written and
     waits for nothing. The other three do wait, but for **different** things — hence the parameter.
 
-    For display to the person, everything open is counted. For the **hand-off gate** — only
-    ``NOTE_TYPES_BLOCKING`` (decision and remark): those are within the power of whoever hands the
-    work in to close. A finding is not addressed here — the person triages it in their own order,
-    and were we to count it equally, the very first finding would lock the hand-off forever,
-    because the executor has no way to clear it.
+    For display to the person, everything open is counted. For the **hand-off count** — only
+    ``NOTE_TYPES_BLOCKING`` (decision and remark): those are the executor's to settle. A finding
+    is not counted here — it is addressed to the person, who triages it in their own order. The
+    count is reported, not enforced: the hand-off itself is never refused for it.
     """
     if not task_codes:
         return {}

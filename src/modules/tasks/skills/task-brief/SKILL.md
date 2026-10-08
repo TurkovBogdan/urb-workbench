@@ -66,7 +66,9 @@ producing selective compliance; five that matter beat twenty that do not.
 ## Which fields a task actually needs
 
 `simple` — a title, a goal and the context: what to know before starting. No constraints, no
-criteria, no plan, no journal. Often a job for a person rather than for you.
+criteria, no plan, no journal — `content_*` and `note_add` refuse them there and say to raise
+the type (`task_update` still sets constraints and criteria, but the page does not show them).
+Often a job for a person rather than for you.
 `standard` — the four fields above, the executor's work in three fields (`plan`, `progress`,
 `result`), and a journal. The normal profile.
 `extended` — the same plus **stages**: the plan broken into steps, each with its own state and

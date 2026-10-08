@@ -377,10 +377,11 @@ def register(mcp: "FastMCP") -> None:
         set. So is `canceled` — deciding that work will not happen is not a decision made from
         inside it.
 
-        The answer says what is still open on this task. Clear it before handing over, not
-        after: an unresolved decision is an assumption nobody has checked, and an unresolved
-        remark is a request you have not answered. A finding is different — it is about work
-        outside this task, and only a person closes it.
+        The hand-over is not refused for what is still open — the answer counts it. Settle it
+        before handing over, not after: an unresolved decision is an assumption nobody has
+        checked, and an unresolved remark is a request you have not answered. A finding is
+        different — it is about work outside this task, and a person triages it. Write what you
+        did in `result` before you hand over.
 
         Args:
             task_code: The task to move — a TASK@ code.

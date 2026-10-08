@@ -50,7 +50,7 @@ def register(mcp: "FastMCP") -> None:
         able to see them is the point.
         `finding` — something broken or owed that you noticed OUTSIDE this task. Without
         somewhere to put it the moment you see it, it dies with the session and gets paid for
-        again next time. It does not hold up your hand-over — a person triages it.
+        again next time. It is not counted against your hand-over — a person triages it.
         `fact` — a number, a path, an exact name, the reason something failed. Closed the moment
         it is written; it is waiting for nobody.
 
