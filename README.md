@@ -18,7 +18,7 @@ Inside a workspace there are **groups** — standing topics — and **tasks** �
 
 The agent may extend and refine the brief of any task, including one the person created — and it records an edit to someone else's brief as a journal entry. The one thing it does not do is accept the work. It hands finished work over in the `in_review` status — from there the person has the final word.
 
-Every entity has its own prefixed code — `WORKSPACE@`, `TASKGROUP@`, `TASK@`, `STAGE@`, `NOTE@`. The code is both the page address and the argument to any tool.
+Every entity has its own prefixed code — `WORKSPACE@`, `TASKGROUP@`, `TASK@`, `STAGE@`, `JOURNAL@`. The code is both the page address and the argument to any tool.
 
 ## What the agent can do
 
@@ -127,7 +127,7 @@ The command stops running MCP server instances, blocks new ones from starting wh
 └── tools/     # utility scripts (demo data seeding)
 ```
 
-There are six modules. Two are application modules: `workspace` (workspaces — the shared isolation level) and `tasks` (groups, the task tree, plan, journal and the `workbench` MCP server). The other four are infrastructure: `core_setup` (editing `.env`), `core_interface` (appearance settings), `core_monitoring` (background jobs), `core_mcp` (MCP server introspection).
+There are eight modules. Three are application modules: `workspace` (workspaces — the shared isolation level), `notes` (markdown documents with no owner, which the modules above link to) and `tasks` (groups, the task tree, plan, journal and the `workbench` MCP server). The other five are infrastructure: `core_setup` (editing `.env`), `core_interface` (appearance settings), `core_monitoring` (background jobs), `core_mcp` (MCP server introspection), `core_changes` (the change feed behind live updates).
 
 ## For developers
 
