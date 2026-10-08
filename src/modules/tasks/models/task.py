@@ -16,9 +16,10 @@ migrations run on both providers.
 
 The text is split by owner. The person writes the brief: ``description`` is the goal,
 ``context`` the details and starting requirements, ``constraints`` what is and is not allowed,
-``criteria`` the acceptance requirements. ``body`` belongs to the agent: for a task it is the
-agent's plan. That is why the body comes last in the text block rather than right after
-``description``, as with the module's other entities.
+``criteria`` the acceptance requirements. The agent writes the work: ``plan`` before the code
+changes, ``progress`` along the way, ``result`` at hand-over. That is why a task has no ``body``
+like the module's other entities: its text is several fields, and ``body`` would not say which.
+The work fields close the text block in the order the work goes.
 
 Dates are split by meaning:
 
@@ -46,13 +47,15 @@ from src.core.database.types import timestamp
 from src.core.utils.date import utc_now
 from src.modules.tasks.constants import (
     ACTOR_KINDS,
-    BODY_MAX,
     CODE_LEN,
     CONSTRAINTS_MAX,
     CONTEXT_MAX,
     CRITERIA_MAX,
     DESCRIPTION_MAX,
     ENUM_VALUE_MAX,
+    PLAN_MAX,
+    PROGRESS_MAX,
+    RESULT_MAX,
     TASK_CREATED_BY_DEFAULT,
     TASK_PRIORITIES,
     TASK_PRIORITY_DEFAULT,
@@ -127,8 +130,14 @@ class TasksTask(SoftDeleteMixin, Base):
     criteria: Mapped[str] = mapped_column(
         String(CRITERIA_MAX), default="", server_default=text("''")
     )
-    body: Mapped[str] = mapped_column(
-        String(BODY_MAX), default="", server_default=text("''")
+    plan: Mapped[str] = mapped_column(
+        String(PLAN_MAX), default="", server_default=text("''")
+    )
+    progress: Mapped[str] = mapped_column(
+        String(PROGRESS_MAX), default="", server_default=text("''")
+    )
+    result: Mapped[str] = mapped_column(
+        String(RESULT_MAX), default="", server_default=text("''")
     )
     deadline_at: Mapped[datetime | None] = mapped_column(timestamp(), nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(timestamp(), nullable=True)

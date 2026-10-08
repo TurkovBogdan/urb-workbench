@@ -5,11 +5,13 @@ from __future__ import annotations
 import pytest
 
 from src.modules.tasks.constants import (
-    BODY_MAX,
     CODE_LEN,
     CONSTRAINTS_MAX,
     CRITERIA_MAX,
+    PLAN_MAX,
     PRIORITY_BURNING,
+    PROGRESS_MAX,
+    RESULT_MAX,
     SORT_DEFAULT,
     STATUS_BACKLOG,
     STATUS_CANCELED,
@@ -252,7 +254,9 @@ async def test_the_whole_brief_is_kept_apart(db, workspace):
         context="Смотреть src/modules/tasks",
         constraints="Не трогать модуль workspace",
         criteria="Тесты зелёные, схема без дрейфа",
-        body="План: сначала модели, потом миграции",
+        plan="План: сначала модели, потом миграции",
+        progress="- модели готовы → миграции",
+        result="Модуль на группах",
         type=TYPE_STANDARD,
     )
 
@@ -260,18 +264,53 @@ async def test_the_whole_brief_is_kept_apart(db, workspace):
     assert row.context == "Смотреть src/modules/tasks"
     assert row.constraints == "Не трогать модуль workspace"
     assert row.criteria == "Тесты зелёные, схема без дрейфа"
-    assert row.body.startswith("План:")
+    assert row.plan.startswith("План:")
+    assert row.progress == "- модели готовы → миграции"
+    assert row.result == "Модуль на группах"
 
 
-async def test_overlong_plan_is_refused_not_clipped(db, workspace):
-    """Unlike the title, the plan is refused: clipping would silently cut off the tail with the
-    last steps."""
-    with pytest.raises(ValueError, match="shorten it by"):
+@pytest.mark.parametrize(
+    ("field", "limit"),
+    [("plan", PLAN_MAX), ("progress", PROGRESS_MAX), ("result", RESULT_MAX)],
+)
+async def test_overlong_work_field_is_refused_not_clipped(db, workspace, field, limit):
+    """Unlike the title, the agent's work is refused: clipping would silently cut off the tail —
+    the file list of a plan, the newest entry of a diary."""
+    with pytest.raises(ValueError, match="shorten it by 1 "):
         await task_create(
-            workspace_code=workspace.code,
-            title="Слишком длинный план",
-            body="x" * (BODY_MAX + 1),
+            workspace_code=workspace.code, title="Слишком длинно", **{field: "x" * (limit + 1)}
         )
+
+
+@pytest.mark.parametrize(
+    ("field", "limit"),
+    [("plan", PLAN_MAX), ("progress", PROGRESS_MAX), ("result", RESULT_MAX)],
+)
+async def test_overlong_work_field_update_leaves_the_task_as_it_was(db, workspace, field, limit):
+    task = await task_create(workspace_code=workspace.code, title="Задача", **{field: "было"})
+
+    with pytest.raises(ValueError, match="shorten it by 1 "):
+        await task_update(task.code, title="Новое", **{field: "x" * (limit + 1)})
+
+    stored = await task_get(task.code)
+    assert (stored.title, getattr(stored, field)) == ("Задача", "было")
+
+
+async def test_work_fields_hold_their_whole_limit(db, workspace):
+    task = await task_create(
+        workspace_code=workspace.code,
+        title="Задача",
+        plan="п" * PLAN_MAX,
+        progress="х" * PROGRESS_MAX,
+        result="и" * RESULT_MAX,
+    )
+    stored = await task_get(task.code)
+
+    assert (len(stored.plan), len(stored.progress), len(stored.result)) == (
+        PLAN_MAX,
+        PROGRESS_MAX,
+        RESULT_MAX,
+    )
 
 
 async def test_workspace_by_codes_skips_what_is_not_live(db, workspace):

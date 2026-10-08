@@ -8,11 +8,11 @@ We cut by **code points**: ``value[:limit]`` on a ``str`` counts Unicode charact
 Cyrillic is never split mid-character. This matches the character semantics of ``VARCHAR(n)`` in
 PostgreSQL; SQLite does not check the width at all, so there truncation is the only real limit.
 
-**The exception is the task plan (``tasks_task.body``).** There ``fit`` refuses instead of
-truncating, and not for tidiness: a plan must name the files it read and the files it touches,
-and the agent writes that list at the end. Silent truncation would cut exactly that list — the
-one part the plan is kept for. The refusal states the overrun, and the agent shortens the text
-itself, with judgement.
+**The exception is the agent's work on a task (``plan``, ``progress``, ``result``).** There
+``fit`` refuses instead of truncating, and not for tidiness: a plan must name the files it read
+and the files it touches, and the agent writes that list at the end; a progress diary is appended
+to, so its newest entry is the tail. Silent truncation would cut exactly the part the field is
+kept for. The refusal states the overrun, and the agent shortens the text itself, with judgement.
 
 The functions are shared across the module (not private to each CRUD file): the rule is one for
 every table, and its copies have no reason to drift apart.

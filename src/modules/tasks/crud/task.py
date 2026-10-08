@@ -29,7 +29,6 @@ from src.modules.core_changes import DELETED, UPDATED, mark_changes
 from src.modules.tasks.codes import new_code
 from src.modules.tasks.constants import (
     ACTOR_KINDS,
-    BODY_MAX,
     CONSTRAINTS_MAX,
     CONTEXT_MAX,
     CRITERIA_MAX,
@@ -37,6 +36,9 @@ from src.modules.tasks.constants import (
     GROUP_TASK_DISPOSALS,
     GROUP_TASKS_DELETE,
     GROUP_TASKS_MOVE,
+    PLAN_MAX,
+    PROGRESS_MAX,
+    RESULT_MAX,
     STATUS_CANCELED,
     STATUS_DONE,
     STATUS_IN_PROGRESS,
@@ -282,7 +284,9 @@ async def task_create(
     context: str | None = None,
     constraints: str | None = None,
     criteria: str | None = None,
-    body: str | None = None,
+    plan: str | None = None,
+    progress: str | None = None,
+    result: str | None = None,
     type: str = TASK_TYPE_DEFAULT,
     status: str = TASK_STATUS_DEFAULT,
     priority: str = TASK_PRIORITY_DEFAULT,
@@ -329,7 +333,9 @@ async def task_create(
             context=clip(context, CONTEXT_MAX),
             constraints=clip(constraints, CONSTRAINTS_MAX),
             criteria=clip(criteria, CRITERIA_MAX),
-            body=fit(body, BODY_MAX, "task body"),
+            plan=fit(plan, PLAN_MAX, "task plan"),
+            progress=fit(progress, PROGRESS_MAX, "task progress"),
+            result=fit(result, RESULT_MAX, "task result"),
             deadline_at=deadline_at,
             created_by=created_by,
         )
@@ -446,7 +452,7 @@ async def task_search_codes(
         if in_brief:
             columns += [TasksTask.context, TasksTask.constraints, TasksTask.criteria]
         if in_plan:
-            columns.append(TasksTask.body)
+            columns += [TasksTask.plan, TasksTask.progress, TasksTask.result]
         stmt = select(*columns).where(TasksTask.workspace_code == workspace_code)
         async with session_scope() as s:
             for code, *texts in (await s.execute(stmt)).all():
@@ -592,7 +598,9 @@ async def task_update(
     context: str | None = None,
     constraints: str | None = None,
     criteria: str | None = None,
-    body: str | None = None,
+    plan: str | None = None,
+    progress: str | None = None,
+    result: str | None = None,
     type: str | None = None,
     priority: str | None = None,
     group_code: str | None = None,
@@ -634,8 +642,12 @@ async def task_update(
             row.constraints = clip(constraints, CONSTRAINTS_MAX)
         if criteria is not None:
             row.criteria = clip(criteria, CRITERIA_MAX)
-        if body is not None:
-            row.body = fit(body, BODY_MAX, "task body")
+        if plan is not None:
+            row.plan = fit(plan, PLAN_MAX, "task plan")
+        if progress is not None:
+            row.progress = fit(progress, PROGRESS_MAX, "task progress")
+        if result is not None:
+            row.result = fit(result, RESULT_MAX, "task result")
         if type is not None:
             row.type = type
         if priority is not None:

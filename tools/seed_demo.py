@@ -131,10 +131,14 @@ DEV_TASKS = [
             "2. The old column is not read: grep for `plan_code` is empty\n"
             "3. The migration rolls back and forward on a copy of the production database"
         ),
-        "body": (
+        "plan": (
             "Going through the layers bottom up: migration → models → CRUD → API → frontend.\n\n"
             "Read: `models/pricing.py`, `crud/pricing.py`, `api.py`, migrations `bil_001…004`.\n"
             "Will change: the same files plus `web/src/features/billing/api.ts`."
+        ),
+        "progress": (
+            "- Migration `bil_005` written, rolls back and forward → CRUD next.\n"
+            "- CRUD reads the new table; the list response breaks on the old field → investigating."
         ),
         "stages": [
             {"title": "Migration and models", "description": "New table and value transfer", "status": STATUS_DONE,
@@ -172,7 +176,11 @@ DEV_TASKS = [
         "deadline_days": 1,
         "context": "Reproduces on the invoice form: the field is filled in, and empty after saving.",
         "criteria": "1. The comment is visible after a page reload\n2. A regression test",
-        "body": "Looks like a full card replacement without the field: the form does not send `comment`.",
+        "plan": "Looks like a full card replacement without the field: the form does not send `comment`.",
+        "result": (
+            "Both invoice forms send `comment` in the PUT body; the field survives a reload. "
+            "Pinned by `test_api_invoice.py::test_update_keeps_comment`."
+        ),
         "stages": [
             {"title": "Reproduce", "description": "Find where it gets lost", "status": STATUS_DONE,
              "evidence": "DevTools: the PUT body has no comment key"},
@@ -194,7 +202,7 @@ DEV_TASKS = [
         "context": "In the dark theme the `--border` token equals the background.",
         "constraints": "- never: change the whole palette — only the border token is fixed",
         "criteria": "1. A screenshot of both themes\n2. Contrast no lower than 1.5:1",
-        "body": "Changing the token and going through every place that uses it.",
+        "plan": "Changing the token and going through every place that uses it.",
         "stages": [
             {"title": "Token fix", "status": STATUS_DONE, "evidence": "web/src/styles/tokens.css:41"},
             {"title": "Screen walkthrough", "description": "Tasks, groups, workspaces, research", "status": STATUS_IN_PROGRESS},
@@ -215,7 +223,7 @@ DEV_TASKS = [
         # No stages here on purpose: this is the sample STANDARD task, whose plan lives in prose.
         # Without such an example the demo would show only extended tasks, and the difference
         # between the levels would remain words in the handbook.
-        "body": "Grouping in a computed, the backend sets the order. Touched stores/tasks.store.ts "
+        "plan": "Grouping in a computed, the backend sets the order. Touched stores/tasks.store.ts "
                 "(sections) and components/TaskListTable.vue.",
         "notes": [
             {"type": NOTE_DECISION, "title": "The \"No group\" section goes last",
@@ -232,7 +240,7 @@ DEV_TASKS = [
         "context": "Dependencies are half-checked: `greenlet` and `asyncpg` are in question.",
         "constraints": "- ask first: dependency upgrades with breaking changes",
         "criteria": "1. The full test run is green on 3.13\n2. The frontend build is unaffected",
-        "body": "A run on a branch first, then an update of the installation's environment.",
+        "plan": "A run on a branch first, then an update of the installation's environment.",
         "notes": [
             {"type": NOTE_DECISION, "title": "Waiting for an asyncpg release that supports 3.13",
              "body": "Otherwise it has to be built from source."},
@@ -246,7 +254,7 @@ DEV_TASKS = [
         "status": STATUS_PLANNED,
         "priority": PRIORITY_FROZEN,
         "context": "The decision is postponed until the end of the quarter.",
-        "body": "There is a plan, no dates.",
+        "plan": "There is a plan, no dates.",
     },
     {
         "title": "Sort through incoming ideas",
@@ -329,7 +337,7 @@ CLIENT_TASKS = [
             "2. Redelivering the same order does not create a duplicate\n"
             "3. A refusal from their side shows in the task journal, not only in the logs"
         ),
-        "body": "A queue on our side, retries with exponential backoff, idempotency by their id.",
+        "plan": "A queue on our side, retries with exponential backoff, idempotency by their id.",
         "stages": [
             {"title": "Their API client", "status": STATUS_DONE, "evidence": "src/modules/exchange/client.py; 9 tests green"},
             {"title": "Queue and retries", "status": STATUS_IN_PROGRESS, "body": "Retries are done, idempotency in progress."},
@@ -358,7 +366,7 @@ CLIENT_TASKS = [
         "priority": PRIORITY_NORMAL,
         "deadline_days": 2,
         "criteria": "1. The report covers all three stages\n2. Run numbers are attached",
-        "body": "Assembling it from the journal of the task above.",
+        "plan": "Assembling it from the journal of the task above.",
     },
 ]
 
@@ -366,8 +374,20 @@ CLIENT_TASKS = [
 # ── assembly ──────────────────────────────────────────────────────────────────
 
 
+# Every key a task spec may carry. A key outside it is a typo or a renamed field — ``body`` once
+# quietly seeded empty plans — and fails the seeding instead of vanishing.
+TASK_SPEC_KEYS = frozenset({
+    "title", "description", "context", "constraints", "criteria", "plan", "progress", "result",
+    "type", "status", "priority", "group", "created_by", "deadline_days", "deleted",
+    "stages", "notes", "children",
+})
+
+
 async def seed_task(*, workspace_code: str, spec: dict, groups: dict[str, str], parent_code: str | None = None) -> str:
     """Create a task with all of its contents and return its code."""
+    unknown = set(spec) - TASK_SPEC_KEYS
+    if unknown:
+        raise ValueError(f"Task spec {spec['title']!r} carries unknown keys: {sorted(unknown)}")
     deadline = None
     if spec.get("deadline_days") is not None:
         deadline = utc_now() + timedelta(days=spec["deadline_days"])
@@ -379,7 +399,9 @@ async def seed_task(*, workspace_code: str, spec: dict, groups: dict[str, str], 
         context=spec.get("context", ""),
         constraints=spec.get("constraints", ""),
         criteria=spec.get("criteria", ""),
-        body=spec.get("body", ""),
+        plan=spec.get("plan", ""),
+        progress=spec.get("progress", ""),
+        result=spec.get("result", ""),
         type=spec.get("type", TYPE_SIMPLE),
         priority=spec.get("priority", PRIORITY_NORMAL),
         group_code=groups.get(spec["group"]) if spec.get("group") else None,

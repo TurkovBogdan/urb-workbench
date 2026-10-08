@@ -49,6 +49,8 @@ DESCRIPTION_MAX = 512
 # A group's description is a one-line boundary under its name in every list card, not a goal: a
 # paragraph there pushes the tasks below the fold. Refused over the limit rather than cut.
 GROUP_DESCRIPTION_MAX = 128
+# The body of a stage. A task has no ``body`` of its own: its text is the brief and the work fields
+# below.
 BODY_MAX = 8192
 COLOR_MAX = 32
 ICON_MAX = 64
@@ -57,6 +59,13 @@ ICON_MAX = 64
 CONTEXT_MAX = 4048
 CONSTRAINTS_MAX = 2048
 CRITERIA_MAX = 2048
+# The agent's work on a task, three fields in the order the work goes: the plan written before the
+# code changes, the progress diary kept along the way, the result written at hand-over. Each
+# answers its own question — intent, course, outcome — and sections inside one field would blur
+# them. ``PROGRESS_MAX`` is provisional: the live journal puts 90% of tasks under 8.7k of notes.
+PLAN_MAX = 8192
+PROGRESS_MAX = 16384
+RESULT_MAX = 2048
 # Pointer to the evidence that a stage is done. Tight on purpose: command output does not fit, and
 # writing a story instead of a reference will not work.
 EVIDENCE_MAX = 1024
@@ -227,12 +236,15 @@ __all__ = [
     "NOTE_TYPES_BLOCKING",
     "NOTE_TYPES_BY_AGENT",
     "NOTE_TYPES_OPENABLE",
+    "PLAN_MAX",
     "PRIORITY_BURNING",
     "PRIORITY_FROZEN",
     "PRIORITY_HIGH",
     "PRIORITY_LOW",
     "PRIORITY_NORMAL",
+    "PROGRESS_MAX",
     "RESOLUTION_MAX",
+    "RESULT_MAX",
     "SORT_DEFAULT",
     "SORT_STEP",
     "STAGE_CODE_PREFIX",

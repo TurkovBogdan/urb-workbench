@@ -372,7 +372,9 @@ class TaskCreateBody(_Body):
     context: str = ""
     constraints: str = ""
     criteria: str = ""
-    body: str = ""
+    plan: str = ""
+    progress: str = ""
+    result: str = ""
     type: str = TASK_TYPE_DEFAULT
     status: str = TASK_STATUS_DEFAULT
     priority: str = TASK_PRIORITY_DEFAULT
@@ -401,7 +403,9 @@ class TaskUpdateBody(_Body):
     context: str = ""
     constraints: str = ""
     criteria: str = ""
-    body: str = ""
+    plan: str = ""
+    progress: str = ""
+    result: str = ""
     type: str = TASK_TYPE_DEFAULT
     priority: str = TASK_PRIORITY_DEFAULT
     group_code: str | None = None
@@ -429,7 +433,9 @@ class TaskPatchBody(_Body):
     context: str | None = None
     constraints: str | None = None
     criteria: str | None = None
-    body: str | None = None
+    plan: str | None = None
+    progress: str | None = None
+    result: str | None = None
     type: str | None = None
     priority: str | None = None
     group_code: str | None = None
@@ -548,7 +554,7 @@ async def _rows(rows: list[TasksTask], *, include_deleted: bool) -> list[TaskLis
 
 
 async def _detail(row: TasksTask) -> TaskDetail:
-    """The whole task: its fields, body, edge, group, parent and children.
+    """The whole task: its fields, brief, work text, edge, group, parent and children.
 
     Children of a deleted task are fetched including deleted ones: soft delete cascades, and a
     task in the trash has no live children left — showing an empty list would lie that the
@@ -580,7 +586,9 @@ async def _detail(row: TasksTask) -> TaskDetail:
         context=row.context,
         constraints=row.constraints,
         criteria=row.criteria,
-        body=row.body,
+        plan=row.plan,
+        progress=row.progress,
+        result=row.result,
         parent_code=link.parent_code if link else None,
         sort=link.sort if link else SORT_DEFAULT,
         has_children=bool(children),
@@ -630,7 +638,9 @@ async def search_tasks(
     workspace: str = Query(..., description="Workspace code (``WORKSPACE@…`` or bare)"),
     query: str = Query(..., description="What to search for — a case-insensitive substring"),
     in_brief: bool = Query(False, description="Search the brief: context, constraints, criteria"),
-    in_plan: bool = Query(False, description="Search the task plan and its stage bodies"),
+    in_plan: bool = Query(
+        False, description="Search the agent's work (plan, progress, result) and the stages"
+    ),
     in_journal: bool = Query(False, description="Search journal entries"),
 ) -> list[str]:
     """Codes of tasks whose bodies contain the query — in the named areas.
@@ -672,7 +682,9 @@ async def create_task(payload: TaskCreateBody) -> TaskDetail:
             context=payload.context,
             constraints=payload.constraints,
             criteria=payload.criteria,
-            body=payload.body,
+            plan=payload.plan,
+            progress=payload.progress,
+            result=payload.result,
             type=payload.type,
             status=payload.status,
             priority=payload.priority,
@@ -708,7 +720,9 @@ async def update_task(code: str, payload: TaskUpdateBody) -> TaskDetail:
             context=payload.context,
             constraints=payload.constraints,
             criteria=payload.criteria,
-            body=payload.body,
+            plan=payload.plan,
+            progress=payload.progress,
+            result=payload.result,
             type=payload.type,
             priority=payload.priority,
             # An empty string is CRUD's only form of "no group": ``None`` there means "leave
@@ -729,7 +743,18 @@ async def patch_task(code: str, payload: TaskPatchBody) -> TaskDetail:
     bare = _task_code(code)
     _live(await _require_task(bare))
     given = payload.model_fields_set
-    for field in ("title", "description", "context", "constraints", "criteria", "body", "type", "priority"):
+    for field in (
+        "title",
+        "description",
+        "context",
+        "constraints",
+        "criteria",
+        "plan",
+        "progress",
+        "result",
+        "type",
+        "priority",
+    ):
         if field in given and getattr(payload, field) is None:
             raise ApiError.bad_request(f"{field} cannot be null — send an empty string to clear it")
     try:
@@ -740,7 +765,9 @@ async def patch_task(code: str, payload: TaskPatchBody) -> TaskDetail:
             context=payload.context,
             constraints=payload.constraints,
             criteria=payload.criteria,
-            body=payload.body,
+            plan=payload.plan,
+            progress=payload.progress,
+            result=payload.result,
             type=payload.type,
             priority=payload.priority,
             # For CRUD ``None`` is "leave alone", ``""`` is "clear the group".

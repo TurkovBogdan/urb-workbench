@@ -148,7 +148,10 @@ def register(mcp: "FastMCP") -> None:
 
     @mcp.tool()
     async def task_get(task_code: str) -> AgentTaskDetail:
-        """Read one task in full — the brief, the plan, its stages, and what is still open.
+        """Read one task in full — the brief, your work, its stages, and what is still open.
+
+        Your work comes in three fields: `plan` (the approach, written before the code changes),
+        `progress` (the diary along the way), `result` (what came out, written at hand-over).
 
         This is the working view: what you need before touching the work, and nothing you would
         have to ask twice for. Read it before you start and after anyone else has been here —
@@ -189,7 +192,9 @@ def register(mcp: "FastMCP") -> None:
             context=task.context,
             constraints=task.constraints,
             criteria=task.criteria,
-            body=task.body,
+            plan=task.plan,
+            progress=task.progress,
+            result=task.result,
             status=task.status,
             priority=task.priority,
             type=task.type,
@@ -249,9 +254,9 @@ def register(mcp: "FastMCP") -> None:
             constraints: What may change, what to ask about first, what must never be touched.
             criteria: Checkable conditions of done, one per line, each with what proves it.
             type: simple (a title, a goal and the context, nothing else) / standard (the full
-                brief, plan as prose, journal) / extended (all of that plus stages — the plan broken into steps, each
-                closed with its own evidence). Pick extended when the work outlasts one sitting;
-                a standard task refuses stages and says so.
+                brief, plan / progress / result, journal) / extended (all of that plus stages —
+                the plan broken into steps, each closed with its own evidence). Pick extended
+                when the work outlasts one sitting; a standard task refuses stages and says so.
             priority: burning / high / normal / low / frozen. Default normal.
             group_code: A TASKGROUP@ code from groups_list; omit to leave it unfiled.
             parent_code: A TASK@ code of a top-level task to make this a subtask of it.
@@ -314,8 +319,10 @@ def register(mcp: "FastMCP") -> None:
         that group, and a subtask's group is changed by refiling its parent, whose subtasks
         follow. A move lands at the end of the new row; the order within a row is the person's.
 
-        Two things are not here. The plan is text — body_set and its neighbours own it. Status
-        moves through task_status, which also stamps when the work started.
+        Two things are not here. Your work — plan, progress, result — is content, and
+        content_set and its neighbours own it; they also edit the brief's context, constraints
+        and criteria in place, where this sets them whole. Status moves through task_status,
+        which also stamps when the work started.
 
         The brief — title, goal, context, constraints and criteria — is editable on any task,
         whoever set it. On a task a person set, the brief is still their statement of what

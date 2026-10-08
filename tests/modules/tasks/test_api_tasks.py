@@ -217,7 +217,9 @@ async def test_create_returns_201_and_the_whole_task(client):
             "workspace": f"WORKSPACE@{workspace.code}",
             "title": "Счёт",
             "description": "проверить начисления",
-            "body": "# Заголовок",
+            "plan": "# Заголовок",
+            "progress": "- начато",
+            "result": "Готово",
             "type": TYPE_STANDARD,
             "priority": PRIORITY_BURNING,
             "deadline_at": "2026-09-20 18:00:00",
@@ -228,7 +230,7 @@ async def test_create_returns_201_and_the_whole_task(client):
     body = response.json()
     assert body["title"] == "Счёт"
     assert (body["type"], body["priority"]) == (TYPE_STANDARD, PRIORITY_BURNING)
-    assert body["body"] == "# Заголовок"
+    assert (body["plan"], body["progress"], body["result"]) == ("# Заголовок", "- начато", "Готово")
     assert body["deadline_at"] == "2026-09-20 18:00:00"
     assert body["children"] == []
     assert len(body["code"].removeprefix("TASK@")) == CODE_LEN
@@ -398,7 +400,9 @@ async def test_update_replaces_the_card(client):
             json={
                 "title": "Счёт за август",
                 "description": "новое",
-                "body": "текст",
+                "plan": "текст",
+                "progress": "ход",
+                "result": "итог",
                 "type": TYPE_STANDARD,
                 "priority": PRIORITY_BURNING,
                 "group_code": f"TASKGROUP@{group.code}",
@@ -409,7 +413,7 @@ async def test_update_replaces_the_card(client):
 
     assert body["title"] == "Счёт за август"
     assert body["description"] == "новое"
-    assert body["body"] == "текст"
+    assert (body["plan"], body["progress"], body["result"]) == ("текст", "ход", "итог")
     assert (body["type"], body["priority"]) == (TYPE_STANDARD, PRIORITY_BURNING)
     assert body["group_code"] == f"TASKGROUP@{group.code}"
     assert body["deadline_at"] == "2026-09-20 18:00:00"

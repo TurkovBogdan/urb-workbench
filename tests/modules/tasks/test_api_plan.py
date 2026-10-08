@@ -229,7 +229,9 @@ async def test_task_detail_carries_the_brief_the_plan_and_both_lists(client):
         context="Смотреть src/modules/tasks",
         constraints="- нельзя: трогать workspace",
         criteria="1. Тесты зелёные",
-        body="План: сначала модели",
+        plan="План: сначала модели",
+        progress="- модели готовы → API",
+        result="Модели и API на месте",
     )
     await stage_crud.stage_create(task_code=task.code, title="Модели")
     await note_crud.note_create(task_code=task.code, type=NOTE_DECISION, title="Решение")
@@ -239,7 +241,10 @@ async def test_task_detail_carries_the_brief_the_plan_and_both_lists(client):
     assert body["context"] == "Смотреть src/modules/tasks"
     assert body["constraints"] == "- нельзя: трогать workspace"
     assert body["criteria"] == "1. Тесты зелёные"
-    assert body["body"] == "План: сначала модели"
+    assert body["plan"] == "План: сначала модели"
+    assert body["progress"] == "- модели готовы → API"
+    assert body["result"] == "Модели и API на месте"
+    assert "body" not in body
     assert [row["title"] for row in body["stages"]] == ["Модели"]
     assert [row["title"] for row in body["notes"]] == ["Решение"]
 
@@ -269,7 +274,7 @@ async def test_overlong_plan_is_refused_by_the_api(client):
             "context": "",
             "constraints": "",
             "criteria": "",
-            "body": "x" * 8193,
+            "plan": "x" * 8193,
             "type": TYPE_EXTENDED,
             "priority": "normal",
             "group_code": None,

@@ -51,14 +51,19 @@ async def test_query_over_title_and_goal_ignores_cyrillic_case(db, workspace):
 
 
 async def test_query_does_not_reach_the_bodies(db, workspace):
-    """The list searches only what its row shows: a match in the plan does not widen its output."""
+    """The list searches only what its row shows: a match in the agent's work does not widen it."""
     await task_create(
         workspace_code=workspace.code,
         title="Панель фильтров",
         type=TYPE_EXTENDED,
-        body="Ставлю SearchField первым в ряду",
+        context="SearchField в контексте",
+        plan="Ставлю SearchField первым в ряду",
+        progress="- SearchField поставлен",
+        result="SearchField стоит первым",
     )
 
+    # Positive control: the same row IS found by what its row shows.
+    assert len(await task_list_by_workspace(workspace.code, query="Панель")) == 1
     assert await task_list_by_workspace(workspace.code, query="SearchField") == []
 
 
@@ -96,13 +101,25 @@ async def test_brief_scope_covers_the_whole_brief(db, workspace):
 
 
 async def test_plan_scope_covers_the_stages_too(db, workspace):
-    """The plan is the task body plus its stages' bodies: a work step is described there, not on
-    the card."""
+    """The plan scope is the agent's work — plan, progress, result — plus its stages' bodies: a
+    work step is described there, not on the card."""
     planned = await task_create(
         workspace_code=workspace.code,
         title="С планом",
         type=TYPE_EXTENDED,
-        body="Сначала бэк",
+        plan="Сначала бэк",
+    )
+    in_progress = await task_create(
+        workspace_code=workspace.code,
+        title="С ходом работы",
+        type=TYPE_EXTENDED,
+        progress="- сначала бэк → панель",
+    )
+    with_result = await task_create(
+        workspace_code=workspace.code,
+        title="С итогом",
+        type=TYPE_EXTENDED,
+        result="Сначала бэк, панель следом",
     )
     staged = await task_create(
         workspace_code=workspace.code, title="С этапом", type=TYPE_EXTENDED
@@ -111,7 +128,7 @@ async def test_plan_scope_covers_the_stages_too(db, workspace):
 
     found = await task_search_codes(workspace.code, "СНАЧАЛА БЭК", in_plan=True)
 
-    assert found == sorted([planned.code, staged.code])
+    assert found == sorted([planned.code, in_progress.code, with_result.code, staged.code])
     assert await task_search_codes(workspace.code, "сначала бэк", in_brief=True) == []
 
 
@@ -275,7 +292,7 @@ async def test_search_route_takes_the_workspace_with_its_prefix(client):
     """The workspace code is accepted both bare and in the form every other endpoint returns."""
     space = await workspace_create(title="Работа")
     row = await task_create(
-        workspace_code=space.code, title="Задача", type=TYPE_EXTENDED, body="глубокий текст"
+        workspace_code=space.code, title="Задача", type=TYPE_EXTENDED, plan="глубокий текст"
     )
 
     response = await client.get(
