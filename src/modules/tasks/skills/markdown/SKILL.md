@@ -52,7 +52,7 @@ What happens over a limit depends on the **tool**, not only on the field:
 - `plan`, `progress` and `result` are refused whichever way they are written, and so is the
   body passed to `stage_add`;
 - everything else — including `context`, `constraints` and `criteria` passed to `task_create` /
-  `task_update`, and the body passed to `note_add` — is **cut without a word** (second table).
+  `task_update`, and the body passed to `journal_add` — is **cut without a word** (second table).
 
 Refusing matters for plans specifically: the file list sits at the end, so trimming would remove
 the part worth keeping.
@@ -78,5 +78,5 @@ Cut without a word — stay under these, and read the task back when a field was
 | group `description` — refused over it, not cut | 128 |
 | `context` via `task_create` / `task_update` | 4048 |
 | `constraints`, `criteria` via `task_create` / `task_update` | 2048 |
-| entry body via `note_add` | 2048 |
+| entry body via `journal_add` | 2048 |
 | `evidence`, `resolution` | 1024 |

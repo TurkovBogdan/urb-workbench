@@ -16,9 +16,9 @@ What the tools let you change after the fact:
 
 | Part | Changed by |
 |---|---|
-| `title` | nothing — set once by `note_add` |
+| `title` | nothing — set once by `journal_add` |
 | `body` | `content_set` / `content_replace` / `content_set_section` / `content_add`, on any entry and any state |
-| `resolution` | `note_resolve`, once; a second call is refused |
+| `resolution` | `journal_resolve`, once; a second call is refused |
 
 The body being editable is for adding what you worked out — the option you checked, the line
 that confirmed it — not for making an entry say something it did not.
@@ -64,7 +64,7 @@ an exact string, write it down.
 
 ### `remark` — the requester's word about your work
 
-Not yours to write: `note_add` has no such type. You will see them in the journal and you close
+Not yours to write: `journal_add` has no such type. You will see them in the journal and you close
 them, with what you did about it. An entry whose halves are written by the same hand answers to
 nobody — so your answer goes in the resolution, and the requester's words in the body stay
 theirs, even though the content tools would reach them.

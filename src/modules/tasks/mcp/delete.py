@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 from src.modules.tasks.codes import bare_code, code_prefix
 from src.modules.tasks.constants import (
     GROUP_CODE_PREFIX,
-    NOTE_CODE_PREFIX,
+    JOURNAL_CODE_PREFIX,
     STAGE_CODE_PREFIX,
     TASK_CODE_PREFIX,
 )
@@ -32,7 +32,7 @@ _DELETABLE = (TASK_CODE_PREFIX, STAGE_CODE_PREFIX)
 
 # Why not — per type. The text reaches the agent as is, so it names the way out, not the ban.
 _REFUSALS = {
-    NOTE_CODE_PREFIX: (
+    JOURNAL_CODE_PREFIX: (
         "A journal entry is not deleted — it is the history of how the work went, and a gap in "
         "it answers nothing. Changed your mind: write a new entry pointing at the old one; "
         "detail to add goes to its body with content_add(code, \"body\", …)."

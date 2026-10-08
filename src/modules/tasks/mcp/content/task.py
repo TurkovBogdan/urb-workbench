@@ -33,7 +33,7 @@ class McpTaskStandardContentHandler(McpTaskContentHandler):
 
     A ``simple`` task is a title, a goal and the context, and its page shows nothing else — text
     written into one of these fields would be seen by nobody. So the edit is refused, naming the
-    way out, the same way ``note_add`` and ``stage_add`` refuse on a type without a journal or
+    way out, the same way ``journal_add`` and ``stage_add`` refuse on a type without a journal or
     stages.
     """
 
@@ -86,7 +86,7 @@ class McpTaskProgressHandler(McpTaskStandardContentHandler):
     what = "the progress"
     overflow_hint = (
         "An entry is a line or two — what is done, what comes next; decisions and findings go to "
-        "the journal with note_add. Condense the oldest entries."
+        "the journal with journal_add. Condense the oldest entries."
     )
 
 

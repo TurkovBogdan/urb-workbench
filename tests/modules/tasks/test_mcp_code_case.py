@@ -1,7 +1,7 @@
 """workbench MCP: every code parameter takes a code in any case and every answer is upper case.
 
-Codes went upper case in storage (``tsm_007_codes_upper``); agents, client configs and notes still
-hold the lower-case form. The promise is that nothing about an agent's behaviour changes: each
+Codes went upper case in storage (``tsm_007_codes_upper``); agents, client configs and journal
+entries still hold the lower-case form. The promise is that nothing about an agent's behaviour changes: each
 tool that takes a code finds its row whatever the case, and answers in the stored form.
 
 The cases below call each tool with every code argument lower-cased — prefix and hash. The guard
@@ -17,13 +17,15 @@ from dataclasses import dataclass
 import pytest
 
 from src.modules.tasks.crud import group as group_crud
-from src.modules.tasks.crud import note as note_crud
+from src.modules.tasks.crud import journal as journal_crud
 from src.modules.tasks.crud import stage as stage_crud
 from src.modules.tasks.crud import task as task_crud
 
 pytestmark = pytest.mark.db
 
-_CODE_IN_TEXT = re.compile(r"\b(?:WORKSPACE|GROUP|TASK|STAGE|NOTE)@([0-9A-Za-z]{10})", re.IGNORECASE)
+_CODE_IN_TEXT = re.compile(
+    r"\b(?:WORKSPACE|TASKGROUP|GROUP|TASK|STAGE|JOURNAL|NOTE)@([0-9A-Za-z]{10})", re.IGNORECASE
+)
 
 
 @dataclass
@@ -34,7 +36,7 @@ class World:
     staged: str
     plain: str
     stage: str
-    note: str
+    entry: str
 
 
 def low(prefix: str, bare: str) -> str:
@@ -63,9 +65,11 @@ async def world(call, workspace) -> World:
         workspace_code=workspace.code, title="Счета", group_code=a.code, type="standard"
     )
     stage = await stage_crud.stage_create(task_code=staged.code, title="Модели")
-    note = await note_crud.note_create(task_code=staged.code, type="decision", title="Почему так")
+    entry = await journal_crud.journal_create(
+        task_code=staged.code, type="decision", title="Почему так"
+    )
     await call("workspace_use", workspace_code=low("WORKSPACE", workspace.code))
-    return World(workspace.code, a.code, b.code, staged.code, plain.code, stage.code, note.code)
+    return World(workspace.code, a.code, b.code, staged.code, plain.code, stage.code, entry.code)
 
 
 # (tool, the code parameters it exercises, arguments built from the world)
@@ -86,15 +90,16 @@ CASES = [
     ("stage_add", {"task_code"}, lambda w: {"task_code": low("TASK", w.staged), "title": "Ещё"}),
     ("stage_update", {"stage_code"}, lambda w: {"stage_code": low("STAGE", w.stage), "title": "Модели и схема"}),
     ("stage_close", {"stage_code"}, lambda w: {"stage_code": low("STAGE", w.stage), "evidence": "pytest: 1 passed"}),
-    ("note_add", {"task_code", "stage_code"}, lambda w: {"task_code": low("TASK", w.staged), "stage_code": low("STAGE", w.stage), "type": "fact", "title": "Факт"}),
-    ("note_resolve", {"note_code"}, lambda w: {"note_code": low("NOTE", w.note), "resolution": "Решено"}),
-    ("notes_list", {"task_code"}, lambda w: {"task_code": low("TASK", w.staged)}),
+    ("journal_add", {"task_code", "stage_code"}, lambda w: {"task_code": low("TASK", w.staged), "stage_code": low("STAGE", w.stage), "type": "fact", "title": "Факт"}),
+    ("journal_resolve", {"journal_code"}, lambda w: {"journal_code": low("JOURNAL", w.entry), "resolution": "Решено"}),
+    ("journal_list", {"task_code"}, lambda w: {"task_code": low("TASK", w.staged)}),
     ("content_set", {"code"}, lambda w: {"code": low("TASK", w.staged), "field": "plan", "text": "# Plan\n\nbeta\n"}),
     ("content_replace", {"code"}, lambda w: {"code": low("TASK", w.staged), "field": "plan", "find": "alpha", "text": "gamma"}),
     ("content_set_section", {"code"}, lambda w: {"code": low("TASK", w.staged), "field": "plan", "heading": "# Plan", "text": "# Plan\n\ndelta\n"}),
     ("content_add", {"code"}, lambda w: {"code": low("TASK", w.staged), "field": "plan", "text": "\nomega\n", "position": "end"}),
     ("delete", {"code"}, lambda w: {"code": low("STAGE", w.stage)}),
-    ("interface_open", {"code"}, lambda w: {"code": low("NOTE", w.note)}),
+    # The retired word on purpose: a ``NOTE@`` quoted before the journal took ``JOURNAL@``.
+    ("interface_open", {"code"}, lambda w: {"code": low("NOTE", w.entry)}),
 ]
 
 

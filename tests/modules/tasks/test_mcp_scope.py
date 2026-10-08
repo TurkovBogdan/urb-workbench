@@ -12,15 +12,15 @@ import pytest
 
 from src.modules.tasks.constants import (
     GROUP_CODE_PREFIX,
-    NOTE_CODE_PREFIX,
-    NOTE_DECISION,
+    JOURNAL_CODE_PREFIX,
+    JOURNAL_DECISION,
     STAGE_CODE_PREFIX,
     TASK_CODE_PREFIX,
     TYPE_EXTENDED,
     TYPE_STANDARD,
 )
 from src.modules.tasks.crud import group as group_crud
-from src.modules.tasks.crud import note as note_crud
+from src.modules.tasks.crud import journal as journal_crud
 from src.modules.tasks.crud import stage as stage_crud
 from src.modules.tasks.crud import task as task_crud
 from src.modules.tasks.mcp.scope import workspace_of
@@ -49,15 +49,15 @@ async def test_stage_reaches_the_workspace_through_its_task(workspace):
     assert await workspace_of(STAGE_CODE_PREFIX, stage.code) == workspace.code
 
 
-async def test_note_reaches_the_workspace_through_its_task(workspace):
+async def test_a_journal_entry_reaches_the_workspace_through_its_task(workspace):
     task = await task_crud.task_create(
         workspace_code=workspace.code, title="Счета", type=TYPE_STANDARD
     )
-    note = await note_crud.note_create(
-        task_code=task.code, type=NOTE_DECISION, title="Берём вариант Б"
+    entry = await journal_crud.journal_create(
+        task_code=task.code, type=JOURNAL_DECISION, title="Берём вариант Б"
     )
 
-    assert await workspace_of(NOTE_CODE_PREFIX, note.code) == workspace.code
+    assert await workspace_of(JOURNAL_CODE_PREFIX, entry.code) == workspace.code
 
 
 async def test_a_code_with_no_row_behind_it_is_not_the_fence_s_business(workspace):

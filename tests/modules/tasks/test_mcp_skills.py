@@ -11,7 +11,7 @@ import pytest
 from fastmcp.exceptions import ToolError
 
 from src.modules.tasks.constants import TYPE_EXTENDED
-from src.modules.tasks.crud import note as note_crud
+from src.modules.tasks.crud import journal as journal_crud
 from src.modules.tasks.crud import stage as stage_crud
 from src.modules.tasks.crud import task as task_crud
 from src.modules.tasks.services.skills import list_skills
@@ -79,9 +79,10 @@ async def test_a_stage_and_an_entry_open_the_task_they_live_on(call, workspace, 
         workspace_code=workspace.code, title="Тарифы", type=TYPE_EXTENDED
     )
     stage = await stage_crud.stage_create(task_code=task.code, title="Схема")
-    note = await note_crud.note_create(task_code=task.code, type="fact", title="tariff.py:88")
+    entry = await journal_crud.journal_create(task_code=task.code, type="fact", title="tariff.py:88")
 
-    for code in (f"STAGE@{stage.code}", f"NOTE@{note.code}"):
+    # ``NOTE@`` is the journal's retired word: a code quoted before the rename still opens.
+    for code in (f"STAGE@{stage.code}", f"JOURNAL@{entry.code}", f"NOTE@{entry.code}"):
         url = (await call("interface_open", code=code))["result"]
         assert url.endswith(f"/tasks/task/TASK@{task.code}")
 

@@ -51,7 +51,7 @@ One or two lines per entry: what is done, what comes next. Append with
 ```
 
 It is not the journal. A choice and its reason is a `decision`, a defect elsewhere is a
-`finding`, an exact number is a `fact` — `note_add`. The diary says where the work is; the
+`finding`, an exact number is a `fact` — `journal_add`. The diary says where the work is; the
 journal says why it is shaped that way.
 
 ## The result is written at hand-over
@@ -87,7 +87,7 @@ shift makes those references false.
 No tool freezes a stage: its body stays editable on any status, and so does the plan. Clarifying
 a step's wording is fine. Changing what a step behind you promised is not a clarification — the
 gap between what was promised and what was done is what a plan is kept for, and re-wording it
-after the fact erases the gap. Changed your mind mid-flight? That is `note_add(type="decision")`
+after the fact erases the gap. Changed your mind mid-flight? That is `journal_add(type="decision")`
 saying why, and a new stage after the one you are on.
 
 ## Evidence is a pointer, not a story

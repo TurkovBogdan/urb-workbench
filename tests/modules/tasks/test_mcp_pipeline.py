@@ -43,7 +43,7 @@ async def test_the_whole_pipeline_holds_together(call, workspace, brief):
     task = f"TASK@{brief.code}"
     detail = await call("task_get", task_code=task)
     assert detail["criteria"].startswith("1. Тесты биллинга")
-    assert detail["stages"] == [] and detail["open_notes"] == []
+    assert detail["stages"] == [] and detail["open_entries"] == []
 
     # ── plan ──────────────────────────────────────────────────────────────────
     plan = await call(
@@ -108,10 +108,12 @@ async def test_the_whole_pipeline_holds_together(call, workspace, brief):
     )
 
     decision = await call(
-        "note_add", task_code=task, type="decision",
+        "journal_add", task_code=task, type="decision",
         title="Пересчёт делаем на лету", stage_code=first["code"],
     )
-    await call("note_resolve", note_code=decision["code"], resolution="pytest -q → 12 passed")
+    await call(
+        "journal_resolve", journal_code=decision["code"], resolution="pytest -q → 12 passed"
+    )
 
     with pytest.raises(ToolError, match="evidence is empty"):
         await call("stage_close", stage_code=first["code"], evidence="   ")
@@ -122,7 +124,7 @@ async def test_the_whole_pipeline_holds_together(call, workspace, brief):
     assert closed["stage"]["status"] == "done"
 
     # ── a side finding: not about this task, so it must not block hand-in ─────
-    await call("note_add", task_code=task, type="finding", title="Рядом мёртвый код")
+    await call("journal_add", task_code=task, type="finding", title="Рядом мёртвый код")
 
     await call("stage_close", stage_code=third["code"], evidence="alembic upgrade head → ok")
 
@@ -138,7 +140,7 @@ async def test_the_whole_pipeline_holds_together(call, workspace, brief):
     assert handed["unfinished_stages"] == 0
     # The finding is visible to the person but does not block hand-in: the executor has no way
     # to close it.
-    assert handed["open_notes"] == 1 and handed["blocking_notes"] == 0
+    assert handed["open_entries"] == 1 and handed["blocking_entries"] == 0
 
 
 async def test_the_agent_corrects_the_brief_of_a_human_task(call, workspace, brief):
@@ -185,21 +187,40 @@ async def test_a_remark_is_not_the_agents_to_write(call, workspace, brief):
     await call("workspace_use", workspace_code=workspace.code)
 
     with pytest.raises(ToolError, match="requester's word"):
-        await call("note_add", task_code=f"TASK@{brief.code}", type="remark", title="Сам себе")
+        await call("journal_add", task_code=f"TASK@{brief.code}", type="remark", title="Сам себе")
 
 
 async def test_a_journal_entry_is_never_deleted(call, workspace, brief):
     await call("workspace_use", workspace_code=workspace.code)
-    note = await call(
-        "note_add", task_code=f"TASK@{brief.code}", type="fact", title="tariff.py:88"
+    entry = await call(
+        "journal_add", task_code=f"TASK@{brief.code}", type="fact", title="tariff.py:88"
     )
 
-    with pytest.raises(ToolError, match="A journal entry is not deleted"):
-        await call("delete", code=note["code"])
+    # By its code and by the retired ``NOTE@`` word alike: the refusal is the journal's either way.
+    for code in (entry["code"], entry["code"].replace("JOURNAL@", "note@")):
+        with pytest.raises(ToolError, match="A journal entry is not deleted"):
+            await call("delete", code=code)
 
-    assert [row["code"] for row in (await call("notes_list", task_code=f"TASK@{brief.code}"))["notes"]] == [
-        note["code"]
-    ]
+    listed = await call("journal_list", task_code=f"TASK@{brief.code}")
+    assert [row["code"] for row in listed["entries"]] == [entry["code"]]
+
+
+async def test_journal_resolve_takes_the_retired_note_code(call, workspace, brief):
+    """``NOTE@`` was the journal's code until 2026-10-09; an agent closing an entry by a code it
+    noted down earlier still closes it, and is answered with the current code."""
+    await call("workspace_use", workspace_code=workspace.code)
+    entry = await call(
+        "journal_add", task_code=f"TASK@{brief.code}", type="decision", title="Взяли вариант Б"
+    )
+
+    closed = await call(
+        "journal_resolve",
+        journal_code=entry["code"].replace("JOURNAL@", "NOTE@"),
+        resolution="подтверждено",
+    )
+
+    assert closed["code"] == entry["code"]
+    assert closed["resolution"] == "подтверждено"
 
 
 async def test_only_the_extended_task_takes_stages(call, workspace):
@@ -234,10 +255,10 @@ async def test_a_standard_task_still_keeps_a_plan_and_a_journal(call, workspace)
     assert (await call("content_set", code=task["code"], field="plan", text=plan))["length"] == len(
         plan
     )
-    note = await call(
-        "note_add", task_code=task["code"], type="fact", title="invoice.py:88"
+    entry = await call(
+        "journal_add", task_code=task["code"], type="fact", title="invoice.py:88"
     )
-    assert note["code"].startswith("NOTE@")
+    assert entry["code"].startswith("JOURNAL@")
 
 
 async def test_a_task_the_agent_creates_is_signed_by_the_surface(call, workspace):

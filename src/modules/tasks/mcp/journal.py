@@ -14,15 +14,15 @@ from typing import TYPE_CHECKING
 
 from src.modules.tasks.codes import bare_code
 from src.modules.tasks.constants import (
-    NOTE_CODE_PREFIX,
-    NOTE_REMARK,
-    NOTE_TYPES,
-    NOTE_TYPES_BY_AGENT,
+    JOURNAL_CODE_PREFIX,
+    JOURNAL_REMARK,
+    JOURNAL_TYPES,
+    JOURNAL_TYPES_BY_AGENT,
     STAGE_CODE_PREFIX,
     TASK_CODE_PREFIX,
 )
-from src.modules.tasks.crud import note as note_crud
-from src.modules.tasks.dto import AgentNoteCreated, AgentNoteList, AgentNoteRow
+from src.modules.tasks.crud import journal as journal_crud
+from src.modules.tasks.dto import AgentJournalCreated, AgentJournalList, AgentJournalRow
 from src.modules.tasks.mcp.scope import require_scope
 
 if TYPE_CHECKING:  # fastmcp fork — backend only (via mcp_server(ctx))
@@ -32,13 +32,13 @@ if TYPE_CHECKING:  # fastmcp fork — backend only (via mcp_server(ctx))
 def register(mcp: "FastMCP") -> None:
 
     @mcp.tool()
-    async def note_add(
+    async def journal_add(
         task_code: str,
         type: str,
         title: str,
         body: str | None = None,
         stage_code: str | None = None,
-    ) -> AgentNoteCreated:
+    ) -> AgentJournalCreated:
         """Record something in this task's journal — a decision, a finding or a fact.
 
         An entry is never deleted, and its title and resolution are never rewritten; changing
@@ -66,30 +66,30 @@ def register(mcp: "FastMCP") -> None:
         """
         bare = bare_code(task_code, TASK_CODE_PREFIX) or ""
         active = await require_scope(TASK_CODE_PREFIX, bare)
-        if type == NOTE_REMARK:
+        if type == JOURNAL_REMARK:
             raise ValueError(
                 "A remark is the requester's word about your work, and writing it yourself "
                 "would make the entry answer to nobody. What you noticed is a `finding`; what "
                 "you decided is a `decision`."
             )
-        if type not in NOTE_TYPES_BY_AGENT:
+        if type not in JOURNAL_TYPES_BY_AGENT:
             raise ValueError(
                 f"Unknown entry type {type!r}; expected one of "
-                f"{', '.join(NOTE_TYPES_BY_AGENT)}."
+                f"{', '.join(JOURNAL_TYPES_BY_AGENT)}."
             )
-        row = await note_crud.note_create(
+        row = await journal_crud.journal_create(
             task_code=bare,
             type=type,
             title=title,
             body=body,
             stage_code=bare_code(stage_code, STAGE_CODE_PREFIX),
         )
-        return AgentNoteCreated(
+        return AgentJournalCreated(
             workspace=active.code, workspace_title=active.title, code=row.code
         )
 
     @mcp.tool()
-    async def note_resolve(note_code: str, resolution: str) -> AgentNoteRow:
+    async def journal_resolve(journal_code: str, resolution: str) -> AgentJournalRow:
         """Close a journal entry with what settled it.
 
         Once only: a second call on a resolved entry is refused — a resolution rewritten after
@@ -100,21 +100,21 @@ def register(mcp: "FastMCP") -> None:
         with the pointer to it. A remark is settled by how you took it into account.
 
         Args:
-            note_code: The entry to close — a NOTE@ code.
+            journal_code: The entry to close — a JOURNAL@ code.
             resolution: What was decided, how it was taken into account, or what the answer
                 turned out to be.
         """
-        bare = bare_code(note_code, NOTE_CODE_PREFIX) or ""
-        await require_scope(NOTE_CODE_PREFIX, bare)
-        row = await note_crud.note_resolve(bare, resolution)
+        bare = bare_code(journal_code, JOURNAL_CODE_PREFIX) or ""
+        await require_scope(JOURNAL_CODE_PREFIX, bare)
+        row = await journal_crud.journal_resolve(bare, resolution)
         if row is None:
-            raise ValueError(f"Entry {note_code} does not exist.")
-        return AgentNoteRow.model_validate(row)
+            raise ValueError(f"Entry {journal_code} does not exist.")
+        return AgentJournalRow.model_validate(row)
 
     @mcp.tool()
-    async def notes_list(
+    async def journal_list(
         task_code: str, type: str | None = None, open_only: bool = False
-    ) -> AgentNoteList:
+    ) -> AgentJournalList:
         """Read a task's journal, oldest first.
 
         task_get already gives you what is still open; this is for the history behind it — why
@@ -127,15 +127,15 @@ def register(mcp: "FastMCP") -> None:
         """
         bare = bare_code(task_code, TASK_CODE_PREFIX) or ""
         active = await require_scope(TASK_CODE_PREFIX, bare)
-        if type is not None and type not in NOTE_TYPES:
+        if type is not None and type not in JOURNAL_TYPES:
             raise ValueError(
-                f"Unknown entry type {type!r}; expected one of {', '.join(NOTE_TYPES)}."
+                f"Unknown entry type {type!r}; expected one of {', '.join(JOURNAL_TYPES)}."
             )
-        rows = await note_crud.note_list_by_task(bare, type=type, open_only=open_only)
-        return AgentNoteList(
+        rows = await journal_crud.journal_list_by_task(bare, type=type, open_only=open_only)
+        return AgentJournalList(
             workspace=active.code,
             workspace_title=active.title,
-            notes=[AgentNoteRow.model_validate(row) for row in rows],
+            entries=[AgentJournalRow.model_validate(row) for row in rows],
         )
 
 

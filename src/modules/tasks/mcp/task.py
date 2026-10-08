@@ -18,7 +18,7 @@ from src.modules.tasks.codes import bare_code
 from src.modules.tasks.constants import (
     ACTOR_AGENT,
     GROUP_CODE_PREFIX,
-    NOTE_TYPES_BLOCKING,
+    JOURNAL_TYPES_BLOCKING,
     STATUS_CANCELED,
     STATUS_DONE,
     TASK_CODE_PREFIX,
@@ -29,12 +29,12 @@ from src.modules.tasks.constants import (
     TASK_TYPES,
 )
 from src.modules.tasks.crud import group as group_crud
+from src.modules.tasks.crud import journal as journal_crud
 from src.modules.tasks.crud import link as link_crud
-from src.modules.tasks.crud import note as note_crud
 from src.modules.tasks.crud import stage as stage_crud
 from src.modules.tasks.crud import task as task_crud
 from src.modules.tasks.dto import (
-    AgentNoteRow,
+    AgentJournalRow,
     AgentStageRow,
     AgentTaskCreated,
     AgentTaskDetail,
@@ -158,7 +158,7 @@ def register(mcp: "FastMCP") -> None:
         the brief is the only place that says what "done" means here.
 
         Closed journal entries are not included, only their count: they answer "how was this
-        decided", which is a separate question — notes_list when you have it.
+        decided", which is a separate question — journal_list when you have it.
 
         Args:
             task_code: The task to read — a TASK@ code from tasks_list.
@@ -181,8 +181,8 @@ def register(mcp: "FastMCP") -> None:
         )
         children = await task_crud.task_list_by_parent(bare)
         stages = await stage_crud.stage_list_by_task(bare)
-        notes = await note_crud.note_list_by_task(bare)
-        open_notes = [note for note in notes if not note.resolution]
+        entries = await journal_crud.journal_list_by_task(bare)
+        open_entries = [entry for entry in entries if not entry.resolution]
         return AgentTaskDetail(
             workspace=active.code,
             workspace_title=active.title,
@@ -209,8 +209,8 @@ def register(mcp: "FastMCP") -> None:
             canceled_at=task.canceled_at,
             children=await _rows(children),
             stages=[AgentStageRow.model_validate(stage) for stage in stages],
-            open_notes=[AgentNoteRow.model_validate(note) for note in open_notes],
-            closed_notes=len(notes) - len(open_notes),
+            open_entries=[AgentJournalRow.model_validate(entry) for entry in open_entries],
+            closed_entries=len(entries) - len(open_entries),
             unfinished_stages=sum(
                 1 for stage in stages if stage.status not in TASK_STATUSES_TERMINAL
             ),
@@ -327,7 +327,7 @@ def register(mcp: "FastMCP") -> None:
         The brief — title, goal, context, constraints and criteria — is editable on any task,
         whoever set it. On a task a person set, the brief is still their statement of what
         "done" means: when you change it, record what changed and why with
-        note_add(type="decision"), so the change is visible rather than silent.
+        journal_add(type="decision"), so the change is visible rather than silent.
 
         Args:
             task_code: The task to change — a TASK@ code.
@@ -400,17 +400,17 @@ def register(mcp: "FastMCP") -> None:
         if row is None:
             raise ValueError(f"Task {task_code} does not exist (or is deleted).")
         stages = await stage_crud.stage_list_by_task(bare)
-        open_notes = await note_crud.note_open_count_by_task_codes([bare])
-        blocking = await note_crud.note_open_count_by_task_codes(
-            [bare], types=NOTE_TYPES_BLOCKING
+        open_entries = await journal_crud.journal_open_count_by_task_codes([bare])
+        blocking = await journal_crud.journal_open_count_by_task_codes(
+            [bare], types=JOURNAL_TYPES_BLOCKING
         )
         return AgentTaskStatus(
             workspace=active.code,
             workspace_title=active.title,
             code=row.code,
             status=row.status,
-            open_notes=open_notes.get(bare, 0),
-            blocking_notes=blocking.get(bare, 0),
+            open_entries=open_entries.get(bare, 0),
+            blocking_entries=blocking.get(bare, 0),
             unfinished_stages=sum(
                 1 for stage in stages if stage.status not in TASK_STATUSES_TERMINAL
             ),

@@ -66,7 +66,7 @@ producing selective compliance; five that matter beat twenty that do not.
 ## Which fields a task actually needs
 
 `simple` — a title, a goal and the context: what to know before starting. No constraints, no
-criteria, no plan, no journal — `content_*` and `note_add` refuse them there and say to raise
+criteria, no plan, no journal — `content_*` and `journal_add` refuse them there and say to raise
 the type (`task_update` still sets constraints and criteria, but the page does not show them).
 Often a job for a person rather than for you.
 `standard` — the four fields above, the executor's work in three fields (`plan`, `progress`,
@@ -89,7 +89,7 @@ edit `context`, `constraints` and `criteria` in place — one criterion added, o
 reworded — without resending the rest.
 
 On a task a person set, the brief is still their statement of what "done" means, so the edit
-must not be silent: record what changed and why with `note_add(type="decision")`. If the
+must not be silent: record what changed and why with `journal_add(type="decision")`. If the
 change is not a clarification but a different requirement, ask before making it.
 
 Write the brief into the task, never into a file of your own to be copied over later.

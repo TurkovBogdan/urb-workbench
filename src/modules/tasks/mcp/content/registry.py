@@ -11,9 +11,9 @@ A miss is a refusal that teaches. A field that exists but is not content (``titl
 from __future__ import annotations
 
 from src.modules.tasks.codes import code_prefix
-from src.modules.tasks.constants import NOTE_CODE_PREFIX, STAGE_CODE_PREFIX, TASK_CODE_PREFIX
+from src.modules.tasks.constants import JOURNAL_CODE_PREFIX, STAGE_CODE_PREFIX, TASK_CODE_PREFIX
 from src.modules.tasks.mcp.content.base import McpContentHandler
-from src.modules.tasks.mcp.content.note import McpNoteBodyHandler
+from src.modules.tasks.mcp.content.journal import McpJournalBodyHandler
 from src.modules.tasks.mcp.content.stage import McpStageBodyHandler
 from src.modules.tasks.mcp.content.task import (
     McpTaskConstraintsHandler,
@@ -34,7 +34,7 @@ MCP_CONTENT_HANDLERS: dict[tuple[str, str], McpContentHandler] = {
         McpTaskProgressHandler(),
         McpTaskResultHandler(),
         McpStageBodyHandler(),
-        McpNoteBodyHandler(),
+        McpJournalBodyHandler(),
     )
 }
 
@@ -46,8 +46,8 @@ _SET_ELSEWHERE = {
     (STAGE_CODE_PREFIX, "title"): "stage_update",
     (STAGE_CODE_PREFIX, "description"): "stage_update",
     (STAGE_CODE_PREFIX, "evidence"): "stage_close, together with closing the stage",
-    (NOTE_CODE_PREFIX, "title"): "note_add, once — a changed point is a new entry",
-    (NOTE_CODE_PREFIX, "resolution"): "note_resolve, once, together with closing the entry",
+    (JOURNAL_CODE_PREFIX, "title"): "journal_add, once — a changed point is a new entry",
+    (JOURNAL_CODE_PREFIX, "resolution"): "journal_resolve, once, together with closing the entry",
 }
 
 _PREFIXES = tuple(dict.fromkeys(prefix for prefix, _ in MCP_CONTENT_HANDLERS))

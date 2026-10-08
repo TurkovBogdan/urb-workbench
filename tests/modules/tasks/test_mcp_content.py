@@ -17,8 +17,8 @@ from src.modules.tasks.constants import (
     CONSTRAINTS_MAX,
     CONTEXT_MAX,
     CRITERIA_MAX,
-    NOTE_BODY_MAX,
-    NOTE_DECISION,
+    JOURNAL_BODY_MAX,
+    JOURNAL_DECISION,
     PLAN_MAX,
     PROGRESS_MAX,
     RESULT_MAX,
@@ -28,7 +28,7 @@ from src.modules.tasks.constants import (
     TYPE_SIMPLE,
     TYPE_STANDARD,
 )
-from src.modules.tasks.crud import note as note_crud
+from src.modules.tasks.crud import journal as journal_crud
 from src.modules.tasks.crud import stage as stage_crud
 from src.modules.tasks.crud import task as task_crud
 from src.modules.tasks.mcp.content.registry import MCP_CONTENT_HANDLERS
@@ -45,7 +45,7 @@ FIELDS = [
     ("TASK", "progress", PROGRESS_MAX),
     ("TASK", "result", RESULT_MAX),
     ("STAGE", "body", BODY_MAX),
-    ("NOTE", "body", NOTE_BODY_MAX),
+    ("JOURNAL", "body", JOURNAL_BODY_MAX),
 ]
 FIELD_IDS = [f"{prefix}.{field}" for prefix, field, _ in FIELDS]
 
@@ -65,15 +65,21 @@ async def stage(task):
 
 
 @pytest.fixture
-async def note(task):
-    return await note_crud.note_create(task_code=task.code, type=NOTE_DECISION, title="Решение")
+async def entry(task):
+    return await journal_crud.journal_create(
+        task_code=task.code, type=JOURNAL_DECISION, title="Решение"
+    )
 
 
 @pytest.fixture
-async def codes(call, workspace, task, stage, note) -> dict[str, str]:
+async def codes(call, workspace, task, stage, entry) -> dict[str, str]:
     """The session bound to the workspace; a code per prefix, the way the agent passes it."""
     await call("workspace_use", workspace_code=workspace.code)
-    return {"TASK": f"TASK@{task.code}", "STAGE": f"STAGE@{stage.code}", "NOTE": f"NOTE@{note.code}"}
+    return {
+        "TASK": f"TASK@{task.code}",
+        "STAGE": f"STAGE@{stage.code}",
+        "JOURNAL": f"JOURNAL@{entry.code}",
+    }
 
 
 @pytest.fixture
@@ -90,7 +96,7 @@ async def stored(prefix: str, code: str, field: str) -> str:
     elif prefix == "STAGE":
         row = await stage_crud.stage_get(bare)
     else:
-        row = await note_crud.note_get(bare)
+        row = await journal_crud.journal_get(bare)
     return getattr(row, field)
 
 
@@ -113,11 +119,11 @@ async def test_every_long_text_column_has_a_handler_and_no_short_one_does():
     ``evidence`` and ``resolution``, which are pointers and verdicts, not content."""
     from sqlalchemy import String
 
-    from src.modules.tasks.models.note import TasksNote
+    from src.modules.tasks.models.journal import TasksJournal
     from src.modules.tasks.models.stage import TasksStage
     from src.modules.tasks.models.task import TasksTask
 
-    models = {"TASK": TasksTask, "STAGE": TasksStage, "NOTE": TasksNote}
+    models = {"TASK": TasksTask, "STAGE": TasksStage, "JOURNAL": TasksJournal}
     long_columns = {
         (prefix, column.name)
         for prefix, model in models.items()
@@ -203,6 +209,15 @@ async def test_fields_of_one_entity_do_not_bleed_into_each_other(call, bound):
         assert await stored("TASK", bound, field) == f"текст {field}"
 
 
+async def test_a_journal_entry_quoted_by_its_retired_note_code_is_edited(call, codes, entry):
+    """``NOTE@`` was the journal's code until 2026-10-09; an agent holding one still reaches the
+    entry, and the answer tells it the current code."""
+    answer = await call("content_set", code=f"note@{entry.code.lower()}", field="body", text="х")
+
+    assert answer["code"] == codes["JOURNAL"]
+    assert await stored("JOURNAL", codes["JOURNAL"], "body") == "х"
+
+
 async def test_a_lower_case_code_is_answered_in_upper_case(call, bound):
     answer = await call("content_set", code=bound.lower(), field="plan", text="х")
 
@@ -220,8 +235,8 @@ async def test_a_lower_case_code_is_answered_in_upper_case(call, bound):
         ("STAGE", "title", "stage_update"),
         ("STAGE", "description", "stage_update"),
         ("STAGE", "evidence", "stage_close"),
-        ("NOTE", "title", "note_add"),
-        ("NOTE", "resolution", "note_resolve"),
+        ("JOURNAL", "title", "journal_add"),
+        ("JOURNAL", "resolution", "journal_resolve"),
     ],
 )
 async def test_a_field_that_is_not_content_is_refused_naming_its_tool(
@@ -499,7 +514,7 @@ STANDARD_FIELDS = ["constraints", "criteria", "plan", "progress", "result"]
 @pytest.mark.parametrize("field", STANDARD_FIELDS)
 async def test_a_simple_task_refuses_the_fields_it_does_not_have(call, workspace, field):
     """A simple task is a title, a goal and the context: the page shows nothing else, so text
-    written there would be seen by nobody. Refused loudly, with the way out — as note_add and
+    written there would be seen by nobody. Refused loudly, with the way out — as journal_add and
     stage_add already refuse on a type that has no journal or stages."""
     await call("workspace_use", workspace_code=workspace.code)
     task = await task_crud.task_create(
@@ -570,7 +585,7 @@ async def test_the_work_fields_stay_editable_on_any_task_status(call, bound):
         assert await stored("TASK", bound, field) == "после сдачи"
 
 
-@pytest.mark.parametrize(("prefix", "field"), [("TASK", "plan"), ("STAGE", "body"), ("NOTE", "body")])
+@pytest.mark.parametrize(("prefix", "field"), [("TASK", "plan"), ("STAGE", "body"), ("JOURNAL", "body")])
 async def test_a_deleted_task_and_what_hangs_off_it_are_not_edited(
     call, codes, task, prefix, field
 ):
@@ -584,7 +599,7 @@ async def test_a_deleted_task_and_what_hangs_off_it_are_not_edited(
     assert await stored(prefix, code, field) == "до удаления"
 
 
-@pytest.mark.parametrize(("prefix", "field"), [("TASK", "plan"), ("STAGE", "body"), ("NOTE", "body")])
+@pytest.mark.parametrize(("prefix", "field"), [("TASK", "plan"), ("STAGE", "body"), ("JOURNAL", "body")])
 async def test_a_code_of_another_workspace_is_refused_and_not_written(call, bound, prefix, field):
     """Each prefix finds its workspace its own way — a stage and an entry through their task —
     so the fence is checked on all three."""
@@ -597,9 +612,9 @@ async def test_a_code_of_another_workspace_is_refused_and_not_written(call, boun
         "STAGE": (
             await stage_crud.stage_create(task_code=alien_task.code, title="Шаг", body="своё")
         ).code,
-        "NOTE": (
-            await note_crud.note_create(
-                task_code=alien_task.code, type=NOTE_DECISION, title="Решение", body="своё"
+        "JOURNAL": (
+            await journal_crud.journal_create(
+                task_code=alien_task.code, type=JOURNAL_DECISION, title="Решение", body="своё"
             )
         ).code,
     }
@@ -633,7 +648,7 @@ async def test_a_refusal_after_the_row_was_touched_leaves_it_as_it_was(call, bou
     assert (stored_task.title, stored_task.plan) == ("Тарифы", "было")
 
 
-@pytest.mark.parametrize("prefix", ["TASK", "STAGE", "NOTE"])
+@pytest.mark.parametrize("prefix", ["TASK", "STAGE", "JOURNAL"])
 async def test_a_code_that_does_not_exist_is_refused(call, bound, prefix):
     field = "plan" if prefix == "TASK" else "body"
 

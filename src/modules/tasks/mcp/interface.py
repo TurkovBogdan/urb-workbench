@@ -24,11 +24,11 @@ from src.core.config import get_config
 from src.modules.tasks.codes import bare_code, code_prefix, tagged
 from src.modules.tasks.constants import (
     GROUP_CODE_PREFIX,
-    NOTE_CODE_PREFIX,
+    JOURNAL_CODE_PREFIX,
     STAGE_CODE_PREFIX,
     TASK_CODE_PREFIX,
 )
-from src.modules.tasks.crud import note as note_crud
+from src.modules.tasks.crud import journal as journal_crud
 from src.modules.tasks.crud import stage as stage_crud
 from src.modules.tasks.mcp.scope import require_scope
 from src.modules.workspace.constants import WORKSPACE_CODE_PREFIX
@@ -48,7 +48,7 @@ _OPENABLE = (
     GROUP_CODE_PREFIX,
     TASK_CODE_PREFIX,
     STAGE_CODE_PREFIX,
-    NOTE_CODE_PREFIX,
+    JOURNAL_CODE_PREFIX,
 )
 
 
@@ -57,7 +57,7 @@ async def _owning_task(prefix: str, bare: str) -> str:
     if prefix == STAGE_CODE_PREFIX:
         row = await stage_crud.stage_get(bare)
     else:
-        row = await note_crud.note_get(bare)
+        row = await journal_crud.journal_get(bare)
     if row is None:
         raise ValueError(f"{tagged(prefix, bare)} does not exist.")
     return row.task_code
@@ -80,14 +80,14 @@ def register(mcp: "FastMCP") -> None:
         thing on screen rather than a paragraph about it. Returning the address also lets you
         paste it into the conversation.
 
-        A STAGE@ or a NOTE@ opens the task it belongs to: they live on its page and have none of
+        A STAGE@ or a JOURNAL@ opens the task it belongs to: they live on its page and have none of
         their own. A WORKSPACE@ or a TASKGROUP@ opens the list it is a row in.
 
         It acts on the user's machine, so do it when it was asked for or clearly helps, not
         after every call.
 
         Args:
-            code: What to show — a TASK@, STAGE@, NOTE@, TASKGROUP@ or WORKSPACE@ code.
+            code: What to show — a TASK@, STAGE@, JOURNAL@, TASKGROUP@ or WORKSPACE@ code.
         """
         prefix = code_prefix(code)
         if prefix not in _OPENABLE:

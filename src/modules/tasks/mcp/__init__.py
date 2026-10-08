@@ -31,7 +31,7 @@ from src.modules.tasks.mcp.content import register as _register_content
 from src.modules.tasks.mcp.delete import register as _register_delete
 from src.modules.tasks.mcp.group import register as _register_group
 from src.modules.tasks.mcp.interface import register as _register_interface
-from src.modules.tasks.mcp.note import register as _register_note
+from src.modules.tasks.mcp.journal import register as _register_journal
 from src.modules.tasks.mcp.skill import register as _register_skill
 from src.modules.tasks.mcp.stage import register as _register_stage
 from src.modules.tasks.mcp.task import register as _register_task
@@ -53,7 +53,7 @@ _INSTRUCTIONS = (
     "The binding is yours alone — a second agent working elsewhere does not move it, and it "
     "lasts as long as this connection.\n\n"
     "CODES. Every entity has a code that says what it is — WORKSPACE@ (a workspace), TASKGROUP@ "
-    "(a standing theme inside one), TASK@, STAGE@ (a step of a task's plan), NOTE@ (a journal "
+    "(a standing theme inside one), TASK@, STAGE@ (a step of a task's plan), JOURNAL@ (a journal "
     "entry). Pass a code back whole, exactly as you received it; never invent one. A code from "
     "another workspace is refused by name rather than acted on quietly — that refusal means you "
     "are in the wrong workspace, not that the entity is missing.\n\n"
@@ -70,7 +70,7 @@ _INSTRUCTIONS = (
     "standard, and they earn their keep only when the work outlasts one sitting; a standard task "
     "refuses them and says so.\n"
     "The brief is yours to fill in and correct on any task, including one a person set — when you "
-    "change theirs, say what and why in a decision note. The verdict on whether the work is "
+    "change theirs, say what and why in a decision entry. The verdict on whether the work is "
     "accepted is never yours: write what you did in `result`, then hand over at in_review.\n\n"
     "THE LAYOUT IS THEIRS, THE HANDS ARE YOURS. Groups are how the person sees their own work, "
     "and you can make and re-word them — on request. Make one when they ask for it, not because "
@@ -84,10 +84,10 @@ _INSTRUCTIONS = (
     "TOOLS. Space: workspaces_list, workspace_use. Layout: groups_list, group_create, "
     "group_update, tasks_regroup. Work: tasks_list, task_get, "
     "task_create, task_update, task_status. Plan: stage_add, stage_update, stage_close. "
-    "Journal: note_add, note_resolve, notes_list. CONTENT — the long markdown fields — is "
+    "Journal: journal_add, journal_resolve, journal_list. CONTENT — the long markdown fields — is "
     "edited by content_set / content_replace / content_set_section / content_add, addressed by "
     "the entity code and the field: TASK@ context, and from `standard` up constraints, "
-    "criteria, plan, progress, result; STAGE@ body; NOTE@ body. None of them echoes the text "
+    "criteria, plan, progress, result; STAGE@ body; JOURNAL@ body. None of them echoes the text "
     "you sent: content_replace "
     "and content_add answer with the SEAM of the edit, content_set_section with what it CUT, "
     "content_set with the new length. Plus delete(code), one door for every type, and "
@@ -104,7 +104,7 @@ def mcp_server(ctx: "McpServerContext") -> "FastMCP":
     _register_group(mcp)
     _register_task(mcp)
     _register_stage(mcp)
-    _register_note(mcp)
+    _register_journal(mcp)
     _register_content(mcp)
     _register_delete(mcp)
     _register_skill(mcp)
