@@ -55,6 +55,9 @@ def register(mcp: "FastMCP") -> None:
         Watch it against the limit: going over is refused, not trimmed. To amend part of a
         field, use content_replace / content_set_section / content_add instead of rewriting it.
 
+        A `simple` task has only its context: constraints, criteria, plan, progress and result
+        are refused there by every content tool until the type is raised with task_update.
+
         Args:
             code: Whose field to replace — a TASK@, STAGE@ or NOTE@ code.
             field: The field, by the name the answers show it under. TASK@: context,

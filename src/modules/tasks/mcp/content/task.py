@@ -15,6 +15,7 @@ from src.modules.tasks.constants import (
     PROGRESS_MAX,
     RESULT_MAX,
     TASK_CODE_PREFIX,
+    TASK_TYPES_WITH_PLAN,
 )
 from src.modules.tasks.mcp.content.base import McpContentHandler
 from src.modules.tasks.models.task import TasksTask
@@ -27,6 +28,26 @@ class McpTaskContentHandler(McpContentHandler):
     model = TasksTask
 
 
+class McpTaskStandardContentHandler(McpTaskContentHandler):
+    """A field a task has from ``standard`` up: the rest of the brief and the agent's work.
+
+    A ``simple`` task is a title, a goal and the context, and its page shows nothing else — text
+    written into one of these fields would be seen by nobody. So the edit is refused, naming the
+    way out, the same way ``note_add`` and ``stage_add`` refuse on a type without a journal or
+    stages.
+    """
+
+    def check(self, row, task, code: str) -> None:
+        super().check(row, task, code)
+        if task.type not in TASK_TYPES_WITH_PLAN:
+            raise ValueError(
+                f"{code} is {task.type}, and `{self.field}` belongs to "
+                f"{' / '.join(TASK_TYPES_WITH_PLAN)} tasks only — a {task.type} task is a "
+                "title, a goal and the context, and its page would show nothing written here. "
+                f'Raise the type first: task_update(task_code="{code}", type="standard").'
+            )
+
+
 class McpTaskContextHandler(McpTaskContentHandler):
     field = "context"
     limit = CONTEXT_MAX
@@ -34,21 +55,21 @@ class McpTaskContextHandler(McpTaskContentHandler):
     overflow_hint = "Point at files and decisions instead of retelling them."
 
 
-class McpTaskConstraintsHandler(McpTaskContentHandler):
+class McpTaskConstraintsHandler(McpTaskStandardContentHandler):
     field = "constraints"
     limit = CONSTRAINTS_MAX
     what = "the constraints"
     overflow_hint = "One line per rule; the reasoning behind one belongs in the context."
 
 
-class McpTaskCriteriaHandler(McpTaskContentHandler):
+class McpTaskCriteriaHandler(McpTaskStandardContentHandler):
     field = "criteria"
     limit = CRITERIA_MAX
     what = "the criteria"
     overflow_hint = "Five criteria that matter beat twenty that do not — merge or drop some."
 
 
-class McpTaskPlanHandler(McpTaskContentHandler):
+class McpTaskPlanHandler(McpTaskStandardContentHandler):
     field = "plan"
     limit = PLAN_MAX
     what = "the plan"
@@ -59,7 +80,7 @@ class McpTaskPlanHandler(McpTaskContentHandler):
     )
 
 
-class McpTaskProgressHandler(McpTaskContentHandler):
+class McpTaskProgressHandler(McpTaskStandardContentHandler):
     field = "progress"
     limit = PROGRESS_MAX
     what = "the progress"
@@ -69,7 +90,7 @@ class McpTaskProgressHandler(McpTaskContentHandler):
     )
 
 
-class McpTaskResultHandler(McpTaskContentHandler):
+class McpTaskResultHandler(McpTaskStandardContentHandler):
     field = "result"
     limit = RESULT_MAX
     what = "the result"
@@ -87,4 +108,5 @@ __all__ = [
     "McpTaskPlanHandler",
     "McpTaskProgressHandler",
     "McpTaskResultHandler",
+    "McpTaskStandardContentHandler",
 ]

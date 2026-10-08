@@ -25,6 +25,8 @@ from src.modules.tasks.constants import (
     STATUS_DONE,
     STATUS_IN_PROGRESS,
     TYPE_EXTENDED,
+    TYPE_SIMPLE,
+    TYPE_STANDARD,
 )
 from src.modules.tasks.crud import note as note_crud
 from src.modules.tasks.crud import stage as stage_crud
@@ -487,6 +489,59 @@ async def test_a_nul_character_is_refused_on_every_field(call, codes, prefix, fi
         await call("content_add", code=code, field=field, text="a\x00b", position="end")
 
     assert await stored(prefix, code, field) == "было"
+
+
+# ── the type of the task ──────────────────────────────────────────────────────
+
+STANDARD_FIELDS = ["constraints", "criteria", "plan", "progress", "result"]
+
+
+@pytest.mark.parametrize("field", STANDARD_FIELDS)
+async def test_a_simple_task_refuses_the_fields_it_does_not_have(call, workspace, field):
+    """A simple task is a title, a goal and the context: the page shows nothing else, so text
+    written there would be seen by nobody. Refused loudly, with the way out — as note_add and
+    stage_add already refuse on a type that has no journal or stages."""
+    await call("workspace_use", workspace_code=workspace.code)
+    task = await task_crud.task_create(
+        workspace_code=workspace.code, title="Простая", type=TYPE_SIMPLE, **{field: "было"}
+    )
+    code = f"TASK@{task.code}"
+
+    for action, args in (
+        ("content_set", {"text": "х"}),
+        ("content_add", {"text": "х", "position": "end"}),
+        ("content_replace", {"find": "было", "text": "х"}),
+        ("content_set_section", {"heading": "## А", "text": "х"}),
+    ):
+        with pytest.raises(ToolError, match=r"is simple.*type=\"standard\""):
+            await call(action, code=code, field=field, **args)
+
+    assert await stored("TASK", code, field) == "было"
+
+
+async def test_a_simple_task_keeps_its_context_editable(call, workspace):
+    """The context is part of a simple task — the refusal is for the fields it does not show."""
+    await call("workspace_use", workspace_code=workspace.code)
+    task = await task_crud.task_create(workspace_code=workspace.code, title="Простая")
+    code = f"TASK@{task.code}"
+
+    await call("content_set", code=code, field="context", text="вводные")
+
+    assert await stored("TASK", code, "context") == "вводные"
+
+
+@pytest.mark.parametrize("field", STANDARD_FIELDS)
+async def test_raising_the_type_opens_the_field(call, workspace, field):
+    await call("workspace_use", workspace_code=workspace.code)
+    task = await task_crud.task_create(workspace_code=workspace.code, title="Простая")
+    code = f"TASK@{task.code}"
+    with pytest.raises(ToolError, match="is simple"):
+        await call("content_set", code=code, field=field, text="рано")
+
+    await call("task_update", task_code=code, type=TYPE_STANDARD)
+    await call("content_set", code=code, field=field, text="после подъёма типа")
+
+    assert await stored("TASK", code, field) == "после подъёма типа"
 
 
 # ── the state of the entity ───────────────────────────────────────────────────
