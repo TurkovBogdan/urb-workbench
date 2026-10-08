@@ -189,7 +189,7 @@
     "remove_title": "Delete stage",
     "remove_text": "The stage will be removed together with its journal entries. It can't be restored."
   },
-  "note": {
+  "journal": {
     "section": "Journal",
     "empty": "No entries. This is where decisions made along the way, remarks, findings and things to remember go.",
     "empty_open": "No open entries",
@@ -292,7 +292,7 @@
     "stage": {
       "not_found": "Stage not found"
     },
-    "note": {
+    "journal": {
       "not_found": "Journal entry not found"
     }
   }

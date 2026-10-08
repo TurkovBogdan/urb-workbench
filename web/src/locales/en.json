@@ -106,7 +106,7 @@
     },
     "generic": "The request failed",
     "stage_evidence_required": "A stage can't be closed without evidence: say what proves it is done — a command and its result, a file path, a diff summary.",
-    "note_already_resolved": "The entry is already closed. The journal is append-only: if the decision has changed, add a new entry.",
+    "journal_already_resolved": "The entry is already closed, and a resolution is written once: if the decision has changed, add a new entry.",
     "network": "No connection to the server",
     "timeout": "The server didn't respond in time",
     "protocol": "The server's response isn't what the app expects",

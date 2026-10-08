@@ -12,7 +12,7 @@
  * requests from here. Group and task lists always ask about a SPECIFIC workspace: the module does
  * not read across workspaces, and `workspace` is mandatory for them.
  *
- * Codes arrive prefixed (TASKGROUP@…, TASK@…, STAGE@…, NOTE@…, WORKSPACE@…) and go back the same way:
+ * Codes arrive prefixed (TASKGROUP@…, TASK@…, STAGE@…, JOURNAL@…, WORKSPACE@…) and go back the same way:
  * the backend strips the prefix itself, and in a URL segment the code is encoded with
  * `encodeURIComponent` — "@" is allowed in a path, but encoding is safer for any future forms.
  *
@@ -214,7 +214,7 @@ export interface StageBody {
  * (something found outside the task), `fact` (something to remember). A fact is closed when
  * written.
  */
-export interface NoteRow {
+export interface JournalRow {
   code: string
   task_code: string
   stage_code: string | null
@@ -225,7 +225,7 @@ export interface NoteRow {
   created_at: string
 }
 
-export interface NoteBody {
+export interface JournalBody {
   type: string
   title: string
   body: string
@@ -255,7 +255,7 @@ export interface TaskDetail extends TaskListRow {
   parent: TaskListRow | null
   children: TaskListRow[]
   stages: StageRow[]
-  notes: NoteRow[]
+  journal: JournalRow[]
 }
 
 export interface TaskCreateBody {
@@ -476,39 +476,39 @@ export async function deleteStage(code: string, opts?: RequestOptions): Promise<
 
 // ── Journal ───────────────────────────────────────────────────────────────────
 
-export interface ListNotesParams {
+export interface ListJournalParams {
   type?: string
   open_only?: boolean
 }
 
-export async function listNotes(
+export async function listJournal(
   taskCode: string,
-  params?: ListNotesParams,
+  params?: ListJournalParams,
   opts?: RequestOptions,
-): Promise<NoteRow[]> {
-  return internalApi.get<NoteRow[]>(`${BASE}/tasks/${seg(taskCode)}/notes`, {
+): Promise<JournalRow[]> {
+  return internalApi.get<JournalRow[]>(`${BASE}/tasks/${seg(taskCode)}/journal`, {
     ...opts,
     query: { ...params },
   })
 }
 
-export async function createNote(
+export async function createJournalEntry(
   taskCode: string,
-  body: NoteBody,
+  body: JournalBody,
   opts?: RequestOptions,
-): Promise<NoteRow> {
-  return internalApi.post<NoteRow>(`${BASE}/tasks/${seg(taskCode)}/notes`, body, opts)
+): Promise<JournalRow> {
+  return internalApi.post<JournalRow>(`${BASE}/tasks/${seg(taskCode)}/journal`, body, opts)
 }
 
-/** Close an entry. The backend rejects a repeated close: the journal is append-only. */
-export async function resolveNote(
+/** Close an entry. The backend rejects a repeated close: a resolution is written once. */
+export async function resolveJournalEntry(
   code: string,
   resolution: string,
   opts?: RequestOptions,
-): Promise<NoteRow> {
-  return internalApi.post<NoteRow>(`${BASE}/notes/${seg(code)}/resolve`, { resolution }, opts)
+): Promise<JournalRow> {
+  return internalApi.post<JournalRow>(`${BASE}/journal/${seg(code)}/resolve`, { resolution }, opts)
 }
 
-export async function deleteNote(code: string, opts?: RequestOptions): Promise<void> {
-  await internalApi.del<void>(`${BASE}/notes/${seg(code)}`, undefined, opts)
+export async function deleteJournalEntry(code: string, opts?: RequestOptions): Promise<void> {
+  await internalApi.del<void>(`${BASE}/journal/${seg(code)}`, undefined, opts)
 }

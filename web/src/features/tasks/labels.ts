@@ -47,8 +47,8 @@ export const TASK_RESULT_MAX = 2048
 // The stage body — `BODY_MAX` on the backend, the module's name for an entity's only text.
 export const BODY_MAX = 8192
 export const STAGE_EVIDENCE_MAX = 1024
-export const NOTE_BODY_MAX = 2048
-export const NOTE_RESOLUTION_MAX = 1024
+export const JOURNAL_BODY_MAX = 2048
+export const JOURNAL_RESOLUTION_MAX = 1024
 
 // ── Order ─────────────────────────────────────────────────────────────────────
 // The step the backend renumbers a sibling row with (`constants.py::SORT_STEP`). The store needs
@@ -180,23 +180,23 @@ export function typeLayout(value: string): TypeLayout {
 }
 
 // ── Journal entry kinds ───────────────────────────────────────────────────────
-// Mirror of `constants.py::NOTE_TYPES`, same order — most frequent to rarest.
-export const NOTE_TYPES = ['decision', 'remark', 'finding', 'fact'] as const
+// Mirror of `constants.py::JOURNAL_TYPES`, same order — most frequent to rarest.
+export const JOURNAL_TYPES = ['decision', 'remark', 'finding', 'fact'] as const
 
-export type NoteType = (typeof NOTE_TYPES)[number]
+export type JournalType = (typeof JOURNAL_TYPES)[number]
 
 // Color answers "whose is this and what is it waiting for": a decision is our work (accent), the
 // task author's remark needs an answer (warning), a finding is someone else's debt (neutral),
 // a fact is just memory and waits for nothing.
-export const NOTE_TYPE_COLOR: Record<NoteType, BadgeColor> = {
+export const JOURNAL_TYPE_COLOR: Record<JournalType, BadgeColor> = {
   decision: 'accent',
   remark: 'warn',
   finding: 'muted',
   fact: 'muted',
 }
 
-export function noteColor(value: string): BadgeColor {
-  return NOTE_TYPE_COLOR[value as NoteType] ?? 'muted'
+export function journalColor(value: string): BadgeColor {
+  return JOURNAL_TYPE_COLOR[value as JournalType] ?? 'muted'
 }
 
 /** A value from the backend response → a vocabulary member; a foreign value returns `undefined`. */

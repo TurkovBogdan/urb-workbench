@@ -18,19 +18,19 @@ import { MarkdownEditor } from '@/components/markdown/editor'
 import { errorText } from '@/api/errorText'
 import { fmtDateTime } from '@/shared/utils/date'
 
-import { createNote, resolveNote, type NoteRow } from '../api'
+import { createJournalEntry, resolveJournalEntry, type JournalRow } from '../api'
 import { TASK_DOCUMENT_FEATURES } from '../editor'
 import {
-  NOTE_BODY_MAX,
-  NOTE_RESOLUTION_MAX,
-  NOTE_TYPES,
+  JOURNAL_BODY_MAX,
+  JOURNAL_RESOLUTION_MAX,
+  JOURNAL_TYPES,
   TASK_TITLE_MAX,
-  noteColor,
+  journalColor,
 } from '../labels'
 
 const props = defineProps<{
   taskCode: string
-  notes: NoteRow[]
+  entries: JournalRow[]
   /** The task is in the trash: the journal is read-only. */
   disabled?: boolean
 }>()
@@ -44,22 +44,22 @@ const busy = ref(false)
 const error = ref<string | null>(null)
 
 const adding = ref(false)
-const draftType = ref<string>(NOTE_TYPES[0])
+const draftType = ref<string>(JOURNAL_TYPES[0])
 const draftTitle = ref('')
 const draftBody = ref('')
 
 const typeItems = computed(() =>
-  NOTE_TYPES.map((value) => ({ value, title: t(`tasks.note.type.${value}`) })),
+  JOURNAL_TYPES.map((value) => ({ value, title: t(`tasks.journal.type.${value}`) })),
 )
 
 /** An open entry is one with an empty resolution. A fact is closed at creation. */
-const isOpen = (note: NoteRow) => note.resolution === ''
+const isOpen = (entry: JournalRow) => entry.resolution === ''
 
 const visible = computed(() =>
-  openOnly.value ? props.notes.filter(isOpen) : props.notes,
+  openOnly.value ? props.entries.filter(isOpen) : props.entries,
 )
 
-const openCount = computed(() => props.notes.filter(isOpen).length)
+const openCount = computed(() => props.entries.filter(isOpen).length)
 
 async function run(action: () => Promise<unknown>) {
   busy.value = true
@@ -79,7 +79,7 @@ async function run(action: () => Promise<unknown>) {
 async function add() {
   if (!draftTitle.value.trim()) return
   const ok = await run(() =>
-    createNote(
+    createJournalEntry(
       props.taskCode,
       { type: draftType.value, title: draftTitle.value.trim(), body: draftBody.value },
       { report: false },
@@ -101,13 +101,13 @@ async function add() {
  */
 const submitted = new Set<string>()
 
-async function resolve(note: NoteRow, value: string) {
+async function resolve(entry: JournalRow, value: string) {
   const text = value.trim()
-  if (!text || submitted.has(note.code)) return
-  submitted.add(note.code)
+  if (!text || submitted.has(entry.code)) return
+  submitted.add(entry.code)
   // A refusal clears the mark: otherwise a failed request would lock the entry open forever.
-  if (!(await run(() => resolveNote(note.code, text, { report: false })))) {
-    submitted.delete(note.code)
+  if (!(await run(() => resolveJournalEntry(entry.code, text, { report: false })))) {
+    submitted.delete(entry.code)
   }
 }
 </script>
@@ -119,7 +119,7 @@ async function resolve(note: NoteRow, value: string) {
     <div class="journal__bar">
       <VSwitch
         v-model="openOnly"
-        :label="t('tasks.note.open_only', { count: openCount })"
+        :label="t('tasks.journal.open_only', { count: openCount })"
         color="primary"
         density="compact"
         hide-details
@@ -127,7 +127,7 @@ async function resolve(note: NoteRow, value: string) {
       />
       <VBtn variant="text" size="small" :disabled="props.disabled || busy" @click="adding = !adding">
         <template #prepend><IconPlus :size="16" /></template>
-        {{ t('tasks.note.add') }}
+        {{ t('tasks.journal.add') }}
       </VBtn>
     </div>
 
@@ -137,14 +137,14 @@ async function resolve(note: NoteRow, value: string) {
       <VSelect
         v-model="draftType"
         :items="typeItems"
-        :label="t('tasks.note.type_label')"
+        :label="t('tasks.journal.type_label')"
         variant="outlined"
         density="compact"
         hide-details
       />
       <VTextField
         v-model="draftTitle"
-        :label="t('tasks.note.title')"
+        :label="t('tasks.journal.title')"
         :maxlength="TASK_TITLE_MAX"
         variant="outlined"
         density="compact"
@@ -156,8 +156,8 @@ async function resolve(note: NoteRow, value: string) {
            though, and the counter says so. -->
       <MarkdownEditor
         v-model="draftBody"
-        :label="t('tasks.note.body')"
-        :max-length="NOTE_BODY_MAX"
+        :label="t('tasks.journal.body')"
+        :max-length="JOURNAL_BODY_MAX"
         :features="TASK_DOCUMENT_FEATURES"
         min-height="0"
       />
@@ -179,39 +179,39 @@ async function resolve(note: NoteRow, value: string) {
     </div>
 
     <p v-if="!visible.length" class="journal__empty">
-      {{ openOnly ? t('tasks.note.empty_open') : t('tasks.note.empty') }}
+      {{ openOnly ? t('tasks.journal.empty_open') : t('tasks.journal.empty') }}
     </p>
 
-    <article v-for="note in visible" :key="note.code" class="entry" :class="{ 'entry--open': isOpen(note) }">
+    <article v-for="entry in visible" :key="entry.code" class="entry" :class="{ 'entry--open': isOpen(entry) }">
       <header class="entry__head">
-        <StatusBadge :color="noteColor(note.type)">{{ t(`tasks.note.type.${note.type}`) }}</StatusBadge>
-        <span class="entry__title">{{ note.title }}</span>
-        <span class="entry__date">{{ fmtDateTime(note.created_at) }}</span>
+        <StatusBadge :color="journalColor(entry.type)">{{ t(`tasks.journal.type.${entry.type}`) }}</StatusBadge>
+        <span class="entry__title">{{ entry.title }}</span>
+        <span class="entry__date">{{ fmtDateTime(entry.created_at) }}</span>
       </header>
 
       <!-- The entry body is written in markdown but used to be shown as raw text: lists came out as
            inline dashes and code as backticks. An entry cannot be edited (the feed is
            append-only), so this is a renderer, not an editor. -->
-      <MarkdownRenderer v-if="note.body" :text="note.body" compact class="entry__body" />
+      <MarkdownRenderer v-if="entry.body" :text="entry.body" compact class="entry__body" />
 
       <!-- A closed entry's resolution is plain text: it cannot be rewritten, and an input field
            here would promise an edit that does not exist. -->
-      <p v-if="note.resolution" class="entry__resolution">
-        <span class="entry__resolution-label">{{ t('tasks.note.resolution') }}:</span>
-        {{ note.resolution }}
+      <p v-if="entry.resolution" class="entry__resolution">
+        <span class="entry__resolution-label">{{ t('tasks.journal.resolution') }}:</span>
+        {{ entry.resolution }}
       </p>
 
       <VTextField
         v-else
-        :label="t('tasks.note.resolve')"
-        :maxlength="NOTE_RESOLUTION_MAX"
+        :label="t('tasks.journal.resolve')"
+        :maxlength="JOURNAL_RESOLUTION_MAX"
         :disabled="props.disabled || busy"
         variant="outlined"
         density="compact"
         hide-details
         class="entry__resolve"
-        @keyup.enter="(event: KeyboardEvent) => resolve(note, (event.target as HTMLInputElement).value)"
-        @blur="(event: FocusEvent) => resolve(note, (event.target as HTMLInputElement).value)"
+        @keyup.enter="(event: KeyboardEvent) => resolve(entry,(event.target as HTMLInputElement).value)"
+        @blur="(event: FocusEvent) => resolve(entry,(event.target as HTMLInputElement).value)"
       />
     </article>
   </div>

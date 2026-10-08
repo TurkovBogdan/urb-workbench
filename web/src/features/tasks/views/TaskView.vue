@@ -496,7 +496,7 @@ function concernsThisTask(change: Change): boolean {
         .some((one) => one && change.ids.includes(one))
     case 'tasks.link':
     case 'tasks.stage':
-    case 'tasks.note':
+    case 'tasks.journal':
       return touches([row.code])
     case 'tasks.group':
       return touches([row.group_code, row.workspace_code])
@@ -511,7 +511,7 @@ async function reloadLive(): Promise<void> {
 }
 
 useChangeSubscription({
-  entities: ['tasks.task', 'tasks.link', 'tasks.stage', 'tasks.note', 'tasks.group'],
+  entities: ['tasks.task', 'tasks.link', 'tasks.stage', 'tasks.journal', 'tasks.group'],
   match: concernsThisTask,
   onChange: (changes) => {
     if (changes.some((change) => change.entity !== 'tasks.group')) void reloadLive()
@@ -823,10 +823,10 @@ async function purge() {
           </section>
 
           <section v-if="layout.plan">
-            <SectionHeader :title="t('tasks.note.section')" :count="task.notes.length" />
+            <SectionHeader :title="t('tasks.journal.section')" :count="task.journal.length" />
             <TaskJournal
               :task-code="task.code"
-              :notes="task.notes"
+              :entries="task.journal"
               :disabled="deleted"
               @changed="reloadTask"
             />
