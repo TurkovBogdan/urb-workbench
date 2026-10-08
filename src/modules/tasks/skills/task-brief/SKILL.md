@@ -76,9 +76,14 @@ ceremony costs more than it returns.
 
 ## Whose brief is it
 
-You may fill in and correct the brief of any task with `task_update`, including one a person
-set. A thin statement — a title and a goal — is often left on purpose for the executor to flesh
-out once the code has been read.
+You may fill in and correct the brief of any task, including one a person set. A thin
+statement — a title and a goal — is often left on purpose for the executor to flesh out once the
+code has been read.
+
+Two ways to write it. `task_update` sets a field whole — the title, the goal, or a brief field
+written from scratch. `content_set` / `content_replace` / `content_set_section` / `content_add`
+edit `context`, `constraints` and `criteria` in place — one criterion added, one constraint
+reworded — without resending the rest.
 
 On a task a person set, the brief is still their statement of what "done" means, so the edit
 must not be silent: record what changed and why with `note_add(type="decision")`. If the

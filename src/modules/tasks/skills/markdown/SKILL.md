@@ -1,21 +1,22 @@
 ---
 name: markdown
-description: Read before writing a long body — what the interface renders in a plan, a stage or a journal entry, and which diagram types come out as real diagrams instead of a block of code.
+description: Read before writing long text — what the interface renders in a brief, a plan, a stage or a journal entry, and which diagram types come out as real diagrams instead of a block of code.
 ---
 
-# What a body renders as
+# What content renders as
 
-Bodies are markdown and are shown rendered: the plan of a task, the body of a stage, the subject
-of a journal entry. The brief (goal, context, constraints, criteria) renders the same way.
+Content fields are markdown and are shown rendered: a task's brief (`context`, `constraints`,
+`criteria`) and its work (`plan`, `progress`, `result`), the `body` of a stage, the `body` of a
+journal entry. The goal (`description`) renders too, as plain paragraphs.
 
 Ordinary markdown works — headings, lists, tables, links, inline code, fenced code with
 highlighting. Two things are worth knowing because guessing them wrong is silent.
 
 ## Headings are also edit handles
 
-`body_set_section(code, heading, text)` replaces one section, from its heading down to the next
-heading of equal or higher level. That makes headings the unit you can rewrite later without
-resending the whole body.
+`content_set_section(code, field, heading, text)` replaces one section, from its heading down to
+the next heading of equal or higher level. That makes headings the unit you can rewrite later
+without resending the whole field.
 
 Two consequences for how you write:
 
@@ -44,15 +45,27 @@ call flow. A diagram of three boxes that a sentence already said is worse than t
 
 ## Length
 
-A body edited through `body_set` and its neighbours, and the body passed to `stage_add`, is
-refused rather than trimmed when it goes over, and the refusal names how much over you are.
-This matters for plans specifically: the file list sits at the end, so trimming would remove
-the part worth keeping. Limits: plan and stage body 8192, journal entry body 2048.
+Every content field edited through `content_set` and its neighbours is refused rather than
+trimmed when it goes over, and the refusal names the length of the result and how much over you
+are. So are `plan`, `progress` and `result` whichever way they are written, and the body passed
+to `stage_add`. This matters for plans specifically: the file list sits at the end, so trimming
+would remove the part worth keeping.
+
+| Content field | Limit |
+|---|---|
+| `context` | 4048 |
+| `constraints`, `criteria` | 2048 |
+| `plan` | 8192 |
+| `progress` | 16384 |
+| `result` | 2048 |
+| stage `body` | 8192 |
+| journal entry `body` | 2048 |
 
 If a plan is pressing the limit, the detail belongs in stages (an extended task) or a subtask.
 
-Every other text field is cut at its limit **without a word**. Stay under these, and read the
-task back when a field was long:
+The other text fields — and the brief and the entry body when passed to `task_create`,
+`task_update` or `note_add` — are cut at their limit **without a word**. Stay under these, and
+read the task back when a field was long:
 
 | Field | Limit |
 |---|---|

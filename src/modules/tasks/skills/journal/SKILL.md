@@ -5,12 +5,19 @@ description: Read before the first journal entry of a task — which kind a line
 
 # The journal of a task
 
-One append-only stream per task. An entry is never rewritten and never deleted; changing your
-mind is a new entry pointing at the old one. What you *can* do later is **close** an entry —
-once — by saying what settled it.
+One stream per task. An entry is never deleted, and its point and its verdict are never
+rewritten; changing your mind is a new entry pointing at the old one. What you *can* do later is
+add detail to its body, and **close** it — once — by saying what settled it.
 
 An entry has two halves. The **subject** (`title` + `body`) says what came up. The
-**resolution** says what settled it. Open means the resolution is still empty.
+**resolution** says what settled it. Open means the resolution is still empty. The `body` is
+content — `content_add(code, "body", …)` and its neighbours edit it, and the tools do not stop
+you rewriting it. Use that to add what you worked out, not to make an entry say something it
+did not: the title and the resolution stay as written.
+
+The journal is not the progress diary. "Migration written → CRUD next" is where the work is, and
+it goes to the task's `progress`. The journal keeps what someone will later ask about: why it is
+shaped this way, what was found on the side, which exact number it rests on.
 
 ## Four kinds, and the kind is the point
 

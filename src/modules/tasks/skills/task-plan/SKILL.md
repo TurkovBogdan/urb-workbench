@@ -1,18 +1,27 @@
 ---
 name: task-plan
-description: Read before planning a task — what goes in the plan as prose, what becomes a stage, and what counts as the proof that closes one.
+description: Read before planning a task — what goes in the plan, the progress diary and the result, what becomes a stage, and what counts as the proof that closes one.
 ---
 
 # Planning the work
 
-A task has two planning surfaces, and putting the wrong thing in each is the usual mistake.
+Your work on a task is written in three fields, one question each, in the order the work goes:
 
-**The plan** (`body`, edited with `body_set` and its neighbours) is prose: the approach, and
-the files. **Stages** (`stage_add`) are the steps, each with its own state and its own proof.
+| Field | Answers | Written |
+|---|---|---|
+| `plan` | how you will do it — the approach and the files | after reading the code, before changing it |
+| `progress` | how it is going — a diary, an entry at a time | along the way |
+| `result` | what came out — what changed, what checked it, what is left unchecked | at hand-over |
+
+All three are edited with `content_set` / `content_replace` / `content_set_section` /
+`content_add`, the field named in the second argument. **Stages** (`stage_add`) are the plan
+broken into steps, each with its own state and its own proof. Putting the wrong thing in each
+place is the usual mistake: a plan that narrates the course, a diary that re-plans, a result
+that retells the diary.
 
 ## The plan is written after reading the code
 
-Not before. That is why there is no `body` argument on `task_create` — at the moment a task is
+Not before. That is why there is no `plan` argument on `task_create` — at the moment a task is
 created nothing has been read yet.
 
 What makes a plan a plan rather than a promise: **it names the files**. The ones you read, and
@@ -31,10 +40,30 @@ The limit refuses instead of trimming, and that is deliberate — the file list 
 so trimming would cut exactly the part worth keeping. If you hit it, the detail belongs in
 stages, not in the plan.
 
+## Progress is a diary, appended to
+
+One or two lines per entry: what is done, what comes next. Append with
+`content_add(code, "progress", text, "end")`, carrying the newline yourself.
+
+```
+- Migration bil_005 written, rollback checked → CRUD next.
+- List response breaks on the old field → investigating.
+```
+
+It is not the journal. A choice and its reason is a `decision`, a defect elsewhere is a
+`finding`, an exact number is a `fact` — `note_add`. The diary says where the work is; the
+journal says why it is shaped that way.
+
+## The result is written at hand-over
+
+Before `task_status(…, "in_review")`, say what came out in `result`: what changed, what checked
+it, what is left unchecked. Short — the story of the work is in the progress, and the person
+reads the result first.
+
 ## Stages belong to `extended` tasks only
 
 That is the line between `standard` and `extended`, and it is the only one. A standard task keeps
-its plan as prose in the body and nothing else; an extended one also breaks it into steps.
+its plan as prose in `plan` and nothing else; an extended one also breaks it into steps.
 
 So the type is a judgement about the work, not about how carefully you intend to write: choose
 `extended` when the work outlasts one sitting and "where am I, and what proves the part behind
@@ -53,16 +82,13 @@ itself a subtask, the new piece goes next to it — under the same parent — no
 fine. Do not renumber to close it: you refer to "the third stage" in the journal, and a silent
 shift makes those references false.
 
-## Ahead of you the plan is alive, behind you it is frozen
+## Changing course is said, not re-worded
 
-A stage that has not started can be rewritten freely. Once it is running or finished, its body
-refuses edits. The title, description and number are not blocked by the tools, but they fall
-under the same rule: do not re-word a step behind you.
-
-This is not tidiness. If the wording of a step can be adjusted after it has run, the gap between
-what was promised and what was done disappears — and that gap is the only reason to keep a plan
-at all. Changed your mind mid-flight? That is `note_add(type="decision")` saying why, and a new
-stage after the one you are on.
+No tool freezes a stage: its body stays editable on any status, and so does the plan. Clarifying
+a step's wording is fine. Changing what a step behind you promised is not a clarification — the
+gap between what was promised and what was done is what a plan is kept for, and re-wording it
+after the fact erases the gap. Changed your mind mid-flight? That is `note_add(type="decision")`
+saying why, and a new stage after the one you are on.
 
 ## Evidence is a pointer, not a story
 
