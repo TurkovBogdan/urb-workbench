@@ -98,15 +98,12 @@ async def test_a_stage_and_a_journal_entry_take_lower_case_codes_on_write(client
     assert added.json()["code"].startswith("JOURNAL@")
 
 
-@pytest.mark.parametrize("word", ["journal", "note", "Note"])
-async def test_a_journal_entry_resolves_by_its_code_and_by_the_retired_note_word(client, world, word):
-    """``NOTE@`` was the journal's code until 2026-10-09; codes quoted before still resolve, in any
-    case, and the answer carries the current word."""
+async def test_a_journal_entry_resolves_by_a_lower_case_code(client, world):
     _, _, task, _ = world
     entry = await journal_crud.journal_create(task_code=task, type="decision", title="Решение")
 
     response = await client.post(
-        f"{API}/journal/{word}@{entry.code.lower()}/resolve", json={"resolution": "проверено"}
+        f"{API}/journal/journal@{entry.code.lower()}/resolve", json={"resolution": "проверено"}
     )
 
     assert response.status_code == 200, response.text
@@ -114,15 +111,30 @@ async def test_a_journal_entry_resolves_by_its_code_and_by_the_retired_note_word
     assert (await journal_crud.journal_get(entry.code)).resolution == "проверено"
 
 
-@pytest.mark.parametrize("word", ["journal", "note"])
-async def test_a_journal_entry_is_deleted_by_its_code_and_by_the_retired_note_word(
-    client, world, word
-):
+@pytest.mark.parametrize("word", ["note", "Note", "NOTE"])
+async def test_the_retired_note_word_of_an_entry_is_refused_with_its_code(client, world, word):
+    """``NOTE@`` was the journal's code until 2026-10-09 and now names a task note: an entry
+    quoted by it is refused with the code it has now, and neither resolved nor deleted."""
+    _, _, task, _ = world
+    entry = await journal_crud.journal_create(task_code=task, type="decision", title="Решение")
+    old = f"{word}@{entry.code.lower()}"
+
+    resolved = await client.post(f"{API}/journal/{old}/resolve", json={"resolution": "проверено"})
+    deleted = await client.delete(f"{API}/journal/{old}")
+
+    for response in (resolved, deleted):
+        assert response.status_code == 400, response.text
+        assert f"its code is JOURNAL@{entry.code}" in response.json()["error"]
+    stored = await journal_crud.journal_get(entry.code)
+    assert stored is not None and stored.resolution == ""
+
+
+async def test_a_journal_entry_is_deleted_by_a_lower_case_code(client, world):
     _, _, task, _ = world
     kept = await journal_crud.journal_create(task_code=task, type="fact", title="Остаётся")
     gone = await journal_crud.journal_create(task_code=task, type="fact", title="Уходит")
 
-    response = await client.delete(f"{API}/journal/{word}@{gone.code.lower()}")
+    response = await client.delete(f"{API}/journal/journal@{gone.code.lower()}")
 
     assert response.status_code == 204, response.text
     assert await journal_crud.journal_get(gone.code) is None

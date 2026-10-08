@@ -16,6 +16,8 @@ and an agent scan a list by, not prose (prose lives in ``body`` with no limit).
 
 from __future__ import annotations
 
+from src.modules.notes.constants import NOTE_CODE_PREFIX as NOTES_CODE_PREFIX
+
 # ── presentation code prefixes (the boundary, NOT storage — see tasks.codes) ──
 # The DB holds a bare hex code; the type word is put on at output and stripped at input.
 # There is no workspace prefix here: that entity belongs to the ``workspace`` module, and its type
@@ -28,12 +30,14 @@ GROUP_CODE_PREFIX = "TASKGROUP"
 TASK_CODE_PREFIX = "TASK"
 STAGE_CODE_PREFIX = "STAGE"
 JOURNAL_CODE_PREFIX = "JOURNAL"
+# A task note is a document of the ``notes`` module linked to a task; its code is that module's.
+NOTE_CODE_PREFIX = NOTES_CODE_PREFIX
 
 # Retired type words still accepted on input, mapped to the current one. Codes already written into
 # task bodies, journals and agents' notes keep resolving; output never uses them.
-# ``NOTE`` is the journal's word until 2026-10-09: it is being freed for documents, and once they
-# take it this mapping gives way to a lookup that tells an old journal code from a document.
-LEGACY_CODE_PREFIXES = {"GROUP": GROUP_CODE_PREFIX, "NOTE": JOURNAL_CODE_PREFIX}
+# ``NOTE`` is not here although it was the journal's word until 2026-10-09: it now names a task
+# note, and an old journal code is told apart by a lookup (``crud.journal.retired_note_refusal``).
+LEGACY_CODE_PREFIXES = {"GROUP": GROUP_CODE_PREFIX}
 
 # Entity code length in hex characters. The agent retypes the code into every call and pays for it
 # in tokens: 10 characters instead of 22 save ~6.8 tokens per reference. It cannot be shorter — at
@@ -238,6 +242,7 @@ __all__ = [
     "JOURNAL_TYPES_BLOCKING",
     "JOURNAL_TYPES_BY_AGENT",
     "JOURNAL_TYPES_OPENABLE",
+    "NOTE_CODE_PREFIX",
     "PLAN_MAX",
     "PRIORITY_BURNING",
     "PRIORITY_FROZEN",

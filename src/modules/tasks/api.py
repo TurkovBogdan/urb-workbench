@@ -75,6 +75,7 @@ from src.modules.tasks.constants import (
 from src.modules.tasks.crud import group as group_crud
 from src.modules.tasks.crud import journal as journal_crud
 from src.modules.tasks.crud import link as link_crud
+from src.modules.tasks.crud import note as note_crud
 from src.modules.tasks.crud import stage as stage_crud
 from src.modules.tasks.crud import task as task_crud
 from src.modules.tasks.errors import (
@@ -95,6 +96,7 @@ from src.modules.tasks.dto import (
     StageRow,
     TaskDetail,
     TaskListRow,
+    TaskNoteRow,
     TaskRow,
 )
 from src.modules.tasks.models.task import TasksTask
@@ -581,6 +583,7 @@ async def _detail(row: TasksTask) -> TaskDetail:
     parent_rows = await _rows([parent], include_deleted=True) if parent else []
     stages = await stage_crud.stage_list_by_task(row.code)
     journal = await journal_crud.journal_list_by_task(row.code)
+    notes = await note_crud.task_note_list(row.code)
     return TaskDetail(
         **TaskRow.model_validate(row).model_dump(),
         context=row.context,
@@ -597,6 +600,7 @@ async def _detail(row: TasksTask) -> TaskDetail:
         children=await _rows(children, include_deleted=deleted),
         stages=[StageRow.model_validate(stage) for stage in stages],
         journal=[JournalRow.model_validate(entry) for entry in journal],
+        notes=[TaskNoteRow.model_validate(note) for note in notes],
     )
 
 
@@ -1047,9 +1051,13 @@ class JournalResolutionBody(_Body):
     resolution: str
 
 
-def _journal_code(value: str) -> str:
-    """Bare journal entry code from a path segment."""
-    return _bare(value, JOURNAL_CODE_PREFIX) or ""
+async def _journal_code(value: str) -> str:
+    """Bare journal entry code from a path segment; an old ``NOTE@`` of an entry is a 400 naming
+    its current code."""
+    try:
+        return await journal_crud.journal_code_of(value)
+    except ValueError as error:
+        raise ApiError.bad_request(str(error)) from error
 
 
 @router.get("/tasks/{code}/journal")
@@ -1091,7 +1099,7 @@ async def resolve_journal_entry(code: str, payload: JournalResolutionBody) -> Jo
     Closing it again answers 409: a resolution is written once, and rewriting it after the fact
     would bend history to fit the outcome. Changed your mind — write a new entry.
     """
-    bare = _journal_code(code)
+    bare = await _journal_code(code)
     try:
         row = await journal_crud.journal_resolve(bare, payload.resolution)
     except TaskRuleError as error:
@@ -1108,7 +1116,7 @@ async def resolve_journal_entry(code: str, payload: JournalResolutionBody) -> Jo
 @router.delete("/journal/{code}", status_code=204)
 async def delete_journal_entry(code: str) -> Response:
     """Hard delete an entry — a person's endpoint, never exposed to the agent."""
-    if not await journal_crud.journal_delete(_journal_code(code)):
+    if not await journal_crud.journal_delete(await _journal_code(code)):
         raise ApiError.not_found("Journal entry not found", code=JOURNAL_NOT_FOUND)
     return Response(status_code=204)
 

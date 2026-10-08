@@ -17,18 +17,22 @@ from src.modules.tasks.codes import bare_code, code_prefix
 from src.modules.tasks.constants import (
     GROUP_CODE_PREFIX,
     JOURNAL_CODE_PREFIX,
+    NOTE_CODE_PREFIX,
     STAGE_CODE_PREFIX,
     TASK_CODE_PREFIX,
 )
+from src.modules.notes.crud import note as notes_crud
+from src.modules.tasks.crud import note as note_crud
 from src.modules.tasks.crud import stage as stage_crud
 from src.modules.tasks.crud import task as task_crud
 from src.modules.tasks.mcp.scope import require_scope
+from src.modules.tasks.mcp.task_note import require_live_task
 from src.modules.workspace.constants import WORKSPACE_CODE_PREFIX
 
 if TYPE_CHECKING:  # fastmcp fork — backend only (via mcp_server(ctx))
     from fastmcp import FastMCP
 
-_DELETABLE = (TASK_CODE_PREFIX, STAGE_CODE_PREFIX)
+_DELETABLE = (TASK_CODE_PREFIX, STAGE_CODE_PREFIX, NOTE_CODE_PREFIX)
 
 # Why not — per type. The text reaches the agent as is, so it names the way out, not the ban.
 _REFUSALS = {
@@ -62,11 +66,13 @@ def register(mcp: "FastMCP") -> None:
         STAGE@ — removed outright. A plan has no hidden steps; a step you decided against is
         closed with stage_close(outcome="canceled"), which keeps why. Deleting leaves a gap in
         the numbering, and that is fine — numbers order the plan, they do not count it.
+        NOTE@ — the task note, reversibly: it leaves the task's list, and a person can bring it
+        back.
 
         A journal entry is not deletable, and neither is a group or a workspace.
 
         Args:
-            code: The entity to delete — a TASK@ or STAGE@ code.
+            code: The entity to delete — a TASK@, STAGE@ or NOTE@ code.
         """
         prefix = code_prefix(code)
         refusal = _REFUSALS.get(prefix)
@@ -81,6 +87,13 @@ def register(mcp: "FastMCP") -> None:
         await require_scope(prefix, bare)
         if prefix == TASK_CODE_PREFIX:
             return await task_crud.task_delete(bare)
+        if prefix == NOTE_CODE_PREFIX:
+            # A note held by no task is not a task note: from here it does not exist.
+            task_code = await note_crud.task_note_task(bare)
+            if task_code is None:
+                return False
+            await require_live_task(task_code)
+            return await notes_crud.note_delete(bare)
         return await stage_crud.stage_delete(bare)
 
 

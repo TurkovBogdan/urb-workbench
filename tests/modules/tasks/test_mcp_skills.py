@@ -12,6 +12,7 @@ from fastmcp.exceptions import ToolError
 
 from src.modules.tasks.constants import TYPE_EXTENDED
 from src.modules.tasks.crud import journal as journal_crud
+from src.modules.tasks.crud import note as note_crud
 from src.modules.tasks.crud import stage as stage_crud
 from src.modules.tasks.crud import task as task_crud
 from src.modules.tasks.services.skills import list_skills
@@ -73,18 +74,36 @@ async def test_a_task_opens_its_own_page(call, workspace, no_browser):
     assert no_browser == [url["result"]]
 
 
-async def test_a_stage_and_an_entry_open_the_task_they_live_on(call, workspace, no_browser):
+async def test_a_stage_an_entry_and_a_note_open_the_task_they_live_on(
+    call, workspace, no_browser
+):
     await call("workspace_use", workspace_code=workspace.code)
     task = await task_crud.task_create(
         workspace_code=workspace.code, title="Тарифы", type=TYPE_EXTENDED
     )
     stage = await stage_crud.stage_create(task_code=task.code, title="Схема")
     entry = await journal_crud.journal_create(task_code=task.code, type="fact", title="tariff.py:88")
+    note = await note_crud.task_note_add(task_code=task.code, title="Схема тарифов")
 
-    # ``NOTE@`` is the journal's retired word: a code quoted before the rename still opens.
-    for code in (f"STAGE@{stage.code}", f"JOURNAL@{entry.code}", f"NOTE@{entry.code}"):
+    for code in (f"STAGE@{stage.code}", f"JOURNAL@{entry.code}", f"NOTE@{note.code}"):
         url = (await call("interface_open", code=code))["result"]
         assert url.endswith(f"/tasks/task/TASK@{task.code}")
+
+
+async def test_an_entry_quoted_by_the_retired_note_word_is_refused_and_nothing_opens(
+    call, workspace, no_browser
+):
+    """``NOTE@`` now names a task note; the journal's old code is refused with its current one."""
+    await call("workspace_use", workspace_code=workspace.code)
+    task = await task_crud.task_create(
+        workspace_code=workspace.code, title="Тарифы", type=TYPE_EXTENDED
+    )
+    entry = await journal_crud.journal_create(task_code=task.code, type="fact", title="tariff.py:88")
+
+    with pytest.raises(ToolError, match=f"its code is JOURNAL@{entry.code}"):
+        await call("interface_open", code=f"NOTE@{entry.code}")
+
+    assert no_browser == []
 
 
 async def test_a_workspace_and_a_group_open_the_list_they_are_a_row_in(call, workspace, no_browser):

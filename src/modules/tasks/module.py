@@ -57,6 +57,7 @@ from src.modules.tasks.crud import task as task_crud
 from src.modules.tasks.constants import (
     GROUP_CODE_PREFIX,
     JOURNAL_CODE_PREFIX,
+    NOTE_CODE_PREFIX,
     STAGE_CODE_PREFIX,
     TASK_CODE_PREFIX,
 )
@@ -99,6 +100,14 @@ CHANGE_ENTITIES = (
         models.TasksJournal,
         id=Code("code", JOURNAL_CODE_PREFIX),
         refs=(Code("task_code", TASK_CODE_PREFIX), Code("stage_code", STAGE_CODE_PREFIX)),
+    ),
+    # A task note's link: which task holds the document. Edits of the document itself come as
+    # ``notes.note`` from its own module; this says the task's list changed.
+    ChangeEntity(
+        "tasks.note",
+        models.TasksNote,
+        id=Code("note_code", NOTE_CODE_PREFIX),
+        refs=(Code("task_code", TASK_CODE_PREFIX),),
     ),
 )
 

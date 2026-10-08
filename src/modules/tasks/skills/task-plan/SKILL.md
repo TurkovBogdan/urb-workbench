@@ -1,6 +1,6 @@
 ---
 name: task-plan
-description: Read before planning a task — what goes in the plan, the progress diary and the result, what becomes a stage, and what counts as the proof that closes one.
+description: Read before planning a task — what goes in the plan, the progress diary and the result, what becomes a stage or a task note, and what counts as the proof that closes a stage.
 ---
 
 # Planning the work
@@ -59,6 +59,21 @@ journal says why it is shaped that way.
 Before `task_status(…, "in_review")`, say what came out in `result`: what changed, what checked
 it, what is left unchecked. Short — the story of the work is in the progress, and the person
 reads the result first.
+
+## A note holds what the plan cannot
+
+Some planning produces material rather than steps: a data schema, a comparison of three options,
+a concept with a diagram, a table you will come back to. Put that in a **task note** —
+`task_note_add(task_code, title, description, body)` — and point at it from the plan by its
+`NOTE@` code. The plan stays the approach and the files; the note is what the approach rests on.
+
+- A paragraph the plan can hold is not a note. A note earns its place when it has sections,
+  a diagram or a table, or when someone will open it on its own.
+- The `description` is what a reader decides by — `task_get` lists the task's notes by title and
+  description only. Say what the note is about and when to open it.
+- The text is content: `content_set(code, "body", …)` and its neighbours edit it in place;
+  `task_note_update` renames it; `task_note_get` reads it whole.
+- A note belongs to its task alone. Any task type keeps notes, a `simple` one included.
 
 ## Stages belong to `extended` tasks only
 

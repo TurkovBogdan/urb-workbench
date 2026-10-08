@@ -12,7 +12,7 @@ a bare code on a par with ``TASK@…`` — it is the internal form, and forbiddi
 forbidding passing back what the module itself returned.
 
 The owner is looked up through the CRUD of the neighbouring entities, not with a query of our
-own: for ``STAGE@``/``JOURNAL@`` the workspace is reached via the task, and "what does it cost" is
+own: for ``STAGE@``/``JOURNAL@``/``NOTE@`` the workspace is reached via the task, and "what does it cost" is
 not a concern here — the fence fires once per call, not once per output row.
 """
 
@@ -24,11 +24,13 @@ from src.modules.tasks.codes import tagged
 from src.modules.tasks.constants import (
     GROUP_CODE_PREFIX,
     JOURNAL_CODE_PREFIX,
+    NOTE_CODE_PREFIX,
     STAGE_CODE_PREFIX,
     TASK_CODE_PREFIX,
 )
 from src.modules.tasks.crud import group as group_crud
 from src.modules.tasks.crud import journal as journal_crud
+from src.modules.tasks.crud import note as note_crud
 from src.modules.tasks.crud import stage as stage_crud
 from src.modules.tasks.crud import task as task_crud
 from src.modules.workspace.codes import tagged as workspace_tagged
@@ -59,6 +61,18 @@ async def _journal_workspace(code: str) -> str | None:
     return await _task_workspace(row.task_code) if row else None
 
 
+async def _note_workspace(code: str) -> str | None:
+    """A task note's workspace is its task's. A ``NOTE@`` that is an old journal code is refused
+    here, with the code it has now — every tool taking a ``NOTE@`` passes this fence first."""
+    task_code = await note_crud.task_note_task(code)
+    if task_code is not None:
+        return await _task_workspace(task_code)
+    refusal = await journal_crud.retired_note_refusal(code)
+    if refusal is not None:
+        raise ValueError(refusal)
+    return None
+
+
 async def _itself(code: str) -> str:
     """A workspace owns itself: its code is compared with the active one directly."""
     return code
@@ -70,6 +84,7 @@ _OWNER: dict[str, Callable[[str], Awaitable[str | None]]] = {
     TASK_CODE_PREFIX: _task_workspace,
     STAGE_CODE_PREFIX: _stage_workspace,
     JOURNAL_CODE_PREFIX: _journal_workspace,
+    NOTE_CODE_PREFIX: _note_workspace,
 }
 
 

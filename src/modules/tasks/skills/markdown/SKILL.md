@@ -1,13 +1,14 @@
 ---
 name: markdown
-description: Read before writing long text — what the interface renders in a brief, a plan, a stage or a journal entry, and which diagram types come out as real diagrams instead of a block of code.
+description: Read before writing long text — what the interface renders in a brief, a plan, a stage, a journal entry or a task note, and which diagram types come out as real diagrams instead of a block of code.
 ---
 
 # What content renders as
 
 Content fields are markdown and are shown rendered: a task's brief (`context`, `constraints`,
 `criteria`) and its work (`plan`, `progress`, `result`), the `body` of a stage, the `body` of a
-journal entry. The goal (`description`) renders too, as plain paragraphs.
+journal entry, the `body` of a task note. The goal (`description`) renders too, as plain
+paragraphs.
 
 Ordinary markdown works — headings, lists, tables, links, inline code, fenced code with
 highlighting. Two things are worth knowing because guessing them wrong is silent.
@@ -49,8 +50,9 @@ What happens over a limit depends on the **tool**, not only on the field:
 
 - `content_set` and its neighbours **refuse** on every content field, and the refusal names the
   length of the result and how much over you are;
-- `plan`, `progress` and `result` are refused whichever way they are written, and so is the
-  body passed to `stage_add`;
+- `plan`, `progress` and `result` are refused whichever way they are written, and so are the
+  body passed to `stage_add` and every field of a task note — `task_note_add` and
+  `task_note_update` refuse too;
 - everything else — including `context`, `constraints` and `criteria` passed to `task_create` /
   `task_update`, and the body passed to `journal_add` — is **cut without a word** (second table).
 
@@ -66,8 +68,10 @@ the part worth keeping.
 | `result` | 2048 |
 | stage `body` | 8192 |
 | journal entry `body` | 2048 |
+| task note `body` | 65536 |
 
-If a plan is pressing the limit, the detail belongs in stages (an extended task) or a subtask.
+If a plan is pressing the limit, the detail belongs in stages (an extended task), a subtask, or a
+task note when it is material rather than steps.
 
 Cut without a word — stay under these, and read the task back when a field was long:
 

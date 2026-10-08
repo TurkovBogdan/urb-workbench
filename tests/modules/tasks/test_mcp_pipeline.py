@@ -196,31 +196,35 @@ async def test_a_journal_entry_is_never_deleted(call, workspace, brief):
         "journal_add", task_code=f"TASK@{brief.code}", type="fact", title="tariff.py:88"
     )
 
-    # By its code and by the retired ``NOTE@`` word alike: the refusal is the journal's either way.
-    for code in (entry["code"], entry["code"].replace("JOURNAL@", "note@")):
-        with pytest.raises(ToolError, match="A journal entry is not deleted"):
-            await call("delete", code=code)
+    with pytest.raises(ToolError, match="A journal entry is not deleted"):
+        await call("delete", code=entry["code"])
+    # The retired ``NOTE@`` word now names a task note: the entry is refused with its code.
+    with pytest.raises(ToolError, match=f"its code is {entry['code']}"):
+        await call("delete", code=entry["code"].replace("JOURNAL@", "note@"))
 
     listed = await call("journal_list", task_code=f"TASK@{brief.code}")
     assert [row["code"] for row in listed["entries"]] == [entry["code"]]
 
 
-async def test_journal_resolve_takes_the_retired_note_code(call, workspace, brief):
-    """``NOTE@`` was the journal's code until 2026-10-09; an agent closing an entry by a code it
-    noted down earlier still closes it, and is answered with the current code."""
+async def test_journal_resolve_refuses_the_retired_note_code_naming_the_current_one(
+    call, workspace, brief
+):
+    """``NOTE@`` was the journal's code until 2026-10-09 and now names a task note. A code noted
+    down earlier is refused with the one to pass instead, and the entry stays open."""
     await call("workspace_use", workspace_code=workspace.code)
     entry = await call(
         "journal_add", task_code=f"TASK@{brief.code}", type="decision", title="Взяли вариант Б"
     )
 
-    closed = await call(
-        "journal_resolve",
-        journal_code=entry["code"].replace("JOURNAL@", "NOTE@"),
-        resolution="подтверждено",
-    )
+    with pytest.raises(ToolError, match=f"its code is {entry['code']}"):
+        await call(
+            "journal_resolve",
+            journal_code=entry["code"].replace("JOURNAL@", "NOTE@"),
+            resolution="подтверждено",
+        )
 
-    assert closed["code"] == entry["code"]
-    assert closed["resolution"] == "подтверждено"
+    listed = await call("journal_list", task_code=f"TASK@{brief.code}", open_only=True)
+    assert [row["code"] for row in listed["entries"]] == [entry["code"]]
 
 
 async def test_only_the_extended_task_takes_stages(call, workspace):

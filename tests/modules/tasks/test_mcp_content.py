@@ -1,6 +1,6 @@
 """workbench MCP: the content editor — every field, every action, every refusal.
 
-Eight content fields across three entities are edited by the same four tools, each field through
+Nine content fields across four entities are edited by the same four tools, each field through
 its own handler. What is checked is not only that the text got written but WHAT comes back — the
 agent sent the text itself, and the answer's value lies exactly in what it did not know: how the
 insert landed and how far the cut reached. And every refusal is checked against the data after
@@ -28,7 +28,10 @@ from src.modules.tasks.constants import (
     TYPE_SIMPLE,
     TYPE_STANDARD,
 )
+from src.modules.notes.constants import BODY_MAX as NOTE_BODY_MAX
+from src.modules.notes.crud import note as notes_crud
 from src.modules.tasks.crud import journal as journal_crud
+from src.modules.tasks.crud import note as note_crud
 from src.modules.tasks.crud import stage as stage_crud
 from src.modules.tasks.crud import task as task_crud
 from src.modules.tasks.mcp.content.registry import MCP_CONTENT_HANDLERS
@@ -46,6 +49,7 @@ FIELDS = [
     ("TASK", "result", RESULT_MAX),
     ("STAGE", "body", BODY_MAX),
     ("JOURNAL", "body", JOURNAL_BODY_MAX),
+    ("NOTE", "body", NOTE_BODY_MAX),
 ]
 FIELD_IDS = [f"{prefix}.{field}" for prefix, field, _ in FIELDS]
 
@@ -72,13 +76,19 @@ async def entry(task):
 
 
 @pytest.fixture
-async def codes(call, workspace, task, stage, entry) -> dict[str, str]:
+async def note(task):
+    return await note_crud.task_note_add(task_code=task.code, title="Схема")
+
+
+@pytest.fixture
+async def codes(call, workspace, task, stage, entry, note) -> dict[str, str]:
     """The session bound to the workspace; a code per prefix, the way the agent passes it."""
     await call("workspace_use", workspace_code=workspace.code)
     return {
         "TASK": f"TASK@{task.code}",
         "STAGE": f"STAGE@{stage.code}",
         "JOURNAL": f"JOURNAL@{entry.code}",
+        "NOTE": f"NOTE@{note.code}",
     }
 
 
@@ -95,6 +105,8 @@ async def stored(prefix: str, code: str, field: str) -> str:
         row = await task_crud.task_get(bare, include_deleted=True)
     elif prefix == "STAGE":
         row = await stage_crud.stage_get(bare)
+    elif prefix == "NOTE":
+        row = await notes_crud.note_get(bare, include_deleted=True)
     else:
         row = await journal_crud.journal_get(bare)
     return getattr(row, field)
@@ -119,11 +131,12 @@ async def test_every_long_text_column_has_a_handler_and_no_short_one_does():
     ``evidence`` and ``resolution``, which are pointers and verdicts, not content."""
     from sqlalchemy import String
 
+    from src.modules.notes.models.note import Note
     from src.modules.tasks.models.journal import TasksJournal
     from src.modules.tasks.models.stage import TasksStage
     from src.modules.tasks.models.task import TasksTask
 
-    models = {"TASK": TasksTask, "STAGE": TasksStage, "JOURNAL": TasksJournal}
+    models = {"TASK": TasksTask, "STAGE": TasksStage, "JOURNAL": TasksJournal, "NOTE": Note}
     long_columns = {
         (prefix, column.name)
         for prefix, model in models.items()
@@ -131,7 +144,7 @@ async def test_every_long_text_column_has_a_handler_and_no_short_one_does():
         if isinstance(column.type, String) and (column.type.length or 0) > 1024
     }
 
-    assert len(long_columns) == 8
+    assert len(long_columns) == 9
     assert long_columns == set(MCP_CONTENT_HANDLERS)
     for (prefix, field), handler in MCP_CONTENT_HANDLERS.items():
         assert handler.limit == models[prefix].__table__.columns[field].type.length
@@ -209,13 +222,16 @@ async def test_fields_of_one_entity_do_not_bleed_into_each_other(call, bound):
         assert await stored("TASK", bound, field) == f"текст {field}"
 
 
-async def test_a_journal_entry_quoted_by_its_retired_note_code_is_edited(call, codes, entry):
-    """``NOTE@`` was the journal's code until 2026-10-09; an agent holding one still reaches the
-    entry, and the answer tells it the current code."""
-    answer = await call("content_set", code=f"note@{entry.code.lower()}", field="body", text="х")
+async def test_a_journal_entry_quoted_by_its_retired_note_code_is_refused_with_its_code(
+    call, codes, entry
+):
+    """``NOTE@`` was the journal's code until 2026-10-09 and now names a task note. An old code
+    is not read silently as either: the refusal names the entry's current code, and nothing is
+    written."""
+    with pytest.raises(ToolError, match=f"its code is {codes['JOURNAL']}"):
+        await call("content_set", code=f"note@{entry.code.lower()}", field="body", text="х")
 
-    assert answer["code"] == codes["JOURNAL"]
-    assert await stored("JOURNAL", codes["JOURNAL"], "body") == "х"
+    assert await stored("JOURNAL", codes["JOURNAL"], "body") == ""
 
 
 async def test_a_lower_case_code_is_answered_in_upper_case(call, bound):
@@ -237,6 +253,8 @@ async def test_a_lower_case_code_is_answered_in_upper_case(call, bound):
         ("STAGE", "evidence", "stage_close"),
         ("JOURNAL", "title", "journal_add"),
         ("JOURNAL", "resolution", "journal_resolve"),
+        ("NOTE", "title", "task_note_update"),
+        ("NOTE", "description", "task_note_update"),
     ],
 )
 async def test_a_field_that_is_not_content_is_refused_naming_its_tool(

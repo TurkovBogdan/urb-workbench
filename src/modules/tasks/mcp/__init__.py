@@ -35,6 +35,7 @@ from src.modules.tasks.mcp.journal import register as _register_journal
 from src.modules.tasks.mcp.skill import register as _register_skill
 from src.modules.tasks.mcp.stage import register as _register_stage
 from src.modules.tasks.mcp.task import register as _register_task
+from src.modules.tasks.mcp.task_note import register as _register_task_note
 from src.modules.workspace.mcp import register as _register_workspace
 
 if TYPE_CHECKING:
@@ -54,7 +55,7 @@ _INSTRUCTIONS = (
     "lasts as long as this connection.\n\n"
     "CODES. Every entity has a code that says what it is — WORKSPACE@ (a workspace), TASKGROUP@ "
     "(a standing theme inside one), TASK@, STAGE@ (a step of a task's plan), JOURNAL@ (a journal "
-    "entry). Pass a code back whole, exactly as you received it; never invent one. A code from "
+    "entry), NOTE@ (a task note — a document written at a task). Pass a code back whole, exactly as you received it; never invent one. A code from "
     "another workspace is refused by name rather than acted on quietly — that refusal means you "
     "are in the wrong workspace, not that the entity is missing.\n\n"
     "EVERY ANSWER NAMES ITS WORKSPACE. Read it. It is the only way to notice that you are "
@@ -84,11 +85,13 @@ _INSTRUCTIONS = (
     "TOOLS. Space: workspaces_list, workspace_use. Layout: groups_list, group_create, "
     "group_update, tasks_regroup. Work: tasks_list, task_get, "
     "task_create, task_update, task_status. Plan: stage_add, stage_update, stage_close. "
-    "Journal: journal_add, journal_resolve, journal_list. CONTENT — the long markdown fields — is "
+    "Journal: journal_add, journal_resolve, journal_list. Task notes — schemas, option breakdowns, "
+    "concepts that do not fit a plan, on a task of any type: task_note_add, task_note_get, "
+    "task_note_update; task_get lists them without text. CONTENT — the long markdown fields — is "
     "edited by content_set / content_replace / content_set_section / content_add, addressed by "
     "the entity code and the field: TASK@ context, and from `standard` up constraints, "
-    "criteria, plan, progress, result; STAGE@ body; JOURNAL@ body. None of them echoes the text "
-    "you sent: content_replace "
+    "criteria, plan, progress, result; STAGE@ body; JOURNAL@ body; NOTE@ body. None of them "
+    "echoes the text you sent: content_replace "
     "and content_add answer with the SEAM of the edit, content_set_section with what it CUT, "
     "content_set with the new length. Plus delete(code), one door for every type, and "
     "interface_open(code) to put something on the user's screen."
@@ -105,6 +108,7 @@ def mcp_server(ctx: "McpServerContext") -> "FastMCP":
     _register_task(mcp)
     _register_stage(mcp)
     _register_journal(mcp)
+    _register_task_note(mcp)
     _register_content(mcp)
     _register_delete(mcp)
     _register_skill(mcp)

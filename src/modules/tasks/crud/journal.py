@@ -20,9 +20,11 @@ from sqlalchemy import delete as sa_delete, func, select
 
 from src.core.database import session_scope, write_scope
 from src.modules.core_changes import DELETED, mark_changes
-from src.modules.tasks.codes import new_code
+from src.modules.tasks.codes import bare_code, code_prefix, new_code, strip_prefix
 from src.modules.tasks.constants import (
     JOURNAL_BODY_MAX,
+    JOURNAL_CODE_PREFIX,
+    NOTE_CODE_PREFIX,
     JOURNAL_TYPES,
     JOURNAL_TYPES_OPENABLE,
     RESOLUTION_MAX,
@@ -114,6 +116,36 @@ async def journal_get(code: str) -> TasksJournal | None:
         return await s.get(TasksJournal, code)
 
 
+async def retired_note_refusal(bare: str) -> str | None:
+    """The refusal for ``NOTE@<bare>`` that is an old journal code; ``None`` — it is not one.
+
+    ``NOTE@`` was the journal's word until 2026-10-09 and now names a task note. A code quoted
+    before the switch must not be read silently as either: as an entry it would hide the rename,
+    as a note it would answer "not found" for a row that is right there. So it is refused with
+    the code it has now.
+    """
+    if await journal_get(bare) is None:
+        return None
+    return (
+        f"{NOTE_CODE_PREFIX}@{bare} is a journal entry: its code is {JOURNAL_CODE_PREFIX}@{bare} "
+        f"since 2026-10-09, and {NOTE_CODE_PREFIX}@ now names a task note. "
+        f"Pass {JOURNAL_CODE_PREFIX}@{bare}."
+    )
+
+
+async def journal_code_of(value: str) -> str:
+    """The bare code of a journal entry passed where one is expected; an old ``NOTE@`` is refused.
+
+    The refusal for a retired ``NOTE@`` names the current code when such an entry exists; any
+    other foreign prefix is refused by ``bare_code`` as a mixed-up argument.
+    """
+    if code_prefix(value) == NOTE_CODE_PREFIX:
+        refusal = await retired_note_refusal(strip_prefix(value) or "")
+        if refusal is not None:
+            raise ValueError(refusal)
+    return bare_code(value, JOURNAL_CODE_PREFIX) or ""
+
+
 async def journal_list_by_task(
     task_code: str, *, type: str | None = None, open_only: bool = False
 ) -> list[TasksJournal]:
@@ -197,10 +229,12 @@ async def journal_open_count_by_task_codes(
 
 
 __all__ = [
+    "journal_code_of",
     "journal_create",
     "journal_delete",
     "journal_get",
     "journal_list_by_task",
     "journal_open_count_by_task_codes",
     "journal_resolve",
+    "retired_note_refusal",
 ]

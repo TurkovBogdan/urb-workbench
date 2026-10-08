@@ -5,7 +5,8 @@ and is opened in the local browser. The app is local and the backend serves the 
 itself, so the address is built from ``server_host``/``server_port`` — the same base url the
 stdio shim opens.
 
-Not everything has a page of its own. A stage and a journal entry live on their task's page, and
+Not everything has a page of its own. A stage, a journal entry and a task note live on their
+task's page, and
 a code of that type leads there too — we resolve the owner and open it. Refusing here would be
 pedantry: the agent asks to show the work, not an address.
 
@@ -25,10 +26,12 @@ from src.modules.tasks.codes import bare_code, code_prefix, tagged
 from src.modules.tasks.constants import (
     GROUP_CODE_PREFIX,
     JOURNAL_CODE_PREFIX,
+    NOTE_CODE_PREFIX,
     STAGE_CODE_PREFIX,
     TASK_CODE_PREFIX,
 )
 from src.modules.tasks.crud import journal as journal_crud
+from src.modules.tasks.crud import note as note_crud
 from src.modules.tasks.crud import stage as stage_crud
 from src.modules.tasks.mcp.scope import require_scope
 from src.modules.workspace.constants import WORKSPACE_CODE_PREFIX
@@ -49,18 +52,23 @@ _OPENABLE = (
     TASK_CODE_PREFIX,
     STAGE_CODE_PREFIX,
     JOURNAL_CODE_PREFIX,
+    NOTE_CODE_PREFIX,
 )
 
 
 async def _owning_task(prefix: str, bare: str) -> str:
-    """The task that owns a stage or a journal entry."""
-    if prefix == STAGE_CODE_PREFIX:
+    """The task that owns a stage, a journal entry or a task note."""
+    if prefix == NOTE_CODE_PREFIX:
+        task_code = await note_crud.task_note_task(bare)
+    elif prefix == STAGE_CODE_PREFIX:
         row = await stage_crud.stage_get(bare)
+        task_code = row.task_code if row else None
     else:
         row = await journal_crud.journal_get(bare)
-    if row is None:
+        task_code = row.task_code if row else None
+    if task_code is None:
         raise ValueError(f"{tagged(prefix, bare)} does not exist.")
-    return row.task_code
+    return task_code
 
 
 def _app_url(path: str) -> str:
@@ -80,14 +88,14 @@ def register(mcp: "FastMCP") -> None:
         thing on screen rather than a paragraph about it. Returning the address also lets you
         paste it into the conversation.
 
-        A STAGE@ or a JOURNAL@ opens the task it belongs to: they live on its page and have none of
-        their own. A WORKSPACE@ or a TASKGROUP@ opens the list it is a row in.
+        A STAGE@, a JOURNAL@ or a NOTE@ opens the task it belongs to: they live on its page and
+        have none of their own. A WORKSPACE@ or a TASKGROUP@ opens the list it is a row in.
 
         It acts on the user's machine, so do it when it was asked for or clearly helps, not
         after every call.
 
         Args:
-            code: What to show — a TASK@, STAGE@, JOURNAL@, TASKGROUP@ or WORKSPACE@ code.
+            code: What to show — a TASK@, STAGE@, JOURNAL@, NOTE@, TASKGROUP@ or WORKSPACE@ code.
         """
         prefix = code_prefix(code)
         if prefix not in _OPENABLE:

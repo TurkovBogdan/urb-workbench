@@ -104,11 +104,11 @@ def register(mcp: "FastMCP") -> None:
             resolution: What was decided, how it was taken into account, or what the answer
                 turned out to be.
         """
-        bare = bare_code(journal_code, JOURNAL_CODE_PREFIX) or ""
+        bare = await journal_crud.journal_code_of(journal_code)
         await require_scope(JOURNAL_CODE_PREFIX, bare)
         row = await journal_crud.journal_resolve(bare, resolution)
         if row is None:
-            raise ValueError(f"Entry {journal_code} does not exist.")
+            raise ValueError(f"Journal entry {JOURNAL_CODE_PREFIX}@{bare} does not exist.")
         return AgentJournalRow.model_validate(row)
 
     @mcp.tool()

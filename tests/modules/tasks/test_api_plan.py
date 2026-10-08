@@ -17,7 +17,9 @@ from src.modules.tasks.constants import (
     STATUS_DONE,
     TYPE_EXTENDED,
 )
+from src.modules.notes.crud import note as notes_crud
 from src.modules.tasks.crud import journal as journal_crud
+from src.modules.tasks.crud import note as note_crud
 from src.modules.tasks.crud import stage as stage_crud
 from src.modules.tasks.crud import task as task_crud
 from src.modules.tasks.errors import JOURNAL_ALREADY_RESOLVED, STAGE_EVIDENCE_REQUIRED
@@ -247,7 +249,25 @@ async def test_task_detail_carries_the_brief_the_plan_and_both_lists(client):
     assert "body" not in body
     assert [row["title"] for row in body["stages"]] == ["Модели"]
     assert [row["title"] for row in body["journal"]] == ["Решение"]
-    assert "notes" not in body
+    # ``notes`` are the task's notes now, not the journal under its old name.
+    assert body["notes"] == []
+
+
+async def test_task_detail_lists_the_live_notes_in_order_without_their_text(client):
+    task = await _task()
+    first = await note_crud.task_note_add(task_code=task.code, title="Схема", body="длинный текст")
+    gone = await note_crud.task_note_add(task_code=task.code, title="Черновик")
+    second = await note_crud.task_note_add(task_code=task.code, title="Разбор", description="Когда")
+    await notes_crud.note_delete(gone.code)
+
+    notes = (await client.get(f"{TASKS}/{task.code}")).json()["notes"]
+
+    assert [(n["code"], n["title"]) for n in notes] == [
+        (f"NOTE@{first.code}", "Схема"),
+        (f"NOTE@{second.code}", "Разбор"),
+    ]
+    assert notes[1]["description"] == "Когда"
+    assert all("body" not in n for n in notes)
 
 
 async def test_task_list_row_carries_neither_stages_nor_journal(client):

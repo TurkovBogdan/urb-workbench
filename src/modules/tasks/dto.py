@@ -38,6 +38,7 @@ from src.modules.tasks.codes import prefixed
 from src.modules.tasks.constants import (
     GROUP_CODE_PREFIX,
     JOURNAL_CODE_PREFIX,
+    NOTE_CODE_PREFIX,
     SORT_DEFAULT,
     STAGE_CODE_PREFIX,
     TASK_CODE_PREFIX,
@@ -55,6 +56,7 @@ GroupCode = prefixed(GROUP_CODE_PREFIX)
 TaskCode = prefixed(TASK_CODE_PREFIX)
 StageCode = prefixed(STAGE_CODE_PREFIX)
 JournalCode = prefixed(JOURNAL_CODE_PREFIX)
+NoteCode = prefixed(NOTE_CODE_PREFIX)
 
 
 class GroupRow(BaseModel):
@@ -165,8 +167,24 @@ class JournalRow(BaseModel):
     created_at: DatetimeUTCStr
 
 
+class TaskNoteRow(BaseModel):
+    """A task note in the task's list: the document's scan layer, without its text.
+
+    The text is read and saved on the document's own route (``/internal/notes/{code}``): a task
+    with three 64K documents would otherwise carry them on every open of its page.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    code: NoteCode
+    title: str
+    description: str = ""
+    created_at: DatetimeUTCStr
+    updated_at: DatetimeUTCStr
+
+
 class TaskDetail(TaskListRow):
-    """The whole task: brief, plan, tree neighbours, group, stages and journal.
+    """The whole task: brief, plan, tree neighbours, group, stages, journal and notes.
 
     Children are the same list rows (with their own edges and branch flag), so a child's card on
     the detail and a card in the list are one and the same object: their markup has nowhere to
@@ -193,6 +211,7 @@ class TaskDetail(TaskListRow):
     children: list[TaskListRow] = []
     stages: list[StageRow] = []
     journal: list[JournalRow] = []
+    notes: list[TaskNoteRow] = []
 
 
 # A group as the agent sees it: where to put a task and what is already there. No styling (color,
@@ -280,6 +299,40 @@ class AgentJournalRow(BaseModel):
     created_at: DatetimeUTCStr
 
 
+# A task note as the task lists it: what it is and when it changed, never its text — the agent
+# decides by the description whether to open it with task_note_get.
+class AgentTaskNoteRow(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    code: NoteCode
+    title: str
+    description: str = ""
+    updated_at: DatetimeUTCStr
+
+
+# A task note whole: the document and the task it belongs to.
+class AgentTaskNote(AgentScope):
+    code: NoteCode
+    task_code: TaskCode
+    title: str
+    description: str = ""
+    body: str = ""
+    updated_at: DatetimeUTCStr
+
+
+# A task note after task_note_update: the scan layer, without the text the agent did not touch.
+class AgentTaskNoteUpdated(AgentScope):
+    code: NoteCode
+    task_code: TaskCode
+    title: str
+    description: str = ""
+    updated_at: DatetimeUTCStr
+
+
+class AgentTaskNoteCreated(AgentScope):
+    code: NoteCode
+
+
 # The work screen: brief, plan, stages and whatever is still open.
 #
 # Closed journal entries are not here, only their count: they answer "how did we get here", which
@@ -315,6 +368,7 @@ class AgentTaskDetail(AgentScope):
     open_entries: list[AgentJournalRow] = []
     closed_entries: int = 0
     unfinished_stages: int = 0
+    notes: list[AgentTaskNoteRow] = []
 
 
 # A creation receipt: the code and the workspace, nothing more. The agent would pay for an echo of
@@ -416,6 +470,10 @@ __all__ = [
     "AgentTaskCreated",
     "AgentTaskDetail",
     "AgentTaskList",
+    "AgentTaskNote",
+    "AgentTaskNoteCreated",
+    "AgentTaskNoteRow",
+    "AgentTaskNoteUpdated",
     "AgentTaskRow",
     "AgentTaskStatus",
     "AgentTasksRegrouped",
@@ -424,11 +482,13 @@ __all__ = [
     "GroupRow",
     "JournalCode",
     "JournalRow",
+    "NoteCode",
     "StageCode",
     "StageRow",
     "TaskCode",
     "TaskDetail",
     "TaskListRow",
+    "TaskNoteRow",
     "TaskRow",
     "WorkspaceCode",
 ]

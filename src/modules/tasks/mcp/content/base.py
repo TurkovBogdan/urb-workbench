@@ -243,6 +243,14 @@ def _set_section(current: str, *, heading: str, text: str) -> tuple[str, Section
 Report = TypeVar("Report")
 
 
+def deleted_task_refusal(task_code: str) -> str:
+    """One wording for every write that reaches a deleted task — its fields, stages, entries, notes."""
+    return (
+        f"{tagged(TASK_CODE_PREFIX, task_code)} is deleted — editing it is closed until a person "
+        "restores it. Say so rather than creating a replacement."
+    )
+
+
 class McpContentHandler:
     """One content field of one entity type, as an MCP agent edits it.
 
@@ -301,13 +309,14 @@ class McpContentHandler:
         """The task the row belongs to: a stage and a journal entry carry it in ``task_code``."""
         return row.task_code
 
+    async def owning_task(self, s, row, code: str) -> TasksTask:
+        """The task row the edited row belongs to, read in the edit's own transaction."""
+        return await s.get(TasksTask, self.task_code_of(row))
+
     def check(self, row, task: TasksTask, code: str) -> None:
         """May the field be edited now. A deleted task is the person's to restore, not to edit."""
         if task.deleted_at is not None:
-            raise ValueError(
-                f"{tagged(TASK_CODE_PREFIX, task.code)} is deleted — editing it is closed until "
-                "a person restores it. Say so rather than creating a replacement."
-            )
+            raise ValueError(deleted_task_refusal(task.code))
 
     def validate(self, row, text: str, code: str) -> None:
         """Is the edited text acceptable. The cap refuses and names the RESULT's length.
@@ -335,9 +344,7 @@ class McpContentHandler:
             row = await s.get(self.model, strip_prefix(code))
             if row is None:
                 raise ValueError(f"{code} does not exist.")
-            task = row if isinstance(row, TasksTask) else await s.get(
-                TasksTask, self.task_code_of(row)
-            )
+            task = row if isinstance(row, TasksTask) else await self.owning_task(s, row, code)
             self.check(row, task, code)
             text, report = edit(getattr(row, self.field) or "")
             self.validate(row, text, code)
@@ -356,4 +363,5 @@ __all__ = [
     "SEAM_TRUNCATION_MARK",
     "McpContentHandler",
     "SectionCut",
+    "deleted_task_refusal",
 ]

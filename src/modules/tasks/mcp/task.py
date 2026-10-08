@@ -31,6 +31,7 @@ from src.modules.tasks.constants import (
 from src.modules.tasks.crud import group as group_crud
 from src.modules.tasks.crud import journal as journal_crud
 from src.modules.tasks.crud import link as link_crud
+from src.modules.tasks.crud import note as note_crud
 from src.modules.tasks.crud import stage as stage_crud
 from src.modules.tasks.crud import task as task_crud
 from src.modules.tasks.dto import (
@@ -39,6 +40,7 @@ from src.modules.tasks.dto import (
     AgentTaskCreated,
     AgentTaskDetail,
     AgentTaskList,
+    AgentTaskNoteRow,
     AgentTaskRow,
     AgentTaskStatus,
 )
@@ -158,7 +160,8 @@ def register(mcp: "FastMCP") -> None:
         the brief is the only place that says what "done" means here.
 
         Closed journal entries are not included, only their count: they answer "how was this
-        decided", which is a separate question — journal_list when you have it.
+        decided", which is a separate question — journal_list when you have it. The task's
+        `notes` come by title and description only; task_note_get reads one whole.
 
         Args:
             task_code: The task to read — a TASK@ code from tasks_list.
@@ -214,6 +217,10 @@ def register(mcp: "FastMCP") -> None:
             unfinished_stages=sum(
                 1 for stage in stages if stage.status not in TASK_STATUSES_TERMINAL
             ),
+            notes=[
+                AgentTaskNoteRow.model_validate(note)
+                for note in await note_crud.task_note_list(bare)
+            ],
         )
 
     @mcp.tool()

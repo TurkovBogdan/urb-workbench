@@ -17,10 +17,12 @@ from src.core.database import close_database, init_database
 from src.modules.core_changes.bus import bus
 from src.modules.core_changes.capture import install
 from src.modules.core_changes.entities import clear_entities, register_entity
+from src.modules.notes.module import CHANGE_ENTITIES as NOTES_CHANGE_ENTITIES
 from src.modules.tasks.constants import TYPE_EXTENDED
 from src.modules.tasks.crud.group import group_create, group_delete, group_update
 from src.modules.tasks.crud.link import link_reorder
 from src.modules.tasks.crud.journal import journal_create, journal_delete, journal_resolve
+from src.modules.tasks.crud.note import task_note_add
 from src.modules.tasks.crud.stage import stage_create, stage_delete, stage_update
 from src.modules.tasks.crud.task import task_create, task_delete, task_restore, task_update
 from src.modules.tasks.module import CHANGE_ENTITIES
@@ -39,7 +41,8 @@ async def db(config: Config):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     clear_entities()
-    for entity in CHANGE_ENTITIES:
+    # A task note's document is the ``notes`` module's entity, declared by that module.
+    for entity in (*CHANGE_ENTITIES, *NOTES_CHANGE_ENTITIES):
         register_entity(entity)
     install()
     try:
@@ -220,14 +223,60 @@ async def test_content_edits_reach_the_feed_for_every_field(workspace, feed):
     task = await task_create(workspace_code=workspace.code, title="Выпуск", type=TYPE_EXTENDED)
     stage = await stage_create(task_code=task.code, title="Сборка")
     entry = await journal_create(task_code=task.code, type="decision", title="Берём SSE")
-    codes = {"TASK": f"TASK@{task.code}", "STAGE": f"STAGE@{stage.code}", "JOURNAL": f"JOURNAL@{entry.code}"}
-    entities = {"TASK": "tasks.task", "STAGE": "tasks.stage", "JOURNAL": "tasks.journal"}
+    note = await task_note_add(task_code=task.code, title="Схема потока")
+    codes = {
+        "TASK": f"TASK@{task.code}",
+        "STAGE": f"STAGE@{stage.code}",
+        "JOURNAL": f"JOURNAL@{entry.code}",
+        "NOTE": f"NOTE@{note.code}",
+    }
+    entities = {
+        "TASK": "tasks.task",
+        "STAGE": "tasks.stage",
+        "JOURNAL": "tasks.journal",
+        "NOTE": "notes.note",
+    }
     await feed()
 
     for (prefix, field), handler in MCP_CONTENT_HANDLERS.items():
         await handler.set(codes[prefix], text=f"текст {field}")
         updated = _find(await feed(), entities[prefix], "updated")
         assert updated["ids"] == [codes[prefix]], (prefix, field)
+
+
+async def test_a_task_note_reaches_the_feed_as_the_document_and_as_the_tasks_link(
+    workspace, feed
+):
+    """The task page redraws its list from ``tasks.note`` (ref — the task); the document page
+    follows ``notes.note``. One add is both, under the same code."""
+    task = await task_create(workspace_code=workspace.code, title="Выпуск")
+    await feed()
+
+    note = await task_note_add(task_code=task.code, title="Схема потока")
+
+    changes = await feed()
+    link = _find(changes, "tasks.note", "created")
+    document = _find(changes, "notes.note", "created")
+    assert link["ids"] == document["ids"] == [f"NOTE@{note.code}"]
+    assert link["refs"] == [f"TASK@{task.code}"]
+
+
+async def test_a_task_note_soft_delete_reaches_the_feed_as_the_document_only(workspace, feed):
+    """Pinned as built: a soft delete marks the document, the link is untouched — so the feed
+    says ``notes.note`` updated and nothing about ``tasks.note``. A task page that lists notes
+    must follow its notes' codes on ``notes.note``, not only ``tasks.note`` by task."""
+    from src.modules.notes.crud.note import note_delete
+
+    task = await task_create(workspace_code=workspace.code, title="Выпуск")
+    note = await task_note_add(task_code=task.code, title="Схема потока")
+    await feed()
+
+    await note_delete(note.code)
+
+    changes = await feed()
+    assert [(c["entity"], c["event"], c["ids"]) for c in changes] == [
+        ("notes.note", "updated", [f"NOTE@{note.code}"])
+    ]
 
 
 async def test_a_refused_content_edit_publishes_nothing(workspace, feed):

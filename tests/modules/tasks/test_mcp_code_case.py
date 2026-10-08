@@ -18,6 +18,7 @@ import pytest
 
 from src.modules.tasks.crud import group as group_crud
 from src.modules.tasks.crud import journal as journal_crud
+from src.modules.tasks.crud import note as note_crud
 from src.modules.tasks.crud import stage as stage_crud
 from src.modules.tasks.crud import task as task_crud
 
@@ -37,6 +38,7 @@ class World:
     plain: str
     stage: str
     entry: str
+    note: str
 
 
 def low(prefix: str, bare: str) -> str:
@@ -68,8 +70,11 @@ async def world(call, workspace) -> World:
     entry = await journal_crud.journal_create(
         task_code=staged.code, type="decision", title="Почему так"
     )
+    note = await note_crud.task_note_add(task_code=staged.code, title="Схема", body="# Схема\n")
     await call("workspace_use", workspace_code=low("WORKSPACE", workspace.code))
-    return World(workspace.code, a.code, b.code, staged.code, plain.code, stage.code, entry.code)
+    return World(
+        workspace.code, a.code, b.code, staged.code, plain.code, stage.code, entry.code, note.code
+    )
 
 
 # (tool, the code parameters it exercises, arguments built from the world)
@@ -98,8 +103,10 @@ CASES = [
     ("content_set_section", {"code"}, lambda w: {"code": low("TASK", w.staged), "field": "plan", "heading": "# Plan", "text": "# Plan\n\ndelta\n"}),
     ("content_add", {"code"}, lambda w: {"code": low("TASK", w.staged), "field": "plan", "text": "\nomega\n", "position": "end"}),
     ("delete", {"code"}, lambda w: {"code": low("STAGE", w.stage)}),
-    # The retired word on purpose: a ``NOTE@`` quoted before the journal took ``JOURNAL@``.
-    ("interface_open", {"code"}, lambda w: {"code": low("NOTE", w.entry)}),
+    ("interface_open", {"code"}, lambda w: {"code": low("NOTE", w.note)}),
+    ("task_note_add", {"task_code"}, lambda w: {"task_code": low("TASK", w.plain), "title": "Разбор"}),
+    ("task_note_get", {"note_code"}, lambda w: {"note_code": low("NOTE", w.note)}),
+    ("task_note_update", {"note_code"}, lambda w: {"note_code": low("NOTE", w.note), "title": "Схема v2"}),
 ]
 
 
