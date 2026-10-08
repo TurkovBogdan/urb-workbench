@@ -18,19 +18,22 @@ Inside a workspace there are **groups** — standing topics — and **tasks** �
 
 The agent may extend and refine the brief of any task, including one the person created — and it records an edit to someone else's brief as a journal entry. The one thing it does not do is accept the work. It hands finished work over in the `in_review` status — from there the person has the final word.
 
-Every entity has its own prefixed code — `WORKSPACE@`, `TASKGROUP@`, `TASK@`, `STAGE@`, `JOURNAL@`. The code is both the page address and the argument to any tool.
+A task of any type can also keep **notes** — documents written while working out how to do it: a data schema, a comparison of options, a concept with a diagram. A note belongs to its task alone.
+
+Every entity has its own prefixed code — `WORKSPACE@`, `TASKGROUP@`, `TASK@`, `STAGE@`, `JOURNAL@`, `NOTE@`. The code is both the page address and the argument to any tool.
 
 ## What the agent can do
 
-Twenty-two tools in five groups.
+Twenty-eight tools in six groups.
 
 - **Workspace.** List workspaces, pick the active one, list groups.
 - **Work.** List and read tasks, create, edit, change status.
 - **Plan.** Add a stage, edit it, close it. A stage cannot be closed without evidence: the argument is mandatory, and it expects a pointer — a command with its outcome, the path to a changed file, a diff summary.
 - **Journal.** Add an entry, close it with a resolution, list entries. Entries are append-only: history cannot be rewritten.
-- **Long text.** A task's plan, a stage's description and an entry's subject are edited in place: replace everything, replace a line, replace a section by its heading, append. The reply is not the document but the **edit seam** — a slice of text on each side of the insertion. That is where you can see whether something got glued together wrong.
+- **Task notes.** Add a note to a task, read it whole, rename it. The task lists its notes by title and description, without their text.
+- **Long text.** A task's brief and work, a stage's body, an entry's body and a note's text are edited in place: replace everything, replace a line, replace a section by its heading, append. The reply is not the document but the **edit seam** — a slice of text on each side of the insertion. That is where you can see whether something got glued together wrong.
 
-On top of these five groups there are four standalone tools: `delete(code)` (one door for every type), `interface_open(code)` puts an entity on the person's screen, and `skills_list` / `skill_get` serve the server's own handbooks: how it expects a brief, a plan and a journal, and what its interface renders. The agent reads them before the work, not after a failure.
+On top of these six groups there are four standalone tools: `delete(code)` (one door for every type), `interface_open(code)` puts an entity on the person's screen, and `skills_list` / `skill_get` serve the server's own handbooks: how it expects a brief, a plan and a journal, and what its interface renders. The agent reads them before the work, not after a failure.
 
 ## Web interface
 
