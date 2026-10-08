@@ -371,7 +371,6 @@ function pick<K extends keyof typeof draft>(key: K, value: (typeof draft)[K]): v
 
 onBeforeUnmount(stopTimer)
 onBeforeRouteLeave(() => { void commit() })
-
 // ── Groups ────────────────────────────────────────────────────────────────────
 // The group list depends on the task's workspace, which is known only from the card itself.
 const groups = ref<GroupRow[]>([])
@@ -865,17 +864,6 @@ async function purge() {
         <!-- The card is its own `aside`: a separate wrapper around it would add a level with
              nothing to live on it — the field column is this card. -->
         <VCard tag="aside" variant="outlined" rounded="lg" class="task-page__side">
-          <!-- The status line is silent at rest: there is no save button, so an error and a write in
-               progress must be reported, while "everything saved" need not be. An empty line at
-               rest would take no space on screen, but it would take space in the head. -->
-          <p
-            v-if="store.saveError || store.saving"
-            class="task-page__save"
-            :class="{ 'task-page__save--error': store.saveError }"
-          >
-            {{ store.saveError || t('tasks.task.detail.saving') }}
-          </p>
-
           <!-- The group is optional: a task without one lands in the "No group" section, not lost.
                A workspace can have many groups, and they are recognised by look — an icon in the
                group's color, the same as in the task list. The search is pinned to the top of the
@@ -986,6 +974,14 @@ async function purge() {
               <dd class="task-page__mark-value">{{ mark.value }}</dd>
             </div>
           </dl>
+
+          <!-- Saving itself is not announced: every field saves on its own as it changes, and a
+               "Saving…" line flashed on each pick. A failed save is — the person has to know the
+               field did not land. It sits last in the column, so appearing it moves only the card's
+               bottom edge, not the fields under the pointer. -->
+          <p v-if="store.saveError" class="task-page__save-error">
+            {{ store.saveError }}
+          </p>
         </VCard>
       </div>
     </div>
@@ -1164,14 +1160,11 @@ async function purge() {
 
 /* The edit status line sits above the fields and is silent at rest — it becomes a message only
    when an edit is in flight or failed to arrive. */
-.task-page__save {
+.task-page__save-error {
   margin: 0;
-  min-height: 16px;
   font-size: 11px;
-  color: var(--text-faint);
+  color: var(--error);
 }
-
-.task-page__save--error { color: var(--error); }
 
 /* The label sits closer to its field than the fields sit to each other — otherwise it reads as a
    heading for the whole block rather than an explanation of the field. */

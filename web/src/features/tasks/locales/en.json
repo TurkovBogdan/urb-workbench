@@ -165,7 +165,6 @@
       "completed_at": "Completed",
       "canceled_at": "Canceled",
       "updated_at": "Updated",
-      "saving": "Saving…",
       "deleted_note": "The task was deleted together with its branch. While it is in the bin, it can't be edited and its status can't be changed."
     },
     "purge": {
