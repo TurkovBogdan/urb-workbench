@@ -13,6 +13,7 @@ from src.modules.core_interface import CoreInterfaceModule
 from src.modules.core_mcp import CoreMcpModule
 from src.modules.core_monitoring import CoreMonitoringModule
 from src.modules.core_setup import CoreSetupModule
+from src.modules.notes import NotesModule
 from src.modules.tasks import TasksModule
 from src.modules.workspace import WorkspaceModule
 
@@ -26,13 +27,14 @@ def build_modules() -> list[Module]:
     document and diagram styling), ``core_monitoring`` — the jobs section (list +
     runs + logs, read-only), ``core_mcp`` — introspection of the modules mounted as MCP servers
     (read-only), ``core_changes`` — the data change feed behind the interface's live updates,
-    ``workspace`` — workspaces (the shared data isolation level)
+    ``workspace`` — workspaces (the shared data isolation level), ``notes`` — markdown documents
+    with no owner, which the modules above link to,
     and ``tasks`` — the task store inside a workspace (groups, task tree, plan and journal).
     A new module — add an instance to the list.
 
-    **The order is dependencies, not taste.** A level-1 module (``workspace``) comes before the
-    ones that reference it: the ``configure()`` of the modules above registers their counters in
-    it, and there is nothing to register into in a module not yet built. Between other modules'
+    **The order is dependencies, not taste.** Level-1 modules (``workspace``, ``notes``) come
+    before the ones that reference them: the ``configure()`` of the modules above registers their
+    counters in the workspace, and there is nothing to register into in a module not yet built. Between other modules'
     migration branches the order is set not by this list but by ``depends_on`` in the revisions
     themselves.
     """
@@ -44,6 +46,7 @@ def build_modules() -> list[Module]:
         # Before the data modules: they declare their entities in it from their ``configure()``.
         CoreChangesModule(),
         WorkspaceModule(),
+        NotesModule(),
         TasksModule(),
     ]
 

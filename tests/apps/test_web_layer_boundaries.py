@@ -12,10 +12,10 @@ and moving it into the foundation is allowed from the second consumer on — and
 with dropping the domain type.
 
 **The exception is base modules** (``BASE_MODULES``). These are level-1 modules: they hold an
-entity the application modules rest on, and themselves know none of them. Today there is one —
+entity the application modules rest on, and themselves know none of them. Today there are two.
 ``workspace``: the workspace narrows the data of every module above it, and routing its context
 through the foundation would be a lie — the foundation knows nothing of the domain, and this is
-the domain itself. So the rule is not "nobody depends on anybody" but "dependencies go down the
+the domain itself. ``notes``: a document is the same entity wherever a module above uses it. So the rule is not "nobody depends on anybody" but "dependencies go down the
 levels and only down": a base reaching into an application module is an error of the same cost
 as before, and is caught right here.
 
@@ -43,8 +43,9 @@ FOUNDATION = ("api", "shared", "components", "composables", "constants", "stores
 MODULES_ROOT = WEB_SRC / "features"
 
 # Level-1 modules are bases: an application module may refer to them, they may not refer to it.
-# Mirrors the backend, where ``workspace`` precedes in the module list those holding an FK to it.
-BASE_MODULES = ("workspace",)
+# Mirrors the backend, where ``workspace`` and ``notes`` precede in the module list those holding
+# an FK to them.
+BASE_MODULES = ("workspace", "notes")
 
 SOURCE_SUFFIXES = (".ts", ".vue")
 
