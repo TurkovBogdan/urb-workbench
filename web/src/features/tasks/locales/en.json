@@ -68,7 +68,7 @@
       "deleted": "Deleted",
       "scope": {
         "brief": "Search the brief: context, constraints, criteria",
-        "plan": "Search the plan and stages",
+        "plan": "Search the agent's work: plan, progress, result and stages",
         "journal": "Search the journal"
       }
     },
@@ -114,7 +114,7 @@
       "context": "Starting points",
       "constraints": "Constraints",
       "criteria": "Acceptance criteria",
-      "body": "Implementation plan",
+      "plan": "Implementation plan",
       "type": "Type",
       "status": "Status",
       "priority": "Priority",
@@ -135,13 +135,17 @@
       "context": "Starting points",
       "constraints": "Constraints",
       "criteria": "Acceptance criteria",
-      "body": "Implementation plan",
+      "plan": "Implementation plan",
+      "progress": "Progress",
+      "result": "Result",
       "hint": {
         "description": "The gist of the task in two or three sentences: what exactly we build and what result we expect. The agent sees this field in the task list and decides by it whether to open the task in full.",
         "context": "Where to start, which code to take as the model, and which decisions are already made and why. As links to files and examples, not retold.",
         "constraints": "Limits on the agent's work: what not to do, what to ask about first and what is mandatory.\n\nFor example: log through the module's main logger, ask before adding a dependency, do not create new migrations.",
         "criteria": "What has to be done for the task to be accepted. Each condition on its own line.\n\nFor example:\n— tests are written for zones X, Y and Z;\n— the interface is checked in the browser;\n— the layout is checked on mobile.",
-        "body": "How the agent will do the task: the approach, the details, and which files it has read and will change. Written before the code changes, so the intent can later be compared with what came out."
+        "plan": "How the agent will do the task: the approach, the details, and which files it has read and will change. Written before the code changes, so the intent can later be compared with what came out.",
+        "progress": "How the work is going: the agent briefly notes what is done and what comes next. A new entry is appended at the end; decisions and findings go to the journal.\n\nFor example:\n— the migration is written, rollback checked → CRUD next;\n— API tests fail on the old field → investigating.",
+        "result": "What was done on the task. The agent writes the result when handing the task over for review: what changed, what checked it, and what is left unchecked."
       },
       "group_search": "Find a group",
       "group_empty": "No groups",

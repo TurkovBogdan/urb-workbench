@@ -28,11 +28,11 @@ import {
 } from '../api'
 import { formatDeadline, parseDay } from '../dates'
 import {
-  BODY_MAX,
   TASK_CONSTRAINTS_MAX,
   TASK_CONTEXT_MAX,
   TASK_CRITERIA_MAX,
   TASK_DESCRIPTION_MAX,
+  TASK_PLAN_MAX,
   TASK_STATUSES,
   TASK_TITLE_MAX,
   TASK_TYPES,
@@ -65,7 +65,9 @@ const description = ref('')
 const context = ref('')
 const constraints = ref('')
 const criteria = ref('')
-const body = ref('')
+const plan = ref('')
+const progress = ref('')
+const result = ref('')
 const type = ref<string>(TASK_TYPES[0])
 const status = ref<string>(TASK_STATUSES[0])
 const priority = ref<string>('normal')
@@ -73,10 +75,10 @@ const groupCode = ref<string | null>(null)
 const deadlineAt = ref<Date | null>(null)
 
 const saving = ref(false)
-// The task body is still loading: from the list the card arrives WITHOUT it (a list row carries
-// no body), and an update is a full replacement of the card. Were the form to save an empty body
-// it never loaded, the task text would be erased silently. So the save button is locked while the
-// body loads.
+// The task texts are still loading: from the list the card arrives WITHOUT them (a list row carries
+// neither the brief nor the agent's work), and an update is a full replacement of the card. Were
+// the form to save empty texts it never loaded, they would be erased silently. So the save button
+// is locked while they load.
 const loadingBody = ref(false)
 const error = ref<string | null>(null)
 
@@ -127,15 +129,20 @@ function apply(task: TaskDetail | TaskListRow | null) {
   priority.value = task?.priority ?? 'normal'
   groupCode.value = task ? task.group_code : (props.group ?? null)
   deadlineAt.value = parseDay(task?.deadline_at ?? null)
-  if (task && 'body' in task) applyTexts(task)
+  if (task && 'plan' in task) applyTexts(task)
 }
 
-/** The card's long texts: brief and plan. The form does not show them but must preserve them. */
+/**
+ * The card's long texts: the brief and the agent's work. The form shows the brief and the plan;
+ * progress and result it does not show but must preserve — the agent writes those.
+ */
 function applyTexts(task: TaskDetail) {
   context.value = task.context
   constraints.value = task.constraints
   criteria.value = task.criteria
-  body.value = task.body
+  plan.value = task.plan
+  progress.value = task.progress
+  result.value = task.result
 }
 
 watch(() => [open.value, props.task] as const, async ([isOpen, task]) => {
@@ -144,14 +151,16 @@ watch(() => [open.value, props.task] as const, async ([isOpen, task]) => {
   context.value = ''
   constraints.value = ''
   criteria.value = ''
-  body.value = ''
+  plan.value = ''
+  progress.value = ''
+  result.value = ''
   apply(task)
   void loadGroups()
   // From the list comes a row without the long texts — fetch the full task, otherwise the full
   // card replacement would send an empty brief instead of the written one. Take ONLY the texts
   // from the response: the person may have started editing the other fields meanwhile, and
   // overwriting them would erase what was typed.
-  if (!task || 'body' in task) return
+  if (!task || 'plan' in task) return
   loadingBody.value = true
   try {
     applyTexts(await getTask(task.code, { report: false }))
@@ -178,7 +187,9 @@ async function save() {
           context: context.value,
           constraints: constraints.value,
           criteria: criteria.value,
-          body: body.value,
+          plan: plan.value,
+          progress: progress.value,
+          result: result.value,
           type: type.value,
           priority: priority.value,
           group_code: groupCode.value,
@@ -202,7 +213,7 @@ async function save() {
           context: context.value,
           constraints: constraints.value,
           criteria: criteria.value,
-          body: body.value,
+          plan: plan.value,
           type: type.value,
           status: status.value,
           priority: priority.value,
@@ -369,9 +380,9 @@ async function save() {
 
       <VTextarea
         v-if="layout.plan"
-        v-model="body"
-        :label="t('tasks.task.form.body')"
-        :maxlength="BODY_MAX"
+        v-model="plan"
+        :label="t('tasks.task.form.plan')"
+        :maxlength="TASK_PLAN_MAX"
         :disabled="loadingBody"
         :loading="loadingBody"
         variant="outlined"
@@ -380,7 +391,7 @@ async function save() {
         hide-details
       >
         <template #append-inner>
-          <HelpHint :text="t('tasks.task.detail.hint.body')" />
+          <HelpHint :text="t('tasks.task.detail.hint.plan')" />
         </template>
       </VTextarea>
 

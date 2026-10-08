@@ -40,8 +40,11 @@ export const GROUP_DESCRIPTION_MAX = 128
 export const TASK_CONTEXT_MAX = 4048
 export const TASK_CONSTRAINTS_MAX = 2048
 export const TASK_CRITERIA_MAX = 2048
-// One cap for two fields: `BODY_MAX` on the backend covers both the task plan and the stage body.
-// The name here is shared so that a call site does not suggest the stage has a cap of its own.
+// The agent's work on a task, in the order the work goes: plan, progress, result.
+export const TASK_PLAN_MAX = 8192
+export const TASK_PROGRESS_MAX = 16384
+export const TASK_RESULT_MAX = 2048
+// The stage body — `BODY_MAX` on the backend, the module's name for an entity's only text.
 export const BODY_MAX = 8192
 export const STAGE_EVIDENCE_MAX = 1024
 export const NOTE_BODY_MAX = 2048

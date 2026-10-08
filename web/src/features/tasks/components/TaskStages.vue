@@ -181,8 +181,7 @@ async function remove() {
           @blur="flush(stage, 'description')"
         />
 
-        <!-- A stage body is the same kind of document as the task plan, and they share a cap: on
-             the backend it is one `BODY_MAX`. -->
+        <!-- A stage body is the same kind of document as the task plan: one step of it. -->
         <MarkdownEditor
           :model-value="stage.body"
           :label="t('tasks.stage.body')"

@@ -14,7 +14,7 @@ import {
   type TaskUpdateBody,
 } from '../api'
 
-// Task detail: the card, the markdown body and the children. The page builds no tree — one level
+// Task detail: the card, the brief and the agent's work in markdown, and the children. The page builds no tree — one level
 // down (`children`) and a link up (`parent_code`) are enough: beyond that the person navigates
 // rather than surveying the whole branch at once.
 export const useTaskDetailStore = defineStore('tasks-task-detail', () => {

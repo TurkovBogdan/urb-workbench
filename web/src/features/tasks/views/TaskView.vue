@@ -58,11 +58,13 @@ import { listGroups, type GroupRow, type TaskDetail, type TaskListRow, type Task
 import { deadlineDay, formatDay, formatDeadline, parseDay } from '../dates'
 import { TASK_BRIEF_FEATURES, TASK_DOCUMENT_FEATURES } from '../editor'
 import {
-  BODY_MAX,
   TASK_CONSTRAINTS_MAX,
   TASK_CONTEXT_MAX,
   TASK_CRITERIA_MAX,
   TASK_DESCRIPTION_MAX,
+  TASK_PLAN_MAX,
+  TASK_PROGRESS_MAX,
+  TASK_RESULT_MAX,
   TASK_TITLE_MAX,
   TASK_TYPES,
   typeLayout,
@@ -136,7 +138,9 @@ const draft = reactive({
   context: '',
   constraints: '',
   criteria: '',
-  body: '',
+  plan: '',
+  progress: '',
+  result: '',
   type: TASK_TYPES[0] as string,
   priority: 'normal',
   groupCode: null as string | null,
@@ -145,7 +149,7 @@ const draft = reactive({
 
 /** Draft fields that are merged and saved. The deadline is compared by DAY (`deadline`). */
 const FIELDS = [
-  'title', 'description', 'context', 'constraints', 'criteria', 'body',
+  'title', 'description', 'context', 'constraints', 'criteria', 'plan', 'progress', 'result',
   'type', 'priority', 'groupCode', 'deadline',
 ] as const
 type Field = (typeof FIELDS)[number]
@@ -162,7 +166,9 @@ function snapshotOf(row: TaskDetail | null): Snapshot {
     context: row?.context ?? '',
     constraints: row?.constraints ?? '',
     criteria: row?.criteria ?? '',
-    body: row?.body ?? '',
+    plan: row?.plan ?? '',
+    progress: row?.progress ?? '',
+    result: row?.result ?? '',
     type: row?.type ?? TASK_TYPES[0],
     priority: row?.priority ?? 'normal',
     groupCode: row?.group_code ?? null,
@@ -229,7 +235,9 @@ const FIELD_LABELS: Record<Field, string> = {
   context: 'tasks.task.detail.context',
   constraints: 'tasks.task.detail.constraints',
   criteria: 'tasks.task.detail.criteria',
-  body: 'tasks.task.detail.body',
+  plan: 'tasks.task.detail.plan',
+  progress: 'tasks.task.detail.progress',
+  result: 'tasks.task.detail.result',
   type: 'tasks.task.detail.type',
   priority: 'tasks.task.detail.priority',
   groupCode: 'tasks.task.detail.group',
@@ -741,27 +749,67 @@ async function purge() {
             />
           </VCard>
 
+          <!-- The agent's work, three cards in the order the work goes: the plan written before the
+               code changes, the progress diary kept along the way, the result written at
+               hand-over. Each answers its own question — intent, course, outcome — so they are
+               separate cards and not sections of one text. -->
           <VCard v-if="layout.plan" variant="outlined" rounded="lg" class="task-page__card">
             <SectionHeader
-              :title="t('tasks.task.detail.body')"
-              :hint="t('tasks.task.detail.hint.body')"
+              :title="t('tasks.task.detail.plan')"
+              :hint="t('tasks.task.detail.hint.plan')"
             />
             <MarkdownEditor
-              :model-value="draft.body"
-              :aria-label="t('tasks.task.form.body')"
-              :max-length="BODY_MAX"
+              :model-value="draft.plan"
+              :aria-label="t('tasks.task.detail.plan')"
+              :max-length="TASK_PLAN_MAX"
               :readonly="deleted"
               :features="TASK_DOCUMENT_FEATURES"
               variant="plain"
               min-height="0"
-              @update:model-value="(value) => { draft.body = value; schedule() }"
+              @update:model-value="(value) => { draft.plan = value; schedule() }"
               @blur="commit"
             />
           </VCard>
 
-          <!-- Stages and the journal are the work on the task, and they belong right under the
-               plan: the plan promises, stages show progress, the journal keeps what came up on the
-               way.
+          <VCard v-if="layout.plan" variant="outlined" rounded="lg" class="task-page__card">
+            <SectionHeader
+              :title="t('tasks.task.detail.progress')"
+              :hint="t('tasks.task.detail.hint.progress')"
+            />
+            <MarkdownEditor
+              :model-value="draft.progress"
+              :aria-label="t('tasks.task.detail.progress')"
+              :max-length="TASK_PROGRESS_MAX"
+              :readonly="deleted"
+              :features="TASK_DOCUMENT_FEATURES"
+              variant="plain"
+              min-height="0"
+              @update:model-value="(value) => { draft.progress = value; schedule() }"
+              @blur="commit"
+            />
+          </VCard>
+
+          <VCard v-if="layout.plan" variant="outlined" rounded="lg" class="task-page__card">
+            <SectionHeader
+              :title="t('tasks.task.detail.result')"
+              :hint="t('tasks.task.detail.hint.result')"
+            />
+            <MarkdownEditor
+              :model-value="draft.result"
+              :aria-label="t('tasks.task.detail.result')"
+              :max-length="TASK_RESULT_MAX"
+              :readonly="deleted"
+              :features="TASK_DOCUMENT_FEATURES"
+              variant="plain"
+              min-height="0"
+              @update:model-value="(value) => { draft.result = value; schedule() }"
+              @blur="commit"
+            />
+          </VCard>
+
+          <!-- Stages and the journal are the rest of the work on the task, and they belong right
+               under it: the plan promises, stages show progress, the journal keeps what came up on
+               the way.
                Stages exist only on an extended task, and that is the only difference from a
                standard one: there the plan lives as prose above, and splitting it into steps with
                separate evidence only makes sense for work longer than one sitting. -->

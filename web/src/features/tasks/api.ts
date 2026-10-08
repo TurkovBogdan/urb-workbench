@@ -245,8 +245,12 @@ export interface TaskDetail extends TaskListRow {
   constraints: string
   /** Requirements for the delivery format and for stages; a markdown list. */
   criteria: string
-  /** The agent's plan; markdown. */
-  body: string
+  /** The agent's plan, written before the code changes; markdown. */
+  plan: string
+  /** The agent's diary along the way, appended to; markdown. */
+  progress: string
+  /** What was done, written at hand-over; markdown. */
+  result: string
   group: GroupRow | null
   parent: TaskListRow | null
   children: TaskListRow[]
@@ -261,7 +265,9 @@ export interface TaskCreateBody {
   context?: string
   constraints?: string
   criteria?: string
-  body?: string
+  plan?: string
+  progress?: string
+  result?: string
   type?: string
   status?: string
   priority?: string
@@ -284,7 +290,9 @@ export interface TaskUpdateBody {
   context: string
   constraints: string
   criteria: string
-  body: string
+  plan: string
+  progress: string
+  result: string
   type: string
   priority: string
   group_code: string | null
