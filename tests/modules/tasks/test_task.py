@@ -185,6 +185,46 @@ async def test_closing_again_stamps_a_fresh_date(db, workspace):
     assert again.completed_at is not None and again.completed_at >= first
 
 
+@pytest.mark.parametrize(
+    ("first", "then", "kept", "cleared"),
+    [
+        (STATUS_DONE, STATUS_CANCELED, "canceled_at", "completed_at"),
+        (STATUS_CANCELED, STATUS_DONE, "completed_at", "canceled_at"),
+    ],
+)
+async def test_moving_between_closed_statuses_keeps_only_the_current_mark(
+    db, workspace, first, then, kept, cleared
+):
+    """A task is either done or canceled, never both: going straight from one end to the other
+    takes the old mark away — otherwise the list shows a canceled task with a completion date."""
+    task = await task_create(workspace_code=workspace.code, title="Задача")
+    await task_update_status(task.code, first)
+
+    moved = await task_update_status(task.code, then)
+
+    assert getattr(moved, kept) is not None
+    assert getattr(moved, cleared) is None
+
+
+@pytest.mark.parametrize(
+    ("status", "mark"),
+    [
+        (STATUS_IN_PROGRESS, "started_at"),
+        (STATUS_DONE, "completed_at"),
+        (STATUS_CANCELED, "canceled_at"),
+    ],
+)
+async def test_a_task_created_in_a_phase_carries_its_mark(db, workspace, status, mark):
+    """The creation form offers a status; a task born done must say when, like one moved there."""
+    task = await task_create(workspace_code=workspace.code, title="Задача", status=status)
+
+    stored = await task_get(task.code)
+
+    assert getattr(stored, mark) is not None
+    others = {"started_at", "completed_at", "canceled_at"} - {mark}
+    assert all(getattr(stored, field) is None for field in others)
+
+
 async def test_refused_reopen_keeps_the_closing_marks(db, workspace):
     """A subtask of a closed task is not reopened — and its dates are not cleared on the way."""
     parent = await task_create(workspace_code=workspace.code, title="Эпик")

@@ -106,8 +106,25 @@ _STATUS_STAMPS = {
     STATUS_CANCELED: "canceled_at",
 }
 
-# The closing marks, which a reopened task gives back.
+# The closing marks: a task carries at most one of them — the one of its current terminal status.
 _CLOSING_STAMPS = ("completed_at", "canceled_at")
+
+
+def _stamp_phase(row: TasksTask, status: str) -> None:
+    """Make the phase marks agree with ``status`` — on a move and at creation alike.
+
+    The start is stamped once and kept: going from ``done`` back to work and back again must not
+    rewrite the date work on the task began — that is a fact, not the current state. The closing
+    marks follow the status instead: an open task carries neither, a closed one only its own —
+    a task moved straight from ``done`` to ``canceled`` is canceled, and a completion date left on
+    it would claim an end the work did not reach. A mark already there for the same status stays.
+    """
+    current = _STATUS_STAMPS.get(status)
+    for closing_field in _CLOSING_STAMPS:
+        if closing_field != current:
+            setattr(row, closing_field, None)
+    if current is not None and getattr(row, current) is None:
+        setattr(row, current, utc_now())
 
 
 def _checked(value: str, allowed: tuple[str, ...], field: str) -> str:
@@ -339,6 +356,7 @@ async def task_create(
             deadline_at=deadline_at,
             created_by=created_by,
         )
+        _stamp_phase(row, status)
         s.add(row)
         await s.flush()
         s.add(
@@ -697,13 +715,7 @@ async def _require_open_parent_for_status(s, row: TasksTask, status: str) -> Non
 
 async def task_update_status(code: str, status: str) -> TasksTask | None:
     """Change the status and stamp the phase: ``in_progress`` → ``started_at``, ``done`` →
-    ``completed_at``, ``canceled`` → ``canceled_at``.
-
-    The start is set only the first time: going from ``done`` back to work and back again must not
-    rewrite the date work on the task began — that is a fact, not the current state. The closing
-    marks are the opposite: reopening clears ``completed_at`` and ``canceled_at``, because an open
-    task with a completion date would claim an end the work has not reached. Closing it again
-    stamps the date anew.
+    ``completed_at``, ``canceled`` → ``canceled_at`` — the rules are ``_stamp_phase``'s.
 
     A closed task holds no open parts — from both sides: a task with open live subtasks is not
     closed, and a subtask of a closed task is not reopened. What to do with the parent then is the
@@ -714,17 +726,12 @@ async def task_update_status(code: str, status: str) -> TasksTask | None:
         row = await s.get(TasksTask, code)
         if row is None or row.deleted_at is not None:
             return None
-        closing = status in TASK_STATUSES_TERMINAL
-        if closing:
+        if status in TASK_STATUSES_TERMINAL:
             await _require_no_open_subtasks(s, row, status)
         else:
             await _require_open_parent_for_status(s, row, status)
-            for closing_field in _CLOSING_STAMPS:
-                setattr(row, closing_field, None)
         row.status = status
-        stamp_field = _STATUS_STAMPS.get(status)
-        if stamp_field is not None and getattr(row, stamp_field) is None:
-            setattr(row, stamp_field, utc_now())
+        _stamp_phase(row, status)
         await s.flush()
         await s.refresh(row)
     return row
