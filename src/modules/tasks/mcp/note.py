@@ -41,8 +41,9 @@ def register(mcp: "FastMCP") -> None:
     ) -> AgentNoteCreated:
         """Record something in this task's journal — a decision, a finding or a fact.
 
-        The journal is append-only. An entry is never rewritten and never deleted; changing your
-        mind is a new entry. Pick the kind by what the line IS:
+        An entry is never deleted, and its title and resolution are never rewritten; changing
+        your mind is a new entry. The body takes detail later through content_add(code, "body",
+        …). Pick the kind by what the line IS:
 
         `decision` — a choice you made along the way, and what it rests on. Leave it open until
         it rests on something: an open decision is what an assumption looks like here, and being

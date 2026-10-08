@@ -47,17 +47,24 @@ async def test_the_whole_pipeline_holds_together(call, workspace, brief):
 
     # ── plan ──────────────────────────────────────────────────────────────────
     plan = await call(
-        "body_set",
+        "content_set",
         code=task,
+        field="plan",
         text="## Подход\nТариф считается в одном месте.\n\n## Файлы\nПрочитано: tariff.py\n",
     )
     assert plan["length"] > 0
-    # Appending to the plan returns the seam, not the body: the text sent is not echoed back.
-    seam = await call("body_add", code=task, text="Меняю: tariff.py\n", position="end")
+    # Appending to the plan returns the seam, not the text: what was sent is not echoed back.
+    seam = await call(
+        "content_add", code=task, field="plan", text="Меняю: tariff.py\n", position="end"
+    )
     assert "<text>" in seam["edit"]
     # A section is replaced whole, and the answer shows the SPAN of the cut, not a tidy joint.
     cut = await call(
-        "body_set_section", code=task, heading="## Файлы", text="## Файлы\nБез изменений\n"
+        "content_set_section",
+        code=task,
+        field="plan",
+        heading="## Файлы",
+        text="## Файлы\nБез изменений\n",
     )
     assert cut["removed_length"] > 0 and cut["stopped_at"] is None
     first = await call("stage_add", task_code=task, title="Схема")
@@ -84,18 +91,21 @@ async def test_the_whole_pipeline_holds_together(call, workspace, brief):
     assert [s["number"] for s in (await call("task_get", task_code=task))["stages"]] == [1, 2]
 
     # ── execute ───────────────────────────────────────────────────────────────
-    # A stage not yet started is rewritten freely.
-    await call("body_set", code=first["code"], text="Развернуть Calculator.")
+    await call("content_set", code=first["code"], field="body", text="Развернуть Calculator.")
 
     started = await call("stage_update", stage_code=first["code"], status="in_progress")
     # Starting a stage does not move the task, and the answer shows that.
     assert started["task_status"] == "backlog"
     await call("task_status", task_code=task, status="in_progress")
 
-    # A started one is not: the plan behind it is frozen, or "promised one thing, did another"
-    # disappears.
-    with pytest.raises(ToolError, match="does not get rewritten"):
-        await call("body_set", code=first["code"], text="Ну, что вышло, то и планировали")
+    # The course of the work goes to the progress diary, an entry appended at a time.
+    await call(
+        "content_add",
+        code=task,
+        field="progress",
+        text="- схема развёрнута → пересчёт\n",
+        position="end",
+    )
 
     decision = await call(
         "note_add", task_code=task, type="decision",
@@ -117,6 +127,12 @@ async def test_the_whole_pipeline_holds_together(call, workspace, brief):
     await call("stage_close", stage_code=third["code"], evidence="alembic upgrade head → ok")
 
     # ── hand in ───────────────────────────────────────────────────────────────
+    await call(
+        "content_set",
+        code=task,
+        field="result",
+        text="Тарифы считаются по новой схеме. Проверено: pytest -q → 12 passed.",
+    )
     handed = await call("task_status", task_code=task, status="in_review")
     assert handed["status"] == "in_review"
     assert handed["unfinished_stages"] == 0
@@ -211,7 +227,9 @@ async def test_a_standard_task_still_keeps_a_plan_and_a_journal(call, workspace)
     )
 
     plan = "Меняю форму счёта."
-    assert (await call("body_set", code=task["code"], text=plan))["length"] == len(plan)
+    assert (await call("content_set", code=task["code"], field="plan", text=plan))["length"] == len(
+        plan
+    )
     note = await call(
         "note_add", task_code=task["code"], type="fact", title="invoice.py:88"
     )
@@ -224,6 +242,27 @@ async def test_a_task_the_agent_creates_is_signed_by_the_surface(call, workspace
     created = await call("task_create", title="Своя", description="Цель")
 
     assert (await call("task_get", task_code=created["code"]))["created_by"] == "agent"
+
+
+async def test_task_get_carries_the_three_work_fields(call, workspace):
+    """Plan, progress and result come by their own names; a task has no ``body`` any more."""
+    await call("workspace_use", workspace_code=workspace.code)
+    row = await task_crud.task_create(
+        workspace_code=workspace.code,
+        title="Задача",
+        plan="## Подход",
+        progress="- начато → дальше тесты",
+        result="Сделано",
+    )
+
+    detail = await call("task_get", task_code=f"TASK@{row.code}")
+
+    assert (detail["plan"], detail["progress"], detail["result"]) == (
+        "## Подход",
+        "- начато → дальше тесты",
+        "Сделано",
+    )
+    assert "body" not in detail
 
 
 async def test_unfinished_is_the_default_and_history_does_not_crowd_it(call, workspace):

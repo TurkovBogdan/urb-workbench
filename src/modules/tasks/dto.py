@@ -85,10 +85,10 @@ class GroupListRow(GroupRow):
 
 
 class TaskRow(BaseModel):
-    """The task's own fields — everything in ``tasks_task`` except the body.
+    """The task's own fields — everything in ``tasks`` except the brief and the work text.
 
-    The body is left out on purpose: the list shows not a single line of it, yet it outweighs the
-    rest of the card combined. Only the detail (``TaskDetail``) returns it.
+    The long text is left out on purpose: the list shows not a single line of it, yet it outweighs
+    the rest of the card combined. Only the detail (``TaskDetail``) returns it.
 
     Phase timestamps (``started_at`` / ``completed_at`` / ``canceled_at``) travel in the list too:
     it is the only way to tell "done yesterday" from "done in March" without opening the task.
@@ -185,7 +185,9 @@ class TaskDetail(TaskListRow):
     context: str = ""
     constraints: str = ""
     criteria: str = ""
-    body: str = ""
+    plan: str = ""
+    progress: str = ""
+    result: str = ""
     group: GroupRow | None = None
     parent: TaskListRow | None = None
     children: list[TaskListRow] = []
@@ -293,7 +295,9 @@ class AgentTaskDetail(AgentScope):
     context: str = ""
     constraints: str = ""
     criteria: str = ""
-    body: str = ""
+    plan: str = ""
+    progress: str = ""
+    result: str = ""
     status: str
     priority: str
     type: str
@@ -352,29 +356,33 @@ class AgentNoteList(AgentScope):
     notes: list[AgentNoteRow] = []
 
 
-# ── body editor ───────────────────────────────────────────────────────────────
-# A body edit answers with what the agent does not know yet. The text it sent does not come back
-# in any form: it has just written it, and an echo would cost on every edit.
+# ── content editor ────────────────────────────────────────────────────────────
+# A content edit answers with what the agent does not know yet. The text it sent does not come
+# back in any form: it has just written it, and an echo would cost on every edit. ``code`` and
+# ``field`` name what was edited, so a log of answers reads on its own.
 #
-# ``body_set`` is a receipt: the body is exactly the sent text, there is no seam, and all there is
-# to report is the new length (which also shows how much room is left below the cap — and the cap
-# refuses, it does not truncate).
-class AgentBodySet(BaseModel):
+# ``content_set`` is a receipt: the field is exactly the sent text, there is no seam, and all
+# there is to report is the new length (which also shows how much room is left below the cap — and
+# the cap refuses, it does not truncate).
+class AgentContentSet(BaseModel):
     code: str
+    field: str
     length: int
 
 
-# A seam is a window of the body on both sides of the edit with a placeholder in place of the
+# A seam is a window of the field on both sides of the edit with a placeholder in place of the
 # text. It shows exactly what could not be foreseen: what the insertion butted against on the left
 # and on the right.
-class AgentBodyAdded(BaseModel):
+class AgentContentAdded(BaseModel):
     code: str
+    field: str
     edit: str
 
 
 # ``replaced`` equals the length of ``edits``: seams come in document order, one per occurrence.
-class AgentBodyReplaced(BaseModel):
+class AgentContentReplaced(BaseModel):
     code: str
+    field: str
     replaced: int
     edits: list[str] = []
 
@@ -384,18 +392,19 @@ class AgentBodyReplaced(BaseModel):
 # length and the heading where the cut stopped. A section thought to be short that comes back long
 # is a cut that went further than intended, and this is the only place to notice it: the removed
 # text is not saved anywhere.
-class AgentBodySectionSet(BaseModel):
+class AgentContentSectionSet(BaseModel):
     code: str
+    field: str
     removed: str
     removed_length: int
     stopped_at: str | None = None
 
 
 __all__ = [
-    "AgentBodyAdded",
-    "AgentBodyReplaced",
-    "AgentBodySectionSet",
-    "AgentBodySet",
+    "AgentContentAdded",
+    "AgentContentReplaced",
+    "AgentContentSectionSet",
+    "AgentContentSet",
     "AgentGroupList",
     "AgentGroupRow",
     "AgentNoteCreated",

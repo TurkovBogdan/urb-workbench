@@ -79,14 +79,14 @@ def register(mcp: "FastMCP") -> None:
         fine — do not renumber to close it: you refer to "the third stage" in the journal, and a
         silent shift would make those references false.
 
-        A stage that has not started can be rewritten freely. Once it is running, its body
-        refuses edits, and the rest is frozen by convention: changing a step behind you is a
-        new entry in the journal and a new stage after it, not a re-worded title.
+        Its body stays editable on any status — content_set(code, "body", …) and its
+        neighbours. Clarifying a step is fine; changing what a step behind you promised is a
+        decision in the journal and a new stage after it, not a re-worded one.
 
         Args:
             task_code: The task this stage belongs to — a TASK@ code. Stages belong to
                 `extended` tasks only; anything else refuses and says so. A `standard` task
-                carries its plan as prose in the body — write it there, or raise the type if
+                carries its plan as prose in `plan` — write it there, or raise the type if
                 the work really needs steps with their own evidence.
             title: What this step is, one line.
             description: What it is about, and whether the body needs reading at all.
@@ -120,9 +120,9 @@ def register(mcp: "FastMCP") -> None:
     ) -> AgentStageChanged:
         """Update a stage — only the fields you pass.
 
-        Two things are not here. The text of the stage is a body — body_set and its neighbours
-        own it, and they refuse once the stage is running. Closing is stage_close, which
-        requires the proof. Status here only moves it between planned and in_progress.
+        Two things are not here. The text of the stage is content — content_set(code, "body",
+        …) and its neighbours own it. Closing is stage_close, which requires the proof. Status
+        here only moves it between planned and in_progress.
 
         Starting a stage does not start the task — they answer different questions, so the
         answer tells you where the task itself stands and the two do not drift apart unnoticed.

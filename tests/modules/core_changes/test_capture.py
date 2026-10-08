@@ -209,3 +209,33 @@ async def test_failed_write_publishes_nothing(workspace, feed):
     with pytest.raises(ValueError):
         await task_create(workspace_code=workspace.code, title="Сирота", group_code="нет-такой")
     assert await feed() == []
+
+
+async def test_content_edits_reach_the_feed_for_every_field(workspace, feed):
+    """An agent's content edit is what an open task page must redraw. The handlers write the
+    ORM row directly, past CRUD — so the feed sees them only through flush capture, and that is
+    pinned here per field rather than assumed."""
+    from src.modules.tasks.mcp.content.registry import MCP_CONTENT_HANDLERS
+
+    task = await task_create(workspace_code=workspace.code, title="Выпуск", type=TYPE_EXTENDED)
+    stage = await stage_create(task_code=task.code, title="Сборка")
+    note = await note_create(task_code=task.code, type="decision", title="Берём SSE")
+    codes = {"TASK": f"TASK@{task.code}", "STAGE": f"STAGE@{stage.code}", "NOTE": f"NOTE@{note.code}"}
+    entities = {"TASK": "tasks.task", "STAGE": "tasks.stage", "NOTE": "tasks.note"}
+    await feed()
+
+    for (prefix, field), handler in MCP_CONTENT_HANDLERS.items():
+        await handler.set(codes[prefix], text=f"текст {field}")
+        updated = _find(await feed(), entities[prefix], "updated")
+        assert updated["ids"] == [codes[prefix]], (prefix, field)
+
+
+async def test_a_refused_content_edit_publishes_nothing(workspace, feed):
+    from src.modules.tasks.mcp.content.task import McpTaskResultHandler
+
+    task = await task_create(workspace_code=workspace.code, title="Выпуск", type=TYPE_EXTENDED)
+    await feed()
+
+    with pytest.raises(ValueError, match="too many"):
+        await McpTaskResultHandler().set(f"TASK@{task.code}", text="я" * 5000)
+    assert await feed() == []

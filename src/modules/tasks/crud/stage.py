@@ -53,7 +53,7 @@ async def _require_staged_task(s, task_code: str) -> None:
 
     Two checks, not one. A deleted task takes no stages — that much is obvious. The type is checked
     because stages exist **only on an extended task**: that is exactly the line between it and a
-    standard one. A standard task keeps its plan as prose in the body, and a stage silently created
+    standard one. A standard task keeps its plan as prose in ``plan``, and a stage silently created
     there would show up nowhere — the UI draws the stage board only for an extended task, so the
     row would stay invisible to both sides.
     """
@@ -70,7 +70,7 @@ async def _require_staged_task(s, task_code: str) -> None:
         raise ValueError(
             f"Task {task_code!r} is {task_type!r}, and stages belong to "
             f"{' / '.join(TASK_TYPES_WITH_STAGES)} only — a {task_type!r} task carries its plan "
-            "as prose in the body. Either write it there, or raise the type first if the work "
+            "as prose in `plan`. Either write it there, or raise the type first if the work "
             "really needs steps with their own evidence."
         )
 

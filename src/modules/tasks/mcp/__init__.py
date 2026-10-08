@@ -27,7 +27,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from src.modules.tasks.mcp.body import register as _register_body
+from src.modules.tasks.mcp.content import register as _register_content
 from src.modules.tasks.mcp.delete import register as _register_delete
 from src.modules.tasks.mcp.group import register as _register_group
 from src.modules.tasks.mcp.interface import register as _register_interface
@@ -62,14 +62,16 @@ _INSTRUCTIONS = (
     "tasks.\n\n"
     "HOW WORK IS SHAPED. Three depths, and each adds one way of working. `simple` — a title, "
     "a goal and the context, often a job for a person. `standard` — plus the rest of the brief "
-    "(constraints, criteria of done), the plan you write as prose after reading the code, and a "
-    "journal of decisions, findings and facts. `extended` — plus STAGES: the plan broken into "
+    "(constraints, criteria of done), your work in three fields — the plan you write after "
+    "reading the code, the progress diary you keep along the way, the result you write at "
+    "hand-over — and a journal of decisions, findings and facts. `extended` — plus STAGES: the "
+    "plan broken into "
     "steps, each with its own state and its own evidence. Stages are what separates extended from "
     "standard, and they earn their keep only when the work outlasts one sitting; a standard task "
     "refuses them and says so.\n"
     "The brief is yours to fill in and correct on any task, including one a person set — when you "
     "change theirs, say what and why in a decision note. The verdict on whether the work is "
-    "accepted is never yours: hand over at in_review and say what you did.\n\n"
+    "accepted is never yours: write what you did in `result`, then hand over at in_review.\n\n"
     "THE LAYOUT IS THEIRS, THE HANDS ARE YOURS. Groups are how the person sees their own work, "
     "and you can make and re-word them — on request. Make one when they ask for it, not because "
     "the backlog looks untidy to you: three themes they recognise beat seven you invented. "
@@ -82,11 +84,13 @@ _INSTRUCTIONS = (
     "TOOLS. Space: workspaces_list, workspace_use. Layout: groups_list, group_create, "
     "group_update, tasks_regroup. Work: tasks_list, task_get, "
     "task_create, task_update, task_status. Plan: stage_add, stage_update, stage_close. "
-    "Journal: note_add, note_resolve, notes_list. Long text (a plan, a stage body, an entry's "
-    "subject) is edited by body_set / body_replace / body_set_section / body_add. None of them "
-    "echoes the text you sent: body_replace and body_add answer with the SEAM of the edit, "
-    "body_set_section with what it CUT, body_set with the new length. Plus delete(code), one "
-    "door for every type, and interface_open(code) to put something on the user's screen."
+    "Journal: note_add, note_resolve, notes_list. CONTENT — the long markdown fields — is "
+    "edited by content_set / content_replace / content_set_section / content_add, addressed by "
+    "the entity code and the field: TASK@ context, constraints, criteria, plan, progress, "
+    "result; STAGE@ body; NOTE@ body. None of them echoes the text you sent: content_replace "
+    "and content_add answer with the SEAM of the edit, content_set_section with what it CUT, "
+    "content_set with the new length. Plus delete(code), one door for every type, and "
+    "interface_open(code) to put something on the user's screen."
 )
 
 
@@ -100,7 +104,7 @@ def mcp_server(ctx: "McpServerContext") -> "FastMCP":
     _register_task(mcp)
     _register_stage(mcp)
     _register_note(mcp)
-    _register_body(mcp)
+    _register_content(mcp)
     _register_delete(mcp)
     _register_skill(mcp)
     _register_interface(mcp)

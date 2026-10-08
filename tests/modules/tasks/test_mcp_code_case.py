@@ -57,7 +57,7 @@ async def world(call, workspace) -> World:
         title="Эпик",
         group_code=a.code,
         type="extended",
-        body="# Plan\n\nalpha\n",
+        plan="# Plan\n\nalpha\n",
     )
     plain = await task_crud.task_create(
         workspace_code=workspace.code, title="Счета", group_code=a.code, type="standard"
@@ -89,10 +89,10 @@ CASES = [
     ("note_add", {"task_code", "stage_code"}, lambda w: {"task_code": low("TASK", w.staged), "stage_code": low("STAGE", w.stage), "type": "fact", "title": "Факт"}),
     ("note_resolve", {"note_code"}, lambda w: {"note_code": low("NOTE", w.note), "resolution": "Решено"}),
     ("notes_list", {"task_code"}, lambda w: {"task_code": low("TASK", w.staged)}),
-    ("body_set", {"code"}, lambda w: {"code": low("TASK", w.staged), "text": "# Plan\n\nbeta\n"}),
-    ("body_replace", {"code"}, lambda w: {"code": low("TASK", w.staged), "find": "alpha", "text": "gamma"}),
-    ("body_set_section", {"code"}, lambda w: {"code": low("TASK", w.staged), "heading": "# Plan", "text": "# Plan\n\ndelta\n"}),
-    ("body_add", {"code"}, lambda w: {"code": low("TASK", w.staged), "text": "\nomega\n", "position": "end"}),
+    ("content_set", {"code"}, lambda w: {"code": low("TASK", w.staged), "field": "plan", "text": "# Plan\n\nbeta\n"}),
+    ("content_replace", {"code"}, lambda w: {"code": low("TASK", w.staged), "field": "plan", "find": "alpha", "text": "gamma"}),
+    ("content_set_section", {"code"}, lambda w: {"code": low("TASK", w.staged), "field": "plan", "heading": "# Plan", "text": "# Plan\n\ndelta\n"}),
+    ("content_add", {"code"}, lambda w: {"code": low("TASK", w.staged), "field": "plan", "text": "\nomega\n", "position": "end"}),
     ("delete", {"code"}, lambda w: {"code": low("STAGE", w.stage)}),
     ("interface_open", {"code"}, lambda w: {"code": low("NOTE", w.note)}),
 ]

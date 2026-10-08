@@ -17,9 +17,9 @@ would set it itself, bypassing the condition.
 - ``fact`` — something to remember going forward; closed the moment it is written and takes no
   part in the gate.
 
-There is no ``created_by``: the author follows from the type. The table is append-only — neither
-``updated_at`` nor a closing timestamp: a retraction is a new entry, and "when exactly it was
-closed" has no reader.
+There is no ``created_by``: the author follows from the type. Entries are added, not rewritten —
+the body alone takes detail later — so there is neither ``updated_at`` nor a closing timestamp:
+a retraction is a new entry, and "when exactly it was closed" has no reader.
 """
 
 from __future__ import annotations
