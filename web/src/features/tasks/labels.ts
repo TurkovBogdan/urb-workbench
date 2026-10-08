@@ -38,8 +38,8 @@ export const TASK_DESCRIPTION_MAX = 512
 // `GROUP_DESCRIPTION_MAX`: a group's description is one line under its name, not a goal.
 export const GROUP_DESCRIPTION_MAX = 128
 export const TASK_CONTEXT_MAX = 4048
-export const TASK_CONSTRAINTS_MAX = 1024
-export const TASK_CRITERIA_MAX = 1024
+export const TASK_CONSTRAINTS_MAX = 2048
+export const TASK_CRITERIA_MAX = 2048
 // One cap for two fields: `BODY_MAX` on the backend covers both the task plan and the stage body.
 // The name here is shared so that a call site does not suggest the stage has a cap of its own.
 export const BODY_MAX = 8192
@@ -153,7 +153,7 @@ export const TASK_TYPE_DEFAULT: TaskType = 'simple'
  * permissions.
  */
 export interface TypeLayout {
-  /** Constraints and acceptance criteria — the brief, which a simple task does not have. */
+  /** Constraints and acceptance criteria — the part of the brief a simple task does not have. */
   brief: boolean
   /** The agent's plan in prose and the work journal. */
   plan: boolean

@@ -52,10 +52,11 @@ GROUP_DESCRIPTION_MAX = 128
 BODY_MAX = 8192
 COLOR_MAX = 32
 ICON_MAX = 64
-# Task brief: details, boundaries and acceptance requirements.
+# Task brief: details, boundaries and acceptance requirements. Constraints and criteria are lists —
+# each criterion carries what proves it — and 1024 cut a real brief short (``tsm_008``).
 CONTEXT_MAX = 4048
-CONSTRAINTS_MAX = 1024
-CRITERIA_MAX = 1024
+CONSTRAINTS_MAX = 2048
+CRITERIA_MAX = 2048
 # Pointer to the evidence that a stage is done. Tight on purpose: command output does not fit, and
 # writing a story instead of a reference will not work.
 EVIDENCE_MAX = 1024
@@ -129,8 +130,9 @@ TASK_PRIORITY_WEIGHTS = {
 # Depth of tracking, not a place in the hierarchy: a task becomes a container by having children.
 # Three levels, each adding exactly one way of tracking the work:
 #
-#   simple    — title and goal. No brief, no plan; often a task for the person.
-#   standard  — brief (context, constraints, criteria), a prose plan and a work journal.
+#   simple    — title, goal and context (what to know before starting). No constraints,
+#               criteria, plan or journal; often a task for the person.
+#   standard  — plus constraints and criteria (the full brief), a prose plan and a work journal.
 #   extended  — plus STAGES: the work is split into steps, each with its own state and
 #               evidence of completion.
 #

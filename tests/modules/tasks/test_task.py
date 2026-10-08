@@ -7,6 +7,8 @@ import pytest
 from src.modules.tasks.constants import (
     BODY_MAX,
     CODE_LEN,
+    CONSTRAINTS_MAX,
+    CRITERIA_MAX,
     PRIORITY_BURNING,
     SORT_DEFAULT,
     STATUS_BACKLOG,
@@ -129,6 +131,21 @@ async def test_update_detaches_the_group_with_an_empty_string(db, workspace):
     )
 
     assert (await task_update(task.code, group_code="")).group_code is None
+
+
+async def test_brief_lists_hold_2048_characters(db, workspace):
+    """Constraints and criteria are lists with a proof per line; 2048 fit whole, not cut."""
+    assert CONSTRAINTS_MAX == CRITERIA_MAX == 2048
+    constraints = "о" * CONSTRAINTS_MAX
+    criteria = "к" * CRITERIA_MAX
+
+    task = await task_create(
+        workspace_code=workspace.code, title="Задача", constraints=constraints, criteria=criteria
+    )
+    stored = await task_get(task.code)
+
+    assert stored.constraints == constraints
+    assert stored.criteria == criteria
 
 
 async def test_status_change_stamps_the_phase_once(db, workspace):

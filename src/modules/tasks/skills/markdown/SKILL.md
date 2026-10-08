@@ -60,6 +60,6 @@ task back when a field was long:
 | goal `description`, stage `description` | 512 |
 | group `description` | 128 — refused over it, not cut |
 | `context` | 4048 |
-| `constraints`, `criteria` | 1024 |
+| `constraints`, `criteria` | 2048 |
 | entry body passed to `note_add` | 2048 |
 | `evidence`, `resolution` | 1024 |
