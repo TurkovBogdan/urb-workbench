@@ -23,6 +23,8 @@ from src.core.database.migrations import AlembicRunner
 from src.core.database.sqlite import WRITE_EXECUTION_OPTIONS, configure_sqlite, foreign_keys_disabled
 
 _BEFORE = "tsm_008_brief_lists_len"
+# The revision under test, not the heads: later revisions rename what this one leaves behind.
+_AFTER = "tsm_009_task_work_fields"
 _PLAN = "## Подход\n" + "п" * 8000 + "\n\nМеняю: tariff.py"
 _CHILDREN = ("tasks_link", "tasks_stage", "tasks_note")
 
@@ -106,7 +108,7 @@ async def _cycle(engine) -> None:
     children = await _children(engine)
     assert children == [1, 1, 1]
 
-    await _migrate(engine, runner, "heads")
+    await _migrate(engine, runner, _AFTER)
     columns = await _columns(engine)
     assert "body" not in columns
     assert {"plan", "progress", "result"} <= set(columns)
@@ -119,7 +121,7 @@ async def _cycle(engine) -> None:
     assert await _rows(engine, "SELECT body FROM tasks") == [(_PLAN,)]
     assert await _children(engine) == children
 
-    await _migrate(engine, runner, "heads")
+    await _migrate(engine, runner, _AFTER)
     assert await _rows(engine, "SELECT plan FROM tasks") == [(_PLAN,)]
     assert await _children(engine) == children
 

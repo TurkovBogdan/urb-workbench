@@ -2,7 +2,7 @@
 
 The table is named after the module, without a prefix: the task is its main entity, and
 ``tasks_task`` would be a stutter. The satellites carry the prefix (``tasks_group``,
-``tasks_link``, ``tasks_stage``, ``tasks_note``) — there it answers "whose is this".
+``tasks_link``, ``tasks_stage``, ``tasks_journal``) — there it answers "whose is this".
 
 A row describes the whole task **except its place in the tree**: the parent and the position
 among siblings live in ``tasks_link``. The reason: moving a branch or reordering siblings touches

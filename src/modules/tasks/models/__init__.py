@@ -7,8 +7,8 @@ this package imports it, otherwise the FK has nothing to point at.
 """
 
 from src.modules.tasks.models.group import TasksGroup
+from src.modules.tasks.models.journal import TasksJournal
 from src.modules.tasks.models.link import TasksLink
-from src.modules.tasks.models.note import TasksNote
 from src.modules.tasks.models.stage import TasksStage
 from src.modules.tasks.models.task import TasksTask
 
@@ -17,5 +17,5 @@ __all__ = [
     "TasksTask",
     "TasksLink",
     "TasksStage",
-    "TasksNote",
+    "TasksJournal",
 ]
