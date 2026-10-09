@@ -41,7 +41,9 @@ import CopyChip from '@/components/CopyChip.vue'
 import { MarkdownEditor } from '@/components/markdown/editor'
 import SectionError from '@/components/SectionError.vue'
 import SectionHeader from '@/components/SectionHeader.vue'
+import HelpHint from '@/components/HelpHint.vue'
 import IconSwatch from '@/components/IconSwatch.vue'
+import InvisibleField from '@/components/InvisibleField.vue'
 import VSelectSearch from '@/components/VSelectSearch.vue'
 import { useChangeSubscription } from '@/composables/useChangeSubscription'
 import { fmtDateTime, fmtRelative } from '@/shared/utils/date'
@@ -50,6 +52,7 @@ import type { Change } from '@/stores/changes'
 import TaskFieldConflictDialog from '../components/TaskFieldConflictDialog.vue'
 import TaskFormDialog from '../components/TaskFormDialog.vue'
 import TaskJournal from '../components/TaskJournal.vue'
+import TaskNotes from '../components/TaskNotes.vue'
 import TaskPrioritySelect from '../components/TaskPrioritySelect.vue'
 import TaskStages from '../components/TaskStages.vue'
 import TaskStatusSelect from '../components/TaskStatusSelect.vue'
@@ -497,7 +500,12 @@ function concernsThisTask(change: Change): boolean {
     case 'tasks.link':
     case 'tasks.stage':
     case 'tasks.journal':
+    case 'tasks.note':
       return touches([row.code])
+    // A note's own edits — a rename, a new description, a soft delete — carry no task ref: the
+    // document does not know its task. The cards on screen are matched by their codes.
+    case 'notes.note':
+      return row.notes.some((note) => change.ids.includes(note.code))
     case 'tasks.group':
       return touches([row.group_code, row.workspace_code])
     default:
@@ -511,7 +519,7 @@ async function reloadLive(): Promise<void> {
 }
 
 useChangeSubscription({
-  entities: ['tasks.task', 'tasks.link', 'tasks.stage', 'tasks.journal', 'tasks.group'],
+  entities: ['tasks.task', 'tasks.link', 'tasks.stage', 'tasks.journal', 'tasks.note', 'notes.note', 'tasks.group'],
   match: concernsThisTask,
   onChange: (changes) => {
     if (changes.some((change) => change.entity !== 'tasks.group')) void reloadLive()
@@ -540,6 +548,12 @@ function taskPath(target: string): string {
 function goTask(target: string) {
   void commit()
   void router.push(taskPath(target))
+}
+
+/** A note opens on its own page, inside this task's address. */
+function openNote(note: string) {
+  void commit()
+  void router.push(`${taskPath(code.value)}/note/${encodeURIComponent(note)}`)
 }
 
 /** A subtask — of the open task or, from a branch row's menu, of one of its subtasks. */
@@ -583,16 +597,14 @@ async function purge() {
       <!-- The title sits where the page's heading sits and is edited right in it: it is the most
            frequent change to a task, and it should not get a separate field in the page body. -->
       <template v-if="task" #title>
-        <VTextField
+        <InvisibleField
           :model-value="draft.title"
-          :placeholder="t('tasks.task.form.name')"
-          :aria-label="t('tasks.task.form.name')"
+          :placeholder="t('tasks.task.detail.name')"
+          :aria-label="t('tasks.task.detail.name')"
           :maxlength="TASK_TITLE_MAX"
           :disabled="deleted"
           :error="!draft.title.trim()"
-          variant="plain"
-          hide-details
-          class="task-page__title quiet-field"
+          class="task-page__title"
           @update:model-value="(value) => { draft.title = value; schedule() }"
           @blur="commit"
         />
@@ -657,12 +669,6 @@ async function purge() {
 
       <div class="task-page__grid">
         <div class="task-page__main">
-          <!-- Where the task sits: a link to the parent. A root task has none — nowhere to go up. -->
-          <button v-if="task.parent" type="button" class="task-page__parent" @click="goTask(task.parent.code)">
-            <IconArrowUp :size="14" :stroke-width="1.6" />
-            {{ task.parent.title }}
-          </button>
-
           <!-- Every text card says in its header WHAT to write in this field, behind a "?" right
                after the title: the explanation is longer than a line and, read once, is not needed
                at every look. The hint sits in the header, not in the empty field, because it is
@@ -708,6 +714,17 @@ async function purge() {
               @blur="commit"
             />
           </VCard>
+
+          <!-- Notes are planning material and sit under the plan; a simple task has no plan, so
+               they sit under its context instead. -->
+          <TaskNotes
+            v-if="!layout.plan"
+            :task-code="task.code"
+            :notes="task.notes"
+            :disabled="deleted"
+            @open="openNote"
+            @changed="reloadTask"
+          />
 
           <!-- Constraints and acceptance criteria are the brief of a standard task. A simple one has
                none: there is nothing to deliver against criteria, and empty fields would only take
@@ -770,6 +787,28 @@ async function purge() {
             />
           </VCard>
 
+          <TaskNotes
+            v-if="layout.plan"
+            :task-code="task.code"
+            :notes="task.notes"
+            :disabled="deleted"
+            @open="openNote"
+            @changed="reloadTask"
+          />
+
+          <!-- Stages are the plan broken into steps, so they follow the plan and its notes and come
+               before the progress that reports on them.
+               Stages exist only on an extended task, and that is the only difference from a
+               standard one: there the plan lives as prose above, and splitting it into steps with
+               separate evidence only makes sense for work longer than one sitting. -->
+          <TaskStages
+            v-if="layout.stages"
+            :task-code="task.code"
+            :stages="task.stages"
+            :disabled="deleted"
+            @changed="reloadTask"
+          />
+
           <VCard v-if="layout.plan" variant="outlined" rounded="lg" class="task-page__card">
             <SectionHeader
               :title="t('tasks.task.detail.progress')"
@@ -806,24 +845,8 @@ async function purge() {
             />
           </VCard>
 
-          <!-- Stages and the journal are the rest of the work on the task, and they belong right
-               under it: the plan promises, stages show progress, the journal keeps what came up on
-               the way.
-               Stages exist only on an extended task, and that is the only difference from a
-               standard one: there the plan lives as prose above, and splitting it into steps with
-               separate evidence only makes sense for work longer than one sitting. -->
-          <section v-if="layout.stages">
-            <SectionHeader :title="t('tasks.stage.section')" :count="task.stages.length" />
-            <TaskStages
-              :task-code="task.code"
-              :stages="task.stages"
-              :disabled="deleted"
-              @changed="reloadTask"
-            />
-          </section>
-
+          <!-- The journal keeps what came up on the way. -->
           <section v-if="layout.plan">
-            <SectionHeader :title="t('tasks.journal.section')" :count="task.journal.length" />
             <TaskJournal
               :task-code="task.code"
               :entries="task.journal"
@@ -832,157 +855,157 @@ async function purge() {
             />
           </section>
 
-          <section>
-            <SectionHeader :title="t('tasks.task.detail.children')" :count="task.children.length">
-              <template #right>
-                <VBtn
-                  v-if="!task.parent"
-                  variant="text"
-                  size="small"
-                  :disabled="deleted"
-                  @click="addChild()"
-                >
-                  <template #prepend><IconPlus :size="16" /></template>
-                  {{ t('tasks.task.card.add_child') }}
-                </VBtn>
-              </template>
-            </SectionHeader>
-
-            <!-- The branch under the task — in the same form as in the main list, with its own
-                 search and toggles; each row opens ITS OWN page. -->
-            <TaskSubtasksPanel
-              ref="subtasks"
-              :task-code="task.code"
-              :workspace="task.workspace_code"
-              :deleted="deleted"
-              @open="goTask"
-              @add-child="addChild"
-            />
-          </section>
+          <!-- The branch under the task — in the same form as in the main list, its header inside
+               its card; each row opens ITS OWN page. The tree is one level deep: a subtask cannot
+               have subtasks of its own. -->
+          <TaskSubtasksPanel
+            ref="subtasks"
+            :task-code="task.code"
+            :workspace="task.workspace_code"
+            :deleted="deleted"
+            :addable="!task.parent && !deleted"
+            @open="goTask"
+            @add="addChild()"
+            @add-child="addChild"
+          />
         </div>
 
-        <!-- The card is its own `aside`: a separate wrapper around it would add a level with
-             nothing to live on it — the field column is this card. -->
-        <VCard tag="aside" variant="outlined" rounded="lg" class="task-page__side">
-          <!-- The group is optional: a task without one lands in the "No group" section, not lost.
-               A workspace can have many groups, and they are recognised by look — an icon in the
-               group's color, the same as in the task list. The search is pinned to the top of the
-               menu and does not change the field.
-               `:chips="false"` is mandatory: with chips Vuetify renders `#chip` and silently
-               ignores `#selection`, so the selected group would be left without its icon. -->
-          <VSelectSearch
-            :model-value="draft.groupCode"
-            :items="groupItems"
-            :label="t('tasks.task.detail.group')"
-            :search-placeholder="t('tasks.task.detail.group_search')"
-            :no-data-text="t('tasks.task.detail.group_empty')"
-            :disabled="deleted"
-            :chips="false"
-            variant="outlined"
-            density="compact"
-            clearable
-            hide-details
-            @update:model-value="(value) => pick('groupCode', (value ?? null) as string | null)"
-          >
-            <template #item="{ props: itemProps, item }">
-              <VListItem v-bind="itemProps">
-                <template #prepend>
-                  <IconSwatch :icon="item.icon" :color="item.color" :width="20" />
-                </template>
-              </VListItem>
-            </template>
+        <!-- The column holds cards by kind: where the task sits, then the fields the person sets,
+             then what the task stamps on itself. It is pinned as a whole, so the cards move
+             together. -->
+        <aside class="task-page__side">
+          <!-- A link to the parent. A root task has none — nowhere to go up. -->
+          <VCard v-if="task.parent" variant="outlined" rounded="lg" class="task-page__panel">
+            <span class="task-page__label">{{ t('tasks.task.detail.parent') }}</span>
+            <button type="button" class="task-page__parent" @click="goTask(task.parent.code)">
+              <IconArrowUp :size="14" :stroke-width="1.6" class="task-page__parent-icon" />
+              {{ task.parent.title }}
+            </button>
+          </VCard>
 
-            <template #selection="{ item }">
-              <span class="task-page__group-value">
-                <IconSwatch :icon="item.icon" :color="item.color" :width="20" />
-                {{ item.title }}
-              </span>
-            </template>
-          </VSelectSearch>
-
-          <!-- Status moves to its neighbours — from plan to work, from work to review — hence a
-               field with steps, like priority's, and with an icon: the same one as in the task
-               list row. -->
-          <TaskStatusSelect
-            v-model="status"
-            :label="t('tasks.task.detail.status')"
-            :disabled="deleted || store.busy"
-            :loading="store.busy"
-            variant="outlined"
-            density="compact"
-            hide-details
-          />
-
-          <TaskPrioritySelect
-            :model-value="draft.priority"
-            :label="t('tasks.task.detail.priority')"
-            :disabled="deleted"
-            variant="outlined"
-            density="compact"
-            hide-details
-            @update:model-value="(value) => pick('priority', value as string)"
-          />
-
-          <!-- The only assignable date: the day to finish by. The picked day is sent as the last
-               second of that day (`formatDeadline`), otherwise a deadline "for today" would be
-               overdue from the very morning. -->
-          <!-- The calendar icon moves INSIDE the field: outside (`prepend-icon`, the VDateInput
-               default) it stands as a separate box before the outline, and the field shifts right
-               by 32px — noticeable in a column where all other fields start on one line. -->
-          <VDateInput
-            :model-value="draft.deadlineAt"
-            :label="t('tasks.task.detail.deadline_at')"
-            :disabled="deleted"
-            prepend-icon=""
-            :prepend-inner-icon="IconCalendarEvent"
-            variant="outlined"
-            density="compact"
-            clearable
-            hide-details
-            @update:model-value="(value) => pick('deadlineAt', (value ?? null) as Date | null)"
-          />
-
-          <!-- Type is picked with buttons: all three values are visible at once, without opening
-               a list. The look comes from the design system — `outlined` + `divided`, the project
-               default for `VBtnToggle` (plugins/vuetify.ts) and as shown in the showcase. The
-               former `tonal` filled the selection with solid color, and the row read as a heavy
-               bar.
-               It comes last among the fields: type is set once at creation and changed less often
-               than anything else in this column. -->
-          <div class="task-page__field">
-            <span class="task-page__label">{{ t('tasks.task.detail.type') }}</span>
-            <VBtnToggle
-              :model-value="draft.type"
-              mandatory
-              divided
+          <VCard variant="outlined" rounded="lg" class="task-page__panel task-page__settings">
+            <!-- The group is optional: a task without one lands in the "No group" section, not lost.
+                 A workspace can have many groups, and they are recognised by look — an icon in the
+                 group's color, the same as in the task list. The search is pinned to the top of the
+                 menu and does not change the field.
+                 `:chips="false"` is mandatory: with chips Vuetify renders `#chip` and silently
+                 ignores `#selection`, so the selected group would be left without its icon. -->
+            <VSelectSearch
+              :model-value="draft.groupCode"
+              :items="groupItems"
+              :label="t('tasks.task.detail.group')"
+              :search-placeholder="t('tasks.task.detail.group_search')"
+              :no-data-text="t('tasks.task.detail.group_empty')"
+              :disabled="deleted"
+              :chips="false"
               variant="outlined"
               density="compact"
-              :disabled="deleted"
-              class="task-page__toggle"
-              @update:model-value="(value) => pick('type', value as string)"
+              clearable
+              hide-details
+              @update:model-value="(value) => pick('groupCode', (value ?? null) as string | null)"
             >
-              <VBtn v-for="item in typeItems" :key="item.value" :value="item.value">
-                {{ item.title }}
-              </VBtn>
-            </VBtnToggle>
-            <span class="task-page__hint">{{ t('tasks.task.detail.type_hint') }}</span>
-          </div>
+              <template #item="{ props: itemProps, item }">
+                <VListItem v-bind="itemProps">
+                  <template #prepend>
+                    <IconSwatch :icon="item.icon" :color="item.color" :width="20" />
+                  </template>
+                </VListItem>
+              </template>
 
-          <dl v-if="marks.length" class="task-page__marks">
+              <template #selection="{ item }">
+                <span class="task-page__group-value">
+                  <IconSwatch :icon="item.icon" :color="item.color" :width="20" />
+                  {{ item.title }}
+                </span>
+              </template>
+            </VSelectSearch>
+
+            <!-- Status moves to its neighbours — from plan to work, from work to review — hence a
+                 field with steps, like priority's, and with an icon: the same one as in the task
+                 list row. -->
+            <TaskStatusSelect
+              v-model="status"
+              :label="t('tasks.task.detail.status')"
+              :disabled="deleted || store.busy"
+              :loading="store.busy"
+              variant="outlined"
+              density="compact"
+              hide-details
+            />
+
+            <TaskPrioritySelect
+              :model-value="draft.priority"
+              :label="t('tasks.task.detail.priority')"
+              :disabled="deleted"
+              variant="outlined"
+              density="compact"
+              hide-details
+              @update:model-value="(value) => pick('priority', value as string)"
+            />
+
+            <!-- The only assignable date: the day to finish by. The picked day is sent as the last
+                 second of that day (`formatDeadline`), otherwise a deadline "for today" would be
+                 overdue from the very morning. -->
+            <!-- The calendar icon moves INSIDE the field: outside (`prepend-icon`, the VDateInput
+                 default) it stands as a separate box before the outline, and the field shifts right
+                 by 32px — noticeable in a column where all other fields start on one line. -->
+            <VDateInput
+              :model-value="draft.deadlineAt"
+              :label="t('tasks.task.detail.deadline_at')"
+              :disabled="deleted"
+              prepend-icon=""
+              :prepend-inner-icon="IconCalendarEvent"
+              variant="outlined"
+              density="compact"
+              clearable
+              hide-details
+              @update:model-value="(value) => pick('deadlineAt', (value ?? null) as Date | null)"
+            />
+
+            <!-- Type is picked with buttons: all three values are visible at once, without opening
+                 a list. The look comes from the design system — `outlined` + `divided`, the project
+                 default for `VBtnToggle` (plugins/vuetify.ts) and as shown in the showcase. The
+                 former `tonal` filled the selection with solid color, and the row read as a heavy
+                 bar.
+                 It comes last among the fields: type is set once at creation and changed less often
+                 than anything else in this column. -->
+            <div class="task-page__field">
+              <span class="task-page__label">
+                {{ t('tasks.task.detail.type') }}
+                <HelpHint :text="t('tasks.task.detail.type_hint')" />
+              </span>
+              <VBtnToggle
+                :model-value="draft.type"
+                mandatory
+                divided
+                variant="outlined"
+                density="compact"
+                :disabled="deleted"
+                class="task-page__toggle"
+                @update:model-value="(value) => pick('type', value as string)"
+              >
+                <VBtn v-for="item in typeItems" :key="item.value" :value="item.value">
+                  {{ item.title }}
+                </VBtn>
+              </VBtnToggle>
+            </div>
+
+            <!-- Saving itself is not announced: every field saves on its own as it changes, and a
+                 "Saving…" line flashed on each pick. A failed save is — the person has to know the
+                 field did not land. It sits last in the fields card, so appearing it moves only the
+                 card's bottom edge, not the fields under the pointer. -->
+            <p v-if="store.saveError" class="task-page__save-error">
+              {{ store.saveError }}
+            </p>
+          </VCard>
+
+          <VCard v-if="marks.length" tag="dl" variant="outlined" rounded="lg" class="task-page__panel task-page__marks">
             <div v-for="mark in marks" :key="mark.key" class="task-page__mark">
               <dt class="task-page__mark-label">{{ mark.label }}</dt>
               <dd class="task-page__mark-value">{{ mark.value }}</dd>
             </div>
-          </dl>
-
-          <!-- Saving itself is not announced: every field saves on its own as it changes, and a
-               "Saving…" line flashed on each pick. A failed save is — the person has to know the
-               field did not land. It sits last in the column, so appearing it moves only the card's
-               bottom edge, not the fields under the pointer. -->
-          <p v-if="store.saveError" class="task-page__save-error">
-            {{ store.saveError }}
-          </p>
-        </VCard>
+          </VCard>
+        </aside>
       </div>
     </div>
 
@@ -1051,9 +1074,8 @@ async function purge() {
    rows has its own border, and a card around them would give a frame within a frame.
    16px — between the filter panel (12px) and the group tile (18px): there are five cards in a row
    in this column, and every extra pixel of padding is multiplied by five.
-   The frame-within-a-frame rule applies INSIDE the card too, so the prose fields are quiet
-   (`quiet-field`, like the page title): a section has one frame — the card itself, and that a
-   field is editable is shown by a background under the cursor and an outline on focus. */
+   The frame-within-a-frame rule applies INSIDE the card too, so the prose editors are plain: a
+   section has one frame — the card itself. */
 .task-page__card {
   padding: 16px;
 }
@@ -1061,22 +1083,33 @@ async function purge() {
 /* The field column stays in view while scrolling through long text: status and deadline are
    needed at any line of it, and fields that scrolled away would have to be found by scrolling
    back. It sticks only in the two-column layout — in one column a sticky strip would cover the
-   text itself.
-   The fields use the densest step (28px), while the spacing between them is, conversely, larger
-   than usual: in a column of six fields in a row a taller box only takes space, and what tells
-   the fields apart is the empty space around them. */
+   text itself. */
 .task-page__side {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
   min-width: 0;
-  padding: 16px;
   position: sticky;
   top: 0;
 }
 
 @media (max-width: 900px) {
   .task-page__side { position: static; }
+}
+
+.task-page__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 16px;
+}
+
+/* The fields use the densest step (28px), while the spacing between them is, conversely, larger
+   than usual: in a column of six fields in a row a taller box only takes space, and what tells
+   the fields apart is the empty space around them. */
+.task-page__settings {
+  gap: 18px;
 }
 
 /* The floated label is set smaller than its value: the global `.v-field .v-label` rule from
@@ -1092,38 +1125,29 @@ async function purge() {
 /* The link up is a button, not a `RouterLink`: the page owns the URL, and the markup must not
    know how it is built. It still looks like a link — it is a navigation. */
 .task-page__parent {
-  display: inline-flex;
-  align-items: center;
+  display: flex;
+  align-items: flex-start;
   gap: 4px;
-  align-self: flex-start;
   max-width: 100%;
   padding: 0;
   border: none;
   background: none;
-  font-size: 12px;
-  color: var(--text-muted);
+  font: inherit;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--text);
+  text-align: start;
+  overflow-wrap: anywhere;
   cursor: pointer;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  transition: color 0.14s ease;
 }
 
-.task-page__parent:hover { color: var(--text); }
+.task-page__parent:hover { text-decoration: underline; }
 
-/* A borderless field: at rest it is text, under the cursor a background, on focus an accent
-   outline. The padding matches that background, so entering edit mode does not shift a letter. */
-.quiet-field :deep(.v-field) {
-  padding-inline: 8px;
-  border-radius: var(--radius-sm);
-  transition: background-color 0.14s ease;
-}
-
-.quiet-field :deep(.v-field:hover) { background: var(--surface-hi); }
-
-.quiet-field :deep(.v-field--focused) {
-  background: var(--input-bg);
-  box-shadow: inset 0 0 0 1px var(--accent);
+/* A long parent title wraps: the icon stays by its first line. */
+.task-page__parent-icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--text-muted);
 }
 
 /* The header's text half shrinks to its content: for an ordinary title that is exactly its length,
@@ -1139,7 +1163,6 @@ async function purge() {
    with the headers of other pages. */
 .task-page__title {
   width: 100%;
-  margin-inline-start: -8px;
 }
 
 .task-page__title :deep(.v-field__input) {
@@ -1184,17 +1207,14 @@ async function purge() {
 }
 
 /* A button row has no floated label like the neighbouring fields, so its name is a line above it. */
+/* What the type does is read once, not at every look at the column, so it sits behind a "?" next
+   to the label rather than as a caption under the buttons. */
 .task-page__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 12px;
   color: var(--text-muted);
-}
-
-/* The caption under the type explains behaviour rather than naming the field, so it is quieter
-   than the label and sits BELOW the row, not above it. */
-.task-page__hint {
-  font-size: 11px;
-  line-height: 1.4;
-  color: var(--text-faint);
 }
 
 /* A button group's size is not inherited by its children (docs/conventions/frontend.md), so the
@@ -1215,15 +1235,11 @@ async function purge() {
   text-transform: none;
 }
 
-/* Timestamps go as "label / value" lines under the fields: they are not edited, and they share the
-   space below the field column. */
+/* Timestamps go as "label / value" lines in a card of their own: they are not edited, so they do
+   not sit among the fields. */
 .task-page__marks {
-  display: flex;
-  flex-direction: column;
   gap: 10px;
   margin: 0;
-  padding-top: 14px;
-  border-top: 1px solid var(--border);
 }
 
 .task-page__mark { min-width: 0; }

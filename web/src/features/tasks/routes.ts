@@ -28,4 +28,12 @@ export const tasksRoutes: RouteRecordRaw[] = [
     component: () => import('./views/TaskView.vue'),
     meta: { scroll: 'y', title: 'tasks.task.detail.title' },
   },
+  // A task note opens inside its task's address: only the task knows whose note it is, and the way
+  // back leads to it.
+  {
+    path: '/tasks/task/:code/note/:note',
+    name: 'tasks-task-note',
+    component: () => import('./views/TaskNoteView.vue'),
+    meta: { scroll: 'y', title: 'tasks.note.page_title' },
+  },
 ]

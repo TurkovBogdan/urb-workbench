@@ -94,7 +94,7 @@
       "purge": "Delete forever",
       "cancel_confirm": {
         "title": "Cancel the task?",
-        "text": "“{title}” will be marked Canceled: no more work goes into it. To bring it back, change the status on its page.",
+        "text": "“{title}” will be marked Canceled: no more work goes into it. To bring it back, choose “Back to work” in its menu.",
         "confirm": "Cancel task",
         "keep": "Keep"
       },
@@ -131,6 +131,7 @@
     },
     "detail": {
       "title": "Task",
+      "name": "Task title",
       "description": "Brief statement",
       "context": "Starting points",
       "constraints": "Constraints",
@@ -145,14 +146,12 @@
         "criteria": "What has to be done for the task to be accepted. Each condition on its own line.\n\nFor example:\n— tests are written for zones X, Y and Z;\n— the interface is checked in the browser;\n— the layout is checked on mobile.",
         "plan": "How the agent will do the task: the approach, the details, and which files it has read and will change. Written before the code changes, so the intent can later be compared with what came out.",
         "progress": "How the work is going: the agent briefly notes what is done and what comes next. A new entry is appended at the end; decisions and findings go to the journal.\n\nFor example:\n— the migration is written, rollback checked → CRUD next;\n— API tests fail on the old field → investigating.",
-        "result": "What was done on the task. The agent writes the result when handing the task over for review: what changed, what checked it, and what is left unchecked."
+        "result": "What was done on the task. The agent writes the result when handing the task over for review: what changed, what checked it, and what is left unchecked.",
+        "children": "Parts of the task carried separately: each has its own page and its own status. One level deep — a subtask has no subtasks of its own."
       },
       "group_search": "Find a group",
       "group_empty": "No groups",
       "children": "Subtasks",
-      "no_children": "No subtasks",
-      "children_query": "Search subtasks",
-      "children_filtered": "No subtasks match these conditions",
       "no_body": "No text yet",
       "status": "Status",
       "group": "Group",
@@ -165,6 +164,7 @@
       "completed_at": "Completed",
       "canceled_at": "Canceled",
       "updated_at": "Updated",
+      "parent": "Parent task",
       "deleted_note": "The task was deleted together with its branch. While it is in the bin, it can't be edited and its status can't be changed."
     },
     "purge": {
@@ -175,7 +175,7 @@
   },
   "stage": {
     "section": "Stages",
-    "empty": "No stages. Add the first one with the button below — the plan is broken into steps, each with its own evidence.",
+    "hint": "The plan broken into steps, each with its own state. A stage closes only with evidence — a command and its result, a file path, a diff summary.",
     "add": "Add stage",
     "new_title": "New stage",
     "title": "Stage title",
@@ -191,8 +191,7 @@
   },
   "journal": {
     "section": "Journal",
-    "empty": "No entries. This is where decisions made along the way, remarks, findings and things to remember go.",
-    "empty_open": "No open entries",
+    "hint": "Decisions, remarks, findings and facts that came up along the way. An entry is never edited: an open one is closed with a resolution, and a change of mind is a new entry.",
     "add": "Add entry",
     "open_only": "Open only ({count})",
     "type_label": "Entry type",
@@ -206,6 +205,30 @@
       "finding": "Finding",
       "fact": "Fact"
     }
+  },
+  "note": {
+    "section": "Notes",
+    "add": "Note",
+    "new_title": "New note",
+    "list": "Task notes",
+    "drag": "Drag the note",
+    "delete": "Delete",
+    "delete_confirm": {
+      "title": "Delete the note?",
+      "text": "“{title}” will leave the task.",
+      "confirm": "Delete"
+    },
+    "page_title": "Note",
+    "title": "Note title",
+    "description": "Description",
+    "hint": {
+      "section": "Documents the plan rests on: schemas, option breakdowns, tables. The agent writes them while working out the plan or when asked to.",
+      "description": "What the note is about and when to open it: the task's list finds it by this line — for the person and the agent alike.",
+      "body": "The note itself: a schema, a breakdown of options, a table — the material the plan rests on."
+    },
+    "body": "Text",
+    "task": "Task",
+    "task_deleted": "The task is deleted — the note can be read, not edited."
   },
   "group": {
     "list": {
@@ -294,6 +317,9 @@
     },
     "journal": {
       "not_found": "Journal entry not found"
+    },
+    "note": {
+      "not_found": "Note not found"
     }
   }
 }
