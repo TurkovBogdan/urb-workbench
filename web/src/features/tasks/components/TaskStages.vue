@@ -11,7 +11,7 @@
 // diverge on day one.
 import { computed, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { IconChevronRight, IconPlus, IconTrash } from '@tabler/icons-vue'
+import { IconChevronRight, IconTrash } from '@tabler/icons-vue'
 
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { MarkdownEditor } from '@/components/markdown/editor'
@@ -25,6 +25,7 @@ import {
   type StageRow,
 } from '../api'
 import { TASK_BRIEF_FEATURES, TASK_DOCUMENT_FEATURES } from '../editor'
+import CollectionHeader from './CollectionHeader.vue'
 import {
   BODY_MAX,
   STAGE_EVIDENCE_MAX,
@@ -138,12 +139,20 @@ async function remove() {
 </script>
 
 <template>
-  <div class="stages">
+  <section class="stages">
+    <CollectionHeader
+      :title="t('tasks.stage.section')"
+      :hint="t('tasks.stage.hint')"
+      :add-label="props.disabled ? undefined : t('tasks.stage.add')"
+      :adding="busy"
+      :empty="!props.stages.length && !error"
+      class="stages__header"
+      @add="add"
+    />
+
     <VAlert v-if="error" type="error" variant="tonal" density="compact" class="stages__error">
       {{ error }}
     </VAlert>
-
-    <p v-if="!props.stages.length" class="stages__empty">{{ t('tasks.stage.empty') }}</p>
 
     <div v-for="stage in props.stages" :key="stage.code" class="stage" :class="{ 'stage--open': open === stage.code }">
       <!-- A collapsed row answers three questions at once: which number, in what state and about
@@ -235,11 +244,6 @@ async function remove() {
       </div>
     </div>
 
-    <VBtn variant="text" size="small" :disabled="props.disabled || busy" @click="add">
-      <template #prepend><IconPlus :size="16" /></template>
-      {{ t('tasks.stage.add') }}
-    </VBtn>
-
     <ConfirmDialog
       v-model="removeOpen"
       :title="t('tasks.stage.remove_title')"
@@ -248,7 +252,7 @@ async function remove() {
       :loading="busy"
       @confirm="remove"
     />
-  </div>
+  </section>
 </template>
 
 <style scoped>
@@ -259,13 +263,8 @@ async function remove() {
   align-items: flex-start;
 }
 
+.stages__header,
 .stages__error { align-self: stretch; }
-
-.stages__empty {
-  margin: 0;
-  font-size: 13px;
-  color: var(--text-muted);
-}
 
 .stage {
   align-self: stretch;

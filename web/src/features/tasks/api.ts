@@ -256,6 +256,30 @@ export interface TaskDetail extends TaskListRow {
   children: TaskListRow[]
   stages: StageRow[]
   journal: JournalRow[]
+  /** The task's notes top to bottom, without their text — the cards under the plan. */
+  notes: TaskNoteRow[]
+}
+
+/** A task note in the task's list: what it is, never its text. */
+export interface TaskNoteRow {
+  code: string
+  title: string
+  description: string
+  created_at: string
+  updated_at: string
+}
+
+/** A task note whole — its page. */
+export interface TaskNoteDetail extends TaskNoteRow {
+  task_code: string
+  body: string
+}
+
+/** The fields the note page changed; a field left out keeps its value. */
+export interface TaskNotePatch {
+  title?: string
+  description?: string
+  body?: string
 }
 
 export interface TaskCreateBody {
@@ -511,4 +535,46 @@ export async function resolveJournalEntry(
 
 export async function deleteJournalEntry(code: string, opts?: RequestOptions): Promise<void> {
   await internalApi.del<void>(`${BASE}/journal/${seg(code)}`, undefined, opts)
+}
+
+// ── Task notes ────────────────────────────────────────────────────────────────
+// Through the task, not through `/internal/notes`: the task knows whose note it is and that a
+// deleted task's notes are read but not changed.
+
+export async function createTaskNote(
+  task: string,
+  title: string,
+  opts?: RequestOptions,
+): Promise<TaskNoteDetail> {
+  return internalApi.post<TaskNoteDetail>(`${BASE}/tasks/${seg(task)}/notes`, { title }, opts)
+}
+
+export async function getTaskNote(
+  task: string,
+  note: string,
+  opts?: RequestOptions,
+): Promise<TaskNoteDetail> {
+  return internalApi.get<TaskNoteDetail>(`${BASE}/tasks/${seg(task)}/notes/${seg(note)}`, opts)
+}
+
+export async function patchTaskNote(
+  task: string,
+  note: string,
+  body: TaskNotePatch,
+  opts?: RequestOptions,
+): Promise<TaskNoteDetail> {
+  return internalApi.patch<TaskNoteDetail>(`${BASE}/tasks/${seg(task)}/notes/${seg(note)}`, body, opts)
+}
+
+export async function deleteTaskNote(task: string, note: string, opts?: RequestOptions): Promise<void> {
+  await internalApi.del<void>(`${BASE}/tasks/${seg(task)}/notes/${seg(note)}`, undefined, opts)
+}
+
+/** The whole order, top to bottom: a card in a grid has no single neighbour to name. */
+export async function reorderTaskNotes(
+  task: string,
+  codes: string[],
+  opts?: RequestOptions,
+): Promise<TaskNoteRow[]> {
+  return internalApi.put<TaskNoteRow[]>(`${BASE}/tasks/${seg(task)}/notes/order`, { codes }, opts)
 }

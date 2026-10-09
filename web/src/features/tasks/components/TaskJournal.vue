@@ -10,7 +10,6 @@
 // scrolled for during work — "what is still pending".
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { IconPlus } from '@tabler/icons-vue'
 
 import StatusBadge from '@/components/StatusBadge.vue'
 import MarkdownRenderer from '@/components/markdown/renderer/MarkdownRenderer.vue'
@@ -20,6 +19,7 @@ import { fmtDateTime } from '@/shared/utils/date'
 
 import { createJournalEntry, resolveJournalEntry, type JournalRow } from '../api'
 import { TASK_DOCUMENT_FEATURES } from '../editor'
+import CollectionHeader from './CollectionHeader.vue'
 import {
   JOURNAL_BODY_MAX,
   JOURNAL_RESOLUTION_MAX,
@@ -114,22 +114,26 @@ async function resolve(entry: JournalRow, value: string) {
 
 <template>
   <div class="journal">
-    <VAlert v-if="error" type="error" variant="tonal" density="compact">{{ error }}</VAlert>
+    <CollectionHeader
+      :title="t('tasks.journal.section')"
+      :hint="t('tasks.journal.hint')"
+      :add-label="props.disabled ? undefined : t('tasks.journal.add')"
+      :empty="!visible.length && !adding && !error"
+      @add="adding = !adding"
+    >
+      <template #actions>
+        <VSwitch
+          v-model="openOnly"
+          :label="t('tasks.journal.open_only', { count: openCount })"
+          color="primary"
+          density="compact"
+          hide-details
+          class="journal__filter"
+        />
+      </template>
+    </CollectionHeader>
 
-    <div class="journal__bar">
-      <VSwitch
-        v-model="openOnly"
-        :label="t('tasks.journal.open_only', { count: openCount })"
-        color="primary"
-        density="compact"
-        hide-details
-        class="journal__filter"
-      />
-      <VBtn variant="text" size="small" :disabled="props.disabled || busy" @click="adding = !adding">
-        <template #prepend><IconPlus :size="16" /></template>
-        {{ t('tasks.journal.add') }}
-      </VBtn>
-    </div>
+    <VAlert v-if="error" type="error" variant="tonal" density="compact">{{ error }}</VAlert>
 
     <!-- The add form expands on a button press rather than always being there: the journal is read
          more often than added to, and a permanent form would eat the first screen of the feed. -->
@@ -178,9 +182,6 @@ async function resolve(entry: JournalRow, value: string) {
       </div>
     </div>
 
-    <p v-if="!visible.length" class="journal__empty">
-      {{ openOnly ? t('tasks.journal.empty_open') : t('tasks.journal.empty') }}
-    </p>
 
     <article v-for="entry in visible" :key="entry.code" class="entry" :class="{ 'entry--open': isOpen(entry) }">
       <header class="entry__head">
@@ -224,13 +225,12 @@ async function resolve(entry: JournalRow, value: string) {
   gap: 8px;
 }
 
-.journal__bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+/* The switch's 40px box is its touch target, not its look: in the header it would make the journal's
+   header taller than its neighbours', so the extra height is taken out of the flow. */
+.journal__filter {
+  flex: none;
+  margin-block: -7px;
 }
-
-.journal__filter { flex: none; }
 
 .journal__filter :deep(.v-selection-control:not(.v-selection-control--dirty) .v-label) {
   opacity: var(--v-medium-emphasis-opacity);
@@ -250,12 +250,6 @@ async function resolve(entry: JournalRow, value: string) {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-}
-
-.journal__empty {
-  margin: 0;
-  font-size: 13px;
-  color: var(--text-muted);
 }
 
 .entry {

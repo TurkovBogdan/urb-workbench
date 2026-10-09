@@ -89,6 +89,11 @@ const tag = computed(() => `h${props.level}` as const)
   line-height: 1.3;
 }
 
+/* The "?" belongs to the title it explains, so it sits closer than the gap between title and
+   count: 4px rather than 8. Reached through `:deep` — the hint's root is its tooltip, and a class
+   passed to the component lands there, not on the glyph. */
+.section-header__title :deep(.help-hint) { margin-inline-start: -4px; }
+
 /* Spacing for a section within a page. Level one doesn't get it: there the page header owns the
    distance to the content, and a second value in the same place would drift from the first. */
 .section-header:not(.section-header--l1) {
