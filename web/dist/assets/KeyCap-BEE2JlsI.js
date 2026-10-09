@@ -1,1 +1,0 @@
-import{bB as a,cN as s,bs as t,d4 as c,b8 as o}from"./index-BK13sAUJ.js";const n={class:"key-cap"},p=a({__name:"KeyCap",props:{label:{}},setup(e){return(_,r)=>(s(),t("kbd",n,c(e.label),1))}}),b=o(p,[["__scopeId","data-v-a54cea79"]]);export{b as K};
