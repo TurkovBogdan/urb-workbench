@@ -126,6 +126,8 @@ export function useDragPreview(
   // debris after a cancel is an anti-pattern of its own, and the indicator must be cleared by the
   // event that also arrives on failure.
   function end(): void {
+    // A drag this preview never started (text pulled inside the document) ends on its own.
+    if (!dragging.value) return
     dragging.value = false
 
     document.removeEventListener('dragover', trackGhost)
