@@ -28,19 +28,11 @@ const { t } = useI18n()
 
 <template>
   <header class="dlg-head" :class="{ 'dlg-head--rule': rule }">
-    <!-- Title and description are exposed as slots: in the detail view the title is an editable
-         field, and under it a button sits next to the code. Props remain the main path: a slot is
-         for where a string stopped being a string, and a second header component isn't worth it. -->
-    <div class="dlg-head__text">
-      <slot name="title">
-        <h2 class="dlg-head__title">{{ title }}</h2>
-      </slot>
-      <slot name="description">
-        <p v-if="description" class="dlg-head__description">{{ description }}</p>
-      </slot>
-    </div>
+    <!-- The × comes FIRST in the markup and is moved to the right edge by `order`: Tab reaches the
+         way out before anything else, and a title that is a field hands the focus straight on to
+         the window's content instead of detouring through the × in the corner.
 
-    <!-- Actions sit to the RIGHT of the ×: leaving the window is a move toward its left edge, toward
+         Actions sit to the RIGHT of the ×: leaving the window is a move toward its left edge, toward
          the content, while actions on the content itself continue the row outward. -->
     <div class="dlg-head__tools">
       <VBtn
@@ -54,6 +46,18 @@ const { t } = useI18n()
       </VBtn>
 
       <slot name="actions" />
+    </div>
+
+    <!-- Title and description are exposed as slots: in the detail view the title is an editable
+         field, and under it a button sits next to the code. Props remain the main path: a slot is
+         for where a string stopped being a string, and a second header component isn't worth it. -->
+    <div class="dlg-head__text">
+      <slot name="title">
+        <h2 class="dlg-head__title">{{ title }}</h2>
+      </slot>
+      <slot name="description">
+        <p v-if="description" class="dlg-head__description">{{ description }}</p>
+      </slot>
     </div>
   </header>
 </template>
@@ -103,6 +107,7 @@ const { t } = useI18n()
   display: flex;
   align-items: center;
   flex: none;
+  order: 1;
   margin-block: var(--dlg-close-shift);
   /* Right by just enough that the outermost button's edge sits as far from the right edge as from
      the top: vertically the row is already shifted by --dlg-close-shift. */

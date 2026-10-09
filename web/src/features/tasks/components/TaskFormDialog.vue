@@ -167,11 +167,14 @@ async function save(openIt: boolean) {
     <div class="task-form">
       <div class="task-form__grid">
         <!-- The brief statement under the same section header as its card on the task page. The
-             goal is one or two sentences, hence simple mode, the same as there. -->
+             goal is one or two sentences, hence simple mode, the same as there. Its "?" is no Tab
+             stop: the title and the statement are written in one go, Tab goes straight from one to
+             the other. -->
         <div class="task-form__texts">
           <SectionHeader
             :title="t('tasks.task.detail.description')"
             :hint="t('tasks.task.detail.hint.description')"
+            :hint-tabbable="false"
             class="task-form__section"
           />
           <MarkdownEditor
