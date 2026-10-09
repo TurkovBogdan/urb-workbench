@@ -1,4 +1,4 @@
-"""Фикстура: чистый settings-registry между тестами этой подсистемы."""
+"""Fixture: a clean settings registry between tests of this subsystem."""
 
 from __future__ import annotations
 

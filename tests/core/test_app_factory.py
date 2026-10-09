@@ -92,7 +92,7 @@ def test_server_enabled_mounts_core_zone():
 
 @pytest.mark.pure
 async def test_health_public_available_when_api_enabled():
-    """Публичный /internal/health доступен без auth при включённом API."""
+    """The public /internal/health is reachable without auth when the API is on."""
     from httpx import ASGITransport, AsyncClient
 
     app = create_app(modules=[AuthStubModule()], config=Config(server_enabled=True))
@@ -105,7 +105,7 @@ async def test_health_public_available_when_api_enabled():
 
 @pytest.mark.pure
 async def test_health_absent_when_api_disabled():
-    """При выключенном API зоны нет ⇒ /internal/health недоступен (404)."""
+    """With the API off there is no zone ⇒ /internal/health is unavailable (404)."""
     from httpx import ASGITransport, AsyncClient
 
     app = create_app(modules=[], config=Config(server_enabled=False))
@@ -117,7 +117,7 @@ async def test_health_absent_when_api_disabled():
 
 @pytest.mark.pure
 async def test_debug_delay_slows_internal_requests():
-    """SERVER_DEBUG_DELAY_MS>0 монтирует зон-задержку — запрос ждёт ≈ заданное время."""
+    """SERVER_DEBUG_DELAY_MS>0 mounts a zone delay — the request waits ≈ the given time."""
     import time
 
     from httpx import ASGITransport, AsyncClient
@@ -132,12 +132,12 @@ async def test_debug_delay_slows_internal_requests():
         r = await c.get("/internal/health")
         elapsed = time.perf_counter() - start
     assert r.status_code == 200
-    assert elapsed >= 0.18  # запас от 0.2s на джиттер планировщика
+    assert elapsed >= 0.18  # margin below 0.2s for scheduler jitter
 
 
 @pytest.mark.pure
 async def test_debug_delay_zero_is_fast():
-    """SERVER_DEBUG_DELAY_MS=0 (дефолт) — зависимость не монтируется, без задержки."""
+    """SERVER_DEBUG_DELAY_MS=0 (default) — the dependency is not mounted, no delay."""
     import time
 
     from httpx import ASGITransport, AsyncClient
@@ -154,7 +154,7 @@ async def test_debug_delay_zero_is_fast():
 
 @pytest.mark.pure
 def test_swagger_and_openapi_disabled():
-    """Swagger/OpenAPI выключены в обоих режимах — внутренний API, схему не публикуем."""
+    """Swagger/OpenAPI are off in both modes — an internal API, we don't publish the schema."""
     for enabled in (True, False):
         app = create_app(modules=[AuthStubModule()], config=Config(server_enabled=enabled))
         assert app.docs_url is None
@@ -177,7 +177,7 @@ class _BadGuardModule(Module):
 
 @pytest.mark.pure
 def test_unknown_guard_kind_raises_on_build():
-    with pytest.raises(RuntimeError, match="не зарегистрированы"):
+    with pytest.raises(RuntimeError, match="not registered"):
         create_app(
             modules=[AuthStubModule(), _BadGuardModule()],
             config=Config(server_enabled=True),
@@ -186,11 +186,11 @@ def test_unknown_guard_kind_raises_on_build():
 
 @pytest.mark.pure
 def test_server_disabled_still_registers_tasks():
-    """Режим scheduler-only: configure() (и регистрация задач) выполняется всегда."""
+    """Scheduler-only mode: configure() (and task registration) always runs."""
     app = create_app(modules=[_StubModule()], config=Config(server_enabled=False))
     paths = [r.path for r in app.routes if hasattr(r, "path")]
-    # роут стаба добавлен в configure напрямую (не в зоне) — он есть даже без API-зоны;
-    # ключевое: configure вызвался (задачи бы зарегистрировались тем же путём).
+    # the stub's route is added in configure directly (not in a zone) — it exists even without
+    # the API zone; the point: configure was called (tasks would register the same way).
     assert "/api/stub/ping" in paths
 
 
@@ -217,15 +217,15 @@ async def test_module_router_reachable_via_lifespan(config: Config):
             assert r.json() == {"ok": True}
 
 
-# ── зона mcp (смонтированные FastMCP-серверы) ────────────────────────────
-# Модули отдают MCP-серверы декларативно (mcp_servers: code → конструктор) +
-# поставляют резолвер токена (mcp_token_resolver). Ядро строит McpServerContext,
-# монтирует каждый сервер как ASGI-подприложение под /mcp/<code> и композирует
-# их lifespan-ы. См. src/core/mcp/, src/core/router/mcp.py.
+# ── mcp zone (mounted FastMCP servers) ──────────────────────────────────
+# Modules declare MCP servers (mcp_servers: code → constructor) + supply a
+# token resolver (mcp_token_resolver). The core builds McpServerContext,
+# mounts each server as an ASGI sub-app under /mcp/<code> and composes
+# their lifespans. See src/core/mcp/, src/core/router/mcp.py.
 
 
 def _stub_mcp_server(ctx):
-    """Минимальный MCP-сервер-заглушка через ядровую фабрику make_mcp_server."""
+    """Minimal stub MCP server via the core factory make_mcp_server."""
     from src.core.mcp import make_mcp_server
 
     mcp = make_mcp_server("stub", "stub server", ctx)
@@ -238,12 +238,12 @@ def _stub_mcp_server(ctx):
 
 
 async def _stub_resolver(token: str, scope: str):
-    """Резолвер-заглушка (как core_users.resolve_token): валиден только 'good'."""
+    """Stub resolver (like core_users.resolve_token): only 'good' is valid."""
     return SimpleNamespace(id=1, group="admin") if token == "good" else None
 
 
 class _McpStubModule(Module):
-    """Объявляет MCP-сервер 'stub' + поставляет резолвер токена."""
+    """Declares the MCP server 'stub' + supplies a token resolver."""
 
     name = "mcp_stub"
     mcp_servers = {"stub": _stub_mcp_server}
@@ -251,7 +251,7 @@ class _McpStubModule(Module):
 
 
 class _McpDupModule(Module):
-    """Объявляет тот же code 'stub' (без резолвера) — для проверки коллизии code."""
+    """Declares the same code 'stub' (no resolver) — to test a code collision."""
 
     name = "mcp_dup"
     mcp_servers = {"stub": _stub_mcp_server}
@@ -259,32 +259,32 @@ class _McpDupModule(Module):
 
 @pytest.mark.pure
 def test_build_guard_registry_has_builtins_and_module_guards():
-    """build_guard_registry (router/mounting): встроенные виды + влитые Module.guards."""
+    """build_guard_registry (router/mounting): built-in kinds + merged Module.guards."""
     from src.core.router.mounting import build_guard_registry
 
     registry = build_guard_registry([AuthStubModule()])
     assert registry.has("allow_all")
     assert registry.has("deny_all")
-    assert registry.has("auth")  # из AuthStubModule.guards
+    assert registry.has("auth")  # from AuthStubModule.guards
     assert registry.has("ability")
-    assert not registry.has("token")  # ещё не зарегистрирован
+    assert not registry.has("token")  # not registered yet
 
 
 def _mount_paths(app) -> list[str]:
-    """Пути смонтированных подприложений (Mount) — у них есть .path."""
+    """Paths of mounted sub-apps (Mount) — they have .path."""
     return [r.path for r in app.routes if hasattr(r, "path")]
 
 
 @pytest.mark.pure
 def test_mcp_not_mounted_without_provider():
-    """Нет модуля с mcp_servers ⇒ ничего под /mcp не монтируется."""
+    """No module with mcp_servers ⇒ nothing is mounted under /mcp."""
     app = create_app(modules=[AuthStubModule()], config=Config(server_enabled=True))
     assert not any(p.startswith("/mcp") for p in _mount_paths(app))
 
 
 @pytest.mark.pure
 def test_mcp_mounted_when_module_provides_server():
-    """Модуль дал mcp_servers ⇒ сервер смонтирован как подприложение /mcp/<code>."""
+    """A module provided mcp_servers ⇒ the server is mounted as the sub-app /mcp/<code>."""
     app = create_app(
         modules=[AuthStubModule(), _McpStubModule()],
         config=Config(server_enabled=True),
@@ -294,7 +294,7 @@ def test_mcp_mounted_when_module_provides_server():
 
 @pytest.mark.pure
 def test_mcp_skipped_when_api_disabled():
-    """SERVER_ENABLED=false ⇒ MCP-серверы не монтируются даже при наличии mcp_servers."""
+    """SERVER_ENABLED=false ⇒ MCP servers are not mounted even when mcp_servers exist."""
     app = create_app(
         modules=[AuthStubModule(), _McpStubModule()],
         config=Config(server_enabled=False),
@@ -304,7 +304,7 @@ def test_mcp_skipped_when_api_disabled():
 
 @pytest.mark.pure
 def test_mcp_duplicate_code_raises():
-    """Два модуля с одинаковым code ⇒ RuntimeError на сборке (громкий отказ)."""
+    """Two modules with the same code ⇒ RuntimeError at build time (a loud refusal)."""
     with pytest.raises(RuntimeError, match="duplicate mcp server code"):
         create_app(
             modules=[AuthStubModule(), _McpStubModule(), _McpDupModule()],
@@ -314,7 +314,7 @@ def test_mcp_duplicate_code_raises():
 
 @pytest.mark.pure
 def test_mcp_missing_resolver_raises():
-    """Есть mcp_servers, но никто не поставил mcp_token_resolver ⇒ RuntimeError."""
+    """mcp_servers exist but nobody supplied mcp_token_resolver ⇒ RuntimeError."""
     with pytest.raises(RuntimeError, match="mcp_token_resolver"):
         create_app(
             modules=[AuthStubModule(), _McpDupModule()],
@@ -324,23 +324,23 @@ def test_mcp_missing_resolver_raises():
 
 @pytest.mark.db
 async def test_mcp_lifespan_composes(config: Config):
-    """Смонтированный MCP-сервер: lifespan композируется (session manager поднят)."""
+    """A mounted MCP server: its lifespan is composed (the session manager is up)."""
     app = create_app(
         modules=[AuthStubModule(), _McpStubModule()],
         config=config,
     )
     assert "/mcp/stub" in _mount_paths(app)
     async with app.router.lifespan_context(app):
-        pass  # вход/выход без ошибок ⇒ http_app().lifespan вошёл в стек
+        pass  # enter/exit without errors ⇒ http_app().lifespan joined the stack
 
 
 @pytest.mark.db
 async def test_mcp_endpoint_served_at_code_root_not_double_mcp(config: Config):
-    """Эндпоинт сервера — ровно на /mcp/<code>, НЕ на /mcp/<code>/mcp.
+    """The server endpoint is exactly /mcp/<code>, NOT /mcp/<code>/mcp.
 
-    Регресс: сабап по умолчанию слушает streamable_http_path="/mcp"; без path="/"
-    в http_app() реальный эндпоинт уезжает в /mcp/stub/mcp (307→404), а /mcp/stub/
-    отдаёт 404 — ровно то, что ловил клиентский probe («Connection Failed»).
+    Regression: the sub-app listens on streamable_http_path="/mcp" by default; without path="/"
+    in http_app() the real endpoint drifts to /mcp/stub/mcp (307→404), and /mcp/stub/
+    returns 404 — exactly what the client probe was hitting ("Connection Failed").
     """
     from httpx import ASGITransport, AsyncClient
 
@@ -350,9 +350,9 @@ async def test_mcp_endpoint_served_at_code_root_not_double_mcp(config: Config):
     transport = ASGITransport(app=app)
     async with app.router.lifespan_context(app):
         async with AsyncClient(transport=transport, base_url="http://test") as c:
-            # На code-root эндпоинт ЖИВ и гейтит auth (401), а не 404.
+            # At the code root the endpoint is ALIVE and gates on auth (401), not 404.
             at_root = await c.post("/mcp/stub/", json=body, headers=headers)
             assert at_root.status_code == 401
-            # Старый ошибочный двойной путь больше не существует.
+            # The old erroneous doubled path no longer exists.
             doubled = await c.post("/mcp/stub/mcp", json=body, headers=headers)
             assert doubled.status_code == 404

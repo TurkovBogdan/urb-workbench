@@ -8,9 +8,9 @@ export interface TaskGroup {
   tasks: TaskInfo[]
 }
 
-// Список задач кэшируем в localStorage (stale-while-revalidate): при возврате на
-// страницу карточки рисуются мгновенно из кэша и обновляются в фоне без скелета и
-// визуальных рывков. Кэшируем ТОЛЬКО список (детальные логи не кэшируются вовсе).
+// The job list is cached in localStorage (stale-while-revalidate): on returning to the
+// page the cards render instantly from the cache and refresh in the background with no
+// skeleton and no visual jerks. ONLY the list is cached (detailed logs are not cached at all).
 const CACHE_KEY = 'core.tasks.list'
 
 interface TasksCache {
@@ -33,7 +33,7 @@ function writeCache(cache: TasksCache): void {
   try {
     localStorage.setItem(CACHE_KEY, JSON.stringify(cache))
   } catch {
-    /* quota / private mode — кэш необязателен */
+    /* quota / private mode — the cache is optional */
   }
 }
 
@@ -41,8 +41,8 @@ export const useTasksStore = defineStore('core-tasks', () => {
   const cached = readCache()
 
   const tasks      = ref<TaskInfo[]>(cached?.tasks ?? [])
-  const loading    = ref(cached === null)   // скелет только при самом первом визите
-  const refreshing = ref(false)             // фоновое обновление → спиннер на кнопке
+  const loading    = ref(cached === null)   // skeleton only on the very first visit
+  const refreshing = ref(false)             // background refresh → spinner on the button
   const error      = ref<string | null>(null)
   const loadedAt   = ref<number | null>(cached?.loadedAt ?? null)
 
@@ -64,8 +64,8 @@ export const useTasksStore = defineStore('core-tasks', () => {
     })
   })
 
-  // Группировка по модулям; порядок задаёт бэк (core → core_* → модули),
-  // Map сохраняет порядок вставки.
+  // Grouped by module; the order comes from the backend (core → core_* → modules),
+  // and Map preserves insertion order.
   const grouped = computed<TaskGroup[]>(() => {
     const byModule = new Map<string, TaskInfo[]>()
     for (const t of filtered.value) {

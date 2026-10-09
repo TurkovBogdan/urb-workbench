@@ -1,30 +1,30 @@
-"""Настройки движка SQLite: прагмы соединения и намерение транзакции.
+"""SQLite engine settings: connection pragmas and transaction intent.
 
-Ставятся на событии ``connect``, а не один раз при старте: настройки уровня
-соединения не переживают переподключение, а пул выдаёт то новые соединения, то
-переиспользованные. Под асинхронным движком слушатель вешается на
-``engine.sync_engine`` — на сам ``AsyncEngine`` его повесить нельзя.
+Applied on the ``connect`` event rather than once at startup: connection-level settings
+do not survive a reconnect, and the pool hands out new connections and reused ones
+alike. Under the async engine the listener hangs on ``engine.sync_engine`` — it cannot
+be attached to the ``AsyncEngine`` itself.
 
-``journal_mode`` пишется в заголовок файла базы (повтор на каждом соединении
-безвреден), остальные ручки живут внутри соединения. Режим журнала — не команда,
-а запрос: он возвращает **фактически** установившийся режим, и переключение может
-не произойти без всякой ошибки, поэтому результат читается и расхождение уходит
-в лог.
+``journal_mode`` is written into the database file header (repeating it on every
+connection is harmless); the other knobs live inside the connection. The journal mode is
+not a command but a request: it returns the mode **actually** in effect, and the switch
+can fail to happen without any error, so the result is read back and a mismatch is
+logged.
 
-Прагмы ожидания блокировки здесь нет намеренно: ``busy_timeout`` задаёт параметр
-``timeout`` драйвера (``Config.engine_kwargs``). ``synchronous = NORMAL`` —
-осознанный выбор долговечности: в режиме WAL падение приложения не теряет
-закоммиченного, разница с ``FULL`` проявляется только при крахе ОС.
+There is deliberately no lock-wait pragma here: ``busy_timeout`` is set by the driver's
+``timeout`` parameter (``Config.engine_kwargs``). ``synchronous = NORMAL`` is a
+deliberate durability choice: in WAL mode an application crash loses nothing committed;
+the difference from ``FULL`` shows only on an OS crash.
 
-**Намерение транзакции.** Транзакция, начавшаяся с чтения, не может стать пишущей:
-её снимок мог разойтись с базой, и движок отказывает — причём на неблокирующей
-блокировке, мимо ``busy_timeout``, так что повтор не помогает. Поэтому пишущая
-транзакция объявляет себя пишущей при открытии: драйверу запрещается печатать
-``BEGIN`` самому (``isolation_level = None``), а на событии ``begin`` печатается
-``BEGIN IMMEDIATE`` тем транзакциям, что помечены ``WRITE_EXECUTION_OPTIONS``
-(их ставит ``database.write_scope``). Забытая пометка ловится сторожем: изменяющий
-оператор в читающей транзакции — ошибка, а не тихая мина. Сторож работает на любой
-базе, перехват открытия — только на файловой (почему — у самого перехвата).
+**Transaction intent.** A transaction that began with a read cannot be promoted to a
+write: its snapshot may have drifted from the database, and the engine refuses — on a
+non-blocking lock, bypassing ``busy_timeout``, so a retry does not help. So a writing
+transaction declares itself as writing when it opens: the driver is forbidden to emit
+``BEGIN`` itself (``isolation_level = None``), and on the ``begin`` event ``BEGIN
+IMMEDIATE`` is emitted for transactions marked with ``WRITE_EXECUTION_OPTIONS`` (set by
+``database.write_scope``). A forgotten mark is caught by a guard: a mutating statement in
+a read transaction is an error, not a silent landmine. The guard works on any database;
+the open interception only on a file-backed one (the reason is next to the interception).
 """
 
 from __future__ import annotations
@@ -59,10 +59,10 @@ _CONNECTION_PRAGMAS: tuple[str, ...] = (
 
 
 def connection_pragmas(config: Config) -> tuple[str, ...]:
-    """Прагмы, которые получает каждое новое соединение при текущем провайдере.
+    """The pragmas every new connection receives under the current provider.
 
-    База в памяти режим журнала не запрашивает: она всегда отвечает ``memory``,
-    и просить у неё WAL — гарантированное расхождение в логе.
+    An in-memory database does not request a journal mode: it always answers ``memory``,
+    and asking it for WAL is a guaranteed mismatch in the log.
     """
     if config.db_provider != "sqlite":
         return ()
@@ -72,7 +72,7 @@ def connection_pragmas(config: Config) -> tuple[str, ...]:
 
 
 def configure_sqlite(engine: AsyncEngine, config: Config) -> None:
-    """Навесить настройки SQLite на движок; для остальных провайдеров — ничего."""
+    """Attach the SQLite settings to the engine; a no-op for other providers."""
     pragmas = connection_pragmas(config)
     if not pragmas:
         return
@@ -90,25 +90,25 @@ def configure_sqlite(engine: AsyncEngine, config: Config) -> None:
                 cursor.fetchall()
             effective = {name: _read(cursor, name) for name in _REPORTED_PRAGMAS}
             if not reported:
-                # Умолчания задаются при сборке движка, поэтому в лог идут снятые
-                # значения, а не те, что мы просили.
+                # Defaults are fixed when SQLite itself is compiled, so the log gets the
+                # values read back, not the ones we asked for.
                 _LOG.info("sqlite: %s", effective)
                 reported = True
             if expected_journal_mode is None:
                 return
             if str(effective["journal_mode"]).lower() != expected_journal_mode:
                 _LOG.warning(
-                    "sqlite: журнал не переключился — запрошен %s, действует %s",
+                    "sqlite: journal mode did not switch — requested %s, in effect %s",
                     expected_journal_mode,
                     effective["journal_mode"],
                 )
         finally:
             cursor.close()
 
-    # База в памяти живёт в одном соединении драйвера (StaticPool), общем для всех
-    # сессий: перехватывать открытие транзакции там нельзя — вторая сессия получит
-    # «cannot start a transaction within a transaction». Единственного писателя в
-    # памяти и так нет, объявлять намерение не перед кем.
+    # An in-memory database lives in a single driver connection (StaticPool) shared by
+    # all sessions: intercepting the transaction open there is impossible — a second
+    # session would get "cannot start a transaction within a transaction". There is no
+    # lone writer in memory anyway, so there is no one to declare intent to.
     if not config.sqlite_in_memory:
 
         @event.listens_for(engine.sync_engine, "connect")
@@ -129,31 +129,31 @@ def configure_sqlite(engine: AsyncEngine, config: Config) -> None:
         if connection.get_execution_options().get(_WRITE_OPTION, False):
             return
         raise RuntimeError(
-            "sqlite: изменяющий оператор в читающей транзакции — используй write_scope() "
-            f"вместо session_scope(): {statement.strip()[:120]}"
+            "sqlite: mutating statement in a read transaction — use write_scope() "
+            f"instead of session_scope(): {statement.strip()[:120]}"
         )
 
 
 @contextmanager
 def foreign_keys_disabled(connection: Connection) -> Iterator[None]:
-    """Выключить проверку ссылок на время изменения схемы (SQLite; иначе — ничего).
+    """Disable foreign-key enforcement while the schema changes (SQLite; otherwise a no-op).
 
-    Пересоздание таблицы (batch-миграция) проходит через удаление старой, а при
-    включённой проверке удаление таблицы неявно удаляет все её строки — и действия
-    внешних ключей на этом удалении срабатывают по-настоящему: дети уезжают каскадом,
-    а миграция рапортует успех.
+    Recreating a table (a batch migration) goes through dropping the old one, and with
+    enforcement on, dropping a table implicitly deletes all its rows — and the foreign-key
+    actions on that delete fire for real: children vanish in a cascade, while the
+    migration reports success.
 
-    Переключатель обязан стоять вне транзакции: внутри неё он молча не действует, без
-    ошибки и предупреждения. Поэтому прагма идёт мимо SQLAlchemy — прямо в драйверное
-    соединение, до того как начнётся транзакция миграции.
+    The switch must be flipped outside a transaction: inside one it silently does nothing,
+    with no error or warning. So the pragma bypasses SQLAlchemy and goes straight to the
+    driver connection, before the migration transaction begins.
     """
     if connection.dialect.name != "sqlite":
         yield
         return
     if not _switch_foreign_keys(connection, enabled=False):
         raise RuntimeError(
-            "sqlite: проверку ссылок не удалось выключить — переключатель не действует "
-            "внутри открытой транзакции; выключай до первого оператора на соединении"
+            "sqlite: could not turn off foreign-key enforcement — the switch has no effect "
+            "inside an open transaction; turn it off before the connection's first statement"
         )
     body_failed = False
     try:
@@ -163,12 +163,12 @@ def foreign_keys_disabled(connection: Connection) -> Iterator[None]:
         body_failed = True
         raise
     finally:
-        # Вернуть проверку можно только вне транзакции, а alembic оставляет открытой ту,
-        # в которой читал таблицу версий (заметно, когда накатывать нечего).
+        # Enforcement can only be restored outside a transaction, and alembic leaves open the
+        # one in which it read the version table (visible when there is nothing to apply).
         _close_transaction(connection, rollback=body_failed)
         if not _switch_foreign_keys(connection, enabled=True):
-            # Соединение с выключенной проверкой не должно вернуться в пул.
-            _LOG.error("sqlite: проверка ссылок не восстановлена — соединение отбраковано")
+            # A connection with enforcement off must not return to the pool.
+            _LOG.error("sqlite: foreign-key enforcement not restored — connection discarded")
             connection.invalidate()
 
 
@@ -184,7 +184,7 @@ def _read(cursor, pragma: str):
 
 
 def foreign_keys_enabled(connection: Connection) -> bool:
-    """Действует ли проверка ссылок на этом соединении (читается у драйвера)."""
+    """Whether foreign-key enforcement is on for this connection (read from the driver)."""
     cursor = _driver_cursor(connection)
     try:
         cursor.execute("PRAGMA foreign_keys")
@@ -194,15 +194,15 @@ def foreign_keys_enabled(connection: Connection) -> bool:
 
 
 def _driver_cursor(connection: Connection):
-    """Курсор драйвера — в обход транзакционного учёта SQLAlchemy."""
+    """A driver cursor — bypassing SQLAlchemy's transaction bookkeeping."""
     return connection.connection.dbapi_connection.cursor()
 
 
 def _switch_foreign_keys(connection: Connection, *, enabled: bool) -> bool:
-    """Переключить проверку и убедиться, что переключение состоялось.
+    """Flip enforcement and make sure the flip took effect.
 
-    Внутри открытой транзакции прагма — пустая операция без ошибки, поэтому
-    единственный способ узнать результат — прочитать её обратно.
+    Inside an open transaction the pragma is a silent no-op, so the only way to learn the
+    result is to read it back.
     """
     cursor = _driver_cursor(connection)
     try:
@@ -221,7 +221,7 @@ def _raise_on_foreign_key_violations(connection: Connection) -> None:
         cursor.close()
     if violations:
         raise RuntimeError(
-            f"sqlite: миграции оставили нарушения ссылочной целостности ({len(violations)}): "
+            f"sqlite: migrations left referential integrity violations ({len(violations)}): "
             f"{violations[:_VIOLATIONS_IN_MESSAGE]}"
         )
 

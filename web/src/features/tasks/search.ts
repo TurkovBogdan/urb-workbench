@@ -1,13 +1,14 @@
-// Глубина поиска по списку задач: какие области переключает поле и как они ложатся на стор.
+// Task list search depth: which scopes the field toggles and how they map onto the store.
 //
-// Стог набирается слоями, а не одной глубиной. Заголовок и цель — основа, они в стоге всегда:
-// ими задача названа в списке, и выключаемая основа означала бы поиск, не находящий искомое по
-// имени. Остальное лежит в телах, которых в строке списка нет вовсе, и каждый слой включается
-// отдельно — постановка, план с этапами, журнал.
+// The haystack is built in layers, not as a single depth. Title and goal are the base and always
+// in the haystack: they are what names the task in the list, and a base you could switch off
+// would mean a search that fails to find a task by its name. Everything else lives in bodies that
+// the list row does not carry at all, and each layer is switched on separately — brief, plan with
+// stages, journal.
 //
-// Ключи совпадают с полями стора один в один, поэтому переходник между набором `SearchField`
-// (массив включённых ключей) и тремя флагами сводится к перечислению — и живёт здесь, рядом с
-// самими областями, а не в разметке панели.
+// The keys match the store fields one to one, so the adapter between the `SearchField` set (an
+// array of enabled keys) and the three flags boils down to an enumeration — and lives here, next
+// to the scopes themselves, not in the panel markup.
 import { computed, type WritableComputedRef } from 'vue'
 import { IconClipboardText, IconListCheck, IconNotes } from '@tabler/icons-vue'
 
@@ -17,7 +18,7 @@ export const SCOPE_BRIEF = 'brief'
 export const SCOPE_PLAN = 'plan'
 export const SCOPE_JOURNAL = 'journal'
 
-/** Включённые области поиска; все выключены — ищем только по заголовку и цели. */
+/** Enabled search scopes; with all off, the search covers only title and goal. */
 export interface TaskSearchScopes {
   inBrief: boolean
   inPlan: boolean
@@ -30,8 +31,9 @@ export function anyScope(scopes: TaskSearchScopes): boolean {
   return scopes.inBrief || scopes.inPlan || scopes.inJournal
 }
 
-// По одной букве бэк читает все тела пространства ради мусорного ответа, поэтому клиент его и
-// не зовёт — тот же порог, что у глубокого поиска в реестре исследований.
+// For a single letter the backend would read every body in the workspace to return a junk
+// answer, so the client does not call it — the same threshold as the deep search in the research
+// registry.
 export const MIN_DEEP_QUERY_LENGTH = 2
 
 const SCOPE_ICONS = {
@@ -40,7 +42,7 @@ const SCOPE_ICONS = {
   [SCOPE_JOURNAL]: IconNotes,
 }
 
-/** Набор областей для поля; подписи даёт место применения — словарь живёт у фичи. */
+/** The scope set for the field; labels come from the call site — the dictionary is the feature's. */
 export function taskSearchScopes(label: (scope: string) => string): SearchScope[] {
   return Object.entries(SCOPE_ICONS).map(([key, icon]) => ({ key, icon, label: label(key) }))
 }

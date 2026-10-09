@@ -1,4 +1,4 @@
-"""Гейт отставшей цепочки: пустая база накатывается сама, отставшая — отдаёт заглушку."""
+"""The behind-chain gate: an empty database migrates itself, one that is behind serves a stub."""
 
 from __future__ import annotations
 
@@ -8,6 +8,8 @@ from typing import ClassVar
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
+from starlette.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 from src.core import scheduler
 from src.core.app_factory import create_app
@@ -16,7 +18,12 @@ from src.core.config import Config
 from src.core.database import close_database, create_all, init_database, session_scope
 from src.core.database.migrations import AlembicRunner
 from src.core.module import Module
-from src.core.router.degraded import PendingMigrationsGate, degraded_pending, mark_degraded
+from src.core.router.degraded import (
+    PENDING_MIGRATIONS_CODE,
+    PendingMigrationsGate,
+    degraded_pending,
+    mark_degraded,
+)
 from tests.core._support import AuthStubModule
 
 _PENDING_REVISION = "stub_pending_001"
@@ -39,7 +46,7 @@ def downgrade() -> None:
 
 
 class _RouteRecorder:
-    """Маршрут, который открыл бы сессию к БД: заглушенный запрос до него не доходит."""
+    """A route that would open a DB session: a stubbed request never reaches it."""
 
     def __init__(self) -> None:
         self.served: list[str] = []
@@ -61,7 +68,7 @@ class _StubRouteModule(Module):
 
 
 class _UnappliedMigrationModule(Module):
-    """Модуль, чья единственная ревизия не накатана — ровно «схема отстала от кода»."""
+    """A module whose only revision is unapplied — exactly "the schema is behind the code"."""
 
     name: ClassVar[str] = "unapplied"
 
@@ -87,7 +94,7 @@ def _file_db_config(tmp_path: Path, **over) -> Config:
 
 @pytest.fixture
 def started_scheduler(monkeypatch) -> list[Config]:
-    """Записывает вызовы scheduler.start вместо подъёма тикера."""
+    """Records scheduler.start calls instead of bringing up the ticker."""
     started: list[Config] = []
 
     async def _record(config: Config) -> None:
@@ -101,7 +108,7 @@ def _client(app: FastAPI) -> AsyncClient:
     return AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
 
 
-# ── пустая база: bootstrap и обычная работа ──────────────────────────────────
+# ── empty database: bootstrap and normal operation ───────────────────────────
 
 
 @pytest.mark.db
@@ -133,8 +140,8 @@ async def test_empty_base_applies_the_chain_and_serves(tmp_path: Path, started_s
 async def test_tables_without_a_version_row_degrade_instead_of_crashing(
     tmp_path: Path, started_scheduler
 ):
-    """База, собранная когда-то через ``create_all``: таблицы есть, ``alembic_version`` нет.
-    Цепочка падает на первом же ``CREATE TABLE`` — lifespan обязан выжить и деградировать."""
+    """A database once built via ``create_all``: tables exist, ``alembic_version`` does not.
+    The chain fails on the very first ``CREATE TABLE`` — the lifespan must survive and degrade."""
     config = _file_db_config(tmp_path, worker_enabled=True)
     engine = await init_database(config)
     await create_all(engine)
@@ -171,7 +178,7 @@ async def test_second_start_on_a_head_base_changes_nothing(tmp_path: Path, start
     assert health.json() == {"status": "ok"}
 
 
-# ── отставшая база: заглушка вместо данных ───────────────────────────────────
+# ── database behind the code: a stub instead of data ─────────────────────────
 
 
 @pytest.mark.db
@@ -214,7 +221,7 @@ async def test_base_behind_the_code_serves_degraded(tmp_path: Path, started_sche
 
 @pytest.mark.db
 async def test_stub_route_does_open_a_session_when_healthy(tmp_path: Path, started_scheduler):
-    """Контроль к предыдущему тесту: тот же маршрут на живой базе доходит до сессии."""
+    """Control for the previous test: the same route on a healthy database reaches the session."""
     config = _file_db_config(tmp_path)
     recorder = _RouteRecorder()
     app = create_app(modules=[AuthStubModule(), _StubRouteModule(recorder)], config=config)
@@ -229,7 +236,7 @@ async def test_stub_route_does_open_a_session_when_healthy(tmp_path: Path, start
 
 @pytest.mark.db
 async def test_degraded_start_does_not_touch_the_chain(tmp_path: Path, started_scheduler):
-    """Заглушка — не «накати молча»: ревизия остаётся неприменённой."""
+    """The stub is not "migrate silently": the revision stays unapplied."""
     config = _file_db_config(tmp_path)
     bootstrapped = create_app(modules=[AuthStubModule()], config=config)
     async with bootstrapped.router.lifespan_context(bootstrapped):
@@ -250,7 +257,7 @@ async def test_degraded_start_does_not_touch_the_chain(tmp_path: Path, started_s
     assert [revision.revision for revision in status.pending] == [_PENDING_REVISION]
 
 
-# ── поверхность гейта (без БД) ───────────────────────────────────────────────
+# ── gate surface (no DB) ─────────────────────────────────────────────────────
 
 
 def _degraded_app() -> FastAPI:
@@ -261,7 +268,7 @@ def _degraded_app() -> FastAPI:
 
 @pytest.mark.pure
 def test_gate_is_the_outermost_middleware():
-    """add_middleware вставляет в позицию 0 ⇒ добавленный последним отрабатывает первым."""
+    """add_middleware inserts at position 0 ⇒ the one added last runs first."""
     app = create_app(modules=[AuthStubModule()], config=Config(server_enabled=True))
     assert app.user_middleware[0].cls is PendingMigrationsGate
 
@@ -269,10 +276,10 @@ def test_gate_is_the_outermost_middleware():
 @pytest.mark.pure
 @pytest.mark.skipif(
     not (project_root() / "web" / "dist" / "index.html").is_file(),
-    reason="SPA не собрана — mount_spa не вешает middleware, порядок проверять не на чем",
+    reason="SPA not built — mount_spa adds no middleware, so there is no order to check",
 )
 async def test_degraded_stub_wins_over_the_spa():
-    """SPA-middleware отдала бы index.html на любой GET вне API-префиксов — гейт раньше."""
+    """SPA middleware would answer any non-API GET with index.html — the gate runs before it."""
     app = create_app(modules=[AuthStubModule()], config=Config(server_enabled=True))
     async with _client(app) as client:
         served = await client.get("/research")
@@ -312,6 +319,16 @@ async def test_other_internal_routes_are_refused():
     async with _client(app) as client:
         response = await client.get("/internal/core/settings/modules")
     assert response.status_code == 503
+
+
+@pytest.mark.pure
+def test_websocket_is_closed_with_try_again_later():
+    with TestClient(_degraded_app()).websocket_connect("/internal/core/changes/ws") as socket:
+        with pytest.raises(WebSocketDisconnect) as closed:
+            socket.receive_text()
+    # The number, not the constant: "try again later" is a contract with the browser (RFC 6455).
+    assert closed.value.code == 1013
+    assert closed.value.reason == PENDING_MIGRATIONS_CODE
 
 
 @pytest.mark.pure

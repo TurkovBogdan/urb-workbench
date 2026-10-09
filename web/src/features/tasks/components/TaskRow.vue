@@ -1,36 +1,42 @@
 <script setup lang="ts">
-// Одна строка списка задач: состояние, важность, название, служебные пометки, меню.
+// One task list row: state, importance, title, auxiliary marks, menu.
 //
-// Отдельным компонентом, потому что строк в ветке две породы — корень и подзадача, — и живут они
-// в разных контейнерах: у каждого контейнера свой sortable (см. `TaskRows` и `TaskSubtree`).
-// Сама строка про это ничего не знает: ей передают, что она умеет, и она это показывает.
+// A separate component because a branch has two kinds of rows — root and subtask — and they live
+// in different containers: each container has its own sortable (see `TaskRows` and `TaskSubtree`).
+// The row itself knows nothing about this: it is told what it can do, and it shows that.
 //
-// РАЗМЕТКА — НЕ ТАБЛИЦА. Строка читается слева направо как фраза: состояние, важность, название,
-// пометки. Метка, которой у задачи нет, просто отсутствует — вместо прочерка в ячейке.
+// THE MARKUP IS NOT A TABLE. A row reads left to right like a phrase: state, importance, title,
+// marks. A mark the task does not have is simply absent — instead of a dash in a cell.
 //
-// ТИШЕ ЗАГОЛОВКА. В трекере строку ищут глазами по названию, всё остальное — пометки, и они
-// обязаны быть тише текста. Отсюда правило на весь файл: цвет несут только состояние и
-// срочность, остальное — глиф и приглушённые 12px. Цветных слов и тональных плашек в строке нет
-// вовсе: шильдик со словом «В тестировании» читается наравне с заголовком и отбирает у него
-// первый взгляд.
+// QUIETER THAN THE TITLE. In a tracker the eye finds a row by its title; everything else is marks,
+// and they must be quieter than the text. Hence the rule for the whole file: only state and
+// urgency carry color, the rest is a glyph and muted 12px. There are no colored words or tonal
+// pills in the row at all: a badge saying "In testing" reads on a par with the title and steals
+// the first glance from it.
 //
-// Ровно 36px: в списке ищут сверху вниз, а разноэтажные строки приходится разглядывать. Поэтому
-// ни описания, ни тела здесь нет — за ними открывают задачу.
-import { computed, ref } from 'vue'
+// Exactly 36px: a list is scanned top to bottom, and rows of uneven height have to be examined.
+// So there is no description or body here — the task is opened for those.
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
-  IconArchiveOff,
   IconArrowDown,
   IconArrowUp,
+  IconCheck,
+  IconCopy,
   IconDotsVertical,
   IconPencil,
+  IconRestore,
   IconSubtask,
   IconTrash,
   IconUnlink,
 } from '@tabler/icons-vue'
 
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import CounterButton from '@/components/CounterButton.vue'
 import DragHandle from '@/components/DragHandle.vue'
+import KeyCap from '@/components/KeyCap.vue'
+import { useClipboard } from '@/composables/useClipboard'
+import { usePointerMenu } from '@/composables/usePointerMenu'
 import { fmtDate, fmtDateShort } from '@/shared/utils/date'
 
 import { isTerminal, priorityColor, priorityIcon, statusColor, statusIcon } from '../labels'
@@ -39,69 +45,159 @@ import type { TaskListRow } from '../api'
 
 const props = defineProps<{
   task: TaskListRow
-  /** Ноль — корень ветки, дальше подзадачи: по глубине считается отступ и направляющая. */
+  /** Zero — a branch root, then subtasks: depth drives the indent and the guide line. */
   depth: number
-  /** Последняя среди сестёр — загиб направляющей вместо сквозной линии. */
+  /** Last among siblings — the guide line bends instead of running through. */
   last: boolean
-  /** Сколько под ней подзадач; ноль — пометки нет. */
+  /** How many subtasks it has; zero — no mark. */
   childCount: number
-  /** Это та задача, на которую уходили со списка. */
+  /** This is the task the person navigated to from the list. */
   open?: boolean
-  /** Порядок в этой выдаче можно менять: показывать ручку и пункты перестановки. */
+  /** The order in these results can be changed: show the handle and the reorder items. */
   reorderable?: boolean
-  /** Есть куда шагнуть вверх / вниз среди сестёр; считает контейнер — он и знает ряд. */
+  /** There is room to step up / down among siblings; the container computes it — it knows the row. */
   canUp?: boolean
   canDown?: boolean
   /**
-   * Под строкой нарисована ветка, и её можно свернуть. Решает контейнер: он знает, есть ли у
-   * задачи видимые дети, — на сужённой выдаче веток нет вовсе, и стрелки тоже.
+   * A branch is drawn under the row and can be collapsed. The container decides: it knows whether
+   * the task has visible children — on narrowed results there are no branches at all, nor arrows.
    */
   foldable?: boolean
 }>()
 
 const emit = defineEmits<{
   open: [code: string]
-  edit: [task: TaskListRow]
   addChild: [task: TaskListRow]
   remove: [code: string]
   restore: [code: string]
-  /** Шаг по ряду сестёр без мыши. */
+  /** Closing straight from the menu: done, or canceled once confirmed. */
+  status: [change: { code: string; status: string }]
+  /** A step along the sibling row without a mouse. */
   step: [direction: -1 | 1]
-  /** Открепить от родителя: подзадача становится обычной задачей. */
+  /** Detach from the parent: the subtask becomes a regular task. */
   detach: []
 }>()
 
 const { t } = useI18n()
 const store = useTasksStore()
 
-// Свёрнутость ветки живёт в сторе рядом со свёрнутостью карточек групп — одна карта на обе:
-// коды задач и групп не пересекаются. Умолчание у задачи — раскрыта.
+// Branch collapse state lives in the store next to group card collapse state — one map for both:
+// task and group codes never collide. A task defaults to expanded.
 const folded = computed(() => store.isCollapsed(props.task.code))
 
-/** Работа закрыта или задача в корзине — строка уходит в приглушённый тон. */
+/** Work is closed or the task is in the trash — the row goes into a muted tone. */
 function dimmed(task: TaskListRow): boolean {
   return isTerminal(task.status) || task.deleted_at !== null
 }
 
 /**
- * Срок прошёл, а работа не закрыта. Красим только этот случай: все сроки подряд в
- * предупреждающем цвете кричали бы обо всех задачах разом и потому ни об одной.
+ * The deadline has passed and the work is not closed. Only this case is colored: every deadline in
+ * a warning color would shout about all tasks at once and therefore about none.
  */
 function overdue(task: TaskListRow): boolean {
   if (!task.deadline_at || isTerminal(task.status) || task.deleted_at) return false
-  // Даты приходят в SQL-формате UTC (`YYYY-MM-DD HH:MM:SS`) — он сравнивается как строка.
+  // Dates arrive in UTC SQL format (`YYYY-MM-DD HH:MM:SS`) — it compares as a string.
   return task.deadline_at < new Date().toISOString().slice(0, 19).replace('T', ' ')
 }
 
-/** Дата строки — срок задачи; его нет, значит показывать в этом столбце нечего. */
+/** The row's date is the task deadline; without one there is nothing to show in this column. */
 function dateOf(task: TaskListRow): { value: string; label: string } | null {
   if (task.deadline_at) return { value: task.deadline_at, label: t('tasks.task.card.deadline_at') }
   return null
 }
 
-// Открытое меню действий: строка держит свой «⋯» видимым, пока меню раскрыто, — иначе кнопка
-// исчезала бы из-под курсора, едва он ушёл на пункт списка.
-const menuOpen = ref(false)
+// The action menu opens from the "⋯" and on a right click anywhere in the row. While it is open the
+// row keeps its "⋯" visible — otherwise the button would vanish from under the cursor as soon as it
+// moved onto a menu item.
+const menuOverlay = ref<{ contentEl?: HTMLElement }>()
+const menuGutter = ref<HTMLElement>()
+const {
+  open: menuOpen,
+  openAt: openMenuAt,
+  fromButton: menuFromButton,
+  placement: menuPlacement,
+} = usePointerMenu(
+  (target) => !!(menuOverlay.value?.contentEl?.contains(target) || menuGutter.value?.contains(target)),
+)
+
+// The menu would close on the click and take the check mark with it — so the item holds the menu
+// open just long enough for the check to be seen, then closes it itself.
+const COPIED_MARK_MS = 700
+const { copy, isCopied } = useClipboard()
+
+async function copyCode() {
+  await copy(props.task.code)
+  setTimeout(() => { menuOpen.value = false }, COPIED_MARK_MS)
+}
+
+// Canceling and deleting take a task out of sight in one click from a menu that opens under any
+// stray right click — so both ask first. Marking done does not: it is the expected end of the work.
+type ConfirmedAction = 'cancel' | 'delete'
+
+// The action outlives the open flag: while the dialog fades out it must keep its own text.
+const confirmAction = ref<ConfirmedAction>('delete')
+const confirmOpen = ref(false)
+
+function ask(action: ConfirmedAction) {
+  confirmAction.value = action
+  confirmOpen.value = true
+}
+
+function confirmed() {
+  confirmOpen.value = false
+  if (confirmAction.value === 'cancel') {
+    emit('status', { code: props.task.code, status: 'canceled' })
+  } else {
+    emit('remove', props.task.code)
+  }
+}
+
+const confirmText = computed(() => {
+  const title = props.task.title
+  if (confirmAction.value === 'cancel') return t('tasks.task.card.cancel_confirm.text', { title })
+  const key = props.task.has_children ? 'text_children' : 'text'
+  return t(`tasks.task.card.delete_confirm.${key}`, { title })
+})
+
+// While the menu is open, 1 and 2 run its two status items — the same ones the mouse would, so
+// the keys follow the task's state the way the items do: 1 closes the work, or brings it back
+// (done, deleted); 2 cancels it, or brings a canceled one back to work. The digit stands next to
+// its item, which is how the keys are learned.
+function setStatus(status: string) {
+  emit('status', { code: props.task.code, status })
+}
+
+const primaryAction = computed<(() => void) | null>(() => {
+  if (props.task.deleted_at) return () => emit('restore', props.task.code)
+  if (props.task.status === 'done') return () => setStatus('in_progress')
+  return () => setStatus('done')
+})
+
+const secondaryAction = computed<(() => void) | null>(() => {
+  if (props.task.deleted_at) return null
+  if (props.task.status === 'canceled') return () => setStatus('in_progress')
+  return () => ask('cancel')
+})
+
+// Matched by `code`, not by the character, so the keys work in any layout and on the keypad.
+const MENU_KEYS: Record<string, 1 | 2> = { Digit1: 1, Numpad1: 1, Digit2: 2, Numpad2: 2 }
+
+function runMenuKey(event: KeyboardEvent) {
+  if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || event.repeat) return
+  const key = MENU_KEYS[event.code]
+  const action = key === 1 ? primaryAction.value : key === 2 ? secondaryAction.value : null
+  if (!action) return
+  event.preventDefault()
+  menuOpen.value = false
+  action()
+}
+
+watch(menuOpen, (isOpen) => {
+  if (isOpen) window.addEventListener('keydown', runMenuKey)
+  else window.removeEventListener('keydown', runMenuKey)
+})
+
+onBeforeUnmount(() => window.removeEventListener('keydown', runMenuKey))
 </script>
 
 <template>
@@ -112,15 +208,17 @@ const menuOpen = ref(false)
       'task-row--open': props.open,
       'task-row--child': props.depth > 0,
       'task-row--last-child': props.depth > 0 && props.last,
+      'task-row--menu': menuOpen,
     }"
     :style="{ '--row-depth': props.depth }"
     role="link"
     tabindex="0"
     @click="emit('open', props.task.code)"
     @keydown.enter="emit('open', props.task.code)"
+    @contextmenu="openMenuAt"
   >
-    <!-- Ручка есть и у подзадачи: её ряд — сёстры, и переставляют её тем же жестом. Место под
-         ручку занято всегда — строка не должна вздрагивать от наведения. -->
+    <!-- A subtask has a handle too: its row is its siblings, and it is reordered by the same
+         gesture. The handle's slot is always occupied — the row must not twitch on hover. -->
     <DragHandle
       v-if="!props.task.deleted_at && props.reorderable !== false"
       :label="t('tasks.task.card.drag')"
@@ -128,10 +226,10 @@ const menuOpen = ref(false)
     />
     <span v-else class="task-row__handle-gap" />
 
-    <!-- Состояние — глиф, а не слово: очертание узнаётся боковым зрением, и столбец значков
-         пробегается сверху вниз без чтения. Название остаётся подсказкой — и `aria-label`:
-         подсказка приезжает по наведению, а читалке нужно то же слово, что видит глаз. То же у
-         всех остальных глифов строки. -->
+    <!-- State is a glyph, not a word: a shape is recognised in peripheral vision, and the icon
+         column is scanned top to bottom without reading. The name stays as a tooltip — and as
+         `aria-label`: the tooltip comes on hover, while a screen reader needs the same word the
+         eye sees. The same goes for every other glyph in the row. -->
     <span
       class="task-row__glyph"
       :class="`task-row__glyph--${statusColor(props.task.status)}`"
@@ -156,12 +254,12 @@ const menuOpen = ref(false)
       </VTooltip>
     </span>
 
-    <!-- Название и следом за ним счёт подзадач. Всё стоит СРАЗУ за текстом, как у карточки
-         группы, а не у края строки. Длинное название сжимается многоточием, счёт — никогда: в
-         свёрнутой ветке он единственный её след. -->
+    <!-- The title followed by the subtask count. Everything sits RIGHT after the text, as on a
+         group card, not at the row's edge. A long title shrinks with an ellipsis, the count never
+         does: in a collapsed branch it is the only trace of it. -->
     <span class="task-row__name">
       <span class="task-row__title" :title="props.task.title">{{ props.task.title }}</span>
-      <!-- Когда ветка нарисована, счёт и стрелка — одна кнопка, та же, что у шапки группы. -->
+      <!-- When the branch is drawn, count and arrow are one button, the same as on a group header. -->
       <CounterButton
         v-if="props.foldable"
         class="task-row__fold"
@@ -171,7 +269,7 @@ const menuOpen = ref(false)
         :label="t(folded ? 'tasks.task.card.expand_children' : 'tasks.task.card.collapse_children')"
         @toggle="store.toggleCollapsed(props.task.code)"
       />
-      <!-- Ветки нет на экране (сужённая выдача) — сворачивать нечего, и счёт остаётся пометкой. -->
+      <!-- No branch on screen (narrowed results) — nothing to collapse, so the count stays a mark. -->
       <span
         v-else-if="props.childCount || props.task.has_children"
         class="task-row__mark task-row__children"
@@ -184,8 +282,8 @@ const menuOpen = ref(false)
     </span>
 
     <span class="task-row__meta">
-      <!-- Корзина — тоже пометка, а не шильдик: строка уже приглушена целиком, и значку
-           остаётся сказать, ПОЧЕМУ она приглушена. -->
+      <!-- The trash is a mark too, not a badge: the row is already muted as a whole, and the icon
+           only has to say WHY it is muted. -->
       <span
         v-if="props.task.deleted_at"
         class="task-row__mark"
@@ -209,15 +307,16 @@ const menuOpen = ref(false)
       </span>
     </span>
 
-    <!-- Меню — служебный жёлоб, а не данные: клик по нему не должен открывать окно. Три точки в
-         каждой строке — постоянный шум, поэтому кнопка появляется под курсором и держится, пока
-         меню раскрыто. -->
+    <!-- The menu is a utility gutter, not data: a click on it must not open the task. Three dots
+         on every row are constant noise, so the button appears under the cursor and stays while
+         the menu is open. -->
     <span
+      ref="menuGutter"
       class="task-row__menu"
       :class="{ 'task-row__menu--open': menuOpen }"
       @click.stop
     >
-      <VMenu v-model="menuOpen" location="bottom end" :offset="4">
+      <VMenu ref="menuOverlay" v-model="menuOpen" v-bind="menuPlacement">
         <template #activator="{ props: menu }">
           <VBtn
             v-bind="menu"
@@ -225,19 +324,87 @@ const menuOpen = ref(false)
             variant="text"
             class="row-action"
             :title="t('tasks.task.card.actions')"
+            @click="menuFromButton"
           >
             <IconDotsVertical :size="16" :stroke-width="1.6" />
           </VBtn>
         </template>
 
-        <!-- Набор действий зависит от состояния: у живой — перестановка, правка, подзадача и
-             удаление, у удалённой — только возврат. Править удалённую бэк не даёт (409), и
-             пункт, который заведомо откажет, врал бы кнопкой. -->
-        <VList density="compact">
+        <!-- The action set depends on state: a live task gets edit, closing, delete and reorder,
+             a deleted one gets only restore. The backend refuses to edit a deleted task (409), and
+             an item bound to fail would make the button lie. Order is by frequency: working on the
+             task, then ending it, then moving it. A right click on the menu itself does nothing:
+             the browser's own menu would open on top of ours and hide it. -->
+        <VList density="compact" @contextmenu.prevent>
+          <!-- The code is what a task is named by to the agent; a deleted task can be named too. -->
+          <VListItem
+            :prepend-icon="isCopied(props.task.code) ? IconCheck : IconCopy"
+            @click.stop="copyCode"
+          >
+            <VListItemTitle>{{ t('common.action.copy_code') }}</VListItemTitle>
+          </VListItem>
           <template v-if="!props.task.deleted_at">
-            <!-- Перестановка без мыши исчезает вместе с ручкой: на сужённом списке порядок не
-                 меняют ни жестом, ни пунктом меню. -->
+            <!-- A task is edited on its page, where every field lives; a form here would be a
+                 second, smaller copy of it. -->
+            <VListItem :prepend-icon="IconPencil" @click="emit('open', props.task.code)">
+              <VListItemTitle>{{ t('tasks.task.card.edit') }}</VListItemTitle>
+            </VListItem>
+            <!-- The tree is one level deep: the backend refuses a subtask under a subtask. -->
+            <VListItem
+              v-if="props.task.parent_code === null"
+              :prepend-icon="IconSubtask"
+              @click="emit('addChild', props.task)"
+            >
+              <VListItemTitle>{{ t('tasks.task.card.add_subtask') }}</VListItemTitle>
+            </VListItem>
+
+            <VDivider class="my-1" />
+            <!-- The status the task already has is not offered again; a closed task gets the way
+                 back to work in its place. Each of the two carries its key. -->
+            <VListItem
+              v-if="props.task.status === 'done'"
+              :prepend-icon="statusIcon('in_progress')"
+              @click="setStatus('in_progress')"
+            >
+              <VListItemTitle>{{ t('tasks.task.card.reopen') }}</VListItemTitle>
+              <template #append><KeyCap class="task-menu__key" label="1" /></template>
+            </VListItem>
+            <VListItem
+              v-else
+              :prepend-icon="statusIcon('done')"
+              @click="setStatus('done')"
+            >
+              <VListItemTitle>{{ t('tasks.task.card.mark_done') }}</VListItemTitle>
+              <template #append><KeyCap class="task-menu__key" label="1" /></template>
+            </VListItem>
+            <VListItem
+              v-if="props.task.status === 'canceled'"
+              :prepend-icon="statusIcon('in_progress')"
+              @click="setStatus('in_progress')"
+            >
+              <VListItemTitle>{{ t('tasks.task.card.reopen') }}</VListItemTitle>
+              <template #append><KeyCap class="task-menu__key" label="2" /></template>
+            </VListItem>
+            <VListItem
+              v-else
+              :prepend-icon="statusIcon('canceled')"
+              @click="ask('cancel')"
+            >
+              <VListItemTitle>{{ t('tasks.task.card.mark_canceled') }}</VListItemTitle>
+              <template #append><KeyCap class="task-menu__key" label="2" /></template>
+            </VListItem>
+            <VListItem
+              :prepend-icon="IconTrash"
+              class="task-menu-danger"
+              @click="ask('delete')"
+            >
+              <VListItemTitle>{{ t('tasks.task.card.delete') }}</VListItemTitle>
+            </VListItem>
+
+            <!-- Mouseless reordering disappears together with the handle: on a narrowed list the
+                 order is changed neither by gesture nor by menu item. -->
             <template v-if="props.reorderable !== false">
+              <VDivider class="my-1" />
               <VListItem
                 :prepend-icon="IconArrowUp"
                 :disabled="!props.canUp"
@@ -252,10 +419,10 @@ const menuOpen = ref(false)
               >
                 <VListItemTitle>{{ t('tasks.task.card.move_down') }}</VListItemTitle>
               </VListItem>
-              <!-- Открепление — то же, что вытаскивание мышью наверх, только без места броска:
-                   задача встаёт первой в своей группе, чтобы результат было видно сразу.
-                   Решает наличие родителя, а не глубина строки: на странице задачи её прямые
-                   подзадачи стоят верхним рядом ветки, но открепить их можно так же. -->
+              <!-- Detaching is the same as dragging up with the mouse, only without a drop point:
+                   the task becomes first in its group so the result is visible at once. Having a
+                   parent decides, not the row depth: on the task page its direct subtasks form the
+                   branch's top row, yet they can be detached just the same. -->
               <VListItem
                 v-if="props.task.parent_code !== null"
                 :prepend-icon="IconUnlink"
@@ -263,44 +430,44 @@ const menuOpen = ref(false)
               >
                 <VListItemTitle>{{ t('tasks.task.card.detach') }}</VListItemTitle>
               </VListItem>
-              <VDivider class="my-1" />
             </template>
-            <VListItem :prepend-icon="IconPencil" @click="emit('edit', props.task)">
-              <VListItemTitle>{{ t('tasks.task.card.edit') }}</VListItemTitle>
-            </VListItem>
-            <VListItem :prepend-icon="IconSubtask" @click="emit('addChild', props.task)">
-              <VListItemTitle>{{ t('tasks.task.card.add_child') }}</VListItemTitle>
-            </VListItem>
-            <VListItem
-              :prepend-icon="IconTrash"
-              class="task-menu-danger"
-              @click="emit('remove', props.task.code)"
-            >
-              <VListItemTitle>{{ t('tasks.task.card.delete') }}</VListItemTitle>
-            </VListItem>
           </template>
           <VListItem
             v-else
-            :prepend-icon="IconArchiveOff"
+            :prepend-icon="IconRestore"
             @click="emit('restore', props.task.code)"
           >
             <VListItemTitle>{{ t('tasks.task.card.restore') }}</VListItemTitle>
+            <template #append><KeyCap class="task-menu__key" label="1" /></template>
           </VListItem>
         </VList>
       </VMenu>
+
+      <!-- Both steps are reversible and asked about often, so Enter confirms at once. -->
+      <ConfirmDialog
+        v-model="confirmOpen"
+        :title="t(`tasks.task.card.${confirmAction}_confirm.title`)"
+        :text="confirmText"
+        :confirm-label="t(`tasks.task.card.${confirmAction}_confirm.confirm`)"
+        :cancel-label="confirmAction === 'cancel' ? t('tasks.task.card.cancel_confirm.keep') : undefined"
+        :tone="confirmAction === 'delete' ? 'danger' : 'primary'"
+        enter-confirms
+        focus-confirm
+        @confirm="confirmed"
+      />
     </span>
   </div>
 </template>
 
 <style scoped>
-/* Ровно 36px и одна линия содержимого. Разделитель — волосяная линия между соседними строками:
-   зебра красит половину списка без всякого повода, а рамка у каждой строки превращает список в
-   стопку карточек. Линия рисуется сверху, а не снизу: соседями строки бывают и контейнеры
-   подзадач, и обёртки веток, и «у каждой своя верхняя граница» — единственное правило, которое
-   держится при любом их порядке. */
+/* Exactly 36px and one line of content. The divider is a hairline between adjacent rows: zebra
+   striping paints half the list for no reason, and a border on every row turns the list into a
+   stack of cards. The line is drawn on top, not at the bottom: a row's neighbours can be subtask
+   containers and branch wrappers alike, and "each has its own top border" is the only rule that
+   holds in any order of them. */
 .task-row {
-  /* Сдвиг ветки задаётся здесь, а не отступом на каждом уровне: глубину строка приносит с собой
-     переменной, и любой уровень вложенности считается одним умножением. */
+  /* The branch offset is set here, not as padding on every level: the row brings its depth along
+     as a variable, and any nesting level is computed with one multiplication. */
   --row-indent: 22px;
 
   position: relative;
@@ -308,50 +475,61 @@ const menuOpen = ref(false)
   align-items: center;
   gap: 8px;
   height: 36px;
-  padding: 0 8px 0 calc(6px + var(--row-depth, 0) * var(--row-indent));
-  /* Строка — ссылка: клик открывает задачу, и курсор обязан это обещать. Ручка, кнопка-счётчик и
-     меню ставят свой курсор поверх — у них другое действие. */
+  padding: 0 8px 0 6px;
+  /* The row is a link: a click opens the task, and the cursor must promise that. The handle, the
+     counter button and the menu set their own cursor on top — they have a different action. */
   cursor: pointer;
 }
 
 .task-row:hover,
 .task-row:focus-visible { background: var(--surface-hi); outline: none; }
 
-/* Открытая задача остаётся отмеченной и после того, как курсор ушёл: вернувшись, человек видит,
-   откуда он уходил. Полоска слева, а не только фон, — иначе отметка неотличима от наведения. */
+/* While its menu is open the row stays as it looks under the pointer: the pointer has gone onto the
+   menu items, and without the mark nothing on screen says which task the actions will hit. */
+.task-row--menu { background: var(--surface-hi); }
+.task-row--menu .drag-handle { opacity: 1; }
+
+/* The opened task stays marked after the cursor has left: on return the person sees where they
+   went from. A stripe on the left, not only a background — otherwise the mark looks like hover. */
 .task-row--open {
   background: var(--surface-hi);
   box-shadow: inset 2px 0 0 var(--accent);
 }
 
-/* Закрытая работа и корзина приглушены целиком, а не помечены одной меткой: такие строки не
-   должны соперничать за внимание с живыми. Наведение возвращает непрозрачность — чтобы прочитать
-   строку, не приходится её воскрешать. */
+/* Closed work and the trash are muted as a whole, not marked with a single label: such rows must
+   not compete for attention with live ones. Hover restores opacity — reading a row does not
+   require resurrecting it. */
 .task-row--dimmed { opacity: 0.55; }
-.task-row--dimmed:hover { opacity: 1; }
+.task-row--dimmed:hover,
+.task-row--dimmed.task-row--menu { opacity: 1; }
 
-/* Пустое место на месте ручки: у удалённой её нет, но столбцы строк обязаны совпадать. */
+/* An empty slot in place of the handle: a deleted task has none, but row columns must align. */
 .task-row__handle-gap {
   width: 20px;
   flex: none;
 }
 
-/* У подзадачи ручка отступает за загиб направляющей: загиб кончается на 9px правее вертикали, а
-   ручка без отступа начиналась бы раньше — и значок хвата ложился бы прямо на линию ветки.
-   Сдвигается и пустое место под ручкой, иначе у удалённой подзадачи столбцы разъехались бы. */
-.task-row--child .drag-handle,
-.task-row--child .task-row__handle-gap {
-  margin-inline-start: 8px;
+/* The depth indent goes after the handle, not before it: handles of every depth stand in one column
+   at the row start, where the pointer finds them, and only the branch itself steps right. The empty
+   slot carries the indent too, otherwise a deleted subtask's columns would drift apart. The -6px
+   pulls the state icon up to the grip: the handle box already pads its 14px icon by 3px a side, and
+   the full row gap on top of that reads as a hole between the two. */
+.task-row .drag-handle,
+.task-row__handle-gap {
+  margin-inline-end: calc(var(--row-depth, 0) * var(--row-indent) - 6px);
 }
 
-/* Направляющая ветки: вертикаль от предыдущей строки и загиб к значку состояния. Псевдоэлемент
-   не перехватывает курсор: строка кликабельна целиком, и линия не должна быть исключением. */
+/* The branch guide: a vertical from under the parent's state icon and a bend toward the row's own.
+   37px is the centre of a depth-0 state icon: 6px padding + 20px handle + 2px left of the gap +
+   half of 18px.
+   The pseudo-element does not catch the pointer: the whole row is clickable, and the line must be
+   no exception. */
 .task-row--child::before {
   content: '';
   position: absolute;
   top: 0;
   bottom: 50%;
-  left: calc(16px + (var(--row-depth, 1) - 1) * var(--row-indent) + 9px);
+  left: calc(37px + (var(--row-depth, 1) - 1) * var(--row-indent));
   width: 9px;
   border-left: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
@@ -359,19 +537,19 @@ const menuOpen = ref(false)
   pointer-events: none;
 }
 
-/* Последний ребёнок обрывает вертикаль на своём загибе, остальные продолжают её вниз — иначе
-   линия кончается там, где ветка ещё продолжается. */
+/* The last child cuts the vertical off at its bend, the others continue it down — otherwise the
+   line would end where the branch still goes on. */
 .task-row--child:not(.task-row--last-child)::after {
   content: '';
   position: absolute;
   top: 50%;
   bottom: 0;
-  left: calc(16px + (var(--row-depth, 1) - 1) * var(--row-indent) + 9px);
+  left: calc(37px + (var(--row-depth, 1) - 1) * var(--row-indent));
   border-left: 1px solid var(--border);
   pointer-events: none;
 }
 
-/* Глиф состояния и глиф важности: единственные два места в строке, где есть цвет. */
+/* The state glyph and the importance glyph: the only two places in the row with color. */
 .task-row__glyph {
   display: inline-flex;
   align-items: center;
@@ -384,8 +562,9 @@ const menuOpen = ref(false)
 .task-row__glyph--warn    { color: var(--warn); }
 .task-row__glyph--muted   { color: var(--text-faint); }
 
-/* Заголовок — обычный вес и основной цвет: он и есть строка, остальное вокруг него служебное.
-   Полужирный держался бы на карточке, но в списке из сотни строк жирным оказывается весь экран. */
+/* The title is regular weight and the primary color: it is the row, everything around it is
+   auxiliary. Semibold would work on a card, but in a list of a hundred rows the whole screen ends
+   up bold. */
 .task-row__title {
   flex: 0 1 auto;
   min-width: 0;
@@ -396,8 +575,8 @@ const menuOpen = ref(false)
   color: var(--text);
 }
 
-/* Ячейка названия забирает остаток строки, а заголовок внутри неё — только свою ширину: так
-   стрелка встаёт сразу за текстом, а не у правого края. */
+/* The title cell takes the rest of the row, while the title inside takes only its own width: this
+   puts the arrow right after the text, not at the right edge. */
 .task-row__name {
   display: flex;
   align-items: center;
@@ -406,9 +585,9 @@ const menuOpen = ref(false)
   min-width: 0;
 }
 
-/* Счёт подзадач переехал из пометок к названию, но остаётся пометкой: тот же кегль и тот же
-   приглушённый цвет, что у остальных справа, — иначе он читался бы продолжением заголовка.
-   Отступ слева отбивает его от текста; до стрелки хватает зазора ячейки. */
+/* The subtask count moved from the marks to the title but remains a mark: the same size and the
+   same muted color as the others on the right — otherwise it would read as a continuation of the
+   title. The left margin sets it off from the text; the cell gap is enough before the arrow. */
 .task-row__children {
   flex: none;
   margin-inline-start: 6px;
@@ -416,12 +595,13 @@ const menuOpen = ref(false)
   color: var(--text-faint);
 }
 
-/* Вид кнопки ветки — её собственный (`CounterButton`); строка задаёт только место: отрицательный
-   отступ прячет поле кнопки, и значок стоит от текста там же, где пассивный счёт выше. И
-   проявляет её, пока курсор над строкой. */
+/* The branch button's look is its own (`CounterButton`); the row sets only its place: a negative
+   margin hides the button's padding, so the icon sits as far from the text as the passive count
+   above. The row also reveals it while the cursor is over the row. */
 .task-row__fold { margin-inline: 2px -4px; }
 
-.task-row:hover { --counter-button-color: var(--text-muted); }
+.task-row:hover,
+.task-row--menu { --counter-button-color: var(--text-muted); }
 
 .task-row__meta {
   display: inline-flex;
@@ -440,7 +620,7 @@ const menuOpen = ref(false)
 
 .task-row__date { font-variant-numeric: tabular-nums; }
 
-/* Единственная пометка, которая имеет право на цвет: срок прошёл, а работа открыта. */
+/* The only mark entitled to color: the deadline has passed and the work is still open. */
 .task-row__date--overdue { color: var(--warn); }
 
 .task-row__menu {
@@ -463,4 +643,7 @@ const menuOpen = ref(false)
 
 .task-menu-danger :deep(.v-list-item-title) { color: var(--error); }
 .task-menu-danger :deep(.v-list-item__prepend) { color: var(--error); }
+
+/* The key that runs the item while the menu is open, set apart from the item's name. */
+.task-menu__key { margin-left: 16px; }
 </style>

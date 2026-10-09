@@ -1,7 +1,7 @@
-"""Базовый класс scheduler-задачи.
+"""Base class of a scheduler task.
 
-Лёгкий вариант: только декларативные поля + общий ``register()``. Логика
-прогона — в ``handle(ctx)`` наследника.
+The lightweight variant: only declarative fields + a shared ``register()``. The run
+logic lives in the subclass's ``handle(ctx)``.
 """
 
 from __future__ import annotations
@@ -13,31 +13,31 @@ from src.core.scheduler.registry import get_registry
 
 
 class CoreTaskBase:
-    """Декларативная база scheduler-задачи.
+    """Declarative base of a scheduler task.
 
-    Наследник задаёт класс-атрибуты и реализует ``handle``. ``register()``
-    собирает регистрацию по этим атрибутам — никакой копипасты вызова
-    ``scheduler.register(...)``.
+    A subclass sets the class attributes and implements ``handle``. ``register()``
+    assembles the registration from those attributes — no copy-pasted
+    ``scheduler.register(...)`` calls.
     """
 
     MODULE: str
     CODE: str
     NAME: str
     DESCRIPTION: str
-    SCHEDULE: str | None  # 5-польный cron; None → автозапуск отключён
-    TTL: int              # секунды; и timeout хендлера, и TTL task-лока
+    SCHEDULE: str | None  # 5-field cron; None → automatic runs disabled
+    TTL: int              # seconds; both the handler timeout and the task lock TTL
     ENABLED: bool = True
     USER_REQUEST: bool = False
-    SORT: int = 500    # порядок вывода в UI; не влияет на выполнение
+    SORT: int = 500    # display order in the UI; does not affect execution
 
     @classmethod
     def logger(cls) -> CoreLoggerProtocol:
-        """Tee-логгер задачи: общий канал ``tasks`` + персональный ``tasks/<CODE>``.
+        """The task's tee logger: the shared ``tasks`` channel + its own ``tasks/<CODE>``.
 
-        Совпадает с тем, что использует runner и TaskContext — строки из
-        handler'а и из внутренних слоёв (импортёры, сервисы) попадают в один
-        и тот же файл ``logs/tasks/<CODE>.log``. В отличие от ``ctx.info/warn``
-        в БД (``core_tasks_logs``) не пишет — это «техническое» логирование.
+        The same one the runner and TaskContext use — lines from the handler and
+        from inner layers (importers, services) land in one and the same file
+        ``logs/tasks/<CODE>.log``. Unlike ``ctx.info/warn`` it does not write to the
+        DB (``core_tasks_logs``) — this is "technical" logging.
         """
         return get_logger("tasks", f"tasks/{cls.CODE}")
 

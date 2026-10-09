@@ -1,4 +1,4 @@
-"""TaskContext — что видит handler задачи."""
+"""TaskContext — what a task handler sees."""
 
 from __future__ import annotations
 
@@ -24,25 +24,25 @@ class TaskContext:
     task_id: int
     module: str
     code: str
-    lock: CoreLock  # task-level лок: ключ ``task:{module}:{code}``, owner=task_run:{id}
+    lock: CoreLock  # task-level lock: key ``task:{module}:{code}``, owner=task_run:{id}
 
     @property
     def _file_log(self):
-        """Tee-логгер: общий канал ``tasks`` + персональный ``tasks/<code>``."""
+        """Tee logger: the shared ``tasks`` channel + the task's own ``tasks/<code>``."""
         return get_logger("tasks", f"tasks/{self.code}")
 
     async def set_payload(self, payload: dict[str, Any]) -> None:
-        """Записать payload запуска. Ошибки БД глотаются — не должно ронять handler."""
+        """Record the run's payload. DB errors are swallowed — they must not crash the handler."""
         try:
             await crud_tasks.update_payload(self.task_id, payload)
         except Exception:
             self._file_log.exception("failed to write payload for task %d", self.task_id)
 
     async def _write_log(self, level: CoreTaskLogLevel, msg: str) -> None:
-        """Одна строка в core_tasks_logs + дубль в файловые каналы ``tasks`` и ``tasks/<code>``.
+        """One row in core_tasks_logs + a copy to the ``tasks`` and ``tasks/<code>`` file channels.
 
-        Каждый вызов — своя сессия с мгновенным коммитом, чтобы лог пережил
-        отвал задачи по TTL. Ошибка записи в БД глотается.
+        Every call gets its own session with an immediate commit, so the log survives
+        the task being dropped on TTL. A DB write error is swallowed.
         """
         log = self._file_log
         try:

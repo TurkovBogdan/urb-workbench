@@ -1,17 +1,19 @@
 """workspace: workspaces table
 
-Создаёт ``workspaces`` — рабочее пространство, верхний уровень изоляции данных. Порядок колонок
-повторяет ``models/workspace.py::Workspace``. String PK ``code`` (голый hex длиной ``CODE_LEN``);
-удаление логическое (``deleted_at``). Единственная ревизия цепочки модуля.
+Creates ``workspaces`` — a workspace, the top level of data isolation. The column order mirrors
+``models/workspace.py::Workspace``. String PK ``code`` (a bare hex of length ``CODE_LEN``);
+deletion is logical (``deleted_at``). The only revision in the module's chain.
 
-Таблица названа по сущности во множественном числе, без приставки имени модуля: модуль и
-сущность здесь — одно и то же, и ``workspace_workspace`` было бы заиканием ради схемы именования.
-Приставку несут таблицы модулей, где сущностей несколько (``tasks_group``, ``tasks_task``) — там
-она и отвечает на вопрос «чьё это», а здесь на него отвечает само имя.
+The table is named after the entity in the plural, without the module-name prefix: the module
+and the entity are one and the same here, and ``workspace_workspace`` would be a stutter for the
+sake of a naming scheme. The prefix is carried by tables of modules with several entities
+(``tasks_group``, ``tasks_task``) — there it answers "whose is this", while here the name itself
+answers it.
 
-Ширины колонок выписаны числами, а не взяты из ``constants.py``: ревизия — это снимок схемы на
-свою дату, и константа, которую однажды поменяют, задним числом переписала бы уже накаченную
-миграцию. Совпадение с константами стерегут ``db``-тесты, сверяющие модели со схемой.
+Column widths are written out as numbers rather than taken from ``constants.py``: a revision is a
+snapshot of the schema as of its date, and a constant changed some day would retroactively
+rewrite an already applied migration. Agreement with the constants is guarded by the ``db``
+tests that compare the models with the schema.
 
 Revision ID: wkm_001_workspaces
 Revises:

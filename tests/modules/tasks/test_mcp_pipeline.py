@@ -1,9 +1,9 @@
-"""workbench MCP: комплексная задача от подключения до сдачи — одним сценарием.
+"""workbench MCP: a complex task from connecting to handing in — as one scenario.
 
-Проверяется не каждый инструмент по отдельности (это делают соседние файлы), а то, что они
-складываются в работу: найти, прочитать, спланировать, **переработать план с удалением этапов**,
-исполнить с доказательствами, записать в журнал и сдать. Ровно этот прогон вскрыл половину
-правок в слое данных — по таблице инструментов такие дыры не видны.
+What is checked is not each tool on its own (the neighbouring files do that) but that they add
+up to work: find, read, plan, **rework the plan by deleting stages**, execute with evidence,
+write to the journal and hand in. Exactly this run exposed half of the fixes in the data layer —
+such holes don't show up in a per-tool table.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ pytestmark = pytest.mark.db
 
 @pytest.fixture
 async def brief(workspace):
-    """Задача, поставленная ЧЕЛОВЕКОМ: принимать работу по ней агенту нельзя."""
+    """A task set by a HUMAN: the agent may not accept the work on it."""
     return await task_crud.task_create(
         workspace_code=workspace.code,
         title="Перевести тарифы на новую схему",
@@ -35,7 +35,7 @@ async def brief(workspace):
 async def test_the_whole_pipeline_holds_together(call, workspace, brief):
     await call("workspace_use", workspace_code=workspace.code)
 
-    # ── найти работу ──────────────────────────────────────────────────────────
+    # ── find the work ─────────────────────────────────────────────────────────
     found = await call("tasks_list", query="тариф")
     assert [row["title"] for row in found["tasks"]] == [brief.title]
     assert found["workspace_title"] == "Работа"
@@ -43,21 +43,28 @@ async def test_the_whole_pipeline_holds_together(call, workspace, brief):
     task = f"TASK@{brief.code}"
     detail = await call("task_get", task_code=task)
     assert detail["criteria"].startswith("1. Тесты биллинга")
-    assert detail["stages"] == [] and detail["open_notes"] == []
+    assert detail["stages"] == [] and detail["open_entries"] == []
 
-    # ── спланировать ──────────────────────────────────────────────────────────
+    # ── plan ──────────────────────────────────────────────────────────────────
     plan = await call(
-        "body_set",
+        "content_set",
         code=task,
+        field="plan",
         text="## Подход\nТариф считается в одном месте.\n\n## Файлы\nПрочитано: tariff.py\n",
     )
     assert plan["length"] > 0
-    # Дописывание в план — шов, а не тело: присланный текст назад не едет.
-    seam = await call("body_add", code=task, text="Меняю: tariff.py\n", position="end")
+    # Appending to the plan returns the seam, not the text: what was sent is not echoed back.
+    seam = await call(
+        "content_add", code=task, field="plan", text="Меняю: tariff.py\n", position="end"
+    )
     assert "<text>" in seam["edit"]
-    # Раздел заменяется целиком, и ответ показывает РАЗМАХ выреза, а не аккуратный стык.
+    # A section is replaced whole, and the answer shows the SPAN of the cut, not a tidy joint.
     cut = await call(
-        "body_set_section", code=task, heading="## Файлы", text="## Файлы\nБез изменений\n"
+        "content_set_section",
+        code=task,
+        field="plan",
+        heading="## Файлы",
+        text="## Файлы\nБез изменений\n",
     )
     assert cut["removed_length"] > 0 and cut["stopped_at"] is None
     first = await call("stage_add", task_code=task, title="Схема")
@@ -66,41 +73,47 @@ async def test_the_whole_pipeline_holds_together(call, workspace, brief):
     fourth = await call("stage_add", task_code=task, title="Лишний")
     assert [s["number"] for s in (first, second, third, fourth)] == [1, 2, 3, 4]
 
-    # ── переработать план: схлопнуть два этапа и выбросить лишний ─────────────
-    # Скалярный ответ fastmcp заворачивает в ``{"result": …}``.
+    # ── rework the plan: merge two stages and drop the extra one ──────────────
+    # fastmcp wraps a scalar answer in ``{"result": …}``.
     assert (await call("delete", code=second["code"]))["result"] is True
     assert (await call("delete", code=fourth["code"]))["result"] is True
 
-    # Дыра в нумерации легальна: номер упорядочивает, а не считает.
+    # A gap in the numbering is legal: the number orders, it does not count.
     after_cut = await call("task_get", task_code=task)
     assert [s["number"] for s in after_cut["stages"]] == [1, 3]
 
-    # Занятый номер — обычная ошибка переработки, и отвечать на неё надо по-человечески.
+    # A taken number is an ordinary rework mistake, and it deserves a human-readable answer.
     with pytest.raises(ToolError, match="is taken by stage"):
         await call("stage_add", task_code=task, title="Дубль", number=1)
 
-    # Освободившийся — можно.
+    # A freed one is fine.
     await call("stage_update", stage_code=third["code"], number=2, title="Пересчёт и миграция")
     assert [s["number"] for s in (await call("task_get", task_code=task))["stages"]] == [1, 2]
 
-    # ── исполнить ─────────────────────────────────────────────────────────────
-    # Не начатый этап переписывается свободно.
-    await call("body_set", code=first["code"], text="Развернуть Calculator.")
+    # ── execute ───────────────────────────────────────────────────────────────
+    await call("content_set", code=first["code"], field="body", text="Развернуть Calculator.")
 
     started = await call("stage_update", stage_code=first["code"], status="in_progress")
-    # Старт этапа задачу не двигает, и ответ это показывает.
+    # Starting a stage does not move the task, and the answer shows that.
     assert started["task_status"] == "backlog"
     await call("task_status", task_code=task, status="in_progress")
 
-    # А начатый — нет: позади план застывший, иначе «обещали одно, сделали другое» исчезает.
-    with pytest.raises(ToolError, match="does not get rewritten"):
-        await call("body_set", code=first["code"], text="Ну, что вышло, то и планировали")
+    # The course of the work goes to the progress diary, an entry appended at a time.
+    await call(
+        "content_add",
+        code=task,
+        field="progress",
+        text="- схема развёрнута → пересчёт\n",
+        position="end",
+    )
 
     decision = await call(
-        "note_add", task_code=task, type="decision",
+        "journal_add", task_code=task, type="decision",
         title="Пересчёт делаем на лету", stage_code=first["code"],
     )
-    await call("note_resolve", note_code=decision["code"], resolution="pytest -q → 12 passed")
+    await call(
+        "journal_resolve", journal_code=decision["code"], resolution="pytest -q → 12 passed"
+    )
 
     with pytest.raises(ToolError, match="evidence is empty"):
         await call("stage_close", stage_code=first["code"], evidence="   ")
@@ -110,21 +123,29 @@ async def test_the_whole_pipeline_holds_together(call, workspace, brief):
     )
     assert closed["stage"]["status"] == "done"
 
-    # ── попутная находка: она не про эту задачу и сдачу держать не должна ─────
-    await call("note_add", task_code=task, type="finding", title="Рядом мёртвый код")
+    # ── a side finding: not about this task, so it must not block hand-in ─────
+    await call("journal_add", task_code=task, type="finding", title="Рядом мёртвый код")
 
     await call("stage_close", stage_code=third["code"], evidence="alembic upgrade head → ok")
 
-    # ── сдать ─────────────────────────────────────────────────────────────────
+    # ── hand in ───────────────────────────────────────────────────────────────
+    await call(
+        "content_set",
+        code=task,
+        field="result",
+        text="Тарифы считаются по новой схеме. Проверено: pytest -q → 12 passed.",
+    )
     handed = await call("task_status", task_code=task, status="in_review")
     assert handed["status"] == "in_review"
     assert handed["unfinished_stages"] == 0
-    # Находка видна человеку, но сдачу не держит: закрыть её исполнителю нечем.
-    assert handed["open_notes"] == 1 and handed["blocking_notes"] == 0
+    # The finding is visible to the person but does not block hand-in: the executor has no way
+    # to close it.
+    assert handed["open_entries"] == 1 and handed["blocking_entries"] == 0
 
 
 async def test_the_agent_corrects_the_brief_of_a_human_task(call, workspace, brief):
-    """Запрет гнал агента в обход — бриф в файл, перенос руками человека; правка законна."""
+    """A ban pushed the agent into workarounds — the brief written to a file, carried over by the
+    person by hand; the edit is legitimate."""
     await call("workspace_use", workspace_code=workspace.code)
 
     await call(
@@ -142,7 +163,7 @@ async def test_the_agent_corrects_the_brief_of_a_human_task(call, workspace, bri
 
 
 async def test_the_agent_writes_the_brief_of_its_own_subtask(call, workspace, brief):
-    """Подзадачу агент заводит сам и тут же ставит ей критерии."""
+    """The agent creates a subtask itself and sets its criteria right away."""
     await call("workspace_use", workspace_code=workspace.code)
     child = await call(
         "task_create", title="Подзадача", description="Часть работы",
@@ -166,24 +187,51 @@ async def test_a_remark_is_not_the_agents_to_write(call, workspace, brief):
     await call("workspace_use", workspace_code=workspace.code)
 
     with pytest.raises(ToolError, match="requester's word"):
-        await call("note_add", task_code=f"TASK@{brief.code}", type="remark", title="Сам себе")
+        await call("journal_add", task_code=f"TASK@{brief.code}", type="remark", title="Сам себе")
 
 
 async def test_a_journal_entry_is_never_deleted(call, workspace, brief):
     await call("workspace_use", workspace_code=workspace.code)
-    note = await call(
-        "note_add", task_code=f"TASK@{brief.code}", type="fact", title="tariff.py:88"
+    entry = await call(
+        "journal_add", task_code=f"TASK@{brief.code}", type="fact", title="tariff.py:88"
     )
 
-    with pytest.raises(ToolError, match="append-only"):
-        await call("delete", code=note["code"])
+    with pytest.raises(ToolError, match="A journal entry is not deleted"):
+        await call("delete", code=entry["code"])
+    # The retired ``NOTE@`` word now names a task note: the entry is refused with its code.
+    with pytest.raises(ToolError, match=f"its code is {entry['code']}"):
+        await call("delete", code=entry["code"].replace("JOURNAL@", "note@"))
+
+    listed = await call("journal_list", task_code=f"TASK@{brief.code}")
+    assert [row["code"] for row in listed["entries"]] == [entry["code"]]
+
+
+async def test_journal_resolve_refuses_the_retired_note_code_naming_the_current_one(
+    call, workspace, brief
+):
+    """``NOTE@`` was the journal's code until 2026-10-09 and now names a task note. A code noted
+    down earlier is refused with the one to pass instead, and the entry stays open."""
+    await call("workspace_use", workspace_code=workspace.code)
+    entry = await call(
+        "journal_add", task_code=f"TASK@{brief.code}", type="decision", title="Взяли вариант Б"
+    )
+
+    with pytest.raises(ToolError, match=f"its code is {entry['code']}"):
+        await call(
+            "journal_resolve",
+            journal_code=entry["code"].replace("JOURNAL@", "NOTE@"),
+            resolution="подтверждено",
+        )
+
+    listed = await call("journal_list", task_code=f"TASK@{brief.code}", open_only=True)
+    assert [row["code"] for row in listed["entries"]] == [entry["code"]]
 
 
 async def test_only_the_extended_task_takes_stages(call, workspace):
-    """Этапы — единственное, чем расширенная отличается от стандартной.
+    """Stages are the only thing that sets an extended task apart from a standard one.
 
-    Проверяются обе ступени: простая и стандартная отказывают одинаково, а повышение типа —
-    штатный путь для работы, которая оказалась длиннее, чем думали.
+    Both rungs are checked: simple and standard refuse alike, and raising the type is the
+    regular path for work that turned out longer than expected.
     """
     await call("workspace_use", workspace_code=workspace.code)
     task = await call("task_create", title="Записаться к врачу", description="Запись есть")
@@ -199,7 +247,8 @@ async def test_only_the_extended_task_takes_stages(call, workspace):
 
 
 async def test_a_standard_task_still_keeps_a_plan_and_a_journal(call, workspace):
-    """Отказ по этапам — не отказ по ведению: план прозой и журнал у стандартной есть."""
+    """Refusing stages is not refusing record-keeping: a standard task has a prose plan and a
+    journal."""
     await call("workspace_use", workspace_code=workspace.code)
     task = await call(
         "task_create", title="Поправить форму", description="Комментарий сохраняется",
@@ -207,19 +256,42 @@ async def test_a_standard_task_still_keeps_a_plan_and_a_journal(call, workspace)
     )
 
     plan = "Меняю форму счёта."
-    assert (await call("body_set", code=task["code"], text=plan))["length"] == len(plan)
-    note = await call(
-        "note_add", task_code=task["code"], type="fact", title="invoice.py:88"
+    assert (await call("content_set", code=task["code"], field="plan", text=plan))["length"] == len(
+        plan
     )
-    assert note["code"].startswith("NOTE@")
+    entry = await call(
+        "journal_add", task_code=task["code"], type="fact", title="invoice.py:88"
+    )
+    assert entry["code"].startswith("JOURNAL@")
 
 
 async def test_a_task_the_agent_creates_is_signed_by_the_surface(call, workspace):
-    """Авторство называет поверхность: аргумента нет, и подделать его нечем."""
+    """Authorship names the surface: there is no argument for it, so nothing to forge it with."""
     await call("workspace_use", workspace_code=workspace.code)
     created = await call("task_create", title="Своя", description="Цель")
 
     assert (await call("task_get", task_code=created["code"]))["created_by"] == "agent"
+
+
+async def test_task_get_carries_the_three_work_fields(call, workspace):
+    """Plan, progress and result come by their own names; a task has no ``body`` any more."""
+    await call("workspace_use", workspace_code=workspace.code)
+    row = await task_crud.task_create(
+        workspace_code=workspace.code,
+        title="Задача",
+        plan="## Подход",
+        progress="- начато → дальше тесты",
+        result="Сделано",
+    )
+
+    detail = await call("task_get", task_code=f"TASK@{row.code}")
+
+    assert (detail["plan"], detail["progress"], detail["result"]) == (
+        "## Подход",
+        "- начато → дальше тесты",
+        "Сделано",
+    )
+    assert "body" not in detail
 
 
 async def test_unfinished_is_the_default_and_history_does_not_crowd_it(call, workspace):
@@ -237,3 +309,19 @@ async def test_unfinished_is_the_default_and_history_does_not_crowd_it(call, wor
     assert [row["title"] for row in (await call("tasks_list", status="done"))["tasks"]] == [
         gone.title
     ]
+
+
+async def test_a_fact_the_agent_writes_is_never_listed_as_open(call, workspace, brief):
+    """``journal_add`` has no resolution field, so a fact lands with an empty one — and is still
+    closed: the card, the open-only journal and the hand-in count must all agree on that."""
+    await call("workspace_use", workspace_code=workspace.code)
+    task = f"TASK@{brief.code}"
+    await call("journal_add", task_code=task, type="fact", title="Строк в тарифах — 1842")
+    decision = await call("journal_add", task_code=task, type="decision", title="Взяли кэш")
+
+    detail = await call("task_get", task_code=task)
+    open_only = await call("journal_list", task_code=task, open_only=True)
+
+    assert [entry["code"] for entry in detail["open_entries"]] == [decision["code"]]
+    assert detail["closed_entries"] == 1
+    assert [entry["code"] for entry in open_only["entries"]] == [decision["code"]]

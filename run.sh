@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Запуск проекта: без аргументов — запуск на собранном фронте, dev (Vite + backend hot-reload),
-# build-prod (сборка фронта), stop (гашение), test (pytest).
-# Порты и провайдер БД берутся из .env (SERVER_PORT, SERVER_VITE_PORT, DB_PROVIDER).
+# Project launcher: no arguments — run on the built frontend, dev (Vite + backend hot reload),
+# build-prod (build the frontend), stop (shut down), test (pytest).
+# Ports and the DB provider come from .env (SERVER_PORT, SERVER_VITE_PORT, DB_PROVIDER).
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -13,27 +13,28 @@ fi
 
 usage() {
   cat <<'EOF'
-run.sh — запуск проекта
+run.sh — project launcher
 
-  ./run.sh             backend (--backend --worker) + открытие веб-интерфейса в браузере;
-                       фронт раздаётся собранным из web/dist, hot-reload нет
+  ./run.sh             backend (--backend --worker) + opens the web interface in the browser;
+                       the frontend is served prebuilt from web/dist, no hot reload
   ./run.sh dev         front (Vite HMR) + backend (--backend --worker --hot-reload)
-  ./run.sh build-prod  собрать фронт в боевом режиме в web/dist (нужны Node.js 20+ и pnpm)
-  ./run.sh stop        погасить установку по реестру процессов (src/app.py stop, аргументы
-                       пробрасываются) плюс Vite по SERVER_VITE_PORT из .env
-  ./run.sh test        uv run pytest — аргументы пробрасываются (./run.sh test --core)
-  ./run.sh help        эта справка
+  ./run.sh build-prod  build the frontend in production mode into web/dist (needs Node.js 20+ and pnpm)
+  ./run.sh stop        stop the installation by its process registry (src/app.py stop, arguments
+                       pass through) plus Vite on SERVER_VITE_PORT from .env
+  ./run.sh test        uv run pytest — arguments pass through (./run.sh test --core)
+  ./run.sh help        this help
 
-Сборка фронта — отдельная команда: web/dist лежит в репозитории, и установке достаточно
-`git pull`, поэтому запуск ничего не собирает (`./run.sh prod` = запуск без сборки).
-Адрес backend'а берётся из .env (SERVER_HOST/SERVER_PORT), Vite печатает свой при старте.
+Building the frontend is a separate command: web/dist is in the repository and an installation
+needs only `git pull`, so starting builds nothing (`./run.sh prod` = run without building).
+The backend address comes from .env (SERVER_HOST/SERVER_PORT); Vite prints its own on startup.
 EOF
 }
 
-# Адрес и готовность спрашиваем у самого приложения теми же функциями, что и MCP-шим: порт у
-# каждой установки свой, а браузер, открытый до первого ответа, показывает ошибку соединения.
-# Отвечающий заглушкой backend (отставшая схема) тоже открывается — заглушка и есть ответ.
-# Страница задаётся снаружи (RUN_OPEN_PATH): установщику нужна не главная, а «Сервер».
+# Address and readiness come from the application itself, via the same functions the MCP shim
+# uses: every installation has its own port, and a browser opened before the first response shows
+# a connection error. A backend answering with the stub page (schema behind) is opened too — the
+# stub is the answer. The page is set from outside (RUN_OPEN_PATH): the installer wants "Server",
+# not the home page.
 open_page_when_serving() {
   uv run python - "${RUN_OPEN_PATH:-/}" <<'PY'
 import sys
@@ -50,7 +51,7 @@ page = sys.argv[1]
 config = Config()
 address = base_url(config)
 if wait_until_ready(config, timeout=BOOT_TIMEOUT_SECONDS) is None:
-    print(f"run.sh: {address} не ответил за {BOOT_TIMEOUT_SECONDS} с — браузер не открываю")
+    print(f"run.sh: {address} did not respond within {BOOT_TIMEOUT_SECONDS} s — not opening the browser")
 else:
     webbrowser.open(address + page)
 PY
@@ -64,8 +65,8 @@ case "$cmd" in
     open_page_when_serving &
     opener_pid=$!
     trap 'kill "$opener_pid" 2>/dev/null || true' EXIT INT TERM
-    # `--no-hot-reload` явно: в dev-`.env` стоит SERVER_HOT_RELOAD=true, и без флага эта команда
-    # молча поднимала бы сторож правок вместо обещанного запуска на собранном фронте.
+    # `--no-hot-reload` explicitly: the dev `.env` sets SERVER_HOT_RELOAD=true, and without the flag
+    # this command would silently start the file watcher instead of the promised run on the built frontend.
     uv run python src/app.py --backend --worker --no-hot-reload
     ;;
   dev)
@@ -78,18 +79,18 @@ case "$cmd" in
     "${PNPM[@]}" --dir web build
     ;;
   stop)
-    # backend/worker — по реестру процессов установки (`runtime/processes/`): гасится ровно
-    # этот чекаут, группой и с доказательством смерти. Отбор по имени процесса тут был неверен
-    # по существу: шаблон `app.py` ловит и соседнюю установку, и MCP-шимы, и сессию агента.
-    # Аргументы пробрасываются: ./run.sh stop --dry-run, ./run.sh stop --stop-unregistered.
+    # backend/worker — by the installation's process registry (`runtime/processes/`): exactly this
+    # checkout is stopped, as a group and with proof of death. Matching by process name was wrong
+    # in principle here: an `app.py` pattern also catches a neighbouring installation, the MCP shims
+    # and the agent's session. Arguments pass through: ./run.sh stop --dry-run, ./run.sh stop --stop-unregistered.
     stop_code=0
     uv run python src/app.py stop "$@" || stop_code=$?
-    # Vite о себе записи не ведёт — он не процесс приложения, поэтому только он и остаётся за
-    # портом из .env. Порт не угадывается: на установке Vite нет вовсе, а на угаданном номере
-    # может слушать чужой процесс. Сухой прогон не трогает и его — «показать план» не гасит.
+    # Vite keeps no record of itself — it is not an application process, so it alone is left to
+    # the port from .env. The port is never guessed: a deployed installation has no Vite at all, and
+    # a guessed number may belong to someone else's process. A dry run leaves it alone too — "show the plan" stops nothing.
     vite_port=$(grep -E '^SERVER_VITE_PORT=' .env 2>/dev/null | cut -d= -f2 | tr -d '[:space:]' || true)
     if [[ -z "$vite_port" ]]; then
-      echo "SERVER_VITE_PORT в .env не задан — Vite не ищу"
+      echo "SERVER_VITE_PORT is not set in .env — not looking for Vite"
     elif [[ " $* " == *" --dry-run "* ]]; then
       echo "vite on :$vite_port left alone (--dry-run)"
     else

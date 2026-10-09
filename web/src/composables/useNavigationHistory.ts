@@ -4,9 +4,9 @@ import type { RouteLocationNormalized, RouteLocationRaw, Router } from 'vue-rout
 // The route we arrived from to reach the current page, or null on a direct entry
 // (deep link / reload / new tab) where vue-router's START_LOCATION has no matched records.
 //
-// Реактивная, потому что от неё зависит не только поведение кнопки, но и её подпись: возврат по
-// истории ведёт «туда, откуда пришли», а запасной адрес — в конкретное место, и называется оно
-// своим именем.
+// Reactive, because not only the button's behaviour depends on it but also its label: going back
+// through history leads "where you came from", while the fallback address leads to a specific
+// place, which is called by its own name.
 const previousRoute = shallowRef<RouteLocationNormalized | null>(null)
 
 export function recordNavigation(from: RouteLocationNormalized): void {
@@ -22,7 +22,7 @@ export function useNavigationHistory(): {
     else router.push(fallback)
   }
 
-  /** Есть куда возвращаться по истории — значит, запасной адрес в этот раз не понадобится. */
+  /** There is history to go back to — so the fallback address won't be needed this time. */
   const hasHistory = computed(() => previousRoute.value !== null)
 
   return { goBack, hasHistory }

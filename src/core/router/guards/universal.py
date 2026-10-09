@@ -1,29 +1,29 @@
-"""Два встроенных универсальных guard'а ядра — пара ``allow_all``/``deny_all``.
+"""The core's two built-in universal guards — the ``allow_all``/``deny_all`` pair.
 
-Реальные ``auth``/``ability`` (CASL) пришли бы из auth-модуля через декларативный
-``Module.guards``; ядро держит лишь эту пару. Имена функций =
-``guard_`` + вид (``guard_<вид>``), под которым guard лежит в реестре.
+Real ``auth``/``ability`` (CASL) would come from an auth module via the declarative
+``Module.guards``; the core holds only this pair. Function names =
+``guard_`` + the kind (``guard_<kind>``) under which the guard sits in the registry.
 
-- ``allow_all`` (``guard_allow_all``) — «всё разрешает» (пропускает всех). Снимает
-  защиту зоны для конкретного маршрута через метку ``@guard("allow_all")`` (login).
-- ``deny_all`` (``guard_deny_all``) — «всё кладёт» (блокирует всех). Двояко: явной
-  меткой ``@guard("deny_all")`` (намеренно выключить маршрут) и как **фолбэк**
-  зон-guard'а, когда у маршрута не набралось ни умолчания зоны, ни меток —
+- ``allow_all`` (``guard_allow_all``) — "allows everything" (lets everyone through). Lifts
+  the zone's protection for a specific route via the ``@guard("allow_all")`` mark (login).
+- ``deny_all`` (``guard_deny_all``) — "blocks everything" (rejects everyone). Used two ways: as an
+  explicit ``@guard("deny_all")`` mark (deliberately switching a route off) and as the zone
+  guard's **fallback** when a route has collected neither a zone default nor any marks —
   secure-by-default.
 """
 
 from __future__ import annotations
 
-from fastapi import Request
+from starlette.requests import HTTPConnection
 
 from src.core.api.errors import ApiError
 
 
-async def guard_allow_all(request: Request) -> None:
+async def guard_allow_all(connection: HTTPConnection) -> None:
     return
 
 
-async def guard_deny_all(request: Request) -> None:
+async def guard_deny_all(connection: HTTPConnection) -> None:
     raise ApiError.unauthorized("Route is closed (no guard)", code="route_closed")
 
 

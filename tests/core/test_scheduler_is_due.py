@@ -1,4 +1,4 @@
-"""Тесты ticker.is_due (чистая логика, без БД)."""
+"""Tests for ticker.is_due (pure logic, no DB)."""
 
 from __future__ import annotations
 

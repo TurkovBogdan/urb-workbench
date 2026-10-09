@@ -11,7 +11,8 @@ import {
   reorderTask,
   restoreTask,
   searchTasks,
-  type GroupRow,
+  setTaskStatus,
+  type GroupListRow,
   type TaskListRow,
 } from '../api'
 import { isTerminal } from '../labels'
@@ -20,138 +21,144 @@ import { anyScope, MIN_DEEP_QUERY_LENGTH, NO_SCOPES, type TaskSearchScopes } fro
 import { useWorkspaceContextStore } from '@/features/workspace/stores/workspace-context.store'
 
 /**
- * Узел ветки: задача, её глубина и её дети.
+ * A branch node: the task, its depth and its children.
  *
- * Дерево остаётся деревом, а не разворачивается в плоский ряд, и причина в перетаскивании:
- * sortable заводится НА КОНТЕЙНЕР, а ряд соседей у подзадачи — дети её родителя. Плоский список
- * строк такого контейнера не даёт вовсе, поэтому переставить подзадачу среди сестёр было нечем.
+ * The tree stays a tree rather than being flattened into one row, and the reason is dragging: a
+ * sortable is created ON A CONTAINER, and a subtask's sibling row is its parent's children. A flat
+ * list of rows provides no such container at all, so there was nothing to reorder a subtask among
+ * its siblings with.
  *
- * `depth` и `last` остаются здесь, а не считаются разметкой: по ним рисуется отступ и загиб
- * направляющей, и строке по-прежнему не нужно знать ничего, кроме своего места.
+ * `depth` and `last` stay here rather than being computed by the markup: they drive the indent and
+ * the guide line's bend, and the row still needs to know nothing but its own place.
  */
 export interface TaskNode {
   task: TaskListRow
   depth: number
-  /** Последний ребёнок у своего родителя: по нему рисуется загиб направляющей, а не сквозная линия. */
+  /** Last child of its parent: the guide line bends here instead of running through. */
   last: boolean
   children: TaskNode[]
 }
 
-/** Секция списка: группа, её задачи верхнего уровня и их ветки. */
+/** A list section: a group, its top-level tasks and their branches. */
 export interface TaskSection {
-  group: GroupRow | null
+  group: GroupListRow | null
   tasks: TaskListRow[]
-  /** Ветки секции: по узлу на каждую задачу верхнего уровня, дети — внутри узла. */
+  /** The section's branches: one node per top-level task, children inside the node. */
   branches: TaskNode[]
 }
 
-/** Формат показа списка. Второй (доска) появится значением здесь, а не веткой в разметке. */
+/** The list display format. A second one (a board) will appear as a value here, not a branch in markup. */
 export type TaskListFormat = 'list'
 
-// Список задач ТЕКУЩЕГО пространства, разложенный по группам.
+// The task list of the CURRENT workspace, laid out by group.
 //
-// Пространство стор не выбирает и не хранит — он читает его из контекста (`workspace-context`),
-// который живёт в шапке боковой панели и переживает страницы. Поэтому и перезагрузка при смене
-// пространства — обязанность стора, а не страницы: выбор меняют из панели, находясь на любом
-// маршруте, и список, узнающий об этом только при следующем открытии, показывал бы чужие задачи.
+// The store neither picks nor stores the workspace — it reads it from the context
+// (`workspace-context`), which lives in the sidebar header and outlives pages. That is why
+// reloading on a workspace switch is the store's job, not the page's: the choice is changed from
+// the sidebar while on any route, and a list that learned of it only on the next visit would show
+// someone else's tasks.
 //
-// Группы приезжают вторым запросом, а не приклеены к задачам: секция нужна и пустая (группа
-// заведена, задач в ней пока нет), а по одним только задачам такую группу не восстановить.
+// Groups arrive with a second request rather than being attached to tasks: a section is needed
+// even when empty (the group exists but has no tasks yet), and such a group cannot be recovered
+// from the tasks alone.
 //
-// ФИЛЬТРЫ ЖИВУТ ЗДЕСЬ, А НЕ В АДРЕСЕ. В адресе только открытая задача (`?task=…`): им делятся —
-// «посмотри вот это». Набор фильтров — рабочая поза самого человека, а не то, что посылают
-// другому, и вынеси мы его в адрес, каждая правка поля писала бы запись в историю браузера, и
-// «назад» отматывало бы буквы в поиске вместо закрытия окна задачи.
+// FILTERS LIVE HERE, NOT IN THE URL. The URL holds only the open task (`?task=…`): it is what gets
+// shared — "look at this". The filter set is the person's own working posture, not something sent
+// to others, and if it were in the URL, every field edit would write a browser history entry, and
+// "back" would rewind letters in the search instead of closing the task dialog.
 //
-// Сужает выборку клиент, а не бэк (кроме корзины). Список пространства приезжает целиком — в нём
-// сотни строк, а не сотни тысяч, — и фильтр по уже полученному набору отвечает мгновенно и без
-// круга по сети. Исключение — `include_deleted`: удалённых в ответе нет вовсе, и «показать» их
-// нечем, кроме нового запроса.
+// The client narrows the selection, not the backend (except for the trash). The workspace list
+// arrives whole — hundreds of rows, not hundreds of thousands — and a filter over the set already
+// received answers instantly with no network round trip. The exception is `include_deleted`:
+// deleted tasks are not in the response at all, and there is no way to "show" them other than a
+// new request.
 export const useTasksStore = defineStore('tasks-tasks', () => {
   const context = useWorkspaceContextStore()
 
-  const groups = ref<GroupRow[]>([])
+  const groups = ref<GroupListRow[]>([])
   const items = ref<TaskListRow[]>([])
   const loading = ref(true)
   const error = ref<unknown>(null)
 
-  // Не переживает перезагрузку вкладки намеренно — как и у пространств: «показать удалённые» это
-  // разовый заход в корзину, а не режим работы.
+  // Deliberately does not survive a tab reload — same as for workspaces: "show deleted" is a
+  // one-off visit to the trash, not a mode of work.
   const includeDeleted = ref(false)
 
   const format = ref<TaskListFormat>('list')
 
-  // ── Фильтры ─────────────────────────────────────────────────────────────────
+  // ── Filters ─────────────────────────────────────────────────────────────────
   const query = ref('')
-  // Статус — НАБОР, приоритет — одно значение. Разница не в прихоти: «покажи работу и проверки» —
-  // обычная поза, а «покажи горящее и замороженное разом» не значит ничего.
+  // Status is a SET, priority a single value. The difference is not a whim: "show work and
+  // reviews" is a common stance, while "show burning and frozen at once" means nothing.
   const statusFilter = ref<string[]>([])
   const priorityFilter = ref<string | null>(null)
-  // Фильтров группы и типа нет. Группы список и так показывает карточками, и каждую можно свернуть;
-  // тип же меняет только набор полей на странице задачи и в списке не отвечает ни на один вопрос,
-  // ради которого его сужают.
+  // There are no group or type filters. The list already shows groups as cards, each collapsible;
+  // and type only changes the field set on the task page and answers none of the questions the
+  // list is narrowed for.
 
-  // Завершённое спрятано УМОЛЧАНИЕМ, а не фильтром: список отвечает на вопрос «что делать», и
-  // сделанное в этом ответе только занимает место. Поэтому же оно не входит в `clearFilters` как
-  // «показать всё» — сброс возвращает умолчание, а не снимает его.
+  // Finished work is hidden by a DEFAULT, not a filter: the list answers "what to do", and done
+  // work only takes up space in that answer. For the same reason `clearFilters` does not treat it
+  // as "show everything" — reset restores the default rather than lifting it.
   const hideFinished = ref(true)
 
-  // Явный выбор статуса сильнее умолчания: человек, отметивший «Выполнено», получил бы пустой
-  // список, если бы скрытие продолжало работать поверх его выбора.
+  // An explicit status choice beats the default: a person who ticked "Done" would get an empty list
+  // if hiding kept working on top of their choice.
   const hideFinishedApplies = computed(
     () => hideFinished.value && !statusFilter.value.some(isTerminal),
   )
 
-  // ── Глубина поиска ──────────────────────────────────────────────────────────
-  // Заголовок и цель ищутся здесь же, по уже приехавшему списку. Постановки, плана и журнала в
-  // строке нет вовсе — за них отвечает ручка поиска, и она возвращает только коды: пересечение
-  // с уже имеющимся списком дешевле второй копии тех же карточек.
+  // ── Search depth ────────────────────────────────────────────────────────────
+  // Title and goal are searched right here, over the list already received. The brief, plan and
+  // journal are not in the row at all — the search endpoint covers them, and it returns only codes:
+  // intersecting with the list already at hand is cheaper than a second copy of the same cards.
   const searchScopes = ref<TaskSearchScopes>({ ...NO_SCOPES })
-  /** Коды из последнего глубокого запроса; `null` — его не было (нет запроса или областей). */
+  /** Codes from the last deep query; `null` — there was none (no query or no scopes). */
   const deepCodes = ref<Set<string> | null>(null)
 
   const page = ref(1)
   const pageSize = ref(DEFAULT_PAGE_SIZE)
 
-  // ── Свёрнутые группы ────────────────────────────────────────────────────────
-  // Карта ЯВНЫХ решений человека по карточкам групп и по веткам задач — одна на обе, потому что
-  // коды групп (`GROUP@…`) и задач (`TASK@…`) не пересекаются. «Без группы» держит пустую строку —
-  // ровно так же, как фильтр группы. Чего в карте нет, то решает умолчание: пустая группа приходит
-  // свёрнутой, ветка задачи — раскрытой.
+  // ── Collapsed groups ────────────────────────────────────────────────────────
+  // A map of the person's EXPLICIT decisions for group cards and task branches — one for both,
+  // because group codes (`TASKGROUP@…`) and task codes (`TASK@…`) never collide. "No group" uses the
+  // empty string — exactly as the group filter does. What is not in the map is decided by the
+  // default: an empty group arrives collapsed, a task branch expanded.
   //
-  // Умолчание считается на месте, а не проставляется записью каждой пустой карточке: иначе группу
-  // пришлось бы разворачивать самим в тот момент, когда в неё перетащили первую задачу, — то есть
-  // держать в двух местах правило, которое и так выражается одной строкой.
+  // The default is computed on the spot rather than written for every empty card: otherwise we
+  // would have to expand the group ourselves the moment its first task is dragged in — i.e. keep in
+  // two places a rule that already fits in one line.
   //
-  // Пока только на время жизни страницы: где это хранить между заходами — `TASK@de5205ec30`.
+  // For now only for the page's lifetime: where to persist it between visits is `TASK@de5205ec30`.
   const folded = ref<Record<string, boolean>>({})
 
   function isCollapsed(code: string | null, empty = false): boolean {
     return folded.value[code ?? ''] ?? empty
   }
 
-  /** Свернуть или развернуть карточку группы. Новый объект, а не мутация: за ссылкой следят. */
+  /** Collapse or expand a group card. A new object, not a mutation: the reference is watched. */
   function toggleCollapsed(code: string | null, empty = false) {
     const key = code ?? ''
     folded.value = { ...folded.value, [key]: !isCollapsed(key, empty) }
   }
 
-  // ── Жест в процессе ─────────────────────────────────────────────────────────
-  // Строку сейчас держат в руке. Нужно тому, что должно на это время затихнуть: подсказки кнопок
-  // и глифов, всплывающие под курсором, пока он едет над строками, — жест они не поясняют, а
-  // закрывают цель. Ставят и снимают флаг сами sortable (`TaskRows`, `TaskSubtree`).
+  // ── Gesture in progress ─────────────────────────────────────────────────────
+  // A row is being held right now. Needed by whatever must quiet down meanwhile: tooltips of
+  // buttons and glyphs popping up under the cursor as it travels over rows — they do not explain
+  // the gesture but cover the target. The sortables themselves set and clear the flag (`TaskRows`,
+  // `TaskSubtree`).
   const dragging = ref(false)
 
-  // Признак жеста вешается на `body`, а не на список: подсказки Vuetify телепортированы в корень
-  // документа. Здесь, а не в компоненте списка, — строки перетаскивают и на странице задачи, и
-  // признак нужен там же. Правило, которое по нему гасит подсказки, — в `styles/main.scss`.
+  // The gesture marker goes on `body`, not the list: Vuetify tooltips are teleported to the
+  // document root. Here rather than in the list component — rows are dragged on the task page too,
+  // and the marker is needed there as well. The rule that hides tooltips by it is in
+  // `styles/main.scss`.
   watch(dragging, (on) => document.body.classList.toggle('tasks-dragging', on))
 
   /**
-   * Код последней задачи верхнего уровня группы — после неё встаёт брошенная на шапку карточки.
+   * Code of the group's last top-level task — a task dropped on the card header lands after it.
    *
-   * Считается по ВСЕМ задачам стора, а не по странице: при разбивке на страницы последняя
-   * строка карточки на экране — не последняя в ряду группы.
+   * Computed over ALL tasks in the store, not the page: with pagination, the last row of a card on
+   * screen is not the last in the group's row.
    */
   function lastRootOf(group: string | null): string | null {
     const row = items.value
@@ -160,15 +167,16 @@ export const useTasksStore = defineStore('tasks-tasks', () => {
     return row.length ? row[row.length - 1].code : null
   }
 
-  /** Пространств нет вовсе — задачам просто негде лежать, и список тут ни при чём. */
+  /** No workspaces at all — tasks simply have nowhere to live, and the list is not to blame. */
   const noWorkspace = computed(() => context.loaded && !context.currentWorkspace)
 
   /**
-   * Верхний уровень: задачи без родителя.
+   * The top level: tasks without a parent.
    *
-   * Подзадача в общем списке стояла наравне с родителем, и одна и та же работа читалась дважды —
-   * сверху «Оформить счета», следом «Оформить счета → шаблон письма». Ветку раскрывает карточка
-   * родителя, а список отвечает на вопрос «что вообще есть», и повтор в нём — шум.
+   * A subtask in the main list used to stand on a par with its parent, and the same work read
+   * twice — "Issue invoices" on top, then "Issue invoices → email template". The parent's card
+   * expands the branch, while the list answers "what is there at all", and repetition in it is
+   * noise.
    */
   const roots = computed(() => items.value.filter((task) => task.parent_code === null))
 
@@ -180,10 +188,10 @@ export const useTasksStore = defineStore('tasks-tasks', () => {
   )
 
   /**
-   * Задача завершена И под ней не осталось живой работы.
+   * The task is finished AND there is no live work left under it.
    *
-   * Второе условие — не украшение: спрятав выполненного родителя, мы унесли бы с экрана и
-   * незакрытую подзадачу под ним (в списке она показывается веткой, а не сама по себе).
+   * The second condition is not decoration: hiding a done parent would also take off screen an
+   * unclosed subtask under it (in the list it is shown as part of the branch, not on its own).
    */
   function finishedAndIdle(task: TaskListRow): boolean {
     if (!hideFinishedApplies.value || !isTerminal(task.status)) return false
@@ -206,8 +214,8 @@ export const useTasksStore = defineStore('tasks-tasks', () => {
   }
 
   /**
-   * Совпадение по запросу: основа — заголовок и цель, их видно в строке; глубже — коды из
-   * ручки поиска. Одно ИЛИ другое: включённая область ничего не сужает, она добавляет стог.
+   * Query match: the base is title and goal, visible in the row; deeper — codes from the search
+   * endpoint. One OR the other: an enabled scope narrows nothing, it adds to the haystack.
    */
   function matchesQuery(task: TaskListRow, needle: string): boolean {
     if (task.title.toLowerCase().includes(needle)) return true
@@ -216,12 +224,12 @@ export const useTasksStore = defineStore('tasks-tasks', () => {
   }
 
   /**
-   * Что стоит на странице до разбивки.
+   * What is listed before pagination.
    *
-   * Без фильтров — верхний уровень: подзадачи приедут под своими родителями ветками, и считать
-   * их страницами отдельно незачем. С фильтрами — ЛЮБЫЕ подходящие задачи, включая подзадачи, и
-   * ветки при этом не рисуются: подзадача, попавшая под условие, не должна пропадать вместе с
-   * родителем, который под него не попал, а показанная веткой — тянуть на экран весь свой род.
+   * Without filters — the top level: subtasks will come under their parents as branches, and there
+   * is no point paging them separately. With filters — ANY matching tasks, subtasks included, and
+   * branches are not drawn: a subtask that matches must not vanish along with a parent that does
+   * not, and one shown as a branch must not drag its whole lineage onto the screen.
    */
   const filtered = computed(() => {
     if (!hasActiveFilters.value) return roots.value.filter(matches)
@@ -231,16 +239,17 @@ export const useTasksStore = defineStore('tasks-tasks', () => {
   })
 
   /**
-   * Место каждой задачи в ПОЛНОЙ раскладке: группы по своему порядку, внутри группы — ряд
-   * корней, под каждым корнем — его ветка сверху вниз.
+   * Each task's place in the FULL layout: groups in their order, within a group the row of roots,
+   * under each root its branch top to bottom.
    *
-   * Нужно это плоской выдаче под фильтром. Сортировать её одним `sort`, как приходит с бэка,
-   * нельзя: у корня это место в ряду СВОЕЙ группы (`crud/link.py::_siblings`), у подзадачи —
-   * место среди детей своего родителя, и числа из разных рядов между собой не значат ничего.
-   * Карточкам списка это безразлично — внутри карточки ряд один, — а одному ряду нет.
+   * The flat filtered results need this. They cannot be sorted by a single `sort` as it comes from
+   * the backend: for a root it is the position in ITS OWN group's row (`crud/link.py::_siblings`),
+   * for a subtask the position among its parent's children, and numbers from different rows mean
+   * nothing relative to each other. List cards do not care — a card has a single row — but a single
+   * flat row does.
    *
-   * Считается обходом, а не сравнением пар: порядок ветки — это обход дерева, и выразить его
-   * функцией сравнения двух строк без общего предка всё равно не выйдет.
+   * Computed by traversal, not pairwise comparison: branch order is a tree traversal, and it cannot
+   * be expressed as a comparator of two rows without a common ancestor anyway.
    */
   const layoutOrder = computed(() => {
     const index = new Map<string, number>()
@@ -259,7 +268,7 @@ export const useTasksStore = defineStore('tasks-tasks', () => {
     return index
   })
 
-  /** Место группы в раскладке; «Без группы» — ниже всех названных, как и в секциях. */
+  /** A group's place in the layout; "No group" goes below all named ones, as in the sections. */
   function groupRank(code: string | null): number {
     if (!code) return Number.NEGATIVE_INFINITY
     return groups.value.find((group) => group.code === code)?.sort ?? 0
@@ -268,7 +277,7 @@ export const useTasksStore = defineStore('tasks-tasks', () => {
   const total = computed(() => filtered.value.length)
   const pageCount = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
 
-  /** Строки текущей страницы: раскладку по группам получают именно они, а не вся выдача. */
+  /** Rows of the current page: they, not the whole result set, get laid out by group. */
   const pageItems = computed(() => {
     const from = (page.value - 1) * pageSize.value
     return filtered.value.slice(from, from + pageSize.value)
@@ -277,51 +286,51 @@ export const useTasksStore = defineStore('tasks-tasks', () => {
   const isEmpty = computed(() => items.value.length === 0)
 
   /**
-   * Умолчание прячет что-то ПРЯМО СЕЙЧАС — в пространстве есть завершённые задачи.
+   * The default is hiding something RIGHT NOW — the workspace has finished tasks.
    *
-   * Не то же самое, что «умолчание включено»: оно включено всегда, и считать по нему значило бы
-   * объявлять пустое пространство «спрятанным фильтрами» — с кнопкой сброса, которая ничего не
-   * меняет, потому что сброс возвращает ровно это же умолчание.
+   * Not the same as "the default is on": it is always on, and going by that would declare an empty
+   * workspace "hidden by filters" — with a reset button that changes nothing, because reset
+   * restores that very default.
    */
   const finishedHidden = computed(
     () => hideFinishedApplies.value && items.value.some((task) => isTerminal(task.status)),
   )
 
   /**
-   * Строк нет, но не потому, что задач нет: их спрятали фильтры — и ответ человеку другой.
-   * Считаем по тому, что РЕАЛЬНО сужает выдачу: пустой список без единого фильтра — это
-   * «заведите первую», и предлагать сбросить там нечего.
+   * No rows, but not because there are no tasks: the filters hid them — and the answer to the
+   * person is different. Go by what ACTUALLY narrows the results: an empty list with no filter at
+   * all means "create the first one", and there is nothing to offer to reset.
    */
   const isFilteredOut = computed(
     () => (hasActiveFilters.value || finishedHidden.value) && total.value === 0,
   )
 
   /**
-   * Раскладка по группам: секция на КАЖДУЮ группу пространства плюс «Без группы».
+   * Layout by group: a section for EVERY group of the workspace plus "No group".
    *
-   * Пустые секции показываются, и это не украшение: задачу переносят перетаскиванием в чужую
-   * карточку, а перенести её в группу, которой на экране нет, нечем. Значит пустая группа — это
-   * цель жеста, и убери мы её — единственным способом разложить задачу осталась бы форма правки.
-   * Стоят пустые ВНИЗУ и приглушены (это уже дело разметки): цель для переноса не должна спорить
-   * за внимание с группами, в которых есть работа.
+   * Empty sections are shown, and that is not decoration: a task is moved by dragging it into
+   * another card, and there is no way to move it into a group that is not on screen. So an empty
+   * group is a gesture target, and without it the edit form would be the only way to file a task.
+   * Empty ones sit at the BOTTOM and are muted (that is the markup's job): a move target must not
+   * compete for attention with groups that have work.
    *
-   * «Без группы» стоит ПОСЛЕДНЕЙ и не по алфавиту: это не тема наравне с остальными, а остаток —
-   * то, что ещё не разложено. Поставь мы его первым, каждый заход в список начинался бы с кучи
-   * неразобранного, а названные группы — то, ради чего группы и заводят, — уезжали бы вниз. Она
-   * же — цель «вынуть из группы», поэтому показывается и пустой.
+   * "No group" comes LAST and not alphabetically: it is not a topic on a par with the others but
+   * the remainder — what has not been filed yet. Were it first, every visit to the list would start
+   * with a heap of unsorted tasks, and the named groups — what groups exist for — would slide down.
+   * It is also the target for "take out of a group", so it is shown even when empty.
    *
-   * Исключение — СУЖЕННАЯ выдача: отобранная группа показывается в одиночку, а при любом другом
-   * наборе фильтров пустые секции уходят все. Человек ищет, а не раскладывает: цель для переноса
-   * ему сейчас не нужна (веток с фильтрами не рисуют вовсе), и десяток пустых карточек вокруг
-   * единственной находки — ровно то, что он просил убрать с глаз.
+   * The exception is NARROWED results: a selected group is shown alone, and with any other filter
+   * set all empty sections go away. The person is searching, not filing: they do not need a move
+   * target now (branches are not drawn with filters at all), and a dozen empty cards around the
+   * single hit is exactly what they asked to get out of sight.
    *
-   * Порядок: сначала группы с задачами, следом «Без группы» — если в ней что-то лежит, — и только
-   * потом пустые. Неразложенное — это работа, и стоять ниже пустых целей для переноса она не
-   * должна; пустой же остаток возвращается в самый низ, к таким же пустым.
+   * Order: groups with tasks first, then "No group" — if it holds anything — and only then the
+   * empty ones. Unfiled work is still work and must not sit below empty move targets; an empty
+   * remainder goes back to the very bottom, alongside the other empty ones.
    */
   const sections = computed<TaskSection[]>(() => {
-    // Строк на странице нет — нет и секций: иначе под сообщением «задач пока нет» висел бы ещё и
-    // полный набор пустых заголовков, и ответ на вопрос «что тут есть» читался бы дважды.
+    // No rows on the page — no sections either: otherwise a full set of empty headings would hang
+    // under the "no tasks yet" message, and the answer to "what is here" would read twice.
     if (!pageItems.value.length) return []
     const byGroup = new Map<string, TaskListRow[]>()
     const loose: TaskListRow[] = []
@@ -346,7 +355,8 @@ export const useTasksStore = defineStore('tasks-tasks', () => {
     const out = [...filled]
     if (loose.length) out.push(unfiled)
     out.push(...empty)
-    // Пустой остаток — такая же цель для переноса, как пустая группа, и место ему там же, внизу.
+    // An empty remainder is a move target just like an empty group, and belongs with them, at the
+    // bottom.
     if (!loose.length && (!picked || !out.length)) out.push(unfiled)
     return out
   })
@@ -354,20 +364,20 @@ export const useTasksStore = defineStore('tasks-tasks', () => {
   const childrenByParent = computed(() => childrenIndex(items.value))
 
   /**
-   * Корни секции → ветки: корень и следом его потомки с глубинами. Ветки раскрыты всегда —
-   * подзадач у одной задачи единицы, и прятать их за раскрывашкой значило бы прятать ровно то,
-   * ради чего дерево и показывают.
+   * Section roots → branches: a root followed by its descendants with depths. Branches are always
+   * expanded — a task has only a few subtasks, and hiding them behind a disclosure would hide
+   * exactly what the tree is shown for.
    *
-   * С активными фильтрами ветки не строятся вовсе (см. `filtered`): на экране плоский список
-   * совпадений, где родство ничего не добавляет.
+   * With active filters branches are not built at all (see `filtered`): the screen shows a flat
+   * list of matches where kinship adds nothing.
    */
   function branchesOf(roots: TaskListRow[]): TaskNode[] {
     const walk = (task: TaskListRow, depth: number, last: boolean): TaskNode => {
-      // С фильтрами ветка обрывается на корне: на экране плоский список совпадений.
+      // With filters the branch stops at the root: the screen shows a flat list of matches.
       if (hasActiveFilters.value) return { task, depth, last, children: [] }
-      // Скрытое умолчанием прячется и внутри ветки, иначе выполненная подзадача исчезала бы
-      // из списка верхнего уровня и оставалась под родителем — одна задача в двух состояниях.
-      // Вместе с ней уходит и всё под ней: живого там нет по самому условию.
+      // What the default hides is hidden inside a branch too, otherwise a done subtask would vanish
+      // from the top-level list yet remain under its parent — one task in two states. Everything
+      // under it goes too: by the very condition there is nothing live there.
       const children = (childrenByParent.value.get(task.code) ?? []).filter(
         (child) => !finishedAndIdle(child),
       )
@@ -384,8 +394,8 @@ export const useTasksStore = defineStore('tasks-tasks', () => {
   }
 
   async function load() {
-    // Пространства могли ещё не приехать (заход по прямой ссылке на список): без них неизвестно
-    // даже то, в каком пространстве спрашивать задачи.
+    // Workspaces may not have arrived yet (a visit via a direct link to the list): without them it
+    // is not even known which workspace to ask for tasks.
     await context.ensure()
     const workspace = context.currentWorkspace?.code
     if (!workspace) {
@@ -397,9 +407,9 @@ export const useTasksStore = defineStore('tasks-tasks', () => {
     }
     error.value = null
     try {
-      // Оба запроса разом: заголовки секций и их содержимое — половины одного экрана, и ждать
-      // их по очереди значило бы показать пустой список на время второго круга.
-      // `report: false` — отказ чтения раздела показывает сама страница (SectionError).
+      // Both requests at once: section headings and their content are halves of one screen, and
+      // waiting for them in turn would show an empty list during the second round trip.
+      // `report: false` — a failed section read is shown by the page itself (SectionError).
       const [nextGroups, nextTasks] = await Promise.all([
         listGroups({ workspace }, { report: false }),
         listTasks({ workspace, include_deleted: includeDeleted.value }, { report: false }),
@@ -419,16 +429,16 @@ export const useTasksStore = defineStore('tasks-tasks', () => {
     return load()
   }
 
-  /** Любая правка фильтра возвращает на первую страницу: пятая страница прежней выдачи пуста. */
+  /** Any filter edit returns to the first page: page five of the previous results is empty. */
   function resetPage() {
     page.value = 1
   }
 
   /**
-   * Снять умолчание.
+   * Lift the default.
    *
-   * Отдельно от `clearFilters`, потому что это его противоположность: сброс возвращает умолчание,
-   * а здесь его как раз выключают — иначе из выдачи, спрятанной умолчанием, выхода бы не было.
+   * Separate from `clearFilters` because it is its opposite: reset restores the default, and here
+   * it is switched off — otherwise there would be no way out of results hidden by the default.
    */
   function showFinished() {
     hideFinished.value = false
@@ -440,16 +450,16 @@ export const useTasksStore = defineStore('tasks-tasks', () => {
     statusFilter.value = []
     priorityFilter.value = null
     searchScopes.value = { ...NO_SCOPES }
-    // Скрытие завершённого возвращается ВКЛЮЧЁННЫМ: это умолчание списка, а не набранный фильтр,
-    // и «сбросить всё» означает вернуться к обычному виду, а не показать вообще всё.
+    // Hiding finished work comes back ON: it is the list's default, not an applied filter, and
+    // "reset all" means returning to the usual view, not showing absolutely everything.
     hideFinished.value = true
     resetPage()
   }
 
-  // ── Глубокий поиск ──────────────────────────────────────────────────────────
+  // ── Deep search ─────────────────────────────────────────────────────────────
 
   let deepTimer: ReturnType<typeof setTimeout> | undefined
-  /** Номер последнего запроса: ответ на отменённый набор приходит позже и затирал бы свежий. */
+  /** Number of the latest request: a reply to superseded input arrives later and would overwrite the fresh one. */
   let deepRun = 0
 
   async function runDeepSearch() {
@@ -473,15 +483,15 @@ export const useTasksStore = defineStore('tasks-tasks', () => {
       )
       if (run === deepRun) deepCodes.value = new Set(codes)
     } catch {
-      // Отказ глубокого поиска не гасит выдачу: основа (заголовок и цель) ищется на месте и
-      // продолжает работать, а тост о сбое покажет клиент.
+      // A failed deep search does not blank the results: the base (title and goal) is searched
+      // locally and keeps working, and the client shows a toast about the failure.
       if (run === deepRun) deepCodes.value = null
     }
   }
 
   /**
-   * Запрос придержан: глубокий поиск читает тела всего пространства, и посылать его на каждую
-   * букву значило бы платить за набор слова шестью запросами подряд.
+   * The request is debounced: deep search reads the bodies of the whole workspace, and sending it
+   * on every letter would cost six requests in a row for typing one word.
    */
   function scheduleDeepSearch() {
     clearTimeout(deepTimer)
@@ -490,20 +500,22 @@ export const useTasksStore = defineStore('tasks-tasks', () => {
 
   watch([query, searchScopes], scheduleDeepSearch, { deep: true })
 
-  // Страница могла уехать за конец выдачи: фильтр сузил список, пока человек стоял на третьей.
+  // The page may have run past the end of the results: a filter narrowed the list while the person
+  // was on page three.
   watch(pageCount, (count) => {
     if (page.value > count) page.value = count
   })
 
-  // Смена пространства — это другой список, а не другой фильтр: старые карточки убираются сразу,
-  // чтобы на время запроса на экране не стояли задачи из пространства, которое уже не выбрано.
+  // A workspace switch means a different list, not a different filter: the old cards are cleared
+  // at once so that tasks from a workspace no longer selected do not stay on screen during the
+  // request.
   watch(
     () => context.current,
     () => {
       groups.value = []
       items.value = []
-      // Коды глубокого поиска и свёрнутых карточек — из прежнего пространства: в новом они
-      // ничему не соответствуют.
+      // Deep search codes and collapsed cards belong to the previous workspace: in the new one
+      // they match nothing.
       deepCodes.value = null
       folded.value = {}
       resetPage()
@@ -514,17 +526,18 @@ export const useTasksStore = defineStore('tasks-tasks', () => {
   )
 
   /**
-   * Мягкое удаление и восстановление — обе операции обратимы, поэтому спрашивать здесь нечего;
-   * подтверждение остаётся у необратимого (карточка задачи).
+   * Soft delete and restore. The store does not ask: the row has already confirmed a delete
+   * before it got here, and a restore needs no question.
    *
-   * Отказ гасится: о нём уже сказал тост клиента, а вся оставшаяся реакция — перечитать список.
-   * Отказ обычно и означает, что показанное разошлось с базой, и свежий список — это ответ.
+   * A refusal is swallowed: the client's toast has already reported it, and all that remains is to
+   * re-read the list. A refusal usually means what is shown has drifted from the database, and a
+   * fresh list is the answer.
    */
   async function remove(code: string) {
     try {
       await deleteTask(code)
     } catch {
-      // см. выше
+      // see above
     }
     await load()
   }
@@ -533,20 +546,34 @@ export const useTasksStore = defineStore('tasks-tasks', () => {
     try {
       await restoreTask(code)
     } catch {
-      // см. выше
+      // see above
     }
     await load()
   }
 
   /**
-   * Перетащили карточку группы: рядом с какой она теперь стоит.
+   * Closing from the row menu. The backend may refuse — a task with open subtasks is not closed —
+   * and the refusal is handled the same way: the toast has named the reason, the list is re-read.
+   */
+  async function setStatus(code: string, status: string) {
+    try {
+      await setTaskStatus(code, status)
+    } catch {
+      // see `remove`
+    }
+    await load()
+  }
+
+  /**
+   * A group card was moved: which neighbour it now stands next to.
    *
-   * Позиция названа соседкой (`after` — встать под ней, `before` — над ней), потому что `sort` на
-   * экране не виден вовсе. Список перечитывается целиком, как и после перестановки задачи: ряд
-   * перенумеровывается на бэке, и вторая копия этой арифметики здесь разошлась бы с базой.
+   * The position is named by a neighbour (`after` — land below it, `before` — above it), because
+   * `sort` is not visible on screen at all. The list is re-read in full, as after a task reorder:
+   * the row is renumbered on the backend, and a second copy of that arithmetic here would diverge
+   * from the database.
    *
-   * Порядок секций на экране при этом не повторяет `sort` буквально — пустые группы уходят вниз
-   * (см. `sections`), поэтому перенос пустой карточки вверх сохранится, но её места не изменит.
+   * The on-screen section order does not follow `sort` literally — empty groups go to the bottom
+   * (see `sections`), so moving an empty card up is saved but does not change its place.
    */
   async function reorderGroup(code: string, place: { after?: string | null; before?: string | null }) {
     try {
@@ -555,36 +582,36 @@ export const useTasksStore = defineStore('tasks-tasks', () => {
         ...(place.before !== undefined ? { before_code: place.before } : {}),
       })
     } catch {
-      // см. ниже: об отказе уже сказал тост клиента, а ответ на него — свежий список.
+      // see below: the client's toast has already reported the refusal, and the answer is a fresh list.
     }
     await load()
   }
 
-  // ── Перестановка задач: сразу на экране, следом в базе ───────────────────────
+  // ── Task reordering: on screen at once, then in the database ─────────────────
 
-  /** Применить перемещение к задачам стора — до ответа бэка (правило ряда — `tree.ts::moveInRow`). */
+  /** Apply a move to the store's tasks — before the backend responds (row rule: `tree.ts::moveInRow`). */
   function applyMove(code: string, afterCode: string | null, place: MovePlace) {
     const next = moveInRow(items.value, code, afterCode, place)
     if (next) items.value = next
   }
 
-  // Запросы перестановки идут ЦЕПОЧКОЙ, в порядке жестов: два быстрых броска подряд иначе ушли бы
-  // параллельно, и бэк мог бы применить их в обратном порядке.
+  // Reorder requests go as a CHAIN, in gesture order: otherwise two quick drops in a row would go
+  // out in parallel, and the backend could apply them in reverse order.
   let moveChain: Promise<void> = Promise.resolve()
   let movesInFlight = 0
 
   /**
-   * Перетащили строку: новое место среди соседей, а если её тянули в чужую карточку или из ветки
-   * наверх — ещё и новая группа и новый родитель.
+   * A row was dragged: a new place among siblings, and if it was dragged into another card or up
+   * out of a branch — also a new group and a new parent.
    *
-   * Порядок действий: стор меняется сразу, запрос уходит следом, список перечитывается после
-   * ответа. Раньше было наоборот — и полсекунды строка стояла на старом месте: библиотека
-   * откатывает перестановку в DOM ещё до `onEnd`, а новый порядок появлялся только после
-   * перечитки. Перечитка осталась, но теперь это сверка: если бэк согласен, на экране не меняется
-   * ничего, а если нет (отказ, устаревший список) — побеждает бэк.
+   * Order of actions: the store changes at once, the request follows, the list is re-read after
+   * the response. It used to be the other way round — and for half a second the row sat in its old
+   * place: the library reverts the DOM reorder before `onEnd`, and the new order appeared only
+   * after the re-read. The re-read remains, but now it is reconciliation: if the backend agrees,
+   * nothing changes on screen, and if not (refusal, stale list) the backend wins.
    *
-   * Перечитывается один раз, когда цепочка опустела: ответ на первый из двух жестов, пришедший
-   * посреди второго, откатил бы второй на экране.
+   * The list is re-read once, when the chain has drained: a response to the first of two gestures
+   * arriving in the middle of the second would revert the second on screen.
    */
   function reorder(
     code: string,
@@ -597,20 +624,20 @@ export const useTasksStore = defineStore('tasks-tasks', () => {
       .then(() =>
         reorderTask(code, {
           after_code: afterCode,
-          // Ключа нет — поле не трогаем; `null` — снять группу или открепить от родителя. Различие
-          // выражается наличием ключа, и здесь оно ровно такое же, как в теле запроса.
+          // Key absent — field untouched; `null` — clear the group or detach from the parent. The
+          // distinction is expressed by the key's presence, exactly as in the request body.
           ...('group' in place ? { group_code: place.group } : {}),
           ...('parent' in place ? { parent_code: place.parent } : {}),
         }),
       )
       .then(
         () => undefined,
-        () => undefined, // об отказе уже сказал тост клиента; ответ на него — сверка ниже
+        () => undefined, // the client's toast reported the refusal; the answer is the re-read below
       )
       .then(async () => {
         movesInFlight -= 1
         if (movesInFlight === 0) {
-          // Сверка после своих перестановок заодно покрывает и отложенную чужую правку.
+          // Reconciliation after our own reorders also covers a postponed foreign edit.
           liveReloadWaiting = false
           await load()
         }
@@ -618,14 +645,15 @@ export const useTasksStore = defineStore('tasks-tasks', () => {
     return moveChain
   }
 
-  // ── Живое обновление: чужие правки из ленты изменений ─────────────────────────
-  // Список перечитывается сам, когда задачи, их места или группы меняет кто-то другой: агент через
-  // MCP, другая вкладка. Своё эхо сюда не доходит — его отсевает лента (`stores/changes.ts`).
+  // ── Live updates: foreign edits from the change feed ──────────────────────────
+  // The list re-reads itself when someone else changes tasks, their positions or groups: the agent
+  // via MCP, another tab. Our own echo does not reach here — the feed filters it out
+  // (`stores/changes.ts`).
   //
-  // Перечитка ЖДЁТ, пока идёт свой жест: строку держат в руке — подменить под ней список значит
-  // выдернуть цель броска; своя перестановка в полёте — перечитка обогнала бы её ответ и на миг
-  // вернула бы строку на старое место. Отложенное делается, когда жест кончился, а цепочка
-  // перестановок и так кончается сверкой.
+  // The re-read WAITS while our own gesture is in progress: a row is held — swapping the list under
+  // it would yank away the drop target; our own reorder is in flight — the re-read would overtake
+  // its response and briefly put the row back in its old place. The postponed re-read runs once the
+  // gesture ends, and the reorder chain ends with reconciliation anyway.
   let liveReloadWaiting = false
 
   function reloadForChanges(): void {
@@ -635,7 +663,7 @@ export const useTasksStore = defineStore('tasks-tasks', () => {
     }
     liveReloadWaiting = false
     void load().then(() => {
-      // Коды глубокого поиска считались по прежним телам — чужая правка могла их поменять.
+      // Deep search codes were computed over the old bodies — a foreign edit may have changed them.
       if (query.value.trim() && anyScope(searchScopes.value)) void runDeepSearch()
     })
   }
@@ -652,7 +680,7 @@ export const useTasksStore = defineStore('tasks-tasks', () => {
     roots, filtered, total, pageCount, pageItems,
     isEmpty, isFilteredOut, hasActiveFilters, finishedHidden, noWorkspace, sections,
     folded, isCollapsed, toggleCollapsed, dragging, lastRootOf,
-    load, showDeleted, showFinished, resetPage, clearFilters, remove, restore, reorder,
+    load, showDeleted, showFinished, resetPage, clearFilters, remove, restore, setStatus, reorder,
     reorderGroup, reloadForChanges,
   }
 })

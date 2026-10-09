@@ -1,9 +1,9 @@
 import type { RouteRecordRaw } from 'vue-router'
 
-// Витрина дизайн-системы: сорок страниц одной формы (ленивый компонент + вертикальный скролл),
-// поэтому маршруты собираются из таблицы «сегмент адреса → файл вьюхи», а не пишутся по одному.
-// Тот же сегмент — ключ словаря `design-system.index.page.<slug>.label`, по нему же страницы
-// перечислены на индексной странице, так что второго списка имён не заводится.
+// The design-system showcase: forty pages of the same shape (lazy component + vertical scroll), so
+// the routes are built from a "path segment → view file" table rather than written one by one.
+// The same segment is the dictionary key `design-system.index.page.<slug>.label`, and the index
+// page lists the pages by it too, so no second list of names is kept.
 const PAGES: Record<string, string> = {
   tokens:          'basics/TokensView',
   typography:      'basics/TypographyView',
@@ -15,6 +15,7 @@ const PAGES: Record<string, string> = {
   'copy-chip':     'controls/CopyChipView',
   selects:         'controls/SelectsView',
   inputs:          'controls/InputsView',
+  'invisible-field': 'controls/InvisibleFieldView',
   'search-field':  'controls/SearchFieldView',
   numbers:         'controls/NumbersView',
   toggle:          'controls/ToggleView',
@@ -24,6 +25,7 @@ const PAGES: Record<string, string> = {
   'color-picker':  'controls/ColorPickerView',
   'icon-color-picker': 'controls/IconColorPickerView',
   'table-page':    'tables/TablePageView',
+  'filter-panel':  'tables/FilterPanelView',
   'data-table':    'tables/DataTableView',
   table:           'tables/TableView',
   pagination:      'tables/PaginationView',
@@ -62,7 +64,7 @@ const PAGES: Record<string, string> = {
   'group-select':  'project/GroupSelectView',
 }
 
-// Статический глоб: путь к вьюхе — переменная, а сборщику нужен разбираемый шаблон.
+// A static glob: the view path is a variable, and the bundler needs a parseable pattern.
 const views = import.meta.glob('../views/design-system/**/*.vue')
 
 export const designSystemRoutes: RouteRecordRaw[] = [

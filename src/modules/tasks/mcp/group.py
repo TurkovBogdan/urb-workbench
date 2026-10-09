@@ -1,25 +1,27 @@
-"""MCP-тулы раскладки: группы активного пространства и то, что в них лежит.
+"""Layout MCP tools: the active workspace's groups and what is filed in them.
 
-**Раскладку решает человек, записывает агент.** Правка групп сюда отдана не потому, что тема
-перестала быть его делом, а потому, что без неё он не может выполнить произнесённое вслух
-«заведи тему под биллинг и перекинь туда вот эти три». Опасность при этом никуда не делась, она
-переехала: раньше её держало отсутствие инструмента, теперь держат описания — они говорят
-заводить группу по просьбе, а не потому, что бэклог показался агенту неопрятным.
+**The person decides the layout, the agent writes it down.** Group editing is handed over here
+not because the topic stopped being the person's business, but because without it the agent
+cannot carry out a request said out loud: "make a theme for billing and move these three there".
+The danger has not gone away, it has moved: it used to be held back by the missing tool, now it
+is held back by the descriptions — they say to create a group on request, not because the
+backlog looked untidy to the agent.
 
-Четыре тула на три сценария: посмотреть раскладку, поправить её, разложить по ней работу.
-``tasks_regroup`` живёт здесь, а не среди тулов задачи, по ответу: он меняет не карточку, а
-раскладку, и отвечает ею же.
+Four tools for three scenarios: view the layout, edit it, file work into it. ``tasks_regroup``
+lives here rather than among the task tools because of what it returns: it changes the layout,
+not a card, and replies with the layout.
 
-Чтения одной группы по-прежнему нет — ``groups_list`` несёт ровно те же поля, и ``group_get``
-отличался бы от него только тем, что возвращает одну строку вместо трёх.
+There is still no single-group read — ``groups_list`` carries exactly the same fields, and a
+``group_get`` would differ from it only by returning one row instead of three.
 
-**Оформления (цвет, иконка) в аргументах нет.** ``AgentGroupRow`` их намеренно не несёт: агенту
-они не говорят ничего и стоили бы двух полей в каждой строке ответа. Дай их писать — получится
-единственное на поверхности поле вслепую, которое он не может прочитать обратно и не может
-проверить: палитры в бэкенде нет вовсе, она живёт во фронте. Внешний вид группы выбирает человек.
+**Styling (colour, icon) is not among the arguments.** ``AgentGroupRow`` deliberately does not
+carry it: it tells the agent nothing and would cost two fields in every reply row. Let the agent
+write them and you get the only blind field on the surface — one it can neither read back nor
+verify: there is no palette in the backend at all, it lives in the frontend. The person chooses
+how a group looks.
 
-Позиция задаётся соседом (``place_after`` / ``place_before``), а не числом ``sort``: число —
-внутренняя механика списка, и попасть в него агенту нечем.
+A position is given by a neighbour (``place_after`` / ``place_before``), not by a ``sort``
+number: the number is the list's internal mechanics, and the agent has no way to hit it.
 """
 
 from __future__ import annotations
@@ -34,13 +36,13 @@ from src.modules.tasks.dto import AgentGroupList, AgentGroupRow, AgentTasksRegro
 from src.modules.tasks.mcp.scope import require_active, require_scope
 from src.modules.workspace.models.workspace import Workspace
 
-if TYPE_CHECKING:  # fork fastmcp — только backend (через mcp_server(ctx))
+if TYPE_CHECKING:  # fastmcp fork — backend only (via mcp_server(ctx))
     from fastmcp import FastMCP
 
-# Потолок пачки в ``tasks_regroup``. Стоит здесь, а не аргументом: у чтения предел показан
-# числами ``shown``/``total``, а у записи такого приёма нет — предел приходится назвать отказом.
-# Число выбрано по тому же соображению, что и ``LIST_CAP``: пачка крупнее — это уже не «разложи
-# вот эти», а перестройка раскладки, и её человек делает у себя на экране.
+# Batch cap for ``tasks_regroup``. It lives here rather than as an argument: a read shows its
+# limit through the ``shown``/``total`` numbers, a write has no such device — the limit has to be
+# stated as a refusal. The number follows the same reasoning as ``LIST_CAP``: a bigger batch is
+# no longer "file these", it is rebuilding the layout, and the person does that on their screen.
 REGROUP_CAP = 50
 
 
@@ -49,7 +51,7 @@ def _group_code(value: str) -> str:
 
 
 async def _layout(active: Workspace) -> AgentGroupList:
-    """Раскладка пространства со счётчиками — общий ответ всех тулов этого файла."""
+    """The workspace layout with counters — the shared reply of every tool in this file."""
     rows = await group_crud.group_list_by_workspace(active.code)
     counted = await task_crud.task_count_by_group_codes([row.code for row in rows])
     return AgentGroupList(
@@ -75,11 +77,11 @@ def _require_title(title: str) -> str:
 
 
 async def _require_free_title(active: Workspace, title: str, *, own: str = "") -> None:
-    """Отказ, если название уже занято живой группой пространства (регистр не считается).
+    """Refuse if the title is already taken by a live group of the workspace (case-insensitive).
 
-    Уникального индекса на паре «пространство + название» в схеме нет, и без этой проверки в
-    одной раскладке заводятся «Биллинг» и «биллинг» — та же грабля, из-за которой из связи
-    задач убрали свободное название кучки.
+    The schema has no unique index on the "workspace + title" pair, and without this check one
+    layout ends up with both "Billing" and "billing" — the same pitfall that got the free-form
+    bucket name removed from the task link.
     """
     taken = await group_crud.group_find_by_title(active.code, title)
     if taken is not None and taken.code != own:
@@ -91,15 +93,15 @@ async def _require_free_title(active: Workspace, title: str, *, own: str = "") -
 
 
 async def _anchor(after: str | None, before: str | None, *, moving: str = "") -> str | None:
-    """Точка отсчёта позиции, проверенная ДО первой записи; ``None`` — место не задано.
+    """The position's reference point, verified BEFORE the first write; ``None`` — no place given.
 
-    Проверка стоит здесь, а не внутри ``group_reorder``, по одной причине: перестановка — ВТОРОЕ
-    действие тула, после заведения или правки карточки. Отказ на ней оставлял бы позади
-    применённую половину, про которую агенту сказано «не вышло»: он читает отказ как «ничего не
-    произошло» и заводит группу заново. Это ровно тот режим, против которого вся поверхность и
-    построена, поэтому всё, на чём перестановка способна отказать, выясняется раньше записи.
+    The check lives here rather than inside ``group_reorder`` for one reason: reordering is the
+    tool's SECOND action, after creating or editing the card. A refusal there would leave behind
+    an applied half while the agent is told "it failed": it reads the refusal as "nothing
+    happened" and creates the group again. That is exactly the failure mode the whole surface is
+    built against, so everything reordering could refuse on is settled before the write.
 
-    Свои проверки у ``group_reorder`` при этом остаются: CRUD зовут и мимо этого тула.
+    ``group_reorder`` keeps its own checks all the same: CRUD is called outside this tool too.
     """
     if after is None and before is None:
         return None
@@ -124,7 +126,7 @@ async def _anchor(after: str | None, before: str | None, *, moving: str = "") ->
 
 
 async def _place(code: str, anchor: str | None, after: str | None) -> None:
-    """Переставить группу к уже проверенной точке отсчёта."""
+    """Move the group next to an already verified reference point."""
     if anchor is None:
         return
     await group_crud.group_reorder(
@@ -175,8 +177,11 @@ def register(mcp: "FastMCP") -> None:
         Args:
             title: The theme, short — "billing", "interface", "infrastructure".
             description: Where the boundary runs: what belongs here, and what goes elsewhere.
-            place_after: A GROUP@ code to put this one directly below. Omit to add at the end.
-            place_before: A GROUP@ code to put this one directly above.
+                One line, up to 128 characters — it sits under the name in every list. A longer
+                one is refused with the count, and nothing is created.
+            place_after: A TASKGROUP@ code to put this one directly below. Omit to add at the
+                end.
+            place_before: A TASKGROUP@ code to put this one directly above.
         """
         active = await require_active()
         clean = _require_title(title)
@@ -205,11 +210,13 @@ def register(mcp: "FastMCP") -> None:
         a replacement with the same name leaves them two. Say which one you meant instead.
 
         Args:
-            group_code: The group to change — a GROUP@ code from groups_list.
+            group_code: The group to change — a TASKGROUP@ code from groups_list.
             title: The theme, short.
             description: Where the boundary runs: what belongs here, and what goes elsewhere.
-            place_after: A GROUP@ code to move this one directly below.
-            place_before: A GROUP@ code to move this one directly above.
+                Up to 128 characters; a longer one is refused with the count, and nothing in
+                this call is applied.
+            place_after: A TASKGROUP@ code to move this one directly below.
+            place_before: A TASKGROUP@ code to move this one directly above.
         """
         bare = _group_code(group_code)
         active = await require_scope(GROUP_CODE_PREFIX, bare)
@@ -249,7 +256,7 @@ def register(mcp: "FastMCP") -> None:
         parent is refused — file the parent instead.
 
         Args:
-            group_code: A GROUP@ code from groups_list, or an empty string to take these tasks
+            group_code: A TASKGROUP@ code from groups_list, or an empty string to take these tasks
                 out of any group at all.
             task_codes: The TASK@ codes to file there.
         """

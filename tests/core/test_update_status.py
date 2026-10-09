@@ -135,6 +135,52 @@ def test_upstream_refuses_when_the_fetch_fails(monkeypatch: pytest.MonkeyPatch):
         status.upstream(followed_branch="main")
 
 
+SSH_REMOTE = "git@github.com:owner/urb-workbench.git"
+HTTPS_OPTIONS = ["-c", f"url.https://github.com/owner/urb-workbench.git.insteadOf={SSH_REMOTE}"]
+
+
+def scripted_fetch(monkeypatch: pytest.MonkeyPatch, *, remote_url: str, https_answers: bool):
+    """SSH always refuses; the fetch carrying the HTTPS rewrite answers as told."""
+    fetches: list[list[str]] = []
+
+    def fake_git(argv, timeout=None):
+        argv = list(argv)
+        if argv == ["remote", "get-url", "origin"]:
+            return subprocess.CompletedProcess(argv, 0, remote_url + "\n", "")
+        fetches.append(argv)
+        reached = https_answers and argv[:2] == HTTPS_OPTIONS
+        return subprocess.CompletedProcess(argv, 0 if reached else 128, "", "Permission denied")
+
+    monkeypatch.setattr(status, "_git", fake_git)
+    return fetches
+
+
+def test_fetch_falls_back_to_https_when_ssh_refuses(monkeypatch: pytest.MonkeyPatch):
+    fetches = scripted_fetch(monkeypatch, remote_url=SSH_REMOTE, https_answers=True)
+
+    status._fetch()
+
+    assert fetches == [["fetch", "origin"], [*HTTPS_OPTIONS, "fetch", "origin"]]
+
+
+def test_fetch_reports_the_https_failure_when_both_refuse(monkeypatch: pytest.MonkeyPatch):
+    fetches = scripted_fetch(monkeypatch, remote_url=SSH_REMOTE, https_answers=False)
+
+    with pytest.raises(status.UpstreamUnreachable, match="Permission denied"):
+        status._fetch()
+    assert len(fetches) == 2
+
+
+def test_fetch_does_not_retry_an_origin_without_an_https_twin(monkeypatch: pytest.MonkeyPatch):
+    fetches = scripted_fetch(
+        monkeypatch, remote_url="https://github.com/owner/urb-workbench.git", https_answers=True
+    )
+
+    with pytest.raises(status.UpstreamUnreachable):
+        status._fetch()
+    assert fetches == [["fetch", "origin"]]
+
+
 def test_upstream_refuses_an_unusable_branch_name(monkeypatch: pytest.MonkeyPatch):
     """The name goes into git arguments, so it passes the command's own validator first."""
     spied: list[list[str]] = []

@@ -17,7 +17,17 @@ pushToast('Settings saved', 'success')
 pushToast('Search is already running', 'warn')
 
 // timeout: 0 — the message stays until it's dismissed
-pushToast('Server is restarting…', 'info', 0)`
+pushToast('Server is restarting…', 'info', 0)
+
+// An action answers the message: pressing it closes the toast, then runs
+pushToast('Workspace deleted', 'success', 8000, { label: 'Restore', run: () => restore(code) })`
+
+function showWithAction() {
+  pushToast(t('design-system.section.toasts.sample.deleted'), 'success', 8000, {
+    label: t('design-system.section.toasts.sample.restore'),
+    run: () => pushToast(t('design-system.section.toasts.sample.restored'), 'info'),
+  })
+}
 </script>
 
 <template>
@@ -94,6 +104,16 @@ pushToast('Server is restarting…', 'info', 0)`
             </VBtn>
           </div>
           <span class="ds-spec">timeout: 0</span>
+        </div>
+
+        <div class="ds-row">
+          <span class="ds-tag">action</span>
+          <div class="ds-controls">
+            <VBtn variant="outlined" size="small" @click="showWithAction">
+              {{ t('design-system.section.toasts.show') }}
+            </VBtn>
+          </div>
+          <span class="ds-spec">{{ t('design-system.section.toasts.action_note') }}</span>
         </div>
       </div>
     </section>

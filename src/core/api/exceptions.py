@@ -1,11 +1,11 @@
-"""Единые exception-handler'ы: любой нативный «зоопарк» FastAPI → ``ErrorBody``.
+"""Unified exception handlers: FastAPI's whole native "zoo" → ``ErrorBody``.
 
-Сводит к одному формату ``{error, code?, params?, fields?}``:
-- ``ApiError``               — наш бизнес-класс (несёт status/code/fields);
-- ``HTTPException``          — голый ``raise HTTPException(404, "...")`` по модулям
-                               (detail-строка → ``error``; detail-объект → message/code);
-- ``RequestValidationError`` — 422 от Pydantic (список → ``fields``);
-- ``Exception``              — необработанное → 500 (логируем, наружу — нейтральный текст).
+Reduces everything to one format ``{error, code?, params?, fields?}``:
+- ``ApiError``               — our business class (carries status/code/fields);
+- ``HTTPException``          — a bare ``raise HTTPException(404, "...")`` across modules
+                               (detail string → ``error``; detail object → message/code);
+- ``RequestValidationError`` — Pydantic's 422 (list → ``fields``);
+- ``Exception``              — unhandled → 500 (logged; a neutral text goes out).
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ def _json(status_code: int, body: ErrorBody) -> JSONResponse:
 
 
 def register_exception_handlers(app: FastAPI) -> None:
-    """Повесить общие обработчики ошибок на приложение (вызывать в create_app)."""
+    """Attach the shared error handlers to the app (call in create_app)."""
 
     @app.exception_handler(ApiError)
     async def _on_api_error(_: Request, exc: ApiError) -> JSONResponse:
@@ -49,8 +49,12 @@ def register_exception_handlers(app: FastAPI) -> None:
     async def _on_validation(_: Request, exc: RequestValidationError) -> JSONResponse:
         fields: dict[str, str] = {}
         for err in exc.errors():
-            # loc = ("body"/"query"/"path", <поле>, ...) — отбрасываем источник.
-            parts = [str(p) for p in err.get("loc", ()) if p not in ("body", "query", "path")]
+            # loc = ("body"/"query"/"path", <field>, ...) — drop the source, and only the source:
+            # a field may itself be called ``body`` or ``path``, and its name is the whole point.
+            loc = tuple(err.get("loc", ()))
+            if loc and loc[0] in ("body", "query", "path"):
+                loc = loc[1:]
+            parts = [str(p) for p in loc]
             key = ".".join(parts) or "_"
             fields.setdefault(key, err.get("msg", "invalid"))
         body = ErrorBody(error="Validation failed", code="validation_error", fields=fields)

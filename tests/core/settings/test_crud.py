@@ -46,7 +46,7 @@ async def test_upsert_preserves_created_at_updates_updated_at(db):
     created_at1 = row1.created_at
     updated_at1 = row1.updated_at
 
-    await asyncio.sleep(1.1)  # TIMESTAMP precision=0 — секундная гранулярность
+    await asyncio.sleep(1.1)  # TIMESTAMP precision=0 — one-second granularity
     await crud.upsert("m", "k", "2")
 
     row2 = await crud.get_one("m", "k")

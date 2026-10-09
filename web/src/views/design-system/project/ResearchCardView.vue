@@ -133,7 +133,7 @@ import ResearchCard from '@/features/research/components/ResearchCard.vue'
   padding: 16px;
 }
 
-/* Две колонки — минимум, на котором видно выравнивание подвалов у соседок по ряду. */
+/* Two columns — the minimum at which footer alignment between row neighbours is visible. */
 .ds-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));

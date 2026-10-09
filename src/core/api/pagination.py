@@ -1,8 +1,8 @@
-"""Конверт списка с пагинацией — общая форма ответа списочных read-эндпойнтов.
+"""A paginated list envelope — the common response shape of list read endpoints.
 
-``Paged[T]`` оборачивает страницу элементов (``items``) метаданными пагинации
-(``total`` — всего строк под фильтром, ``page``/``page_size`` — текущее окно). Модули
-отдают списки в этой форме, фронт-клиент разбирает её единообразно.
+``Paged[T]`` wraps a page of items (``items``) with pagination metadata
+(``total`` — all rows under the filter, ``page``/``page_size`` — the current window). Modules
+return lists in this shape, and the frontend client parses it uniformly.
 """
 
 from __future__ import annotations

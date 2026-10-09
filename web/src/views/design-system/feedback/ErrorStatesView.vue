@@ -11,8 +11,8 @@ import { ERROR_KINDS, type ErrorKind } from '@/constants/errors'
 
 const { t } = useI18n()
 
-// Экраны показываются ПО ОДНОМУ через переключатель, а не все сразу: каждый забирает фокус на
-// свой заголовок при монтировании, и четыре штуки на странице дрались бы за него.
+// The screens are shown ONE AT A TIME via a switcher, not all at once: each takes focus onto its
+// heading on mount, and four on one page would fight over it.
 const kinds = Object.keys(ERROR_KINDS) as ErrorKind[]
 const kind = ref<ErrorKind>('not-found')
 const spec = computed(() => ERROR_KINDS[kind.value])
@@ -120,8 +120,8 @@ await internalApi.post('/web-search/queries', body, { report: false })`
   color: var(--text-muted);
 }
 
-/* Рамка вокруг демонстрации: экран отказа рассчитан на всю зону содержимого, и без границы
-   непонятно, где он начинается. */
+/* A frame around the demo: the failure screen is designed for the whole content zone, and without
+   a border it's unclear where it begins. */
 .ds-frame {
   border: 1px dashed var(--border-soft);
   border-radius: var(--radius-sm);

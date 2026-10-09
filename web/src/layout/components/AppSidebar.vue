@@ -7,11 +7,13 @@ import { IconChevronRight, IconChevronLeft } from '@tabler/icons-vue'
 
 import { useLayoutStore } from '../store'
 import { useSettingsStore } from '@/stores/settings'
+import { useAppStore } from '@/stores/app'
 import { isGroup, isSection, type NavEntry, type NavLink, type NavSection, type NavSectionEntry } from '@/shared/nav'
-import { IconPalette, IconServerCog, IconClock, IconServerBolt, IconTypography, IconInfoCircle, IconStack2, IconChecklist, IconSitemap } from '@tabler/icons-vue'
+import { IconPalette, IconServerCog, IconClock, IconServerBolt, IconTypography, IconInfoCircle, IconChecklist, IconSitemap } from '@tabler/icons-vue'
 
 const layout = useLayoutStore()
 const settings = useSettingsStore()
+const appStore = useAppStore()
 const route  = useRoute()
 const { t } = useI18n()
 const { mobile } = useDisplay()
@@ -36,22 +38,18 @@ function navLabel(entry: { label: string; labelKey?: string }): string {
 }
 
 const navSections: NavSection[] = [
-  { kind: 'section', code: 'mcp', labelKey: 'common.nav.mcp', order: 10 },
-  // Пространство — общий уровень для прикладных модулей, а не часть какого-то из них, поэтому
-  // строка у него своя, выше их всех: ниже идёт то, что внутри пространства и лежит.
-  { kind: 'section', code: 'workspace', labelKey: 'common.nav.workspace', order: 15 },
   { kind: 'section', code: 'tasks', labelKey: 'common.nav.tasks', order: 20 },
+  { kind: 'section', code: 'mcp', labelKey: 'common.nav.mcp', order: 30 },
   { kind: 'section', code: 'settings', labelKey: 'common.nav.settings', order: 50 },
   { kind: 'section', code: 'about', labelKey: 'common.nav.about', order: 60 },
-  { kind: 'section', code: 'development', labelKey: 'common.nav.development', order: 70 },
+  { kind: 'section', code: 'development', labelKey: 'common.nav.development', order: 70, devOnly: true },
 ]
 
 const navEntries: NavSectionEntry[] = [
-  { section: 'mcp', order: 10, path: '/mcp-servers', label: 'MCP servers', labelKey: 'core_mcp.nav', icon: IconServerBolt },
-  // Страница задачи — часть раздела задач, хотя её адрес не лежит под `/tasks/list`.
+  // The task page is part of the tasks section, even though its address isn't under `/tasks/list`.
   { section: 'tasks', order: 10, path: '/tasks/list', activeOn: ['/tasks/task'], label: 'Tasks', labelKey: 'tasks.nav_tasks', icon: IconChecklist },
   { section: 'tasks', order: 20, path: '/tasks/groups', label: 'Groups', labelKey: 'tasks.nav_groups', icon: IconSitemap },
-  { section: 'workspace', order: 10, path: '/workspaces', label: 'Workspaces', labelKey: 'workspace.nav', icon: IconStack2 },
+  { section: 'mcp', order: 10, path: '/mcp-servers', label: 'MCP servers', labelKey: 'core_mcp.nav', icon: IconServerBolt },
   { section: 'settings', order: 10, path: '/settings/interface', label: 'Interface', labelKey: 'settings.interface.nav', icon: IconTypography },
   { section: 'settings', order: 40, path: '/monitoring', label: 'Job monitoring', labelKey: 'core_monitoring.nav', icon: IconClock },
   { section: 'settings', order: 50, path: '/settings/core', label: 'Server', labelKey: 'setup.nav', icon: IconServerCog },
@@ -64,9 +62,9 @@ const navBottom: NavLink[] = []
 
 const byOrder = (a: { order: number }, b: { order: number }) => a.order - b.order
 
-// Раздел без записей не показывается: остался бы висячий заголовок с разделителем.
+// A section without entries is not shown: a dangling heading with a divider would remain.
 const visibleNav = computed<NavEntry[]>(() =>
-  [...navSections].sort(byOrder).flatMap(section => {
+  [...navSections].filter(section => !section.devOnly || appStore.devMode).sort(byOrder).flatMap(section => {
     const sectionEntries = navEntries.filter(entry => entry.section === section.code).sort(byOrder)
     return sectionEntries.length ? [section, ...sectionEntries] : []
   }),
@@ -74,10 +72,10 @@ const visibleNav = computed<NavEntry[]>(() =>
 
 const visibleNavBottom = computed<NavLink[]>(() => navBottom)
 
-// Подсветка по ПРЕФИКСУ, а не по точному совпадению: деталка (запуск задачи планировщика —
-// `/monitoring/<module>/<code>` под записью `/monitoring`) принадлежит своему разделу, и раньше на
-// ней в меню не было подсвечено ничего. Поэтому префиксы пунктов не должны вкладываться друг в
-// друга: пункт на `/tasks` горел бы на каждой странице модуля задач.
+// Highlighting by PREFIX, not exact match: a detail page (a scheduler job's runs —
+// `/monitoring/<module>/<code>` under the `/monitoring` entry) belongs to its section, and
+// previously nothing in the menu was highlighted on it. So item prefixes must not nest inside each
+// other: an item at `/tasks` would light up on every page of the tasks module.
 function underPrefix(prefix: string): boolean {
   return route.path === prefix || route.path.startsWith(prefix + '/')
 }
@@ -109,9 +107,9 @@ const drawerWidth = computed(() => (mobile.value ? 280 : collapsed.value ? 56 : 
     class="app-sidebar"
     :class="{ 'app-sidebar--collapsed': collapsed }"
   >
-    <!-- Шапка панели не прокручивается вместе с меню: логотип и выбор рабочего контекста
-         отвечают на вопросы «где я» и «в чём я работаю», и ответ на них не должен уезжать
-         вверх вместе со списком разделов. -->
+    <!-- The sidebar header doesn't scroll with the menu: the logo and the working-context picker
+         answer "where am I" and "what am I working in", and those answers must not scroll away
+         with the section list. -->
     <template #prepend>
       <!-- Desktop only: brand + rail collapse toggle. On mobile the brand lives in the
            top app-bar (no duplication) and the drawer opens straight to the nav list. -->
@@ -136,10 +134,11 @@ const drawerWidth = computed(() => (mobile.value ? 280 : collapsed.value ? 56 : 
         <VDivider class="sidebar-divider" />
       </template>
 
-      <!-- Первый элемент панели — выбор рабочего контекста. Что именно выбирают, панель не
-           знает: слой оболочки не тянется в модуль, а получает элемент сверху, из `App.vue`
-           (см. conventions/frontend.md — два яруса импорта). Нет слота — нет и полосы: на
-           сборке без модуля панель остаётся прежней, без пустой рамки под логотипом. -->
+      <!-- The first sidebar element is the working-context picker. The sidebar doesn't know what
+           exactly is being picked: the shell layer doesn't reach into a module but receives the
+           element from above, from `App.vue` (see conventions/frontend.md — two import tiers). No
+           slot — no strip: in a build without the module the sidebar stays as it was, without an
+           empty frame under the logo. -->
       <template v-if="$slots.context">
         <div class="sidebar-context" :class="{ 'sidebar-context--collapsed': collapsed }">
           <slot name="context" :collapsed="collapsed" />
@@ -325,16 +324,16 @@ const drawerWidth = computed(() => (mobile.value ? 280 : collapsed.value ? 56 : 
   text-decoration: none;
 }
 
-/* Полоса контекста повторяет поля списка разделов (`.sidebar-nav`: 8px, в свёрнутом — 6px):
-   элемент стоит над ними одним столбцом, и свои поля увели бы его с их оси. Отбивка снизу
-   чуть больше, чем сверху, — линейка под элементом принадлежит ему, а не первому разделу. */
-/* Фона у полосы нет: выбор контекста и так отделён от списка разделов линейкой под ним, а
-   заливка добавляла к ней вторую границу того же места. */
+/* The context strip mirrors the section list padding (`.sidebar-nav`: 8px, collapsed — 6px): the
+   element stands above them in one column, and its own padding would pull it off their axis. The
+   bottom spacing is slightly larger than the top — the rule under the element belongs to it, not
+   to the first section. */
+/* The strip has no background: the context picker is already separated from the section list by
+   the rule under it, and a fill added a second border at the same spot. */
 .sidebar-context {
   padding: 8px 8px 10px;
 }
 
 .sidebar-context--collapsed {
   padding: 6px 6px 8px;
-}
-</style>
+}</style>

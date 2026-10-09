@@ -2,30 +2,30 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-// Табличная ячейка участников: показывает первого, остальные прячет за плашкой «+N»,
-// которая по клику раскрывает тултип-попап со всем списком. Каждый пункт кликабелен —
-// компонент эмитит `select` с индексом, действие выбирает родитель (фильтр по контакту,
-// по участнику команды и т.п.). Источник паттерна — список оригинальных чатов.
+// Table cell for members: shows the first one and hides the rest behind a "+N" chip, which
+// on click opens a tooltip popup with the full list. Each item is clickable — the component
+// emits `select` with the index, and the parent picks the action (filter by contact, by team
+// member, etc.). The pattern comes from the original chats list.
 export interface MemberCellItem {
-  // Основная подпись (имя или email).
+  // Primary label (name or email).
   label: string
-  // Вторичная строка в попапе (email/телефон); показывается только если отличается от label.
+  // Secondary line in the popup (email/phone); shown only if it differs from label.
   sub?: string | null
-  // Некликабельный пункт (нечем фильтровать) — заголовок виден, клик не эмитится.
+  // Non-clickable item (nothing to filter by) — the title is visible, no click is emitted.
   disabled?: boolean
 }
 
 const props = withDefaults(defineProps<{
   items: MemberCellItem[]
-  // Подпись пустой ячейки (нет участников).
+  // Label for an empty cell (no members).
   emptyText?: string
-  // Курсивная приглушённая пустая подпись (напр. «Нет команды»).
+  // Italic, muted empty label (e.g. "No team").
   emptyItalic?: boolean
-  // Заголовок попапа; по умолчанию — общая подсказка «Нажмите чтобы применить фильтр».
+  // Popup title; defaults to the shared hint "Click to apply the filter".
   hint?: string
-  // Моноширинный текст подписей (для email-колонок).
+  // Monospace label text (for email columns).
   mono?: boolean
-  // Длина обрезки видимой подписи.
+  // Truncation length of the visible label.
   max?: number
 }>(), {
   emptyText: '—',
@@ -154,8 +154,8 @@ function pick(index: number): void {
 }
 
 .members-cell__more:hover {
-  background: var(--accent) !important;
-  color: #fff !important;
+  background: var(--accent);
+  color: #fff;
 }
 
 .members-cell--mono { font-family: var(--font-mono); }
@@ -170,12 +170,12 @@ function pick(index: number): void {
   background: rgb(var(--v-theme-surface));
   border: 1px solid var(--border-soft);
   border-radius: 8px;
-  /* drop-shadow (не box-shadow): тень повторяет контур вместе со стрелкой-псевдоэлементом. */
+  /* drop-shadow (not box-shadow): the shadow follows the outline including the arrow pseudo-element. */
   filter: drop-shadow(0 6px 18px rgb(0 0 0 / 14%));
 }
 
-/* Стрелочка: повёрнутый квадрат у верхнего края, под активатором (location=bottom start).
-   Верхняя и левая кромки несут рамку — это остриё над верхним бордером попапа. */
+/* The arrow: a rotated square at the top edge, under the activator (location=bottom start).
+   Its top and left edges carry the border — that is the tip above the popup's top border. */
 .members-popover::before {
   content: '';
   position: absolute;
@@ -221,18 +221,18 @@ function pick(index: number): void {
      keep them global, namespaced by the menu's content-class. The inner `.v-list` otherwise
      inherits the global dropdown-card styling (surface bg + border + shadow), stacking a
      second panel inside `.members-popover`; the extra `.v-list` qualifier outscores that
-     `!important` rule so the list stays flat. -->
+     rule so the list stays flat. -->
 <style>
 .members-cell-menu.v-overlay__content { overflow: visible; }
 
 .v-menu .members-cell-menu .members-popover__list.v-list {
-  background: transparent !important;
-  border: none !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
 }
 
-/* Фирменное (primary) выделение пункта на hover — overlay по умолчанию серый (on-surface). */
+/* Brand (primary) item highlight on hover — the default overlay is grey (on-surface). */
 .members-cell-menu .v-list-item--link:hover > .v-list-item__overlay {
   background: rgb(var(--v-theme-primary));
 }

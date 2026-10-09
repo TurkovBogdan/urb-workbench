@@ -21,14 +21,14 @@ import {
 import { LANGUAGE_OPTIONS, flagUrl } from '@/constants/language'
 import { PREVIEWS } from '../previews'
 
-// Оформление приложения. В отличие от `/settings/modules` кнопки сохранения здесь нет: выбор
-// применяется в тот же миг, а в базу (модуль `core_interface`) уезжает сам — пачкой, спустя
-// полсекунды после последнего движения. Отсюда и отсутствие состояния «не сохранено».
+// The app's appearance. Unlike `/settings/modules` there is no save button here: a choice applies
+// instantly and goes to the database (the `core_interface` module) by itself — in a batch, half a
+// second after the last move. Hence no "unsaved" state either.
 //
-// Разложены они всё же как настройки модулей — группами с пояснением, полем и подписью под ним,
-// а тумблер стоит плашкой (`SwitchPanel`), той же, что рисует bool-поле схемы. Набор полей здесь
-// известен на месте и разнороден, поэтому карточки написаны разметкой, а не собраны циклом по
-// схеме: схема нужна там, где поля приходят с бэкенда.
+// They are still laid out like module settings — groups with an explanation, a field and a caption
+// under it, and a switch is a panel (`SwitchPanel`), the same one a schema bool field renders. The
+// field set here is known in place and heterogeneous, so the cards are written as markup rather
+// than built by looping over a schema: a schema is needed where fields come from the backend.
 const { t } = useI18n()
 const settings = useSettingsStore()
 
@@ -69,7 +69,7 @@ const sizeOptions = READING_SIZES.map((size) => ({ title: `${size} px`, value: s
 
 const codeSizeOptions = CODE_SIZES.map((size) => ({ title: `${size} px`, value: size }))
 
-// Каждый вариант набран своим весом: увидеть насыщенность важнее, чем прочитать её номер.
+// Each option is set in its own weight: seeing the weight matters more than reading its number.
 const weightOptions = READING_WEIGHTS.map((weight) => ({
   title: String(weight),
   value: weight,
@@ -247,9 +247,9 @@ const measureOptions = computed(() =>
 
       </SettingsGroup>
 
-      <!-- Пример документа стоит сразу за настройками, которые на него ложатся: гарнитуру, кегль и
-           ширину колонки выбирают по тому, как они читаются, а не по названию в списке. Применяется
-           он на горячую — выбор уходит в зону чтения тем же мигом, что и во всё приложение. -->
+      <!-- The sample document sits right after the settings that apply to it: typeface, size and
+           column width are chosen by how they read, not by their name in a list. It updates live —
+           a choice reaches the reading zone at the same instant as the rest of the app. -->
       <VCard variant="outlined" rounded="lg">
         <VCardTitle class="text-h6">{{ t('settings.interface.preview.title') }}</VCardTitle>
         <VDivider />
@@ -400,16 +400,17 @@ const measureOptions = computed(() =>
 </template>
 
 <style scoped>
-/* Та же раскладка, что у карточек модулей: карточка группы во всю ширину страницы, группы идут
-   стопкой, а в колонки разложены поля внутри (утилита `.settings-columns`). */
+/* The same layout as the module cards: a group card spans the full page width, groups stack, and
+   the fields inside are laid out in columns (the `.settings-columns` utility). */
 .settings-list {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
-/* Подпись под полем, а не подсказкой Vuetify: у настроек модулей описание живёт отдельной
-   строкой под полем, и клиентские настройки не должны выглядеть другим сортом настроек. */
+/* A caption under the field, not a Vuetify hint: module settings keep the description as a
+   separate line under the field, and client settings must not look like a different kind of
+   setting. */
 .setting {
   display: flex;
   flex-direction: column;

@@ -1,4 +1,4 @@
-"""core_interface: HTTP-поверхность — значения, схема, обновление, сброс."""
+"""core_interface: the HTTP surface — values, schema, update, reset."""
 
 from __future__ import annotations
 

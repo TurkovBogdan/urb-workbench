@@ -1,28 +1,31 @@
-"""Направление зависимостей в SPA: фундамент не знает про модули, а модули — друг про друга.
+"""Dependency direction in the SPA: the foundation knows nothing of modules, nor modules of each
+other.
 
-``web/src`` делится на два яруса с ПРОТИВОПОЛОЖНЫМ направлением связи. **Фундамент** (``api``,
-``shared``, ``components``, ``composables``, ``constants``, ``stores``, ``layout``) — то, что
-модули импортируют; сам он про них не знает. **Композиция** (``router``, ``plugins``, ``views``) —
-наоборот, собирает модули воедино. Слой, попавший в оба списка, — это цикл: правка модуля
-потянула бы за собой оболочку, которая этот же модуль и грузит.
+``web/src`` splits into two tiers with OPPOSITE directions of coupling. The **foundation**
+(``api``, ``shared``, ``components``, ``composables``, ``constants``, ``stores``, ``layout``) is
+what modules import; it knows nothing of them itself. **Composition** (``router``, ``plugins``,
+``views``) is the reverse — it assembles the modules together. A layer that lands in both lists
+is a cycle: editing a module would drag along the shell that loads that very module.
 
-Отсюда и правило про общий компонент: у компонента с одним потребителем дом внутри его модуля, а
-переезд в фундамент разрешён со второго потребителя — и только вместе с отказом от доменного типа.
+Hence the rule for a shared component: a component with one consumer lives inside its module,
+and moving it into the foundation is allowed from the second consumer on — and only together
+with dropping the domain type.
 
-**Исключение — модули-основания** (``BASE_MODULES``). Это модули уровня 1: они держат сущность,
-на которую опираются прикладные модули, и сами не знают ни об одном из них. Сегодня такой один —
-``workspace``: рабочее пространство сужает данные любого модуля поверх, и тянуть его контекст
-через фундамент было бы враньём — фундамент про домен не знает вовсе, а тут домен и есть. Правило
-поэтому не «никто ни на кого», а «зависимость идёт вниз по уровням и только вниз»: основание,
-потянувшееся в прикладной модуль, — ошибка той же цены, что и раньше, и ловится здесь же.
+**The exception is base modules** (``BASE_MODULES``). These are level-1 modules: they hold an
+entity the application modules rest on, and themselves know none of them. Today there are two.
+``workspace``: the workspace narrows the data of every module above it, and routing its context
+through the foundation would be a lie — the foundation knows nothing of the domain, and this is
+the domain itself. ``notes``: a document is the same entity wherever a module above uses it. So the rule is not "nobody depends on anybody" but "dependencies go down the
+levels and only down": a base reaching into an application module is an error of the same cost
+as before, and is caught right here.
 
-Композиция намеренно вне проверки, и это не упущение: ``plugins/i18n.ts`` находит словари модулей
-глобом, а витрина дизайн-системы (``views/design-system``) до сих пор тянется в ``research`` —
-отдельная работа, уже выделенная в свою.
+Composition is deliberately left unchecked, and that is not an oversight: ``plugins/i18n.ts``
+finds module dictionaries by glob, and the design-system showcase (``views/design-system``) still
+reaches into ``research`` — a separate piece of work, already split out on its own.
 
-Проверка живёт в тестах Python по той же причине, что и рамка страницы (см.
-``test_web_page_header.py``): тестового раннера у фронта нет, а договорённость нужна проверяемая.
-Читаем исходники как текст — ни сборки, ни браузера, поэтому тест ``pure``.
+The check lives in the Python tests for the same reason as the page frame (see
+``test_web_page_header.py``): the frontend has no test runner, and the convention has to be
+checkable. Sources are read as text — no build, no browser, hence ``pure``.
 """
 
 from __future__ import annotations
@@ -39,14 +42,15 @@ WEB_SRC = Path(__file__).resolve().parents[2] / "web" / "src"
 FOUNDATION = ("api", "shared", "components", "composables", "constants", "stores", "layout")
 MODULES_ROOT = WEB_SRC / "features"
 
-# Модули уровня 1 — основания: прикладной модуль вправе на них ссылаться, они на него — нет.
-# Зеркало бэкенда, где ``workspace`` стоит в списке модулей раньше тех, кто держит на него FK.
-BASE_MODULES = ("workspace",)
+# Level-1 modules are bases: an application module may refer to them, they may not refer to it.
+# Mirrors the backend, where ``workspace`` and ``notes`` precede in the module list those holding
+# an FK to them.
+BASE_MODULES = ("workspace", "notes")
 
 SOURCE_SUFFIXES = (".ts", ".vue")
 
-# Статический `from '…'`, побочный `import '…'` и ленивый `import('…')` — все три формы несут
-# зависимость, и мимо любой из них правило утекло бы.
+# A static `from '…'`, a side-effect `import '…'` and a lazy `import('…')` — all three forms carry
+# a dependency, and the rule would leak past any one of them.
 SPECIFIER = re.compile(r"""(?:from|import)\s*\(?\s*['"]([^'"]+)['"]""")
 
 
@@ -67,11 +71,11 @@ def _module_sources() -> list[tuple[str, str]]:
 
 
 def _imported_paths(name: str, source: str) -> list[str]:
-    """Куда указывают импорты файла, в координатах ``web/src``.
+    """Where a file's imports point, in ``web/src`` coordinates.
 
-    Псевдоним и относительный путь считаются одинаково: иначе `../../<чужой модуль>` обходил бы
-    правило молча, оставляя зелёный тест при живом нарушении. Имя пакета (ни `@/`, ни точки) — не
-    наш случай.
+    An alias and a relative path count the same: otherwise `../../<another module>` would bypass
+    the rule silently, leaving the test green over a live violation. A package name (neither `@/`
+    nor a dot) is not our concern.
     """
     here = (WEB_SRC / name).parent
     inside_web_src = []
@@ -93,13 +97,13 @@ def _module_of(path: str) -> str | None:
 
 
 def _case_id(value: str) -> str:
-    """Имя случая — путь файла; вторым элементом пары идёт его исходник, и в имя он не годится:
-    многострочный текст уехал бы целиком в каждый идентификатор узла."""
+    """The case name is the file path; the pair's second element is its source, which is no good
+    as a name: the multi-line text would end up whole in every node id."""
     return "" if "\n" in value else value
 
 
 def test_both_tiers_are_actually_walked():
-    """Молчаливо зелёный тест хуже отсутствующего: переехал каталог — падаем здесь."""
+    """A silently green test is worse than none: if a directory moves, we fail here."""
     assert len(_foundation_sources()) > 80
     assert len(_module_sources()) > 60
 
@@ -112,7 +116,7 @@ def test_both_tiers_are_actually_walked():
 def test_foundation_does_not_import_a_module(name: str, source: str):
     for imported in _imported_paths(name, source):
         assert _module_of(imported) is None, (
-            f"{name}: фундамент тянется в модуль ({imported}) — оболочку уже не собрать без него"
+            f"{name}: the foundation reaches into a module ({imported}) — the shell can no longer be built without it"
         )
 
 
@@ -122,13 +126,13 @@ def test_foundation_does_not_import_a_module(name: str, source: str):
     ids=_case_id,
 )
 def test_a_module_does_not_import_another_module(name: str, source: str):
-    """Ссылаться можно вниз по уровням: на фундамент и на модуль-основание, больше никуда."""
+    """References may go down the levels: to the foundation and to a base module, nowhere else."""
     own = _module_of(name)
     allowed = (None, own, *(() if own in BASE_MODULES else BASE_MODULES))
     for imported in _imported_paths(name, source):
         other = _module_of(imported)
         assert other in allowed, (
-            f"{name}: модуль тянется в модуль ({imported}) — общее место им обоим в фундаменте"
+            f"{name}: a module reaches into a module ({imported}) — what they share belongs in the foundation"
             if other not in BASE_MODULES
-            else f"{name}: основание тянется в прикладной модуль ({imported}) — зависимость вверх"
+            else f"{name}: a base reaches into an application module ({imported}) — an upward dependency"
         )

@@ -1,4 +1,4 @@
-"""apps/app: интеграционная сборка — health, CORS, lifespan."""
+"""apps/app: integration assembly — health, CORS, lifespan."""
 
 from __future__ import annotations
 

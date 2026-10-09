@@ -1,7 +1,7 @@
-"""Core ORM-модели. Импорт регистрирует таблицы в ``Base.metadata``.
+"""Core ORM models. Importing registers the tables in ``Base.metadata``.
 
-``CoreLockRow`` живёт вместе с ``CoreLock`` в ``src.core.locks`` —
-импортируем её здесь, чтобы таблица всё равно попала в metadata.
+``CoreLockRow`` lives together with ``CoreLock`` in ``src.core.locks`` —
+it is imported here so the table still lands in the metadata.
 """
 
 from src.core.locks import CoreLockRow  # noqa: F401

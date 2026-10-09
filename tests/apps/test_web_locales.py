@@ -1,14 +1,14 @@
-"""Английский словарь повторяет русский ключ в ключ.
+"""The English dictionary mirrors the Russian one key for key.
 
-Русский — язык авторства, английский — язык по умолчанию (`web/src/constants/language.ts`).
-Ключ, забытый в `en.json`, не роняет страницу: `vue-i18n` молча падает на русский
-(`fallbackLocale`), и в английском интерфейсе появляется русская строка, которую замечают
-глазами — если замечают. Здесь это падает сразу, как и расхождение в подстановках: `{count}`,
-потерянный при переводе, рисуется пустым местом.
+Russian is the authoring language, English the default one (`web/src/constants/language.ts`).
+A key forgotten in `en.json` does not break the page: `vue-i18n` silently falls back to Russian
+(`fallbackLocale`), and a Russian string shows up in the English interface, noticed by eye — if
+at all. Here it fails at once, as does a placeholder mismatch: a `{count}` lost in translation
+renders as an empty gap.
 
-Неподключённые к оболочке фичи (`research`, `web_search`) идут под удаление и полного английского
-словаря не получают. У `research` он частичный — ровно те ключи, которые просят её компоненты,
-показанные в витрине дизайн-системы; остальное падает на русский.
+Features not wired into the shell (`research`, `web_search`) are slated for deletion and get no
+full English dictionary. For `research` it is partial — exactly the keys asked for by its
+components shown in the design-system showcase; the rest falls back to Russian.
 """
 
 from __future__ import annotations

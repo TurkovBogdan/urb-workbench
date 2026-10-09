@@ -1,14 +1,14 @@
-// Справочники задачи на стороне интерфейса: порядок значений и их цвет.
+// Task vocabularies on the UI side: the order of values and their color.
 //
-// ВАЖНО: канонический источник самих значений — `src/modules/tasks/constants.py` (TASK_STATUSES,
-// TASK_PRIORITIES, TASK_TYPES). Здесь их зеркало: бэк отдаёт голый код (`in_progress`), а
-// интерфейсу нужны три вещи, которых в ответе нет и не будет, — в каком порядке показывать,
-// каким цветом и какими словами. Слова живут в i18n (`tasks.task.status.*` и соседи), порядок и
-// цвет — тут.
+// IMPORTANT: the canonical source of the values themselves is `src/modules/tasks/constants.py`
+// (TASK_STATUSES, TASK_PRIORITIES, TASK_TYPES). This is their mirror: the backend returns a bare
+// code (`in_progress`), while the UI needs three things the response does not and will not carry —
+// in what order to show them, in what color and with what words. The words live in i18n
+// (`tasks.task.status.*` and neighbours), order and color live here.
 //
-// Разошлось зеркало с константами — в выпадающем списке не хватит значения, а на карточке
-// появится серый шильдик с кодом вместо подписи. Поэтому новое значение статуса или приоритета
-// добавляется В ДВУХ местах: в кортеж `constants.py` и в массив ниже.
+// If the mirror drifts from the constants, the dropdown will be missing a value and the card will
+// show a grey badge with the code instead of a label. So a new status or priority value is added
+// in TWO places: the tuple in `constants.py` and the array below.
 
 import {
   IconAntennaBars2,
@@ -29,31 +29,37 @@ import type { TablerIcon } from '@/shared/nav'
 
 type BadgeColor = 'accent' | 'success' | 'error' | 'warn' | 'muted'
 
-// ── Длина текстовых полей ─────────────────────────────────────────────────────
-// Потолки повторяют колонки БД (`constants.py`: TITLE_MAX / DESCRIPTION_MAX). Бэк длинное не
-// примет (422), но узнать об этом после отправки — значит потерять набранное: поле само не даёт
-// перебрать.
+// ── Text field lengths ────────────────────────────────────────────────────────
+// The caps mirror the DB columns (`constants.py`: TITLE_MAX / DESCRIPTION_MAX). The backend will
+// reject anything longer (422), but learning that after submit means losing what was typed: the
+// field itself prevents overtyping.
 export const TASK_TITLE_MAX = 128
 export const TASK_DESCRIPTION_MAX = 512
+// `GROUP_DESCRIPTION_MAX`: a group's description is one line under its name, not a goal.
+export const GROUP_DESCRIPTION_MAX = 128
 export const TASK_CONTEXT_MAX = 4048
-export const TASK_CONSTRAINTS_MAX = 1024
-export const TASK_CRITERIA_MAX = 1024
-// Одна колонка на два поля: `BODY_MAX` в бэке держит и план задачи, и тело этапа. Имя здесь
-// общее, чтобы на месте применения не казалось, будто у этапа потолок свой.
+export const TASK_CONSTRAINTS_MAX = 2048
+export const TASK_CRITERIA_MAX = 2048
+// The agent's work on a task, in the order the work goes: plan, progress, result.
+export const TASK_PLAN_MAX = 8192
+export const TASK_PROGRESS_MAX = 16384
+export const TASK_RESULT_MAX = 2048
+// The stage body — `BODY_MAX` on the backend, the module's name for an entity's only text.
 export const BODY_MAX = 8192
 export const STAGE_EVIDENCE_MAX = 1024
-export const NOTE_BODY_MAX = 2048
-export const NOTE_RESOLUTION_MAX = 1024
+export const JOURNAL_BODY_MAX = 2048
+export const JOURNAL_RESOLUTION_MAX = 1024
 
-// ── Порядок ───────────────────────────────────────────────────────────────────
-// Шаг, с которым бэк перенумеровывает ряд соседей (`constants.py::SORT_STEP`). Стору он нужен,
-// чтобы перестановка, применённая на экране до ответа, дала те же числа, что потом придут с бэка:
-// тогда перечитка ничего не перерисовывает.
+// ── Order ─────────────────────────────────────────────────────────────────────
+// The step the backend renumbers a sibling row with (`constants.py::SORT_STEP`). The store needs
+// it so that a reorder applied on screen before the response yields the same numbers the backend
+// later returns: then the re-read redraws nothing.
 export const SORT_STEP = 5
 
-// ── Статус ────────────────────────────────────────────────────────────────────
-// Порядок — ход работы слева направо: из очереди в план, из плана в работу, дальше проверки и
-// два исхода. Именно в этом порядке статус выбирают в форме, и алфавит тут был бы бессмыслицей.
+// ── Status ────────────────────────────────────────────────────────────────────
+// The order is the flow of work left to right: backlog to plan, plan to work, then the checks and
+// the two outcomes. This is the order a status is picked in the form, and alphabetical order would
+// make no sense here.
 export const TASK_STATUSES = [
   'backlog',
   'planned',
@@ -66,9 +72,9 @@ export const TASK_STATUSES = [
 
 export type TaskStatus = (typeof TASK_STATUSES)[number]
 
-// Цвет отвечает на вопрос «требует ли эта строка внимания»: работа идёт — акцент, ожидание
-// чужого действия — предупреждающий, закрытое успехом — зелёный, отменённое — приглушённое
-// (это не ошибка, а снятая работа).
+// Color answers "does this row need attention": work in progress — accent, waiting on someone
+// else's action — warning, closed successfully — green, canceled — muted (not an error, just work
+// taken off the table).
 export const TASK_STATUS_COLOR: Record<TaskStatus, BadgeColor> = {
   backlog: 'muted',
   planned: 'muted',
@@ -79,13 +85,13 @@ export const TASK_STATUS_COLOR: Record<TaskStatus, BadgeColor> = {
   canceled: 'muted',
 }
 
-// Глиф статуса: в плотной строке списка статус стоит слева значком, а не словом в шильдике —
-// слово читается наравне с заголовком и спорит с ним за внимание, а очертание узнаётся боковым
-// зрением и позволяет пробегать столбец значков сверху вниз. Название остаётся подсказкой.
-// Ряд построен на одной форме — круг, — и состояние читается тем, что внутри него: пунктир
-// (очереди ещё не касались), контур (взято в план), заполнение (идёт), галочка и крест (исходы).
-// Две проверки выпадают из круга намеренно: тестирование и ревью — не фаза самой задачи, а
-// ожидание чужого действия, и глиф у них предметный.
+// Status glyph: in a dense list row the status sits on the left as an icon, not as a word in a
+// badge — a word reads on a par with the title and competes with it for attention, while a shape
+// is recognised in peripheral vision and lets you scan the icon column top to bottom. The name
+// stays as a tooltip. The set is built on one shape — a circle — and the state reads from what is
+// inside it: dashed (backlog not yet touched), outline (planned), fill (in progress), check and
+// cross (outcomes). The two checks break out of the circle on purpose: testing and review are not
+// a phase of the task itself but waiting on someone else's action, so their glyph is pictorial.
 export const TASK_STATUS_ICON: Record<TaskStatus, TablerIcon> = {
   backlog: IconCircleDashed,
   planned: IconCircle,
@@ -96,12 +102,12 @@ export const TASK_STATUS_ICON: Record<TaskStatus, TablerIcon> = {
   canceled: IconCircleX,
 }
 
-// Работа по этим статусам окончена (зеркало TASK_STATUSES_TERMINAL): список приглушает такие
-// карточки — они уже не про «что делать».
+// Work in these statuses is over (mirror of TASK_STATUSES_TERMINAL): the list mutes such cards —
+// they are no longer about "what to do".
 export const TASK_STATUSES_TERMINAL: readonly TaskStatus[] = ['done', 'canceled']
 
-// ── Приоритет ─────────────────────────────────────────────────────────────────
-// Порядок — по важности сверху вниз (зеркало TASK_PRIORITY_WEIGHTS: меньший вес важнее).
+// ── Priority ──────────────────────────────────────────────────────────────────
+// Ordered by importance, top down (mirror of TASK_PRIORITY_WEIGHTS: lower weight is more important).
 export const TASK_PRIORITIES = ['burning', 'high', 'normal', 'low', 'frozen'] as const
 
 export type TaskPriority = (typeof TASK_PRIORITIES)[number]
@@ -114,9 +120,10 @@ export const TASK_PRIORITY_COLOR: Record<TaskPriority, BadgeColor> = {
   frozen: 'muted',
 }
 
-// Глиф приоритета: три средних значения — шкала (уровень сигнала), и одинаковая форма с разной
-// высотой столбиков читается как «больше-меньше» без чтения слов. Края шкалы — предметные:
-// горящее и замороженное это не соседние деления, а другой разговор о задаче.
+// Priority glyph: the three middle values are a scale (signal strength), and the same shape with
+// bars of different height reads as "more-less" without reading words. The ends of the scale are
+// pictorial: burning and frozen are not adjacent notches but a different conversation about the
+// task.
 export const TASK_PRIORITY_ICON: Record<TaskPriority, TablerIcon> = {
   burning: IconFlame,
   high: IconAntennaBars4,
@@ -125,72 +132,77 @@ export const TASK_PRIORITY_ICON: Record<TaskPriority, TablerIcon> = {
   frozen: IconSnowflake,
 }
 
-// Обычный приоритет на карточке не показывается: он у большинства задач, и шильдик «обычный»
-// на каждой строке говорил бы ровно ничего, зато занимал бы место рядом с теми, что важны.
+// Normal priority is not shown on the card: most tasks have it, and a "normal" badge on every row
+// would say nothing at all while taking space next to the ones that matter.
 export const TASK_PRIORITY_DEFAULT: TaskPriority = 'normal'
 
-// ── Тип ───────────────────────────────────────────────────────────────────────
-// Глубина ведения, а не адресат: простая — карточка без плана, стандартная — с постановкой,
-// планом, этапами и журналом, расширенная — то же плюс плотный надзор (шлюзы, которые появятся
-// на стороне MCP). Порядок — от лёгкого к тяжёлому.
+// ── Type ──────────────────────────────────────────────────────────────────────
+// Depth of tracking, not the audience: simple — a card without a plan, standard — with a brief,
+// plan, stages and journal, extended — the same plus close supervision (gates that will appear on
+// the MCP side). Ordered light to heavy.
 export const TASK_TYPES = ['simple', 'standard', 'extended'] as const
 
 export type TaskType = (typeof TASK_TYPES)[number]
 
-// Простая задача — умолчание, и в списке её тип не показывается: пометка на каждой второй
-// строке перестаёт что-либо значить. Видно ровно то, что отличает задачу от остальных.
+// Simple is the default, and its type is not shown in the list: a mark on every other row stops
+// meaning anything. Only what sets a task apart from the rest is visible.
 export const TASK_TYPE_DEFAULT: TaskType = 'simple'
 
 /**
- * Что показывает интерфейс у задачи этого типа.
+ * What the UI shows for a task of this type.
  *
- * Тип НИЧЕГО НЕ СТИРАЕТ: переключение прячет лишние поля, а написанное остаётся в базе и
- * возвращается, если тип вернуть назад. Поэтому это карта видимости, а не набор разрешений.
+ * Type ERASES NOTHING: switching hides the extra fields, but what was written stays in the
+ * database and comes back if the type is switched back. So this is a visibility map, not a set of
+ * permissions.
  */
 export interface TypeLayout {
-  /** Границы и требования к сдаче — постановка, которой у простой задачи нет. */
+  /** Constraints and acceptance criteria — the part of the brief a simple task does not have. */
   brief: boolean
-  /** План агента прозой и журнал работы. */
+  /** The agent's plan in prose and the work journal. */
   plan: boolean
-  /** Полотно этапов. Только у расширенной — этим она от стандартной и отличается. */
+  /** The stage board. Extended only — that is exactly what sets it apart from standard. */
   stages: boolean
 }
 
-// Граница между `standard` и `extended` проходит по этапам. План прозой отвечает на «как я это
-// сделаю», этапы — на «где я сейчас и чем доказано пройденное»; второй вопрос осмыслен только у
-// работы длиннее одного захода. Зеркало `constants.py::TASK_TYPES_WITH_PLAN/WITH_STAGES`.
+// The line between `standard` and `extended` is the stages. A prose plan answers "how will I do
+// this", stages answer "where am I now and what proves the done part"; the second question only
+// makes sense for work longer than one sitting. Mirror of
+// `constants.py::TASK_TYPES_WITH_PLAN/WITH_STAGES`.
 const TYPE_LAYOUT: Record<TaskType, TypeLayout> = {
   simple: { brief: false, plan: false, stages: false },
   standard: { brief: true, plan: true, stages: false },
   extended: { brief: true, plan: true, stages: true },
 }
 
-/** Карта видимости по типу; незнакомое значение показывает всё — прятать по догадке нельзя. */
+/** Visibility map by type; an unknown value shows everything — never hide on a guess. */
 export function typeLayout(value: string): TypeLayout {
   return TYPE_LAYOUT[value as TaskType] ?? { brief: true, plan: true, stages: true }
 }
 
-// ── Виды записей журнала ──────────────────────────────────────────────────────
-// Зеркало `constants.py::NOTE_TYPES`, порядок тот же — от частого к редкому.
-export const NOTE_TYPES = ['decision', 'remark', 'finding', 'fact'] as const
+// ── Journal entry kinds ───────────────────────────────────────────────────────
+// Mirror of `constants.py::JOURNAL_TYPES`, same order — most frequent to rarest.
+export const JOURNAL_TYPES = ['decision', 'remark', 'finding', 'fact'] as const
 
-export type NoteType = (typeof NOTE_TYPES)[number]
+export type JournalType = (typeof JOURNAL_TYPES)[number]
 
-// Цвет отвечает на вопрос «чьё это и чего ждёт»: решение — наша работа (акцент), замечание
-// постановщика — требует ответа (предупреждение), находка — чужой долг (нейтральное),
-// факт — просто память, он ничего не ждёт.
-export const NOTE_TYPE_COLOR: Record<NoteType, BadgeColor> = {
+// Mirror of `constants.py::JOURNAL_TYPES_OPENABLE`: a fact is closed the moment it is written.
+export const JOURNAL_TYPES_OPENABLE: readonly string[] = ['decision', 'remark', 'finding']
+
+// Color answers "whose is this and what is it waiting for": a decision is our work (accent), the
+// task author's remark needs an answer (warning), a finding is someone else's debt (neutral),
+// a fact is just memory and waits for nothing.
+export const JOURNAL_TYPE_COLOR: Record<JournalType, BadgeColor> = {
   decision: 'accent',
   remark: 'warn',
   finding: 'muted',
   fact: 'muted',
 }
 
-export function noteColor(value: string): BadgeColor {
-  return NOTE_TYPE_COLOR[value as NoteType] ?? 'muted'
+export function journalColor(value: string): BadgeColor {
+  return JOURNAL_TYPE_COLOR[value as JournalType] ?? 'muted'
 }
 
-/** Значение из ответа бэка → член справочника; чужое значение возвращает `undefined`. */
+/** A value from the backend response → a vocabulary member; a foreign value returns `undefined`. */
 export function asStatus(value: string): TaskStatus | undefined {
   return (TASK_STATUSES as readonly string[]).includes(value)
     ? (value as TaskStatus)
@@ -203,7 +215,7 @@ export function asPriority(value: string): TaskPriority | undefined {
     : undefined
 }
 
-/** Цвет шильдика статуса; незнакомое значение (бэк ушёл вперёд) рисуется нейтрально. */
+/** Status badge color; an unknown value (the backend moved ahead) is drawn neutral. */
 export function statusColor(value: string): BadgeColor {
   const status = asStatus(value)
   return status ? TASK_STATUS_COLOR[status] : 'muted'
@@ -214,19 +226,19 @@ export function priorityColor(value: string): BadgeColor {
   return priority ? TASK_PRIORITY_COLOR[priority] : 'muted'
 }
 
-/** Глиф статуса; незнакомое значение рисуется пустым кругом — «состояние есть, но не наше». */
+/** Status glyph; an unknown value is drawn as an empty circle — "there is a state, not ours". */
 export function statusIcon(value: string): TablerIcon {
   const status = asStatus(value)
   return status ? TASK_STATUS_ICON[status] : IconCircle
 }
 
-/** Глиф приоритета; незнакомое значение — середина шкалы, как и его цвет. */
+/** Priority glyph; an unknown value gets the middle of the scale, as does its color. */
 export function priorityIcon(value: string): TablerIcon {
   const priority = asPriority(value)
   return priority ? TASK_PRIORITY_ICON[priority] : IconAntennaBars3
 }
 
-/** Работа по задаче окончена — карточка уходит в приглушённый тон. */
+/** Work on the task is over — the card goes into a muted tone. */
 export function isTerminal(value: string): boolean {
   const status = asStatus(value)
   return status !== undefined && TASK_STATUSES_TERMINAL.includes(status)

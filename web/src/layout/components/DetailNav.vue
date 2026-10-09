@@ -1,13 +1,13 @@
 <script setup lang="ts">
-// Навигация страницы-деталки: первая плашка липкой колонки.
+// Detail page navigation: the first panel of the sticky rail.
 //
-// Стоит на месте, которое у списков занимает шапка, и держится на экране всю длину документа —
-// поэтому доступна из любой точки чтения, а не только с начала страницы.
+// It takes the place a header takes on lists, and stays on screen along the whole document — so
+// it is reachable from any reading position, not only from the top of the page.
 //
-// Своё дело у неё одно — уйти отсюда; действия над объектом живут рядом с его именем в содержимом.
-// Но плашка принимает и то, чем страница пользуется на всей длине чтения (поиск по документу):
-// такие инструменты стоят ПОД выходом в той же карточке, а не отдельной рамкой под ней — две
-// плашки подряд читаются как два разных блока, хотя дело у них одно, колонка.
+// It has one job — to leave; actions on the object live next to its name in the content. But the
+// panel also takes what the page uses along the whole reading length (search in the document):
+// such tools sit UNDER the exit in the same card, not in a separate frame below — two panels in a
+// row read as two different blocks, though they share one job, the rail.
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -19,14 +19,14 @@ import { useNavigationHistory } from '@/composables/useNavigationHistory'
 import DocumentAppearance from './DocumentAppearance.vue'
 
 const props = withDefaults(defineProps<{
-  /** Куда уйти, когда истории нет: ближайший родитель в дереве. */
+  /** Where to go when there is no history: the nearest parent in the tree. */
   parent: string
-  /** Имя запасного места — «К списку исследований». Стоит на кнопке только тогда, когда уходить
-      придётся туда: при заходе по прямой ссылке. Без него всегда «Назад». */
+  /** Name of the fallback place — "To the research list". Shown on the button only when that is
+      where leaving will go: on entry via a direct link. Without it, always "Back". */
   label?: string
-  /** Код показанного объекта. Пока его нет (страница грузится), кнопки копирования нет. */
+  /** Code of the shown object. While it is absent (the page is loading), there is no copy button. */
   code?: string
-  /** Страница показывает документ: в строке выхода появляется шестерёнка его оформления. */
+  /** The page shows a document: a gear for its appearance appears in the exit row. */
   appearance?: boolean
 }>(), {
   label: '',
@@ -39,38 +39,40 @@ const router = useRouter()
 const { goBack, hasHistory } = useNavigationHistory()
 const { copy, isCopied } = useClipboard()
 
-// Подпись называет то, что кнопка сделает. По истории она возвращает «туда, откуда пришли» — это
-// и есть «Назад», а обещать при этом список исследований нельзя: пришли-то могли из зоны. Имя
-// места остаётся за запасным адресом, по которому уходят при заходе по прямой ссылке.
+// The label names what the button will do. With history it returns "where you came from" — that
+// is "Back", and it can't promise the research list: you may well have come from a zone. The
+// place name stays with the fallback address, used when entering via a direct link.
 const backLabel = computed(() =>
   hasHistory.value ? t('common.action.back') : props.label || t('common.action.back'),
 )
 
-// Выход один на страницу: откуда пришли, туда и уходим. Списка мест выше по дереву нет — путь
-// наверх проходится теми же нажатиями, каждое из которых снимает один уровень. Прямой заход
-// истории не оставляет, и тогда «назад» означает «на уровень выше».
+// One exit per page: we leave to where we came from. There is no list of places further up the
+// tree — the way up is walked by the same presses, each removing one level. A direct entry leaves
+// no history, and then "back" means "one level up".
 function back(): void {
   goBack(router, props.parent)
 }
 
-// Поля оформления закрыты по умолчанию и разворачиваются в колонке, а не в окне: их крутят,
-// глядя на текст рядом, и окно закрывало бы ровно то, ради чего их и трогают.
+// The appearance fields are closed by default and expand in the rail, not in a dialog: they are
+// tweaked while looking at the text beside them, and a dialog would cover exactly what they are
+// touched for.
 const appearanceOpen = ref(false)
 </script>
 
 <template>
   <VCard variant="outlined" rounded="lg" class="detail-nav">
     <div class="detail-nav__row">
-      <!-- Уголок на своей плашке: одна линия без древка — на 28px стрелка с хвостом читается как
-           чертёж, а «влево» она говорит и без него. Плашка и подпись — один элемент, а не кнопка
-           рядом с текстом: дело у них одно, и двумя остановками табуляции оно бы не стало понятнее. -->
+      <!-- A chevron on its own tile: a single stroke with no shaft — at 28px an arrow with a tail
+           reads like a technical drawing, and it says "left" without one. Tile and label are one
+           element, not a button next to text: they do one job, and two tab stops would not make
+           it any clearer. -->
       <button type="button" class="detail-nav__back" @click="back">
         <span class="detail-nav__glyph"><IconChevronLeft :size="18" :stroke-width="1.6" /></span>
         {{ backLabel }}
       </button>
 
-      <!-- Шестерёнка без подписи: она не про эту страницу, а про то, КАК её показывать, и
-           подпись поставила бы её в один ряд с выходом. Открытое состояние держит сама кнопка. -->
+      <!-- An unlabelled gear: it is not about this page but about HOW to show it, and a label
+           would put it on par with the exit. The button itself holds the open state. -->
       <VBtn
         v-if="appearance"
         icon
@@ -84,16 +86,17 @@ const appearanceOpen = ref(false)
       </VBtn>
     </div>
 
-    <!-- Линейка отделяет выход от инструментов чтения: одно уводит со страницы, другое работает
-         внутри неё. Концы уходят под отбивку — она делит карточку, а не лежит в ней. -->
+    <!-- The rule separates the exit from the reading tools: one leads off the page, the other
+         works inside it. Its ends run into the padding — it divides the card rather than sitting
+         in it. -->
     <template v-if="$slots.default || code">
       <VDivider class="detail-nav__rule" />
       <slot />
 
-      <!-- Код объекта под рукой на всей длине чтения: та же кнопка есть и в шапке содержимого, но
-           шапка уезжает с первым же экраном, а колонка держится. Стоит она в ряду инструментов
-           чтения, под поиском, и занимает всю ширину — здесь у неё есть подпись, а значок сам по
-           себе не говорит, ЧТО копируется. -->
+      <!-- The object's code at hand along the whole reading length: the same button exists in
+           the content header too, but the header scrolls away with the first screen while the
+           rail stays. It sits among the reading tools, under search, at full width — here it has a
+           label, since the icon alone doesn't say WHAT gets copied. -->
       <VBtn v-if="code" block variant="tonal" @click="copy(code)">
         <template #prepend>
           <IconCheck v-if="isCopied(code)" :size="16" class="detail-nav__copied" />
@@ -104,8 +107,8 @@ const appearanceOpen = ref(false)
     </template>
   </VCard>
 
-  <!-- Поля оформления — отдельная карточка ПОД плашкой, а не в ней: они появляются и уходят, и
-       внутри общей рамки это выглядело бы как выросшая навигация. -->
+  <!-- The appearance fields are a separate card UNDER the panel, not inside it: they appear and
+       go away, and inside the shared frame that would look like the navigation growing. -->
   <VExpandTransition>
     <DocumentAppearance v-if="appearance && appearanceOpen" />
   </VExpandTransition>
@@ -126,8 +129,8 @@ const appearanceOpen = ref(false)
   margin: 0 -12px;
 }
 
-/* Выход занимает строку, шестерёнка прижата к её правому краю: она не второй выход, а настройка
-   показа, и стоит там же, где действия страницы в шапке содержимого. */
+/* The exit takes the row, the gear is pushed to its right edge: it is not a second exit but a
+   display setting, and sits where the page actions sit in the content header. */
 .detail-nav__row {
   display: flex;
   align-items: center;
@@ -139,9 +142,9 @@ const appearanceOpen = ref(false)
   flex: 1;
 }
 
-/* Коробка задана здесь, а не пропсами: у иконочной кнопки Vuetify считает сторону как
-   `--v-btn-height + 12px`, а density правит только высоту (см. docs/frontend/vuetify-css-patterns).
-   Сторона — те же 28px, что у плашки выхода напротив. */
+/* The box is set here, not via props: for an icon button Vuetify computes the side as
+   `--v-btn-height + 12px`, and density only changes the height (see
+   docs/frontend/vuetify-css-patterns). The side is the same 28px as the exit tile opposite. */
 .detail-nav__gear {
   width: 28px;
   min-width: 28px;
@@ -154,13 +157,13 @@ const appearanceOpen = ref(false)
   color: var(--text);
 }
 
-/* Тем же серым, что галочка копирования в шапке содержимого: об успехе говорит смена значка, а не
-   его цвет. */
+/* The same grey as the copy checkmark in the content header: success is signalled by the icon
+   change, not its colour. */
 .detail-nav__copied {
   color: var(--text-muted);
 }
 
-/* Сброс оформления кнопки: браузер рисует ей серую плашку с рамкой, а нужен ряд «фигура + текст». */
+/* Button style reset: the browser draws a grey bordered box, while a "glyph + text" row is needed. */
 .detail-nav__back {
   appearance: none;
   border: 0;
@@ -184,8 +187,8 @@ const appearanceOpen = ref(false)
   color: var(--text);
 }
 
-/* Та же фигура, что у возврата в `PageHeader` (`variant="tonal"` = свой цвет под 8%), только на
-   28px вместо 32: в колонке она стоит рядом с текстом, а не одна перед заголовком страницы. */
+/* The same glyph tile as the back button in `PageHeader` (`variant="tonal"` = own colour at 8%),
+   only 28px instead of 32: in the rail it stands next to text, not alone before a page title. */
 .detail-nav__glyph {
   display: flex;
   align-items: center;

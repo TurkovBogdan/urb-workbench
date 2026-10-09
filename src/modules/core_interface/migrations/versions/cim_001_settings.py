@@ -1,8 +1,8 @@
 """core_interface: core_interface_settings table
 
-Creates ``core_interface_settings`` — настройки интерфейса пользователя (тема, гарнитуры,
-зона чтения, схемы, раскладки списков). Строка = отклонение от умолчания; сами умолчания
-объявлены в ``registry.py`` и в базу не пишутся. Column order mirrors
+Creates ``core_interface_settings`` — user interface settings (theme, typefaces, reading
+area, diagrams, list layouts). A row = a deviation from the default; the defaults themselves
+are declared in ``registry.py`` and are not written to the database. Column order mirrors
 ``src/modules/core_interface/models.py::InterfaceSetting``.
 
 Revision ID: cim_001_settings

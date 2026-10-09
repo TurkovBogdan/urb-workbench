@@ -1,54 +1,56 @@
-/* Как выглядит тело — один файл на просмотр и на правку.
+/* What a body looks like — one file for viewing and for editing.
  *
- * Зон две, и раньше у каждой была своя копия этих правил. За четыре дня копии успели разойтись:
- * поле вокруг `hr` отличалось втрое, ссылка в правке не была оформлена вовсе, `strong` и `em`
- * не были объявлены, у заголовков не совпадала подрезка полуинтерлиньяжа. Расхождение здесь
- * означает, что текст ПЕРЕВЁРСТЫВАЕТСЯ в момент сохранения, а это ровно то, чего WYSIWYG обязан
- * избегать.
+ * There are two zones, and each used to have its own copy of these rules. Within four days the
+ * copies had drifted: the space around `hr` differed threefold, links were not styled at all in
+ * the editor, `strong` and `em` were not declared, headings disagreed on half-leading trim. A
+ * divergence here means the text REFLOWS the moment it is saved, which is exactly what WYSIWYG
+ * must avoid.
  *
- * Поэтому корень у обеих зон один и тот же класс: рендерер вешает `md-body` на свой контейнер,
- * редактор — на элемент ProseMirror (`editorProps.attributes`). Дальше весь файл написан против
- * одного селектора, и совпадение становится структурным свойством, а не дисциплиной.
+ * So both zones share the same root class: the renderer puts `md-body` on its container, the
+ * editor on the ProseMirror element (`editorProps.attributes`). The whole file is then written
+ * against one selector, and the match becomes a structural property rather than a discipline.
  *
- * Файл НЕ scoped и подключается обоими компонентами: селекторы уже заперты внутри `.md-body`,
- * а scoped-обёртка как раз и помешала бы одному набору правил обслуживать два компонента.
+ * The file is NOT scoped and is included by both components: the selectors are already confined
+ * under `.md-body`, and a scoped wrapper is precisely what would stop one rule set from serving
+ * two components.
  *
- * Три места, где разметка зон неизбежно разная, собраны здесь же и помечены: список, пункт
- * чеклиста и блок кода. Лучше видеть их отличия в одном файле, чем не видеть в двух.
+ * The three places where the zones' markup is unavoidably different are gathered here and
+ * marked: the list, the checklist item and the code block. Better to see their differences in one
+ * file than to miss them in two.
  */
 
-/* ── Зона чтения ──────────────────────────────────────────── */
+/* ── Reading zone ─────────────────────────────────────────── */
 
-/* Тело читают сверху вниз, а не просматривают, поэтому оно набрано читательской ролью шрифта и
-   кеглем крупнее интерфейсного. Все размеры ниже выражены в `em`, и `--prose-size` остаётся
-   единственной ручкой, которую компактному виду приходится двигать. */
+/* A body is read top to bottom, not scanned, so it is set in the reading font role at a size
+   larger than the interface's. All sizes below are in `em`, and `--prose-size` stays the only
+   knob the compact variant has to turn. */
 .md-body {
-  /* `--reading-size` — выбор человека, его пишет на <html> стор настроек; литерал это то, на
-     чём зона стоит, пока стор не отработал. */
+  /* `--reading-size` is the person's choice, written onto <html> by the settings store; the
+     literal is what the zone stands on until the store has run. */
   --prose-size: var(--reading-size, 14px);
-  /* Один отступ на списки и на висячую строку чеклиста — разъехаться им негде. */
+  /* One indent for lists and for the checklist's hanging line — no way for them to drift apart. */
   --prose-indent: 1.5em;
 
   font-family: var(--font-reading);
   font-size: var(--prose-size);
-  /* Насыщенность — тоже выбор человека (токен с <html>), но только у текста: заголовки и
-     выделения ниже держат свой вес, иначе выделять стало бы нечем. */
+  /* Weight is also the person's choice (a token on <html>), but for text only: headings and
+     emphasis below keep their own weight, or there would be nothing left to emphasize with. */
   font-weight: var(--reading-weight, 300);
   line-height: 1.7;
   color: var(--text);
 }
 
-/* Сброс унаследованного `white-space` — чат ставит `pre-wrap` для писем, и под ним литеральные
-   переносы между блочными тегами рисуются призрачными пустыми строками.
-   ИСКЛЮЧАЯ редактируемый корень: ProseMirror держит на себе `pre-wrap` осознанно, им живут
-   набранные подряд пробелы и каретка в конце строки. Отними — и правка сломается. */
+/* Reset the inherited `white-space` — the chat sets `pre-wrap` for emails, and under it literal
+   newlines between block tags render as ghost blank lines.
+   EXCEPT for the editable root: ProseMirror keeps `pre-wrap` on itself deliberately — consecutive
+   typed spaces and the caret at the end of a line depend on it. Take it away and editing breaks. */
 .md-body:not(.ProseMirror) {
   white-space: normal;
 }
 
-/* main.scss красит голые `p` и `h1`–`h6` для нечитательных экранов, и правила эти лежат вне
-   слоёв каскада — наследование от `.md-body` их не перебивает. Поэтому зона называет заново
-   те свойства, на которые они претендуют; без этого абзац остаётся интерфейсным 13px. */
+/* main.scss styles bare `p` and `h1`–`h6` for non-reading screens, and those rules sit outside
+   cascade layers — inheritance from `.md-body` does not override them. So the zone restates the
+   properties they claim; without that a paragraph stays at the interface's 13px. */
 .md-body :is(p, h1, h2, h3, h4, h5, h6) {
   font-family: inherit;
 }
@@ -63,20 +65,19 @@
   margin-bottom: 0;
 }
 
-/* Мера строки — ширина, до которой тексту позволено дорастать на широком мониторе. Значение
-   выбирает человек, стор пишет его в `ch`, поэтому колонка следует за читательской гарнитурой.
-   Только бегущий текст: таблицы, листинги и картинки берут всю ширину — их просматривают, а не
-   читают строка за строкой. */
+/* The measure — the width text may grow to on a wide monitor. The person picks the value and the
+   store writes it in `ch`, so the column follows the reading typeface. Running text only:
+   tables, listings and images take the full width — they are scanned, not read line by line. */
 .md-body :is(p, ul, ol, blockquote, h1, h2, h3, h4, h5, h6) {
   max-width: var(--reading-measure, 92ch);
 }
 
-/* Две разные задачи переноса, поэтому два разных значения.
-   `balance` ровняет длины строк у блока, короткого по природе, — заголовка, ячейки, — где одно
-   слово во второй строке читается как ошибка. На бегущем тексте он делает не то: двухстрочный
-   абзац отрывается от правого края в две половинные строки.
-   `pretty` оставляет рваный край в покое и лишь не даёт последней строке остаться одиноким
-   словом — это и нужно бегущему тексту. */
+/* Two different wrapping jobs, hence two different values.
+   `balance` evens out line lengths in a block that is short by nature — a heading, a cell — where
+   one word on the second line reads as a mistake. On running text it does the wrong thing: a
+   two-line paragraph pulls away from the right edge into two half-lines.
+   `pretty` leaves the ragged edge alone and only keeps the last line from being a lone word —
+   which is what running text needs. */
 .md-body :is(th, td, h1, h2, h3, h4, h5, h6) {
   text-wrap: balance;
 }
@@ -85,50 +86,50 @@
   text-wrap: pretty;
 }
 
-/* Первый элемент тела не добавляет верхнего поля: оно сложилось бы с отступом карточки или
-   панели, внутри которой тело лежит. */
+/* The body's first element adds no top margin: it would stack with the padding of the card or
+   panel the body sits in. */
 .md-body > :first-child {
   margin-top: 0;
 }
 
-/* ── Заголовки ────────────────────────────────────────────── */
+/* ── Headings ─────────────────────────────────────────────── */
 
 .md-body :is(h1, h2, h3, h4, h5, h6) {
-  /* Гарнитура заголовков — свой выбор; по умолчанию токен ссылается на шрифт текста, и тогда
-     заголовок набран тем же, чем абзац под ним. Правило стоит после общего `font-family: inherit`
-     для заголовков и абзацев — та же вескость, побеждает позднее. */
+  /* The heading typeface is a separate choice; by default the token points at the text font, and
+     then a heading is set in the same face as the paragraph below. The rule comes after the shared
+     `font-family: inherit` for headings and paragraphs — same specificity, the later one wins. */
   font-family: var(--font-heading, var(--font-reading));
   font-weight: var(--heading-weight, 600);
   color: var(--text);
-  /* Подрезает полуинтерлиньяж, который браузер добавляет сверху и снизу текстового бокса: без
-     этого поля ниже — не те расстояния, которые видно, и зазор зависит от выбранной гарнитуры.
-     Там, где свойство не поддержано, оно молча игнорируется и возвращает прежние отбивки. */
+  /* Trims the half-leading the browser adds above and below the text box: without it the margins
+     below are not the distances you see, and the gap depends on the chosen typeface. Where the
+     property is unsupported it is silently ignored and the previous spacing comes back. */
   text-box: trim-both cap alphabetic;
 }
 
-/* Сверху заголовка кратно больше, чем снизу: заголовок принадлежит следующему тексту, и эта
-   асимметрия отделяет раздел от предыдущего. Трекинг поджимается с ростом кегля — зазоры,
-   читающиеся нормальными в тексте, на глифах в полтора раза крупнее выглядят разболтанными. */
+/* Several times more space above a heading than below: a heading belongs to the text that
+   follows, and the asymmetry separates the section from the previous one. Tracking tightens as
+   size grows — gaps that read as normal in text look loose on glyphs one and a half times bigger. */
 .md-body h1 { font-size: 1.5em;   line-height: 1.25; margin: 1.6em 0 0.6em;  letter-spacing: -0.018em; }
 .md-body h2 { font-size: 1.25em;  line-height: 1.3;  margin: 2em 0 0.75em;   letter-spacing: -0.012em; }
 .md-body h3 { font-size: 1.125em; line-height: 1.35; margin: 1.6em 0 0.5em;  letter-spacing: -0.006em; }
 .md-body :is(h4, h5, h6) { font-size: 1em; line-height: 1.4; margin: 1.4em 0 0.4em; }
 
-/* Ниже h3 кегль перестаёт нести уровень — ещё три ступени утонули бы в шуме текста. Различие
-   переезжает на цвет и регистр: h4 остаётся полноценным заголовком, h5 отступает, h6 становится
-   подписью. */
+/* Below h3 size stops carrying the level — three more steps would drown in the noise of the text.
+   The distinction moves to colour and case: h4 stays a full heading, h5 recedes, h6 becomes a
+   caption. */
 .md-body h5 { color: var(--text-muted); }
 .md-body h6 {
   font-size: 0.875em;
   text-transform: uppercase;
-  /* Прописным нужен запас: без положительного трекинга капитель набирается вплотную. */
+  /* Capitals need room: without positive tracking they are set cramped together. */
   letter-spacing: 0.06em;
   color: var(--text-faint);
 }
 
-/* Заголовок сразу за более крупным — это один заголовочный блок, промежуток схлопывается. Пары
-   выписаны по убыванию намеренно: когда следом идёт БОЛЕЕ мелкий по уровню (h6, затем h2) —
-   это начался следующий раздел, и своё поле сверху он сохраняет. */
+/* A heading right after a larger one forms a single heading block, and the gap collapses. The
+   pairs are listed in descending order on purpose: when a HIGHER-level heading follows a lower
+   one (h6, then h2), a new section has begun, and it keeps its top margin. */
 .md-body h1 + h2,
 .md-body h2 + h3,
 .md-body h3 + h4,
@@ -137,13 +138,14 @@
   margin-top: 0.6em;
 }
 
-/* ── Списки: две разметки, одна типографика ───────────────── */
+/* ── Lists: two markups, one typography ───────────────────── */
 
-/* ПРОСМОТР — настоящие `ul`/`ol` с браузерным маркером.
-   ПРАВКА — `ul[data-list]` с плоским рядом пунктов: уровень живёт в `--depth`, маркер приезжает
-   декорацией в `data-marker`. Браузерная нумерация там не работает — пункты разных уровней
-   лежат соседями, а не вложенными списками, и `ol` считал бы их подряд.
-   Поля, отступ и цвет маркера у обоих одни. */
+/* VIEWING — real `ul`/`ol` with the browser's marker.
+   EDITING — `ul[data-list]` with a flat row of items: the level lives in `--depth`, the marker
+   arrives as a decoration in `data-marker`. Browser numbering does not work there — items of
+   different levels sit side by side rather than in nested lists, and `ol` would count them
+   consecutively.
+   Margins, indent and marker colour are the same for both. */
 
 .md-body :is(ul, ol) {
   margin: 0.75em 0 1em;
@@ -162,8 +164,8 @@
   line-height: 1.6;
 }
 
-/* Маркер — пунктуация, а не содержимое: в полную силу текста колонка точек читалась бы вторым
-   столбцом слева. */
+/* A marker is punctuation, not content: at full text strength the column of bullets would read
+   as a second column on the left. */
 .md-body li::marker {
   color: var(--text-faint);
 }
@@ -172,7 +174,7 @@
   margin: 0.35em 0;
 }
 
-/* Плоский список правки: рамка без своего отступа, отступ несёт пункт по своему уровню. */
+/* The editor's flat list: the frame has no indent of its own, each item carries it per level. */
 .md-body ul[data-list] {
   list-style: none;
   padding-left: 0;
@@ -183,7 +185,7 @@
   padding-left: calc((var(--depth, 0) + 1) * var(--prose-indent));
 }
 
-/* Маркер декорацией — та же колонка и тот же цвет, что у браузерного `::marker` в просмотре. */
+/* The decoration marker — same column and colour as the browser's `::marker` in the viewer. */
 .md-body ul[data-list] li::before {
   content: attr(data-marker);
   position: absolute;
@@ -194,12 +196,12 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* ── Чеклист ──────────────────────────────────────────────── */
+/* ── Checklist ────────────────────────────────────────────── */
 
-/* Галочка заменяет маркер, поэтому пункт возвращает отступ под маркер; отрицательный
-   `text-indent` держит перенесённые строки под текстом, а не под галочкой.
-   ПРОСМОТР рисует настоящий `<input type=checkbox>`, ПРАВКА — глиф псевдоэлементом: внутри
-   редактируемого документа настоящий чекбокс перехватывал бы каретку. */
+/* The checkbox replaces the marker, so the item gives back the marker's indent; a negative
+   `text-indent` keeps wrapped lines under the text rather than under the checkbox.
+   VIEWING draws a real `<input type=checkbox>`, EDITING a glyph via a pseudo-element: inside an
+   editable document a real checkbox would steal the caret. */
 .md-body li.md-task {
   list-style: none;
   margin-left: calc(var(--prose-indent) * -1);
@@ -213,8 +215,8 @@
   accent-color: rgb(var(--v-theme-primary));
 }
 
-/* В плоском списке отступ уже посчитан по уровню — отрицательные поля просмотра здесь только
-   сдвинули бы пункт. */
+/* In the flat list the indent is already computed per level — the viewer's negative margins would
+   only shift the item here. */
 .md-body ul[data-list] li.md-task {
   margin-left: 0;
   padding-left: calc((var(--depth, 0) + 1) * var(--prose-indent));
@@ -236,13 +238,13 @@
   color: var(--text-muted);
 }
 
-/* ── Цитата ───────────────────────────────────────────────── */
+/* ── Quote ────────────────────────────────────────────────── */
 
-/* Отмечена линией и воздухом вокруг, а не курсивом: цитата в этих телах дорастает до целого
-   абзаца, а курсив на такой длине измеримо замедляет чтение. */
+/* Marked by a rule and air around it, not by italics: a quote in these bodies grows to a whole
+   paragraph, and italics at that length measurably slow reading down. */
 .md-body blockquote {
-  /* Линия — весь сигнал, поэтому берётся от цвета текста, а не от токена рамки: на `--border`
-     она тонет в карточке, и однострочная цитата перестаёт читаться цитатой. */
+  /* The rule is the whole signal, so it derives from the text colour rather than the border
+     token: on `--border` it sinks into the card, and a one-line quote stops reading as a quote. */
   border-left: 3px solid color-mix(in srgb, var(--text) 22%, transparent);
   margin: 1.4em 0;
   padding: 0.2em 0 0.2em 1em;
@@ -253,32 +255,33 @@
   margin-bottom: 0;
 }
 
-/* ── Код ──────────────────────────────────────────────────── */
+/* ── Code ─────────────────────────────────────────────────── */
 
-/* Эти тела плотно набиты кодом в строке — в предложении их нередко три-четыре. Обведённая
-   плашка на каждом превращает абзац в ряд коробок, и проза перестаёт быть тем, что видно
-   первым; поэтому рамки нет, а заливки ровно столько, чтобы отрезок читался отдельным. */
+/* These bodies are dense with inline code — often three or four in a sentence. An outlined chip
+   on each turns a paragraph into a row of boxes, and prose stops being what you see first; so
+   there is no border, and just enough fill for the span to read as separate. */
 .md-body .md-codespan {
   font-family: var(--font-mono);
-  /* Моноширинная кажется крупнее пропорциональной при том же кегле — 0.875em это поправка, и
-     в `em` она следует за шкалой текста вместо того, чтобы застыть на одном пикселе. */
+  /* Monospace looks larger than proportional type at the same size — 0.875em is the correction,
+     and in `em` it follows the text scale instead of freezing at one pixel value. */
   font-size: 0.875em;
   color: var(--text);
-  /* Плёнка цвета текста, а не токен поверхности: зона рисуется на карточках, панелях и пузырях
-     чата разных оттенков, и фиксированная заливка выцветает на половине из них. */
+  /* A wash of the text colour, not a surface token: the zone is drawn on cards, panels and chat
+     bubbles of different shades, and a fixed fill fades out on half of them. */
   background: color-mix(in srgb, var(--text) 10%, transparent);
-  /* Явно, а не по наследству: голое правило `code` в main.scss рисует акцентную обводку, и снять
-     её — весь смысл блока выше. */
+  /* Explicit, not inherited: the bare `code` rule in main.scss draws an accent outline, and
+     removing it is the whole point of the block above. */
   border: none;
   border-radius: 4px;
   padding: 0.1em 0.35em;
-  /* Разорванный переносом спан — два куска; без этого скругление уходит только на внешние края. */
+  /* A span broken by a line wrap is two pieces; without this only the outer edges get rounded. */
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 }
 
-/* Выбор человека доезжает до листинга здесь: сам `CodeBlock` читает `--code-size`, а знает о нём
-   только зона чтения — те же блоки в дизайн-системе и в панелях подсказок остаются своего кегля. */
+/* The person's choice reaches the listing here: `CodeBlock` itself reads `--code-size`, but only
+   the reading zone knows about it — the same blocks in the design system and in hint panels keep
+   their own size. */
 .md-body .md-code-slot {
   --code-size: var(--reading-code-size, 12px);
   margin: 1.5em 0;
@@ -288,9 +291,9 @@
   margin-bottom: 0;
 }
 
-/* ПРАВКА: блок кода это `<pre>` с правимым содержимым, а не смонтированный `CodeBlock`. Рамка,
-   шапка, кегль и поля повторяют компонент просмотра — подсветки нет и быть не может, подсветить
-   можно только неправимый текст. */
+/* EDITING: a code block is a `<pre>` with editable content, not a mounted `CodeBlock`. Border,
+   header, size and margins mirror the viewer component — there is no highlighting and cannot be,
+   only non-editable text can be highlighted. */
 .md-body pre {
   font-family: var(--font-mono);
   font-size: var(--reading-code-size, 12px);
@@ -303,7 +306,7 @@
   overflow: hidden;
 }
 
-/* Шапка с языком — у блока без языка её нет вовсе. */
+/* The language header — a block without a language has none at all. */
 .md-body pre[data-language]:not([data-language=""])::before {
   content: attr(data-language);
   display: block;
@@ -316,8 +319,8 @@
   user-select: none;
 }
 
-/* Глобальный стиль приложения красит ЛЮБОЙ `code` в акцент и обводит рамкой — внутри `pre` это
-   превращало блок в одну огромную оранжевую плашку. Сброс полный, а не только фон. */
+/* The app's global style paints ANY `code` in the accent colour with an outline — inside `pre`
+   that turned the block into one huge orange chip. The reset is complete, not just the background. */
 .md-body pre code {
   display: block;
   padding: 12px 14px;
@@ -332,14 +335,14 @@
   tab-size: 2;
 }
 
-/* ── Таблица ──────────────────────────────────────────────── */
+/* ── Table ────────────────────────────────────────────────── */
 
-/* Обе зоны: редактор собирает ту же разметку — `div.md-table-wrap > table.md-table > thead/tbody`,
-   — поэтому правила ниже обслуживают и просмотр, и правку. Отдельные узлы под `thead` и `tbody`
-   в схеме редактора заведены ради этого: без них полосатость рядов считалась бы с шапки и
-   разошлась бы с просмотром на один ряд.
-   Тела несут широкие сравнительные таблицы (до дюжины колонок): обёртка прокручивается, таблица
-   держит естественную ширину вместо того, чтобы сжимать ячейки в вертикальные строки. */
+/* Both zones: the editor builds the same markup — `div.md-table-wrap > table.md-table > thead/tbody`
+   — so the rules below serve both viewing and editing. The editor schema has separate nodes for
+   `thead` and `tbody` for this reason: without them row striping would count from the header and
+   be off by one row from the viewer.
+   Bodies carry wide comparison tables (up to a dozen columns): the wrapper scrolls, and the table
+   keeps its natural width instead of squeezing cells into vertical strips. */
 .md-body .md-table-wrap {
   overflow-x: auto;
   margin: 2em 0;
@@ -355,8 +358,8 @@
   border-collapse: collapse;
   width: max-content;
   min-width: 100%;
-  /* Таблицу просматривают, а не читают: ступень ниже текста вмещает на экран больше, не переходя
-     границу нечитаемого. */
+  /* A table is scanned, not read: one step below the text fits more on screen without crossing
+     into unreadable. */
   font-size: 0.875em;
 }
 
@@ -364,15 +367,15 @@
 .md-body .md-table td {
   border-right: 1px solid var(--border-soft);
   border-bottom: 1px solid var(--border-soft);
-  /* Числа выстраиваются в колонку вместо того, чтобы плыть на ширину единицы — эти тела
-     сравнивают размеры, цены и лимиты, а рваная числовая колонка читается шумом. */
+  /* Numbers line up in a column instead of drifting by the width of a "1" — these bodies compare
+     sizes, prices and limits, and a ragged numeric column reads as noise. */
   font-variant-numeric: tabular-nums;
   padding: 0.45em 0.65em;
   text-align: left;
   vertical-align: top;
   line-height: 1.5;
-  /* Без потолка прозаическая ячейка забирает всю свою однострочную ширину (таблица размечена по
-     max-content), и двухколоночная таблица прокручивается как широкая. */
+  /* Without a cap a prose cell takes its full single-line width (the table is sized to
+     max-content), and a two-column table scrolls like a wide one. */
   max-width: 60ch;
 }
 
@@ -390,44 +393,44 @@
   background: color-mix(in srgb, var(--surface-hi) 45%, transparent);
 }
 
-/* Пилюля остаётся в одну строку, как и в прозе: ячейка размечена по содержимому, и ссылка с
-   подписью-заголовком иначе растянула бы колонку за пределы страницы. */
+/* The pill stays on one line, as in prose: the cell is sized to its content, and a reference
+   labelled with a title would otherwise stretch the column past the page. */
 .md-body .md-table .md-ref {
   max-width: 30ch;
   overflow: hidden;
 }
 
 .md-body .md-table .md-ref-label {
-  /* Флекс-элемент отказывается ужиматься ниже ширины своего текста, пока `min-width` не разрешит. */
+  /* A flex item refuses to shrink below its text width until `min-width` allows it. */
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-/* Выравнивание колонки обязано перебить правило ячейки выше, поэтому называет ячейку тоже. */
+/* Column alignment must override the cell rule above, so it names the cell too. */
 .md-body .md-table .md-align-left   { text-align: left; }
 .md-body .md-table .md-align-center { text-align: center; }
 .md-body .md-table .md-align-right  { text-align: right; }
 
-/* ── Прочее ───────────────────────────────────────────────── */
+/* ── Misc ─────────────────────────────────────────────────── */
 
 .md-body s { text-decoration: line-through; color: var(--text-muted); }
 .md-body strong { font-weight: 600; }
 .md-body em     { font-style: italic; }
 
-/* Самый широкий зазор в теле: линия разделяет целые части, поэтому воздуха ей нужно больше, чем
-   любому заголовку — иначе она читается украшением абзаца над ней. */
+/* The widest gap in the body: a rule separates whole parts, so it needs more air than any
+   heading — otherwise it reads as an ornament of the paragraph above. */
 .md-body hr {
   border: none;
   border-top: 1px solid var(--border-soft);
   margin: 3em 0;
 }
 
-/* Ссылка в бегущем тексте подчёркнута, а не только подкрашена: цвет — единственное различие,
-   которое исчезает для читателя с дальтонизмом, и в таком плотном теле синее слово легко
-   пропустить. Линия задана слабой и опущена ниже базовой, чтобы метить слово, не перечёркивая
-   выносные элементы; наведение доводит её до полной силы. `md-ref` исключена — у неё своя
-   форма, и подчёркивание её только смазало бы. */
+/* A link in running text is underlined, not just coloured: colour is the one difference that
+   vanishes for a colour-blind reader, and in a body this dense a blue word is easy to miss. The
+   line is faint and dropped below the baseline to mark the word without striking through
+   descenders; hover brings it to full strength. `md-ref` is excluded — it has its own shape, and
+   an underline would only smear it. */
 .md-body a:not(.md-ref) {
   color: rgb(var(--v-theme-primary));
   text-decoration: underline;
@@ -440,12 +443,12 @@
   text-decoration-color: currentColor;
 }
 
-/* ── Ссылка на сущность ───────────────────────────────────── */
+/* ── Entity reference ─────────────────────────────────────── */
 
-/* `TYPE@<код>` — компактная строчная пилюля с глифом ссылки. В прозе читается как сноска: подпись
-   это короткий хеш (или разрешённый заголовок), полный код лежит в подсказке и в адресе.
-   В просмотре это `<a>`, в правке — `<span>` (клик внутри документа ставит каретку, а не ведёт),
-   поэтому правило названо классом, а не тегом. */
+/* `TYPE@<code>` — a compact inline pill with a link glyph. In prose it reads like a footnote: the
+   label is a short hash (or the resolved title), the full code sits in the tooltip and the URL.
+   In the viewer it is an `<a>`, in the editor a `<span>` (a click inside the document places the
+   caret rather than navigating), so the rule targets a class, not a tag. */
 .md-body {
   --md-ref-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 15l6-6'/%3E%3Cpath d='M11 6l.463-.536a5 5 0 0 1 7.071 7.072L18 13'/%3E%3Cpath d='M13 18l-.397.534a5.07 5.07 0 0 1-7.127 0 4.97 4.97 0 0 1 0-7.071L6 11'/%3E%3C/svg%3E");
 }
@@ -472,9 +475,9 @@
 .md-body .md-ref::before {
   content: "";
   flex: none;
-  /* `cap` — высота прописной текущего шрифта, поэтому глиф следует за текстом, в котором стоит,
-     вместо того чтобы застыть на размере, выбранном под одну шкалу. Пара в px — запасной
-     вариант для движков без этой единицы. */
+  /* `cap` is the cap height of the current font, so the glyph follows the text it sits in instead
+     of freezing at a size chosen for one scale. The px pair is the fallback for engines without
+     this unit. */
   width: 11px;
   height: 11px;
   width: 1cap;
@@ -484,8 +487,8 @@
   mask: var(--md-ref-icon) center / contain no-repeat;
 }
 
-/* Наведение — только у ссылки просмотра: в правке пилюля не ведёт никуда, и подсвечивать её
-   под курсором значило бы обещать переход, которого не будет. */
+/* Hover only on the viewer's link: in the editor the pill leads nowhere, and highlighting it under
+   the pointer would promise a navigation that will not happen. */
 .md-body a.md-ref {
   cursor: pointer;
 }
@@ -496,9 +499,9 @@
   border-color: color-mix(in srgb, rgb(var(--v-theme-primary)) 45%, transparent);
 }
 
-/* ── Картинки ─────────────────────────────────────────────── */
+/* ── Images ───────────────────────────────────────────────── */
 
-/* Только просмотр: редактор картинки не переносит (см. UNSUPPORTED в мосте). */
+/* Viewer only: the editor does not carry images (see UNSUPPORTED in the bridge). */
 .md-body img {
   max-width: 100%;
   height: auto;
@@ -534,15 +537,15 @@
   opacity: 1;
 }
 
-/* ── Компактный вид ───────────────────────────────────────── */
+/* ── Compact variant ──────────────────────────────────────── */
 
-/* Компакт — интерфейсная роль, а не читательская: им набраны описания настроек и пузыри чата,
-   которые живут внутри интерфейсного хрома. Поэтому он берёт интерфейсные гарнитуру и кегль,
-   снимает потолок меры (его контейнер и так узкий) и поджимает каждый зазор до того, чего хочет
-   плотная панель. */
+/* Compact is an interface role, not a reading one: settings descriptions and chat bubbles that
+   live inside the interface chrome are set in it. So it takes the interface typeface and size,
+   lifts the measure cap (its container is narrow anyway) and tightens every gap to what a dense
+   panel wants. */
 .md-body--compact {
-  /* Прибито, а не `--reading-size`: это интерфейсный хром, и он обязан идти в ногу с подписями и
-     строками вокруг, какой бы кегль ни был выставлен в зоне чтения. */
+  /* Pinned, not `--reading-size`: this is interface chrome, and it must keep pace with the labels
+     and rows around it whatever size the reading zone is set to. */
   --prose-size: 13px;
   font-family: var(--font);
   line-height: 1.6;

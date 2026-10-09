@@ -1,21 +1,22 @@
-"""Поиск по задачам: регистр кириллицы и глубина по областям.
+"""Task search: Cyrillic case and depth by scope.
 
-Две разные поверхности одного вопроса «где искать». Заголовок и цель ищет ``query`` у списка —
-их видно в каждой строке. Тела (постановка, план с этапами, журнал) ищет ``task_search_codes``,
-и только по явно названным областям: тихий поиск по восьмикилобайтным телам возвращает
-совпадения, по которым не понять, та ли это задача.
+Two different surfaces of one question, "where to search". The list's ``query`` searches the
+title and the goal — those are visible in every row. The bodies (brief, plan with stages,
+journal) are searched by ``task_search_codes``, and only in explicitly named scopes: a silent
+search across eight-kilobyte bodies returns matches that don't tell you whether it's the right
+task.
 
-Регистр проверяется КИРИЛЛИЦЕЙ намеренно: ``lower()`` в SQLite складывает только ASCII, и
-сравнение, оставленное в SQL, молча разошлось бы с PostgreSQL — на латинице такой тест зелёный
-на обоих.
+Case is tested with CYRILLIC on purpose: SQLite's ``lower()`` folds ASCII only, and a comparison
+left in SQL would silently diverge from PostgreSQL — with Latin text such a test is green on
+both.
 """
 
 from __future__ import annotations
 
 import pytest
 
-from src.modules.tasks.constants import NOTE_DECISION, NOTE_FACT, TYPE_EXTENDED
-from src.modules.tasks.crud.note import note_create, note_resolve
+from src.modules.tasks.constants import JOURNAL_DECISION, JOURNAL_FACT, TYPE_EXTENDED
+from src.modules.tasks.crud.journal import journal_create, journal_resolve
 from src.modules.tasks.crud.stage import stage_create, stage_update
 from src.modules.tasks.crud.task import (
     task_create,
@@ -30,7 +31,7 @@ pytestmark = pytest.mark.db
 SEARCH = "/internal/workbench/tasks/search"
 
 
-# ── заголовок и цель ──────────────────────────────────────────────────────────
+# ── title and goal ────────────────────────────────────────────────────────────
 
 
 async def test_query_over_title_and_goal_ignores_cyrillic_case(db, workspace):
@@ -50,18 +51,23 @@ async def test_query_over_title_and_goal_ignores_cyrillic_case(db, workspace):
 
 
 async def test_query_does_not_reach_the_bodies(db, workspace):
-    """Список ищет только по строке списка: совпадение в плане его выдачу не расширяет."""
+    """The list searches only what its row shows: a match in the agent's work does not widen it."""
     await task_create(
         workspace_code=workspace.code,
         title="Панель фильтров",
         type=TYPE_EXTENDED,
-        body="Ставлю SearchField первым в ряду",
+        context="SearchField в контексте",
+        plan="Ставлю SearchField первым в ряду",
+        progress="- SearchField поставлен",
+        result="SearchField стоит первым",
     )
 
+    # Positive control: the same row IS found by what its row shows.
+    assert len(await task_list_by_workspace(workspace.code, query="Панель")) == 1
     assert await task_list_by_workspace(workspace.code, query="SearchField") == []
 
 
-# ── глубина по областям ───────────────────────────────────────────────────────
+# ── depth by scope ────────────────────────────────────────────────────────────
 
 
 async def test_scopes_are_off_until_asked(db, workspace):
@@ -78,7 +84,7 @@ async def test_scopes_are_off_until_asked(db, workspace):
 
 
 async def test_brief_scope_covers_the_whole_brief(db, workspace):
-    """Постановка — это четыре поля, и заголовок с целью в область не входят."""
+    """The brief is four fields, and the title and the goal are not part of this scope."""
     context = await task_create(
         workspace_code=workspace.code, title="A", type=TYPE_EXTENDED, context="ищем тут"
     )
@@ -95,12 +101,25 @@ async def test_brief_scope_covers_the_whole_brief(db, workspace):
 
 
 async def test_plan_scope_covers_the_stages_too(db, workspace):
-    """План — это тело задачи и тела её этапов: шаг работы описан там, а не в карточке."""
+    """The plan scope is the agent's work — plan, progress, result — plus its stages' bodies: a
+    work step is described there, not on the card."""
     planned = await task_create(
         workspace_code=workspace.code,
         title="С планом",
         type=TYPE_EXTENDED,
-        body="Сначала бэк",
+        plan="Сначала бэк",
+    )
+    in_progress = await task_create(
+        workspace_code=workspace.code,
+        title="С ходом работы",
+        type=TYPE_EXTENDED,
+        progress="- сначала бэк → панель",
+    )
+    with_result = await task_create(
+        workspace_code=workspace.code,
+        title="С итогом",
+        type=TYPE_EXTENDED,
+        result="Сначала бэк, панель следом",
     )
     staged = await task_create(
         workspace_code=workspace.code, title="С этапом", type=TYPE_EXTENDED
@@ -109,17 +128,17 @@ async def test_plan_scope_covers_the_stages_too(db, workspace):
 
     found = await task_search_codes(workspace.code, "СНАЧАЛА БЭК", in_plan=True)
 
-    assert found == sorted([planned.code, staged.code])
+    assert found == sorted([planned.code, in_progress.code, with_result.code, staged.code])
     assert await task_search_codes(workspace.code, "сначала бэк", in_brief=True) == []
 
 
-async def test_journal_scope_reads_the_notes(db, workspace):
+async def test_journal_scope_reads_the_entries(db, workspace):
     row = await task_create(
         workspace_code=workspace.code, title="С журналом", type=TYPE_EXTENDED
     )
-    await note_create(
+    await journal_create(
         task_code=row.code,
-        type=NOTE_FACT,
+        type=JOURNAL_FACT,
         title="Замер до работы",
         body="1491 passed",
     )
@@ -129,7 +148,8 @@ async def test_journal_scope_reads_the_notes(db, workspace):
 
 
 async def test_plan_scope_reads_the_evidence_of_a_stage(db, workspace):
-    """Доказательство — такой же текст этапа, как и его тело: по нему ищут «чем это закрыли»."""
+    """Evidence is as much the stage's text as its body: it is where one looks up "what closed
+    this"."""
     row = await task_create(
         workspace_code=workspace.code, title="С доказательством", type=TYPE_EXTENDED
     )
@@ -140,34 +160,35 @@ async def test_plan_scope_reads_the_evidence_of_a_stage(db, workspace):
 
 
 async def test_journal_scope_reads_the_resolution(db, workspace):
-    """Разрешение записи — половина её смысла: «чем кончилось» ищут наравне с «о чём было»."""
+    """An entry's resolution is half its meaning: "how it ended" is searched for on a par with
+    "what it was about"."""
     row = await task_create(
         workspace_code=workspace.code, title="С решением", type=TYPE_EXTENDED
     )
-    note = await note_create(
-        task_code=row.code, type=NOTE_DECISION, title="Куда класть области поиска"
+    entry = await journal_create(
+        task_code=row.code, type=JOURNAL_DECISION, title="Куда класть области поиска"
     )
-    await note_resolve(note.code, "Переходник живёт в search.ts")
+    await journal_resolve(entry.code, "Переходник живёт в search.ts")
 
     assert await task_search_codes(workspace.code, "ПЕРЕХОДНИК", in_journal=True) == [row.code]
 
 
 async def test_scopes_combine_and_a_task_comes_back_once(db, workspace):
-    """Области складываются, а не пересекаются; совпавшая дважды задача приходит одной строкой."""
+    """Scopes are a union, not an intersection; a task that matches twice comes back as one row."""
     both = await task_create(
         workspace_code=workspace.code,
         title="И там, и там",
         type=TYPE_EXTENDED,
         context="общее слово",
     )
-    await note_create(
-        task_code=both.code, type=NOTE_FACT, title="И тут общее слово"
+    await journal_create(
+        task_code=both.code, type=JOURNAL_FACT, title="И тут общее слово"
     )
     journal_only = await task_create(
         workspace_code=workspace.code, title="Только журнал", type=TYPE_EXTENDED
     )
-    await note_create(
-        task_code=journal_only.code, type=NOTE_FACT, title="И здесь общее слово"
+    await journal_create(
+        task_code=journal_only.code, type=JOURNAL_FACT, title="И здесь общее слово"
     )
 
     found = await task_search_codes(
@@ -186,18 +207,18 @@ async def test_search_stays_inside_its_workspace(db, workspace):
     assert await task_search_codes(workspace.code, "панель", in_brief=True) == []
 
 
-async def test_stages_and_notes_of_a_stranger_do_not_leak_in(db, workspace):
-    """Этап и запись своего пространства не знают — границу держит join к задаче.
+async def test_stages_and_journal_of_a_stranger_do_not_leak_in(db, workspace):
+    """A stage and an entry don't know their workspace — the join to the task holds the boundary.
 
-    Отдельно от предыдущего теста: там граница проверяется на колонке самой задачи, здесь — на
-    соединении, и сломаться они могут по одному.
+    Separate from the previous test: there the boundary is checked on the task's own column, here
+    on the join, and either can break without the other.
     """
     stranger = await workspace_create(title="Личное")
     alien = await task_create(
         workspace_code=stranger.code, title="Чужая", type=TYPE_EXTENDED
     )
     await stage_create(task_code=alien.code, title="Чужой шаг", body="редкое слово")
-    await note_create(task_code=alien.code, type=NOTE_FACT, title="редкое слово")
+    await journal_create(task_code=alien.code, type=JOURNAL_FACT, title="редкое слово")
 
     assert await task_search_codes(
         workspace.code, "редкое слово", in_plan=True, in_journal=True
@@ -205,11 +226,12 @@ async def test_stages_and_notes_of_a_stranger_do_not_leak_in(db, workspace):
 
 
 async def test_deleted_tasks_are_not_filtered_out_here(db, workspace):
-    """Контракт ручки: удалённые остаются в ответе — что показывать, решает пересечение.
+    """The endpoint's contract: deleted tasks stay in the answer — the intersection decides what
+    to show.
 
-    Спрашивающий держит список пространства и знает, включена ли у него корзина. Отсев на этой
-    стороне означал бы, что при включённой корзине глубокий поиск молча не находит ровно то, что
-    человек прямо сейчас видит на экране.
+    The caller holds the workspace's list and knows whether its trash is switched on. Filtering
+    on this side would mean that with the trash on, deep search silently fails to find exactly
+    what the person is looking at on screen right now.
     """
     row = await task_create(
         workspace_code=workspace.code,
@@ -222,11 +244,12 @@ async def test_deleted_tasks_are_not_filtered_out_here(db, workspace):
     assert await task_search_codes(workspace.code, "панель", in_brief=True) == [row.code]
 
 
-# ── ручка ─────────────────────────────────────────────────────────────────────
+# ── endpoint ──────────────────────────────────────────────────────────────────
 
 
 async def test_search_route_is_not_eaten_by_the_task_route(client):
-    """``/tasks/search`` объявлен выше ``/tasks/{code}`` — иначе это деталь задачи ``search``."""
+    """``/tasks/search`` is declared above ``/tasks/{code}`` — otherwise it is the detail of a
+    task called ``search``."""
     space = await workspace_create(title="Работа")
     row = await task_create(
         workspace_code=space.code,
@@ -240,7 +263,7 @@ async def test_search_route_is_not_eaten_by_the_task_route(client):
     )
 
     assert response.status_code == 200
-    # Код уезжает с типом — ровно в той форме, в какой он приходит в списке задач.
+    # The code goes out with its type — exactly the form it arrives in from the task list.
     assert response.json() == [f"TASK@{row.code}"]
 
 
@@ -253,7 +276,7 @@ async def test_search_route_refuses_an_unknown_workspace(client):
 
 
 async def test_search_route_without_scopes_answers_empty(client):
-    """Ни одной области — пустой ответ, а не «весь список»: стога не задали."""
+    """No scope means an empty answer, not "the whole list": no haystack was given."""
     space = await workspace_create(title="Работа")
     await task_create(
         workspace_code=space.code, title="Задача", type=TYPE_EXTENDED, context="панель"
@@ -266,10 +289,10 @@ async def test_search_route_without_scopes_answers_empty(client):
 
 
 async def test_search_route_takes_the_workspace_with_its_prefix(client):
-    """Код пространства принимается и голым, и в том виде, в каком его отдают все остальные ручки."""
+    """The workspace code is accepted both bare and in the form every other endpoint returns."""
     space = await workspace_create(title="Работа")
     row = await task_create(
-        workspace_code=space.code, title="Задача", type=TYPE_EXTENDED, body="глубокий текст"
+        workspace_code=space.code, title="Задача", type=TYPE_EXTENDED, plan="глубокий текст"
     )
 
     response = await client.get(
@@ -284,10 +307,10 @@ async def test_search_route_takes_the_workspace_with_its_prefix(client):
 
 
 async def test_mcp_list_finds_cyrillic_regardless_of_case(call, workspace):
-    """Поиск агента ходит в ту же выборку — и ловит регистр так же.
+    """The agent's search goes to the same query — and handles case the same way.
 
-    Стоит отдельно от CRUD-теста намеренно: починка живёт в ``task_list_by_workspace``, а
-    пользуются ею две поверхности, и у второй свой путь до неё.
+    Kept apart from the CRUD test on purpose: the fix lives in ``task_list_by_workspace``, but
+    two surfaces use it, and the second has its own path to it.
     """
     await call("workspace_use", workspace_code=workspace.code)
     await task_create(workspace_code=workspace.code, title="Панель фильтров")

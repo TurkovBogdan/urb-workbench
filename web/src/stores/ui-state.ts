@@ -3,20 +3,20 @@ import { reactive } from 'vue'
 
 import { persisted, strCodec } from '@/shared/utils/persisted'
 
-// Состояние интерфейсов: то, в каком виде человек оставил список, когда ушёл с него.
+// Interface state: how the person left a list when they walked away from it.
 //
-// Отдельный дом от `settings`: там ВЫБОРЫ, которые настраивают однажды и правят на странице
-// настроек, здесь — след работы, который человек не настраивал, а просто оставил. Держать порядок
-// сортировки в сторе самого списка было мало: он живёт ровно до перезагрузки вкладки, и после неё
-// список молча возвращался к своему умолчанию.
+// A separate home from `settings`: there are the CHOICES, set up once and edited on the settings
+// page; here is the trace of work that the person didn't configure but simply left behind. Keeping
+// the sort order in the list's own store wasn't enough: it lives only until the tab reloads, and
+// after that the list silently went back to its default.
 //
-// Значения хранятся СТРОКАМИ и здесь не проверяются: набор ключей сортировки знает бэк каждого
-// раздела, и его белый список живёт рядом с ним (`features/*/api.ts`). Стор списка сам чинит
-// значение на чтении своим `resolve*` — тогда испорченный ключ в localStorage портит один список,
-// а не запрос.
+// Values are stored as STRINGS and not validated here: each section's backend knows its set of
+// sort keys, and the whitelist lives next to it (`features/*/api.ts`). The list's store repairs the
+// value on read with its own `resolve*` — then a corrupted key in localStorage breaks one list, not
+// the request.
 export const useUiStateStore = defineStore('ui-state', () => {
-  // Умолчание реестра — «недавно обновлённые сверху», а не «когда завели»: открывая реестр,
-  // возвращаются к тому, над чем работали, а не к тому, что однажды создали.
+  // The registry defaults to "recently updated first", not "when created": opening the registry,
+  // people return to what they were working on, not to what they once created.
   const researchSort = reactive({
     by: persisted('ui.sort.researches.by', 'updated_at', strCodec),
     dir: persisted('ui.sort.researches.dir', 'desc', strCodec),

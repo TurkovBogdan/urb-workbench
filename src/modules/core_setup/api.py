@@ -1,7 +1,8 @@
-"""HTTP API настроек окружения (mounted at /internal/core/setup).
+"""HTTP API for the environment settings (mounted at /internal/core/setup).
 
-``GET`` — поля по группам с текущими значениями из ``.env``. ``PUT`` — записать
-переданные значения в ``.env`` и перезапустить процесс (новый старт перечитает Config).
+``GET`` — fields by group with their current values from ``.env``. ``PUT`` — write the given
+values into ``.env`` and restart the process (the fresh start re-reads Config); ``moves_to`` in
+the reply names the new host/port when the restarted process will listen elsewhere.
 """
 
 from __future__ import annotations
@@ -58,8 +59,14 @@ async def get_setup() -> dict[str, Any]:
 async def apply_setup(body: _ApplyBody, request: Request) -> dict[str, Any]:
     updates = {k: v for k, v in body.values.items() if k in FIELD_BY_KEY}
     env_file.write_values(updates)
-    restart.schedule_restart(hot_reload=request.app.state.config.server_hot_reload)
-    return {"status": "restarting", "applied": sorted(updates)}
+    config = request.app.state.config
+    moves_to = restart.predict_move(
+        hot_reload=config.server_hot_reload,
+        bound_host=config.server_host,
+        bound_port=config.server_port,
+    )
+    restart.schedule_restart(hot_reload=config.server_hot_reload)
+    return {"status": "restarting", "applied": sorted(updates), "moves_to": moves_to}
 
 
 __all__ = ["router"]

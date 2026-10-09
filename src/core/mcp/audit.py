@@ -1,10 +1,10 @@
-"""Серверный audit-middleware MCP: пишет каждый вызов инструмента в ``mcp/audit``.
+"""Server-side MCP audit middleware: writes every tool call to ``mcp/audit``.
 
-Форковский ``Middleware.on_call_tool`` оборачивает все инструменты всех
-смонтированных серверов (один экземпляр на ``McpServerContext``). Лог-строка:
-``principal · tool · сводка-аргументов · ok/err · ms``. Принципала читаем из
-auth-контекста (``get_access_token().client_id`` = ``user.id``); при in-memory
-``Client`` (тесты, без транспорта/auth) токена нет → ``-``.
+The fork's ``Middleware.on_call_tool`` wraps every tool of every mounted server (one
+instance per ``McpServerContext``). Log line:
+``principal · tool · argument-summary · ok/err · ms``. The principal is read from the
+auth context (``get_access_token().client_id`` = ``user.id``); with an in-memory
+``Client`` (tests, no transport/auth) there is no token → ``-``.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from fastmcp.tools.tool import ToolResult
 
 _LOG = get_logger("mcp/audit")
-_ARGS_MAX = 200  # обрезка сводки аргументов, чтобы не раздувать лог
+_ARGS_MAX = 200  # truncate the argument summary so the log does not bloat
 
 
 def _summarize(arguments: Any) -> str:
@@ -31,7 +31,7 @@ def _summarize(arguments: Any) -> str:
 
 
 class McpServerAuditMiddleware(Middleware):
-    """Логирует исход каждого ``call_tool`` в канал ``mcp/audit``."""
+    """Logs the outcome of every ``call_tool`` to the ``mcp/audit`` channel."""
 
     async def on_call_tool(
         self,
@@ -45,7 +45,7 @@ class McpServerAuditMiddleware(Middleware):
         start = time.monotonic()
         try:
             result = await call_next(context)
-        except Exception as exc:  # noqa: BLE001 — пробрасываем после лога
+        except Exception as exc:  # noqa: BLE001 — re-raised after logging
             ms = (time.monotonic() - start) * 1000
             _LOG.info(
                 "mcp user=%s tool=%s args=%s err=%r %.0fms",

@@ -1,17 +1,18 @@
-"""Шина изменений: раздача опубликованного всем, кто сейчас слушает.
+"""The changes bus: fans out whatever is published to everyone listening right now.
 
-Это не очередь, которая хранит: опубликованное сразу раскладывается по буферам подключённых
-слушателей и нигде не остаётся. Никто не слушает — событие пропадает, и это правильно: после
-переподключения фронт перечитывает то, что у него на экране, а не догоняет пропущенное.
+It is not a queue that stores: a published message is immediately spread across the buffers of
+connected listeners and is kept nowhere. If nobody is listening the event is lost, and that is
+correct: after reconnecting, the frontend re-reads what it has on screen rather than catching
+up on what it missed.
 
-Живёт в памяти процесса. Правки, прошедшие через этот процесс (интерфейс и MCP-агент пишут через
-один бэкенд), видны; правки чужого процесса (worker, второй процесс сервера) — нет. Когда это
-понадобится, за тот же ``publish`` / ``subscribe`` встанет связь между процессами, а форма события
-и фронт не изменятся.
+Lives in process memory. Edits that went through this process (the interface and the MCP agent
+write through one backend) are visible; edits from another process (the worker, a second server
+process) are not. When that becomes necessary, inter-process transport will sit behind the same
+``publish`` / ``subscribe``, and neither the event shape nor the frontend will change.
 
-Буфер слушателя ограничен. Вкладка, которая не успевает забирать (фон, медленная сеть), не копит
-память бэка: её буфер очищается и в него кладётся одно «перечитай всё» — стоимость отставания —
-один лишний запрос, а не устаревший экран.
+A listener's buffer is bounded. A tab that cannot keep up (background, slow network) does not
+pile up backend memory: its buffer is cleared and a single "re-read everything" is put in — the
+cost of falling behind is one extra request, not a stale screen.
 """
 
 from __future__ import annotations
@@ -21,14 +22,14 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
-# Сколько сообщений ждёт в буфере одной вкладки. Сообщение — одна транзакция, поэтому сотни
-# хватает с запасом: столько коммитов подряд без единого чтения значит, что вкладка не читает.
+# How many messages wait in one tab's buffer. A message is one transaction, so a few hundred is
+# ample: that many commits in a row without a single read means the tab is not reading.
 BUFFER_SIZE = 256
 
 
 @dataclass(frozen=True)
 class Message:
-    """Кадр потока: имя события SSE и его данные (уже JSON-строка)."""
+    """A feed frame: the event name and its data (already a JSON string)."""
 
     event: str
     data: str
@@ -46,7 +47,7 @@ class ChangeBus:
         return len(self._listeners)
 
     def publish(self, message: Message) -> None:
-        """Разложить сообщение по буферам слушателей. Не ждёт: зовётся из обработчика коммита."""
+        """Spread a message across the listeners' buffers. Never waits: called from a commit hook."""
         for queue in list(self._listeners):
             try:
                 queue.put_nowait(message)

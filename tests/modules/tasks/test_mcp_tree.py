@@ -1,7 +1,8 @@
-"""workbench MCP: перенос задачи в дереве через ``task_update(parent_code=…)``.
+"""workbench MCP: moving a task in the tree via ``task_update(parent_code=…)``.
 
-Правила дерева покрыты в ``test_task_tree.py`` на CRUD; здесь — то, что видит агент: параметр в
-схеме, форма ответа, подсказка в отказе и забор пространства на новом родителе.
+The tree rules are covered on CRUD in ``test_task_tree.py``; here is what the agent sees: the
+parameter in the schema, the shape of the answer, the hint in the refusal, and the workspace
+fence on the new parent.
 """
 
 from __future__ import annotations
@@ -44,7 +45,7 @@ async def test_the_answer_shows_the_new_parent_and_the_group_it_took(call, bound
     )
 
     assert answer["parent_code"] == f"TASK@{epic.code}"
-    assert answer["group_code"] == f"GROUP@{group.code}"
+    assert answer["group_code"] == f"TASKGROUP@{group.code}"
 
 
 async def test_an_empty_parent_code_makes_it_a_top_level_task(call, bound):
@@ -86,7 +87,7 @@ async def test_a_parent_from_another_workspace_is_refused_by_the_fence(call, bou
 
 
 async def test_a_task_a_person_set_can_be_moved(call, bound):
-    """Задачу, поставленную человеком, агент переносит в дереве так же, как свою."""
+    """The agent moves a task the person set in the tree just like one of its own."""
     epic = await task_crud.task_create(workspace_code=bound.code, title="Эпик")
     theirs = await task_crud.task_create(
         workspace_code=bound.code, title="Поставил человек", created_by=ACTOR_HUMAN
@@ -103,12 +104,12 @@ async def test_a_task_a_person_set_can_be_moved(call, bound):
     ("tool", "args"),
     [
         ("task_update", {"parent_code": "TASK@"}),
-        ("task_update", {"group_code": "GROUP@"}),
-        ("tasks_regroup", {"group_code": "GROUP@"}),
+        ("task_update", {"group_code": "TASKGROUP@"}),
+        ("tasks_regroup", {"group_code": "TASKGROUP@"}),
     ],
 )
 async def test_a_bare_prefix_is_refused_rather_than_read_as_clear(call, bound, tool, args):
-    """«TASK@» без кода раньше доезжал до CRUD пустой строкой — и выносил подзадачу в корень."""
+    """A bare "TASK@" used to reach CRUD as an empty string — and moved the subtask to the root."""
     group = await group_crud.group_create(workspace_code=bound.code, title="Биллинг")
     epic = await task_crud.task_create(
         workspace_code=bound.code, title="Эпик", group_code=group.code
@@ -122,7 +123,7 @@ async def test_a_bare_prefix_is_refused_rather_than_read_as_clear(call, bound, t
         else {"task_code": f"TASK@{child.code}"}
     )
 
-    with pytest.raises(ToolError, match="is not a (TASK|GROUP)@ code"):
+    with pytest.raises(ToolError, match="is not a (TASK|TASKGROUP)@ code"):
         await call(tool, **target, **args)
 
     assert (await link_crud.link_get(child.code)).parent_code == epic.code

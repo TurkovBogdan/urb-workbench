@@ -1,18 +1,19 @@
-"""Стандарт рамки страницы: у каждой вьюхи SPA она есть, и стоит она выше содержимого.
+"""The page frame standard: every SPA view has one, and it sits above the content.
 
-Рамок две, по роду страницы. **Список** открывается шапкой ``PageHeader``: имя раздела там и есть
-заголовок страницы, и рамку он несёт сам. **Деталка** рамки не несёт вовсе: липкая колонка живёт
-в общем шаблоне ``DetailShell``, который стоит на маршруте-родителе и переживает переход с
-артефакта на артефакт — меняется только содержимое справа. Деталка вместо рамки ЗАПОЛНЯЕТ колонку
-вызовом ``useDetailRail``, и он же служит здесь признаком её рода.
+There are two frames, by kind of page. A **list** opens with a ``PageHeader``: the section name
+there is the page title, and it carries the frame itself. A **detail** page carries no frame at
+all: the sticky column lives in the shared ``DetailShell`` template, which sits on the parent
+route and survives moving from artifact to artifact — only the content on the right changes.
+Instead of a frame, a detail page FILLS the column by calling ``useDetailRail``, and that call is
+also what marks its kind here.
 
-Общее в обоих случаях одно: рамка — первое, что видно. Стоит странице обойтись без неё (или
-поставить её после содержимого), и переход к этой странице читается как прыжок.
+Both cases share one thing: the frame is the first thing seen. Let a page go without one (or put
+it after the content), and moving to that page reads as a jump.
 
-Проверка живёт в тестах Python, а не во фронте, по прозаичной причине: тестового раннера у фронта
-нет, а договорённость нужна проверяемая. Читаем исходники как текст — ни сборки, ни браузера тут
-не нужно, поэтому тест ``pure``. Лежит в ``apps``: это правило про приложение целиком, а не про
-отдельный модуль, и так оно попадает в обычный прогон ``--core``.
+The check lives in the Python tests rather than the frontend for a prosaic reason: the frontend
+has no test runner, and the convention has to be checkable. Sources are read as text — no build
+or browser needed, hence ``pure``. It sits in ``apps``: the rule is about the application as a
+whole, not a single module, and this way it lands in the regular ``--core`` run.
 """
 
 from __future__ import annotations
@@ -26,32 +27,32 @@ pytestmark = pytest.mark.pure
 
 WEB_SRC = Path(__file__).resolve().parents[2] / "web" / "src"
 
-# Страницы без шапки — только те, у которых нет и самой страничной рамки:
-# главная (витрина-приветствие во весь экран) и экран «не найдено» (он рисует себя сам).
+# Pages without a header are only those with no page frame at all:
+# home (a full-screen welcome showcase) and the "not found" screen (it draws itself).
 EXEMPT = {
     "views/HomeView.vue",
     "views/errors/NotFoundView.vue",
-    # Печатная версия страницы исследования: рамки у неё нет по замыслу — это документ для
-    # бумаги, а не экран с навигацией. К тому же она недостижима: модуль `research` снесён
-    # (2026-09-20), её маршрут нигде не зарегистрирован, а папка `features/research` пока живёт
-    # только потому, что витрина дизайн-системы показывает две её карточки. Строку убрать
-    # вместе с папкой.
+    # The print version of a research page: it has no frame by design — it is a document for
+    # paper, not a screen with navigation. It is also unreachable: the `research` module was
+    # removed (2026-09-20), its route is registered nowhere, and the `features/research` folder
+    # lives on only because the design-system showcase shows two of its cards. Drop this line
+    # together with the folder.
     "features/research/views/ResearchPrintView.vue",
 }
 
 PAGE_FRAME = "<PageHeader"
 
-# Шаблон-рамка деталок: его несёт маршрут-родитель, а не вьюха.
+# The detail frame template: carried by the parent route, not by the view.
 DETAIL_SHELL = WEB_SRC / "layout" / "templates" / "DetailShell.vue"
 
-# Признак деталки: страница заполняет колонку общей рамки вместо того, чтобы рисовать свою.
-# Сверяемся с ИМПОРТОМ, а не с вызовом: витрина дизайн-системы показывает тот же вызов строкой
-# в примере кода, и по вызову она засчиталась бы деталкой, которой не является.
+# The detail mark: the page fills the shared frame's column instead of drawing its own.
+# We match the IMPORT, not the call: the design-system showcase shows the same call as a string in
+# a code example, and by the call it would count as a detail page, which it is not.
 DETAIL_MARK = "@/layout/detailRail"
 
-# Присутствия рамки мало: она должна стоять ВЫШЕ содержимого, поэтому сверяемся с началом того,
-# чем содержимое обычно открывается. Отказ (``SectionError``) сюда не входит — он не содержимое
-# страницы, а сообщение вместо него, и на деталке стоит до колонки.
+# Having a frame is not enough: it must sit ABOVE the content, so we compare against the start of
+# whatever content usually opens with. A refusal (``SectionError``) is not included — it is not
+# page content but a message in its place, and on a detail page it comes before the column.
 CONTENT_OPENERS = (
     "<VCard",
     "<VDataTable",
@@ -62,22 +63,22 @@ CONTENT_OPENERS = (
 
 
 def _template(source: str) -> str:
-    """Разметка вьюхи без ``<script>``: в скрипте живут примеры кода витрины дизайн-системы, а в
-    них встречается и ``<PageHeader``, и целый ``<template>`` — по ним тест засчитал бы вьюхе
-    рамку, которой на странице нет, или принял бы пример за саму разметку. Поэтому скрипт
-    вырезается ЦЕЛИКОМ, и только потом ищется шаблон."""
+    """The view's markup without ``<script>``: the script holds the design-system showcase's code
+    examples, and they contain both ``<PageHeader`` and a whole ``<template>`` — from those the
+    test would credit the view with a frame the page does not have, or take an example for the
+    markup itself. So the script is cut out ENTIRELY, and only then is the template looked for."""
     markup = re.sub(r"<script.*?</script>", "", source, flags=re.S)
     match = re.search(r"<template>(.*)</template>", markup, re.S)
     return match.group(1) if match else ""
 
 
 def _is_page(name: str) -> bool:
-    """Вьюха — это файл в папке ``views/``, а не всё, что кончается на ``View.vue``.
+    """A view is a file in a ``views/`` folder, not everything ending in ``View.vue``.
 
-    По маске имени в обход попадал ``components/markdown/editor/EntityRefView.vue`` — узел
-    редактора Tiptap, рисующий ссылку-сущность ВНУТРИ текста. Страничной рамки у него нет и быть
-    не может, так что тест требовал от него невозможного и краснел всегда. Маршрут страницы
-    всегда ссылается на файл в ``views/``, поэтому папка — точный признак, а суффикс — нет.
+    The name pattern swept in ``components/markdown/editor/EntityRefView.vue`` — a Tiptap editor
+    node that renders an entity link INSIDE text. It has no page frame and cannot have one, so the
+    test demanded the impossible of it and was always red. A page route always points at a file
+    in ``views/``, so the folder is an exact mark and the suffix is not.
     """
     return "views/" in name
 
@@ -92,7 +93,7 @@ def _views() -> list[tuple[str, str]]:
 
 
 def test_every_view_is_covered_by_the_check():
-    """Сам обход: если вьюхи перестали находиться, молчаливо зелёный тест хуже отсутствующего."""
+    """The walk itself: if views stop being found, a silently green test is worse than none."""
     assert len(_views()) > 40
 
 
@@ -102,41 +103,41 @@ def test_view_starts_with_its_page_frame(name: str, source: str):
         return
 
     template = _template(source)
-    assert PAGE_FRAME in template, f"{name}: страница без рамки — переход к ней читается как прыжок"
+    assert PAGE_FRAME in template, f"{name}: page without a frame — moving to it reads as a jump"
 
     frame_at = template.index(PAGE_FRAME)
     for opener in CONTENT_OPENERS:
         content_at = template.find(opener)
         if content_at != -1:
-            assert frame_at < content_at, f"{name}: рамка стоит ниже содержимого ({opener})"
+            assert frame_at < content_at, f"{name}: the frame sits below the content ({opener})"
 
 
 @pytest.mark.parametrize("name,source", _views(), ids=lambda value: value if isinstance(value, str) and value.endswith(".vue") else "")
 def test_detail_page_leaves_the_frame_to_the_shell(name: str, source: str):
-    """Деталка не рисует ни колонки, ни шапки: и то и другое принадлежит общей рамке. Своя колонка
-    исчезала бы на каждом переходе, а вторая шапка сверху вернула бы ровно то расслоение, ради
-    ухода от которого колонку и завели."""
+    """A detail page draws neither a column nor a header: both belong to the shared frame. Its own
+    column would vanish on every navigation, and a second header on top would bring back exactly
+    the split the column was introduced to get away from."""
     if DETAIL_MARK not in source:
         return
 
     template = _template(source)
     for own_frame in ("<PageHeader", "<PageLayout", "<DetailLayout", "<DetailNav"):
-        assert own_frame not in template, f"{name}: деталка рисует {own_frame} — рамка задвоена"
+        assert own_frame not in template, f"{name}: detail page draws {own_frame} — the frame is doubled"
 
 
 def test_detail_shell_carries_the_frame():
-    """Рамка деталок одна на всех, и она обязана нести обе части: колонку с выходом и место под
-    содержимое. Потеряй шаблон одну из них — со страниц пропал бы выход, и ни один тест выше
-    этого бы не заметил: они смотрят на вьюхи, а вьюхи рамки больше не несут."""
+    """There is one detail frame for all, and it must carry both parts: the column with the way
+    out and the slot for content. If the template lost either, pages would lose their way out,
+    and no test above would notice: they look at views, and views no longer carry the frame."""
     shell = _template(DETAIL_SHELL.read_text(encoding="utf-8"))
 
-    assert "<DetailLayout" in shell, "DetailShell: рамка без колонки"
-    assert "<DetailNav" in shell, "DetailShell: колонка без выхода со страницы"
-    assert "<RouterView" in shell, "DetailShell: рамке некуда положить содержимое"
+    assert "<DetailLayout" in shell, "DetailShell: frame without a column"
+    assert "<DetailNav" in shell, "DetailShell: column without a way out of the page"
+    assert "<RouterView" in shell, "DetailShell: the frame has nowhere to put the content"
 
 
 def test_exempt_pages_still_exist():
-    """Исключения перечислены поимённо: переименовали страницу — правило молча перестало её
-    касаться, и это должно упасть здесь, а не всплыть через полгода."""
+    """Exemptions are listed by name: rename a page and the rule silently stops applying to it,
+    and that must fail here rather than surface half a year later."""
     for name in EXEMPT:
-        assert (WEB_SRC / name).exists(), f"{name}: в списке исключений, но такого файла нет"
+        assert (WEB_SRC / name).exists(), f"{name}: listed as exempt, but no such file exists"

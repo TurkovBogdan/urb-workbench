@@ -1,18 +1,18 @@
 <script setup lang="ts">
-// Модальное окно портала целиком: карточка, шапка с крестиком, тело и полоса кнопок. Собирать
-// `VDialog` + `VCard` вручную больше не нужно — так анатомия окна не может разойтись по экранам,
-// а ловушки Vuetify (`VCardTitle`, `VCardActions`) не попадают в код вовсе.
+// The portal's whole modal window: card, header with a close ×, body and button bar. Assembling
+// `VDialog` + `VCard` by hand is no longer needed — so the window anatomy can't diverge across
+// screens, and Vuetify's traps (`VCardTitle`, `VCardActions`) never make it into the code.
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import DialogHeader from './DialogHeader.vue'
 import DialogActions from './DialogActions.vue'
 
-// Ширина — параметр окна, но не произвольный: четыре ступени по назначению вместо россыпи
-// литералов.
+// Width is a window parameter, but not an arbitrary one: four steps by purpose instead of a
+// scatter of literals.
 const WIDTHS = {
-  narrow: 440,  // подтверждение, короткий вопрос
-  base: 560,    // форма, деталка
-  wide: 900,    // две колонки, оплата
-  xwide: 1180,  // рабочее место: колонка прозы и колонка полей рядом с ней (деталка задачи)
+  narrow: 440,  // confirmation, a short question
+  base: 560,    // form, detail view
+  wide: 900,    // two columns, payment
+  xwide: 1180,  // workspace: a prose column with a fields column beside it (task detail)
 }
 
 const open = defineModel<boolean>({ required: true })
@@ -21,15 +21,15 @@ const props = withDefaults(defineProps<{
   title: string
   description?: string
   size?: keyof typeof WIDTHS
-  /** Не закрывается кликом мимо и по Esc: выход только крестиком и кнопками. */
+  /** Doesn't close on an outside click or Esc: the only way out is the × and the buttons. */
   persistent?: boolean
-  /** Линия под шапкой. Снимать у окна БЕЗ контентного блока (вопрос без содержимого). */
+  /** The rule under the header. Drop it for a window WITHOUT a content block (a question with no content). */
   rule?: boolean
-  /** Идёт работа: крестик виден, но не работает. */
+  /** Work in progress: the × is visible but doesn't work. */
   closeDisabled?: boolean
-  /** Тело до краёв карточки — для контента со своим фоном (колонки оплаты). */
+  /** Body to the card edges — for content with its own background (payment columns). */
   flush?: boolean
-  /** Длинный контент: прокручивается тело, шапка и кнопки остаются на месте. */
+  /** Long content: the body scrolls, the header and buttons stay in place. */
   scrollable?: boolean
 }>(), {
   description: undefined,
@@ -44,35 +44,35 @@ const props = withDefaults(defineProps<{
 const slots = defineSlots<{
   default(): unknown
   actions?(): unknown
-  /** Действия над содержимым окна — в шапке, следом за крестиком. */
+  /** Actions on the window content — in the header, right after the ×. */
   headerActions?(): unknown
-  /** Заголовок окна, когда он не строка: правимое поле деталки. */
+  /** The window title when it isn't a string: the detail view's editable field. */
   title?(): unknown
-  /** Строка под заголовком, когда в ней не только текст: код с кнопкой копирования. */
+  /** The line under the title when it holds more than text: a code with a copy button. */
   description?(): unknown
 }>()
 
 const maxWidth = computed(() => WIDTHS[props.size])
 
-// Без кнопок тело само отвечает за нижний отступ карточки. Проверяем слот, а не `:last-child`:
-// VCard подмешивает `.v-card__underlay` последним ребёнком и позиционный селектор промахивается.
+// Without buttons the body itself owns the card's bottom padding. Check the slot, not `:last-child`:
+// VCard appends `.v-card__underlay` as the last child and a positional selector misses.
 const hasActions = computed(() => Boolean(slots.actions))
 
-// ── Плавная смена высоты ──────────────────────────────────────────────────────────────────
-// Содержимое меняется уже после открытия: догрузился платёжный виджет, переключили вкладку, форма
-// сменилась на «отправлено». Скачок читается рывком — окно по центру, и уезжают обе кромки.
+// ── Smooth height change ──────────────────────────────────────────────────────────────────
+// Content changes after opening: a payment widget finished loading, a tab was switched, a form
+// turned into "sent". A jump reads as a jerk — the window is centered, so both edges move.
 //
-// Анимируем ОБЁРТКУ тела, а не карточку: карточку Vuetify делает flex-элементом с
-// `flex: 1 1 var(--v-card-height, 100%)`, и свойство `height` на неё не действует вовсе.
-// Обёртка получает явную высоту на время перехода и отпускается обратно в `auto`, чтобы
-// содержимое снова управляло размером само.
+// Animate the body WRAPPER, not the card: Vuetify makes the card a flex item with
+// `flex: 1 1 var(--v-card-height, 100%)`, and the `height` property has no effect on it at all.
+// The wrapper gets an explicit height for the duration of the transition and is released back to
+// `auto` so the content drives the size itself again.
 const sizer = ref<HTMLElement | null>(null)
 const content = ref<HTMLElement | null>(null)
 
 let observer: ResizeObserver | null = null
 
-// Высоту помним САМИ: наблюдатель приходит уже после раскладки, и обёртка к этому моменту равна
-// новому содержимому — сравнивать её с ним бессмысленно, разницы там не увидеть.
+// We remember the height OURSELVES: the observer fires after layout, by which point the wrapper
+// already equals the new content — comparing the two is pointless, no difference shows.
 let previous: number | null = null
 
 function release(): void {
@@ -96,10 +96,10 @@ function onContentResize(): void {
   const from = previous
   previous = next
 
-  // Прячем перелив только на время хода: в покое из окна могут торчать нужные вещи.
+  // Hide overflow only during the motion: at rest, needed things may stick out of the window.
   element.style.overflow = 'hidden'
   element.style.height = `${from}px`
-  void element.offsetHeight  // reflow: без него браузер склеит оба значения в одно
+  void element.offsetHeight  // reflow: without it the browser merges both values into one
   element.style.height = `${next}px`
   element.addEventListener('transitionend', release, { once: true })
 }
@@ -110,14 +110,14 @@ function stopWatching(): void {
   previous = null
 }
 
-// Подписываемся на САМ элемент, а не на `open`: содержимое окна монтируется позже открытия, и в
-// момент смены модели его ещё нет.
+// Watch the element ITSELF, not `open`: the window content mounts after opening, and at the moment
+// the model changes it isn't there yet.
 watch(content, (element) => {
   stopWatching()
 
   if (element === null) return
 
-  // Плавность — украшение: при выключенной анимации в системе окно меняет высоту сразу.
+  // Smoothness is decoration: with animation turned off in the system the window resizes at once.
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
 
   observer = new ResizeObserver(onContentResize)
@@ -171,8 +171,8 @@ onBeforeUnmount(stopWatching)
 </template>
 
 <style scoped>
-/* Типографика повторяет прежний VCardText — тело окна набрано мельче страницы.
-   Снизу половина зазора до кнопок, вторую половину приносит DialogActions. */
+/* Typography repeats the former VCardText — the window body is set smaller than the page.
+   Below is half the gap to the buttons; DialogActions brings the other half. */
 .app-dialog__body {
   padding: 16px 24px 12px;
   font-size: 13px;
@@ -180,22 +180,22 @@ onBeforeUnmount(stopWatching)
   color: var(--text);
 }
 
-/* Прокручивается САМО тело, а не вложенный блок: иначе полоса прокрутки встаёт по внутреннему
-   краю отступов и висит в 24px от рамки карточки. Высоту ограничивает окно (`scrollable` у
-   VDialog делает карточку колонкой), поэтому своей max-height тут нет. */
+/* The body ITSELF scrolls, not a nested block: otherwise the scrollbar sits at the inner edge of
+   the padding and hangs 24px from the card border. The window caps the height (`scrollable` on
+   VDialog makes the card a column), so there is no max-height of its own here. */
 .app-dialog__body--scrollable {
   flex: 1 1 auto;
   overflow-y: auto;
 }
 
-/* Кнопок нет — низ карточки держит тело, и повторяет верх шапки. */
+/* No buttons — the body holds the card's bottom and mirrors the header's top. */
 .app-dialog__body--last { padding-bottom: 22px; }
 
-/* Линии нет — расстояние до текста задаёт одна шапка, иначе два отступа складываются. */
+/* No rule — the header alone sets the distance to the text, otherwise two paddings add up. */
 .app-dialog__body--tight { padding-top: 0; }
 
 .app-dialog__body--flush { padding: 0; }
 
-/* Явную высоту на время смены содержимого ставит скрипт; в покое здесь `auto`. */
+/* The script sets an explicit height while content changes; at rest it is `auto`. */
 .app-dialog__sizer { transition: height 220ms cubic-bezier(.4, 0, .2, 1); }
 </style>

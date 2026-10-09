@@ -61,7 +61,7 @@ def spawn_backend(
     """Start the backend detached; returns the command so the caller can report it."""
     command = backend_command(launcher, with_worker=with_worker)
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    backend_log = open(log_path, "a", encoding="utf-8")  # noqa: SIM115 — наследует потомок
+    backend_log = open(log_path, "a", encoding="utf-8")  # noqa: SIM115 — the child inherits it
     subprocess.Popen(
         command,
         cwd=str(project_root()),
@@ -92,8 +92,8 @@ class BackendHealth:
 
     def describe(self) -> str:
         if not self.pending:
-            return f"статус «{self.status}»"
-        return f"статус «{self.status}», не применены ревизии: {', '.join(self.pending)}"
+            return f"status \"{self.status}\""
+        return f"status \"{self.status}\", unapplied revisions: {', '.join(self.pending)}"
 
 
 def connect_host(config) -> str:

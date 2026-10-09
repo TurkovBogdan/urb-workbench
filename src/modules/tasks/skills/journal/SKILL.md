@@ -1,16 +1,31 @@
 ---
 name: journal
-description: Read before the first journal entry of a task — which kind a line is, what closing one means, and which of them hold up the hand-over.
+description: Read before the first journal entry of a task — which kind a line is, what closing one means, and which of them are counted at hand-over.
 ---
 
 # The journal of a task
 
-One append-only stream per task. An entry is never rewritten and never deleted; changing your
-mind is a new entry pointing at the old one. What you *can* do later is **close** an entry —
-once — by saying what settled it.
+One stream per task. An entry is not deleted, and changing your mind is a new entry pointing at
+the old one. What you *can* do later is work on its body, and **close** it — once — by saying
+what settled it.
 
 An entry has two halves. The **subject** (`title` + `body`) says what came up. The
 **resolution** says what settled it. Open means the resolution is still empty.
+
+What the tools let you change after the fact:
+
+| Part | Changed by |
+|---|---|
+| `title` | nothing — set once by `journal_add` |
+| `body` | `content_set` / `content_replace` / `content_set_section` / `content_add`, on any entry and any state |
+| `resolution` | `journal_resolve`, once; a second call is refused |
+
+The body being editable is for adding what you worked out — the option you checked, the line
+that confirmed it — not for making an entry say something it did not.
+
+The journal is not the progress diary. "Migration written → CRUD next" is where the work is, and
+it goes to the task's `progress`. The journal keeps what someone will later ask about: why it is
+shaped this way, what was found on the side, which exact number it rests on.
 
 ## Four kinds, and the kind is the point
 
@@ -27,7 +42,7 @@ reason the kind exists. Close it when it acquires a foundation:
 
 - the requester answered → the resolution is their answer;
 - you went and checked → the resolution is the pointer to the check
-  (`pytest -q → 12 passed`, `tariff.py:88 подтверждает`).
+  (`pytest -q → 12 passed`, `tariff.py:88 confirms it`).
 
 A decision that never acquires either is an assumption you shipped, and it will be visible.
 
@@ -36,8 +51,8 @@ A decision that never acquires either is an assumption you shipped, and it will 
 A defect, a debt, a strangeness in code *outside* this task. Write it the moment you see it:
 without somewhere to put it, it dies with the session and gets paid for again next time.
 
-A finding does **not** hold up your hand-over. It is addressed to a person, who triages it in
-their own order, and you have no way to close it — so it is not counted against you.
+A finding is not counted against your hand-over: it is addressed to a person, who triages it in
+their own order.
 
 ### `fact` — something to remember
 
@@ -49,15 +64,19 @@ an exact string, write it down.
 
 ### `remark` — the requester's word about your work
 
-Not yours to write. You will see them in the journal and you close them, with what you did about
-it. An entry whose halves are written by the same hand answers to nobody.
+Not yours to write: `journal_add` has no such type. You will see them in the journal and you close
+them, with what you did about it. An entry whose halves are written by the same hand answers to
+nobody — so your answer goes in the resolution, and the requester's words in the body stay
+theirs, even though the content tools would reach them.
 
-## What holds up the hand-over
+## What is counted at hand-over
 
-`task_status(…, "in_review")` reports two numbers, and they are not the same:
+`task_status(…, "in_review")` hands the task over whatever is still open — it does not refuse.
+It reports two numbers, and they are not the same:
 
 - **blocking** — open `decision` and `remark`. Both are yours to settle: a decision needs its
-  foundation, a remark needs your answer. Clear them before handing over.
+  foundation, a remark needs your answer. Settle them before handing over, so the person does
+  not receive an assumption or an unanswered request.
 - **open** — the above plus findings, which are the person's to triage.
 
 ## Attaching to a stage

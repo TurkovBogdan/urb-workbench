@@ -1,4 +1,4 @@
-"""HTTP API подсистемы settings (mounted at /internal/core/settings)."""
+"""HTTP API of the settings subsystem (mounted at /internal/core/settings)."""
 
 from __future__ import annotations
 
@@ -16,9 +16,9 @@ from src.core.settings.schema import field_by_key
 router = APIRouter()
 
 
-# Заданный секрет наружу не отдаётся: вместо токена возвращаем сентинел. Фронт
-# показывает поле пустым (плейсхолдер «задан»), и если его не трогали — присылает
-# этот же сентинел обратно, что трактуется как «не менять».
+# A set secret is never sent out: a sentinel is returned instead of the token. The
+# frontend shows the field empty (a "set" placeholder), and if it was left untouched it
+# sends the same sentinel back, which is read as "don't change".
 SECRET_UNCHANGED = "NOT_CHANGED"
 
 
@@ -27,12 +27,12 @@ class _ValueBody(BaseModel):
 
 
 def _secret_placeholder(value: str) -> str:
-    """Наружу: пусто → не задан (`""`); задан → сентинел `NOT_CHANGED` (не токен)."""
+    """Outward: empty → not set (`""`); set → the `NOT_CHANGED` sentinel (not the token)."""
     return SECRET_UNCHANGED if value else ""
 
 
 def _store_values(module: str) -> dict[str, Any]:
-    """Значения store'а; секреты замаскированы (наружу токен не отдаём)."""
+    """Store values; secrets masked (the token is never sent out)."""
     store = get_registry().get(module)
     schema = get_registry().schema(module)
     return {
@@ -84,8 +84,8 @@ async def put_value(module: str, key: str, body: _ValueBody) -> dict[str, Any]:
         field = field_by_key(schema, key)
     except KeyError:
         raise HTTPException(status_code=404, detail="unknown key")
-    # Секрет наружу отдаётся сентинелом/пустым, поэтому эти значения на запись =
-    # «не менять» (иначе форма затёрла бы токен). Очистка — через reset.
+    # A secret goes out as the sentinel/empty, so on write these values mean
+    # "don't change" (otherwise the form would wipe the token). Clearing goes through reset.
     if field.is_secret() and body.value in ("", SECRET_UNCHANGED):
         return {"values": _store_values(module)}
     try:

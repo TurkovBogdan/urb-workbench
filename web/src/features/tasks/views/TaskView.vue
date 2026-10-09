@@ -1,34 +1,36 @@
 <script setup lang="ts">
-// Задача целиком — СТРАНИЦА по адресу `/tasks/task/TASK@…`, а не окно поверх списка.
+// The whole task — a PAGE at `/tasks/task/TASK@…`, not a dialog over the list.
 //
-// Почему страницей. Задачу не столько просматривают, сколько в ней работают: правят текст, водят
-// статус, заводят и открывают подзадачи. Окну для этого не хватало ни места (проза и колонка
-// разметки делили ширину модалки), ни постоянства — оно закрывалось мимоходом. У страницы свой
-// адрес, своя история переходов и вся ширина экрана.
+// Why a page. A task is not so much viewed as worked in: editing text, moving the status, creating
+// and opening subtasks. A dialog had neither the room for that (prose and the classification
+// column shared the modal's width) nor the permanence — it closed in passing. A page has its own
+// URL, its own navigation history and the full screen width.
 //
-// ПРАВКА ИДЁТ ЗДЕСЬ ЖЕ. Отдельной формы у задачи нет: поля правятся на месте и уезжают сами —
-// текстовые после паузы в наборе и по уходу из поля, выбор и даты сразу по смене. Кнопки
-// сохранения нет, и «отмены» тоже: единственное состояние задачи — то, что в базе. Уход со
-// страницы дописывает набранное (`onBeforeRouteLeave`): переход не должен стоить последней фразы.
+// EDITING HAPPENS RIGHT HERE. The task has no separate form: fields are edited in place and save
+// themselves — text fields after a typing pause and on leaving the field, selects and dates right
+// on change. There is no save button and no "cancel" either: the task's only state is what is in
+// the database. Leaving the page flushes what was typed (`onBeforeRouteLeave`): navigating away
+// must not cost the last sentence.
 //
-// Две колонки, и граница между ними смысловая. Слева то, что человек ЧИТАЕТ подряд, — описание,
-// текст задачи, — и связи с соседними задачами: родитель сверху, подзадачи снизу. Справа то, чем
-// задачу РАЗМЕЧАЮТ: статус, тип, приоритет, группа, срок и отметки времени.
+// Two columns, and the line between them is about meaning. On the left is what the person READS
+// through — the description, the task text — and the links to neighbouring tasks: the parent above,
+// subtasks below. On the right is what CLASSIFIES the task: status, type, priority, group, deadline
+// and timestamps.
 //
-// Рамка — общий `PageLayout` с общей шапкой страницы; колонки навигации, как у деталок
-// исследования, здесь нет: у задачи нет длинного документа, по разделам которого стоило бы
-// водить оглавлением, а выход наверх — это кнопка «назад» в шапке.
+// The frame is the shared `PageLayout` with the shared page header; there is no navigation column
+// like on the research detail pages: a task has no long document worth navigating by section with
+// a table of contents, and the way up is the "back" button in the header.
 import { computed, onActivated, onBeforeUnmount, onDeactivated, reactive, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import {
-  IconArchiveOff,
   IconArrowUp,
   IconCalendarEvent,
   IconDotsVertical,
   IconFlame,
   IconPlus,
   IconRefresh,
+  IconRestore,
   IconTrash,
 } from '@tabler/icons-vue'
 
@@ -39,7 +41,9 @@ import CopyChip from '@/components/CopyChip.vue'
 import { MarkdownEditor } from '@/components/markdown/editor'
 import SectionError from '@/components/SectionError.vue'
 import SectionHeader from '@/components/SectionHeader.vue'
+import HelpHint from '@/components/HelpHint.vue'
 import IconSwatch from '@/components/IconSwatch.vue'
+import InvisibleField from '@/components/InvisibleField.vue'
 import VSelectSearch from '@/components/VSelectSearch.vue'
 import { useChangeSubscription } from '@/composables/useChangeSubscription'
 import { fmtDateTime, fmtRelative } from '@/shared/utils/date'
@@ -48,6 +52,7 @@ import type { Change } from '@/stores/changes'
 import TaskFieldConflictDialog from '../components/TaskFieldConflictDialog.vue'
 import TaskFormDialog from '../components/TaskFormDialog.vue'
 import TaskJournal from '../components/TaskJournal.vue'
+import TaskNotes from '../components/TaskNotes.vue'
 import TaskPrioritySelect from '../components/TaskPrioritySelect.vue'
 import TaskStages from '../components/TaskStages.vue'
 import TaskStatusSelect from '../components/TaskStatusSelect.vue'
@@ -56,21 +61,23 @@ import { listGroups, type GroupRow, type TaskDetail, type TaskListRow, type Task
 import { deadlineDay, formatDay, formatDeadline, parseDay } from '../dates'
 import { TASK_BRIEF_FEATURES, TASK_DOCUMENT_FEATURES } from '../editor'
 import {
-  BODY_MAX,
   TASK_CONSTRAINTS_MAX,
   TASK_CONTEXT_MAX,
   TASK_CRITERIA_MAX,
   TASK_DESCRIPTION_MAX,
+  TASK_PLAN_MAX,
+  TASK_PROGRESS_MAX,
+  TASK_RESULT_MAX,
   TASK_TITLE_MAX,
   TASK_TYPES,
   typeLayout,
 } from '../labels'
 import { useTaskDetailStore } from '../stores/task-detail.store'
 
-/** Тишина в поле, после которой набранное уезжает на бэк. */
+/** Silence in a field after which the typed text is sent to the backend. */
 const TYPING_PAUSE = 700
 
-/** Имя своего маршрута: по нему отличается СВОЙ параметр от чужого (см. watch ниже). */
+/** Our own route name: it tells OUR parameter from another route's (see the watch below). */
 const ROUTE_NAME = 'tasks-task'
 
 const { t } = useI18n()
@@ -78,13 +85,15 @@ const route = useRoute()
 const router = useRouter()
 const store = useTaskDetailStore()
 
-const code = computed(() => String(route.params.code ?? ''))
+// Folded to upper case: a link or bookmark from before codes went upper case still carries the
+// lower-case form, and the page compares this value with the codes the API returns.
+const code = computed(() => String(route.params.code ?? '').toUpperCase())
 const task = computed(() => store.task)
 const deleted = computed(() => Boolean(task.value?.deleted_at))
 
-// Страница живёт в KeepAlive, и `onActivated` срабатывает и на первый показ, и на каждое
-// возвращение (задачу могли поправить из списка, пока страница лежала в кеше). Второй вызов из
-// `onMounted` дал бы при первом показе два одинаковых запроса подряд.
+// The page lives in KeepAlive, and `onActivated` fires both on first display and on every return
+// (the task may have been edited from the list while the page sat in the cache). A second call
+// from `onMounted` would send two identical requests in a row on first display.
 let active = false
 
 onActivated(() => {
@@ -95,10 +104,11 @@ onActivated(() => {
 
 onDeactivated(() => { active = false })
 
-// Переход с задачи на задачу, пока страница на экране: KeepAlive держит один экземпляр, и
-// активации не будет. Возвращение с другой страницы меняет параметр ДО активации — его грузит
-// `onActivated`, а здесь он дал бы второй такой же запрос. Уехавшая страница уносит свой `watch`
-// не сразу, и параметр чужого маршрута прилетел бы сюда же: сверяемся и с именем маршрута.
+// Navigating from task to task while the page is on screen: KeepAlive keeps a single instance, and
+// there will be no activation. Returning from another page changes the parameter BEFORE
+// activation — `onActivated` loads it, and here it would make a second identical request. A page
+// that has been left does not drop its `watch` immediately, and another route's parameter would
+// land here too: so the route name is checked as well.
 watch(
   () => route.params.code,
   (value) => {
@@ -107,47 +117,50 @@ watch(
   },
 )
 
-// ── Черновик полей ────────────────────────────────────────────────────────────
-// Правка ведёт СВОЮ копию значений (`draft`), а рядом хранит, от какой версии карточки она взята
-// (`base`). Три версии поля — моя, `base` и свежая из базы — нужны потому, что карточку меняют и
-// без этой страницы: агент через MCP, другая вкладка. Каждый раз, когда карточка в сторе
-// меняется (перечитка по ленте изменений, «Обновить», возвращение на страницу, ответ на своё
-// сохранение), она СЛИВАЕТСЯ с черновиком (`merge`):
+// ── Field draft ───────────────────────────────────────────────────────────────
+// Editing keeps ITS OWN copy of the values (`draft`) and, next to it, which version of the card it
+// was taken from (`base`). Three versions of a field — mine, `base` and the fresh one from the
+// database — are needed because the card is also changed outside this page: the agent via MCP,
+// another tab. Every time the card in the store changes (a re-read from the change feed,
+// "Refresh", returning to the page, the response to our own save), it is MERGED into the draft
+// (`merge`):
 //
-// - в базе поле не менялось → черновик как есть (что бы человек в нём ни набрал);
-// - менялось, а человек его не трогал → черновик берёт значение из базы;
-// - менялось, и человек его правил → побеждает база: агент уже записал своё и на него
-//   рассчитывает. Набранное человеком не пропадает молча — оно показано в окне конфликта, чтобы
-//   его можно было скопировать (`conflicts`).
+// - the field did not change in the database → the draft stays as is (whatever the person typed);
+// - it changed and the person did not touch it → the draft takes the database value;
+// - it changed and the person edited it → the database wins: the agent has already written its
+//   value and relies on it. What the person typed is not lost silently — it is shown in the
+//   conflict dialog so it can be copied (`conflicts`).
 //
-// Сохраняется только то, чем черновик отличается от `base` (`pending`), и только эти поля
-// уезжают на бэк (`PATCH`). Раньше «что поменялось» считалось от свежей карточки: после её
-// перечитки несохранённый черновик отличался от неё во ВСЕХ полях, которые менял агент, и первое
-// же сохранение откатывало его правки.
+// Only what differs between the draft and `base` is saved (`pending`), and only those fields are
+// sent to the backend (`PATCH`). "What changed" used to be computed against the fresh card: after
+// a re-read, an unsaved draft differed from it in ALL the fields the agent had changed, and the
+// very first save rolled back the agent's edits.
 const draft = reactive({
   title: '',
   description: '',
   context: '',
   constraints: '',
   criteria: '',
-  body: '',
+  plan: '',
+  progress: '',
+  result: '',
   type: TASK_TYPES[0] as string,
   priority: 'normal',
   groupCode: null as string | null,
   deadlineAt: null as Date | null,
 })
 
-/** Поля черновика, которые сливаются и сохраняются. Срок сравнивается по ДНЮ (`deadline`). */
+/** Draft fields that are merged and saved. The deadline is compared by DAY (`deadline`). */
 const FIELDS = [
-  'title', 'description', 'context', 'constraints', 'criteria', 'body',
+  'title', 'description', 'context', 'constraints', 'criteria', 'plan', 'progress', 'result',
   'type', 'priority', 'groupCode', 'deadline',
 ] as const
 type Field = (typeof FIELDS)[number]
 type Snapshot = Record<Field, string | null>
 
 /**
- * Поля карточки в той форме, в какой их сравнивают с черновиком. Срок — днём, а не моментом: в
- * базе у него есть время суток, а поле выбирает только день.
+ * Card fields in the form they are compared with the draft. The deadline as a day, not a moment:
+ * in the database it has a time of day, while the field picks only the day.
  */
 function snapshotOf(row: TaskDetail | null): Snapshot {
   return {
@@ -156,7 +169,9 @@ function snapshotOf(row: TaskDetail | null): Snapshot {
     context: row?.context ?? '',
     constraints: row?.constraints ?? '',
     criteria: row?.criteria ?? '',
-    body: row?.body ?? '',
+    plan: row?.plan ?? '',
+    progress: row?.progress ?? '',
+    result: row?.result ?? '',
     type: row?.type ?? TASK_TYPES[0],
     priority: row?.priority ?? 'normal',
     groupCode: row?.group_code ?? null,
@@ -164,7 +179,7 @@ function snapshotOf(row: TaskDetail | null): Snapshot {
   }
 }
 
-/** Значение поля черновика в той же форме. Заголовок и цель уезжают обрезанными — так и сравниваем. */
+/** A draft field's value in the same form. Title and goal are sent trimmed — so they are compared trimmed. */
 function draftValue(field: Field): string | null {
   switch (field) {
     case 'deadline': return formatDay(draft.deadlineAt)
@@ -174,7 +189,7 @@ function draftValue(field: Field): string | null {
   }
 }
 
-/** Положить в черновик значение поля из карточки. */
+/** Put a field's value from the card into the draft. */
 function takeFromRow(field: Field, row: TaskDetail | null): void {
   switch (field) {
     case 'deadline': draft.deadlineAt = parseDay(row?.deadline_at ?? null); return
@@ -183,7 +198,7 @@ function takeFromRow(field: Field, row: TaskDetail | null): void {
   }
 }
 
-/** Версия карточки, от которой взят черновик. После своего сохранения — то, что отправили. */
+/** The card version the draft was taken from. After our own save — what was sent. */
 let base: Snapshot = snapshotOf(null)
 
 watch(task, (next, prev) => {
@@ -195,7 +210,7 @@ watch(task, (next, prev) => {
   merge(next)
 })
 
-/** Черновик = карточка как она в базе. Зовётся при смене задачи. */
+/** Draft = the card as it is in the database. Called when the task changes. */
 function fillDraft(): void {
   const row = task.value
   for (const field of FIELDS) takeFromRow(field, row)
@@ -203,10 +218,10 @@ function fillDraft(): void {
   conflicts.value = []
 }
 
-// ── Конфликт: поле, которое человек правит, изменили в базе ─────────────────────
+// ── Conflict: a field the person is editing was changed in the database ─────────
 interface FieldConflict {
   field: Field
-  /** Что человек успел набрать — показывается в окне, чтобы скопировать нужное. */
+  /** What the person had typed — shown in the dialog so the needed part can be copied. */
   mine: string
 }
 
@@ -216,21 +231,23 @@ const conflictOpen = computed({
   set: (open: boolean) => { if (!open) conflicts.value = [] },
 })
 
-/** Подпись поля в окне конфликта — та же, что у поля на странице. */
+/** The field label in the conflict dialog — the same as the field's label on the page. */
 const FIELD_LABELS: Record<Field, string> = {
   title: 'tasks.task.form.name',
   description: 'tasks.task.detail.description',
   context: 'tasks.task.detail.context',
   constraints: 'tasks.task.detail.constraints',
   criteria: 'tasks.task.detail.criteria',
-  body: 'tasks.task.detail.body',
+  plan: 'tasks.task.detail.plan',
+  progress: 'tasks.task.detail.progress',
+  result: 'tasks.task.detail.result',
   type: 'tasks.task.detail.type',
   priority: 'tasks.task.detail.priority',
   groupCode: 'tasks.task.detail.group',
   deadline: 'tasks.task.form.deadline_at',
 }
 
-/** Набранное человеком — словами, а не кодами: тип, приоритет и группа показаны названиями. */
+/** What the person typed — in words, not codes: type, priority and group are shown by name. */
 function conflictText(conflict: FieldConflict): string {
   switch (conflict.field) {
     case 'type': return t(`tasks.task.type.${conflict.mine}`)
@@ -248,11 +265,12 @@ const conflictItems = computed(() =>
   })),
 )
 
-// Карточка могла уже лежать в сторе к моменту первого монтирования (страницу пересоздали, а стор
-// жив): `watch` выше срабатывает только на СМЕНУ карточки, и без этого черновик остался бы пустым.
+// The card may already be in the store at first mount (the page was recreated, the store is
+// alive): the `watch` above fires only on a CHANGE of card, and without this the draft would stay
+// empty.
 if (task.value) fillDraft()
 
-/** Слить свежую карточку с черновиком — правила в шапке раздела «Черновик полей». */
+/** Merge the fresh card into the draft — rules in the header of the "Field draft" section. */
 function merge(row: TaskDetail): void {
   const remote = snapshotOf(row)
   const found: FieldConflict[] = []
@@ -267,25 +285,26 @@ function merge(row: TaskDetail): void {
     takeFromRow(field, row)
   }
   base = remote
-  // Окно показывает все столкновения, накопленные до его закрытия, — новое не стирает прежнее.
+  // The dialog shows all clashes accumulated until it is closed — a new one does not erase the old.
   if (found.length) conflicts.value = [...conflicts.value, ...found]
 }
 
 /**
- * Что показывать при этом типе задачи.
+ * What to show for this task type.
  *
- * Переключение типа НИЧЕГО НЕ СТИРАЕТ: скрытые поля остаются в базе и возвращаются, если тип
- * вернуть назад. Иначе «посмотреть, как выглядит простая» стоило бы человеку написанной
- * постановки — а отменить это нечем, у страницы нет отмены.
+ * Switching the type ERASES NOTHING: hidden fields stay in the database and come back if the type
+ * is switched back. Otherwise "see what a simple one looks like" would cost the person their
+ * written brief — and there is no way to undo that, the page has no undo.
  */
 const layout = computed(() => typeLayout(draft.type))
 
 /**
- * Чем черновик разошёлся с `base` — и только это уедет на бэк. Прошёл по полям, ничего не
- * изменив, — запроса нет вовсе.
+ * How the draft diverged from `base` — and only that goes to the backend. Tabbed through the
+ * fields without changing anything — no request at all.
  *
- * Срок сравнивается по ДНЮ: в базе у него есть время суток, и, приведи мы обе стороны к
- * «23:59:59», правка соседнего поля молча переносила бы чужой срок на конец дня.
+ * The deadline is compared by DAY: in the database it has a time of day, and if we normalised both
+ * sides to "23:59:59", editing a neighbouring field would silently move someone else's deadline to
+ * the end of the day.
  */
 function pending(): { body: Partial<TaskUpdateBody>; fields: Field[] } {
   const body: Partial<TaskUpdateBody> = {}
@@ -294,8 +313,8 @@ function pending(): { body: Partial<TaskUpdateBody>; fields: Field[] } {
   for (const field of FIELDS) {
     const value = draftValue(field)
     if (value === base[field]) continue
-    // Пустой заголовок не сохраняется: без него строка неразличима в списке — поле остаётся
-    // пустым на экране, а в базе продолжает жить прежнее имя.
+    // An empty title is not saved: without it the row is indistinguishable in the list — the field
+    // stays empty on screen, while the old name lives on in the database.
     if (field === 'title' && !value) continue
     fields.push(field)
     if (field === 'groupCode') body.group_code = draft.groupCode
@@ -313,15 +332,17 @@ function stopTimer(): void {
   timer = null
 }
 
-/** Последнее сохранение в полёте: перечитка по ленте ждёт его, чтобы не обогнать свой же ответ. */
+/** The last save in flight: a feed re-read waits for it so as not to overtake our own response. */
 let saving: Promise<unknown> = Promise.resolve()
 
 /**
- * Отправить накопленное. Зовётся по уходу из поля, по смене выбора и перед уходом со страницы.
+ * Send what has accumulated. Called on leaving a field, on a select change and before leaving the
+ * page.
  *
- * `base` отправленных полей сдвигается на отправленное ДО ответа: пока запрос в полёте, человек
- * может печатать дальше, и ответ со «своим же» значением не должен выглядеть чужой правкой.
- * Отказ возвращает прежнюю `base` — поле снова числится несохранённым и уедет следующим разом.
+ * The `base` of the sent fields moves to the sent values BEFORE the response: while the request is
+ * in flight the person may keep typing, and a response carrying "our own" value must not look like
+ * a foreign edit. A refusal restores the previous `base` — the field counts as unsaved again and
+ * goes out next time.
  */
 async function commit(): Promise<void> {
   stopTimer()
@@ -339,13 +360,13 @@ async function commit(): Promise<void> {
   }
 }
 
-/** Набор продолжается: отправляем не на каждую букву, а когда человек остановился. */
+/** Typing continues: send not on every letter but when the person pauses. */
 function schedule(): void {
   stopTimer()
   timer = setTimeout(() => { timer = null; void commit() }, TYPING_PAUSE)
 }
 
-/** Выбор и даты едут сразу: паузе тут нечего ждать — значение уже окончательное. */
+/** Selects and dates go at once: there is nothing for a pause to wait for — the value is final. */
 function pick<K extends keyof typeof draft>(key: K, value: (typeof draft)[K]): void {
   draft[key] = value
   void commit()
@@ -353,9 +374,8 @@ function pick<K extends keyof typeof draft>(key: K, value: (typeof draft)[K]): v
 
 onBeforeUnmount(stopTimer)
 onBeforeRouteLeave(() => { void commit() })
-
-// ── Группы ────────────────────────────────────────────────────────────────────
-// Список групп зависит от пространства задачи, а оно известно только из самой карточки.
+// ── Groups ────────────────────────────────────────────────────────────────────
+// The group list depends on the task's workspace, which is known only from the card itself.
 const groups = ref<GroupRow[]>([])
 
 async function loadGroups() {
@@ -365,23 +385,25 @@ async function loadGroups() {
     return
   }
   try {
-    // `report: false` — справочник едет фоном под полем; тост о нём человек не связал бы с тем,
-    // что делает. Пустой список групп честнее: задача проживёт и без группы.
+    // `report: false` — the lookup loads in the background under the field; the person would not
+    // connect a toast about it with what they are doing. An empty group list is more honest: the
+    // task will do fine without a group.
     groups.value = await listGroups({ workspace }, { report: false })
   } catch {
     groups.value = []
   }
 }
 
-// ── Справочники ───────────────────────────────────────────────────────────────
+// ── Vocabularies ──────────────────────────────────────────────────────────────
 
-// Справочник статусов собирает сам `TaskStatusSelect`: порядок и значки живут в `labels.ts`, и
-// собирать их здесь заново значило бы разойтись на первой же правке справочника.
+// The status vocabulary is assembled by `TaskStatusSelect` itself: order and icons live in
+// `labels.ts`, and assembling them anew here would diverge at the first edit of the vocabulary.
 const typeItems = computed(() =>
   TASK_TYPES.map((value) => ({ value, title: t(`tasks.task.type.${value}`) })),
 )
-// Вид группы едет в пункт вместе с именем: значок рисуется в списке и в самом поле, и брать
-// его потом по коду значило бы искать группу второй раз на каждую отрисовку.
+// The group's look travels into the item together with its name: the icon is drawn in the list
+// and in the field itself, and fetching it by code later would mean looking the group up again on
+// every render.
 const groupItems = computed(() =>
   groups.value.map((group) => ({
     value: group.code,
@@ -391,17 +413,18 @@ const groupItems = computed(() =>
   })),
 )
 
-// Смену статуса ведёт стор: поле только сообщает выбранное. Через `computed` с сеттером, а не
-// через локальную копию, — иначе на отказе поле осталось бы показывать то, чего в базе нет.
+// The store runs the status change: the field only reports the choice. Via a `computed` with a
+// setter, not a local copy — otherwise on refusal the field would keep showing what is not in the
+// database.
 const status = computed({
   get: () => task.value?.status ?? '',
   set: (value: string) => { void store.changeStatus(value) },
 })
 
-// ── Отметки времени ───────────────────────────────────────────────────────────
-// Только то, что задача проставляет себе САМА: править эти значения нечем, и место им под
-// полями, а не между ними. Пустые не показываются — строка «Завершено: —» не отвечает ни на один
-// вопрос, зато отодвигает те, что отвечают.
+// ── Timestamps ────────────────────────────────────────────────────────────────
+// Only what the task stamps on ITSELF: these values cannot be edited, so they belong below the
+// fields, not among them. Empty ones are not shown — a "Completed: —" line answers no question
+// but pushes away those that do.
 const marks = computed(() => {
   const row = task.value
   if (!row) return []
@@ -414,8 +437,8 @@ const marks = computed(() => {
   ].filter((mark) => mark.value)
 })
 
-// Точная дата отвечает «когда», относительная — «давно ли»; поодиночке каждая заставляет
-// додумывать вторую.
+// The exact date answers "when", the relative one "how long ago"; each alone makes you work out
+// the other.
 const updatedAt = computed(() => {
   const value = task.value?.updated_at
   if (!value) return ''
@@ -423,26 +446,27 @@ const updatedAt = computed(() => {
   return relative ? `${fmtDateTime(value)} (${relative})` : fmtDateTime(value)
 })
 
-// ── Длинные тексты ────────────────────────────────────────────────────────────
-// Правка идёт свёрстанной: поле — тот же документ, что и на чтении, одной типографикой, и
-// переключать нечего — ни «предпросмотр ↔ правка», ни «редактор ↔ исходник». Исходник убран
-// решением постановщика: поле всегда в редакторе.
+// ── Long texts ────────────────────────────────────────────────────────────────
+// Editing happens on the rendered text: the field is the same document as when reading, in one
+// typography, and there is nothing to toggle — neither "preview ↔ edit" nor "editor ↔ source".
+// The source view was removed by the task author's decision: the field is always in the editor.
 //
-// ⚠️ Цена решения: редактор переносит не всё (`UNSUPPORTED` в мосте) — картинку, сноску, сырой
-// HTML и блок внутри пункта списка он выбросит, если такое поле ПРАВИТЬ. Пока поле не тронуто,
-// оно не уходит на бэк вовсе (см. `pending`), и написанное агентом цело.
+// ⚠️ The cost of that decision: the editor does not carry everything over (`UNSUPPORTED` in the
+// bridge) — an image, a footnote, raw HTML and a block inside a list item get dropped if such a
+// field is EDITED. Until a field is touched it is not sent to the backend at all (see `pending`),
+// and what the agent wrote stays intact.
 
-/** Этап или запись журнала изменились — перечитываем задачу: списки едут внутри её ответа. */
+/** A stage or journal entry changed — re-read the task: the lists come inside its response. */
 function reloadTask(): void {
   void store.load(code.value)
 }
 
 /**
- * Кнопка «Обновить»: перечитать всё, что связано с задачей, — карточку (этапы, журнал, родитель и
- * дети едут в её ответе), ветку подзадач и справочник групп.
+ * The "Refresh" button: re-read everything related to the task — the card (stages, journal,
+ * parent and children come in its response), the subtask branch and the group lookup.
  *
- * Сначала уезжает набранное, потом перечитка; свежая карточка сливается с черновиком сама
- * (`merge`), так что поля показывают то, что в базе сейчас.
+ * What was typed goes out first, then the re-read; the fresh card merges into the draft by itself
+ * (`merge`), so the fields show what is in the database now.
  */
 const refreshing = ref(false)
 
@@ -456,16 +480,16 @@ async function refresh(): Promise<void> {
   }
 }
 
-// ── Живое обновление ──────────────────────────────────────────────────────────
-// Страница подписана на ленту изменений (`useChangeSubscription`) и перечитывает задачу сама,
-// когда её меняет кто-то другой: агент через MCP, другая вкладка. Своё эхо сюда не доходит.
-// Перечитка ждёт своё сохранение в полёте — иначе её ответ мог бы обогнать ответ на него.
+// ── Live updates ──────────────────────────────────────────────────────────────
+// The page subscribes to the change feed (`useChangeSubscription`) and re-reads the task by itself
+// when someone else changes it: the agent via MCP, another tab. Our own echo does not reach here.
+// The re-read waits for our own save in flight — otherwise its response could overtake that one's.
 
-/** Изменение касается этой страницы? Коды — в той же форме, что в карточке (`TASK@…`). */
+/** Does the change concern this page? Codes are in the same form as in the card (`TASK@…`). */
 function concernsThisTask(change: Change): boolean {
   const row = task.value
   if (!row) return false
-  // Массовая операция без названных кодов — не знаем, что задела, значит, могла и нас.
+  // A bulk operation with no named codes — we cannot tell what it touched, so it may have touched us.
   if (change.ids.length === 0) return true
   const touches = (codes: (string | null | undefined)[]) =>
     codes.some((one) => one && (change.ids.includes(one) || change.refs.includes(one)))
@@ -475,8 +499,13 @@ function concernsThisTask(change: Change): boolean {
         .some((one) => one && change.ids.includes(one))
     case 'tasks.link':
     case 'tasks.stage':
+    case 'tasks.journal':
     case 'tasks.note':
       return touches([row.code])
+    // A note's own edits — a rename, a new description, a soft delete — carry no task ref: the
+    // document does not know its task. The cards on screen are matched by their codes.
+    case 'notes.note':
+      return row.notes.some((note) => change.ids.includes(note.code))
     case 'tasks.group':
       return touches([row.group_code, row.workspace_code])
     default:
@@ -490,7 +519,7 @@ async function reloadLive(): Promise<void> {
 }
 
 useChangeSubscription({
-  entities: ['tasks.task', 'tasks.link', 'tasks.stage', 'tasks.note', 'tasks.group'],
+  entities: ['tasks.task', 'tasks.link', 'tasks.stage', 'tasks.journal', 'tasks.note', 'notes.note', 'tasks.group'],
   match: concernsThisTask,
   onChange: (changes) => {
     if (changes.some((change) => change.entity !== 'tasks.group')) void reloadLive()
@@ -503,49 +532,41 @@ useChangeSubscription({
   reloadsOnReturn: true,
 })
 
-// ── Переходы и действия ───────────────────────────────────────────────────────
+// ── Navigation and actions ────────────────────────────────────────────────────
 
 const purgeOpen = ref(false)
 const formOpen = ref(false)
 const parent = ref<TaskDetail | TaskListRow | null>(null)
-// Правится из этой страницы только подзадача — строкой ветки; сама задача правится на месте.
-const editing = ref<TaskListRow | null>(null)
 const subtasks = ref<InstanceType<typeof TaskSubtasksPanel> | null>(null)
 
-/** Путь соседней задачи: переход между задачами — обычная смена адреса, с записью в историю. */
+/** Path of a neighbouring task: moving between tasks is an ordinary URL change, with a history entry. */
 function taskPath(target: string): string {
   return `/tasks/task/${encodeURIComponent(target)}`
 }
 
-/** Уход к соседней задаче — тоже уход: набранное дописывается раньше, чем сменится карточка. */
+/** Going to a neighbouring task is leaving too: what was typed is flushed before the card changes. */
 function goTask(target: string) {
   void commit()
   void router.push(taskPath(target))
 }
 
-/** Подзадача — открытой задачи или, из меню строки ветки, одной из её подзадач. */
+/** A note opens on its own page, inside this task's address. */
+function openNote(note: string) {
+  void commit()
+  void router.push(`${taskPath(code.value)}/note/${encodeURIComponent(note)}`)
+}
+
+/** A subtask — of the open task or, from a branch row's menu, of one of its subtasks. */
 function addChild(under?: TaskListRow) {
-  editing.value = null
   parent.value = under ?? task.value
   formOpen.value = true
 }
 
-function editChild(child: TaskListRow) {
-  editing.value = child
-  parent.value = null
-  formOpen.value = true
-}
-
 /**
- * Заведённая подзадача открывается сразу — её ради этого и заводили. Правленная из ветки остаётся
- * на месте: человек правил её строку, а не уходил к ней, — перечитывается ветка. Если сохранение
- * было правкой самой задачи, перечитываем её на месте.
+ * A newly created subtask opens right away — that is what it was created for. If the save was of
+ * the task itself, it is re-read in place.
  */
 function onSaved(saved: string) {
-  if (editing.value) {
-    void subtasks.value?.reload()
-    return
-  }
   if (saved !== code.value) {
     void router.push(taskPath(saved))
     return
@@ -561,7 +582,7 @@ async function restore() {
   await store.restore()
 }
 
-/** Снесённой задачи больше нет: оставаться на её адресе нельзя, и назад по истории тоже некуда. */
+/** A purged task no longer exists: staying at its URL is impossible, and going back in history leads nowhere. */
 async function purge() {
   if (await store.purge()) {
     purgeOpen.value = false
@@ -573,19 +594,17 @@ async function purge() {
 <template>
   <PageLayout>
     <PageHeader :title="task?.title || t('tasks.task.detail.title')" back-to="/tasks/list">
-      <!-- Название стоит там же, где у страницы стоит заголовок, и правится прямо в нём: это
-           самое частое изменение задачи, и отдельного поля под него в теле страницы быть не должно. -->
+      <!-- The title sits where the page's heading sits and is edited right in it: it is the most
+           frequent change to a task, and it should not get a separate field in the page body. -->
       <template v-if="task" #title>
-        <VTextField
+        <InvisibleField
           :model-value="draft.title"
-          :placeholder="t('tasks.task.form.name')"
-          :aria-label="t('tasks.task.form.name')"
+          :placeholder="t('tasks.task.detail.name')"
+          :aria-label="t('tasks.task.detail.name')"
           :maxlength="TASK_TITLE_MAX"
           :disabled="deleted"
           :error="!draft.title.trim()"
-          variant="plain"
-          hide-details
-          class="task-page__title quiet-field"
+          class="task-page__title"
           @update:model-value="(value) => { draft.title = value; schedule() }"
           @blur="commit"
         />
@@ -600,13 +619,14 @@ async function purge() {
           <template #prepend><IconRefresh :size="16" :class="{ 'icon-spin': refreshing }" /></template>
           {{ t('common.action.refresh') }}
         </VBtn>
-        <VBtn variant="text" :disabled="deleted" @click="addChild()">
+        <!-- The tree is one level deep: a subtask cannot have subtasks of its own. -->
+        <VBtn v-if="!task.parent" variant="text" :disabled="deleted" @click="addChild()">
           <template #prepend><IconPlus :size="16" /></template>
           {{ t('tasks.task.card.add_child') }}
         </VBtn>
 
-        <!-- Редкое — в меню: снос необратим, и место ему рядом с удалением, а не в одном ряду с
-             заведением подзадачи. -->
+        <!-- The rare stuff goes in the menu: purge is irreversible and belongs next to delete, not
+             in one row with creating a subtask. -->
         <VMenu location="bottom end" :offset="4">
           <template #activator="{ props: menu }">
             <VBtn v-bind="menu" icon variant="text" :title="t('tasks.task.card.actions')">
@@ -617,7 +637,7 @@ async function purge() {
             <VListItem v-if="!deleted" :prepend-icon="IconTrash" :disabled="store.busy" @click="remove">
               <VListItemTitle>{{ t('tasks.task.card.delete') }}</VListItemTitle>
             </VListItem>
-            <VListItem v-else :prepend-icon="IconArchiveOff" :disabled="store.busy" @click="restore">
+            <VListItem v-else :prepend-icon="IconRestore" :disabled="store.busy" @click="restore">
               <VListItemTitle>{{ t('tasks.task.card.restore') }}</VListItemTitle>
             </VListItem>
             <VListItem :prepend-icon="IconFlame" class="task-menu-danger" @click="purgeOpen = true">
@@ -635,9 +655,9 @@ async function purge() {
     </div>
 
     <div v-else-if="task" class="task-page">
-      <!-- Состояние корзины сказано полосой во всю ширину, а не шильдиком: пока задача удалена,
-           ей нельзя ни править поля, ни менять статус, и человек должен узнать об этом раньше,
-           чем упрётся в запертое поле. -->
+      <!-- The trash state is stated by a full-width banner, not a badge: while the task is
+           deleted, neither its fields nor its status can be changed, and the person should learn
+           that before running into a locked field. -->
       <VAlert v-if="deleted" type="warning" variant="tonal" density="compact">
         {{ t('tasks.task.detail.deleted_note') }}
         <template #append>
@@ -649,23 +669,19 @@ async function purge() {
 
       <div class="task-page__grid">
         <div class="task-page__main">
-          <!-- Где задача стоит: ссылка на родителя. У корневой её нет — и подниматься некуда. -->
-          <button v-if="task.parent" type="button" class="task-page__parent" @click="goTask(task.parent.code)">
-            <IconArrowUp :size="14" :stroke-width="1.6" />
-            {{ task.parent.title }}
-          </button>
-
-          <!-- У каждой карточки текста — заголовок и под ним подзаголовок: ЧТО писать в этом поле.
-               Подсказка стоит в шапке, а не в пустом поле, потому что нужна не только пустому:
-               заполненная карточка без неё не говорит, чего от неё ждали. Пустое поле показывает
-               свою подсказку редактора — как добавить блок командой через «/». -->
+          <!-- Every text card says in its header WHAT to write in this field, behind a "?" right
+               after the title: the explanation is longer than a line and, read once, is not needed
+               at every look. The hint sits in the header, not in the empty field, because it is
+               needed not only when empty: a filled card without it does not say what was expected
+               of it. An empty field shows the editor's own hint — how to add a block with the "/"
+               command. -->
           <VCard variant="outlined" rounded="lg" class="task-page__card">
             <SectionHeader
               :title="t('tasks.task.detail.description')"
-              :description="t('tasks.task.detail.hint.description')"
+              :hint="t('tasks.task.detail.hint.description')"
             />
-            <!-- Цель — одна-две фразы, поэтому простой режим: абзац, жирный, курсив. Заголовку
-                 или таблице в цели взяться неоткуда, и схема их просто не знает. -->
+            <!-- The goal is one or two sentences, hence simple mode: paragraph, bold, italic. A
+                 heading or table has no place in a goal, and the schema simply does not know them. -->
             <MarkdownEditor
               :model-value="draft.description"
               :aria-label="t('tasks.task.detail.description')"
@@ -679,12 +695,12 @@ async function purge() {
             />
           </VCard>
 
-          <!-- Контекст есть у любой задачи, даже простой: это «что надо знать, чтобы взяться», и
-               без него простая карточка превращается в одну строку заголовка. -->
+          <!-- Every task has context, even a simple one: it is "what you need to know to start",
+               and without it a simple card shrinks to a single title line. -->
           <VCard variant="outlined" rounded="lg" class="task-page__card">
             <SectionHeader
               :title="t('tasks.task.detail.context')"
-              :description="t('tasks.task.detail.hint.context')"
+              :hint="t('tasks.task.detail.hint.context')"
             />
             <MarkdownEditor
               :model-value="draft.context"
@@ -699,12 +715,24 @@ async function purge() {
             />
           </VCard>
 
-          <!-- Границы и требования к сдаче — постановка стандартной задачи. У простой их нет:
-               там нечего сдавать по критериям, и пустые поля только занимали бы экран. -->
+          <!-- Notes are planning material and sit under the plan; a simple task has no plan, so
+               they sit under its context instead. -->
+          <TaskNotes
+            v-if="!layout.plan"
+            :task-code="task.code"
+            :notes="task.notes"
+            :disabled="deleted"
+            @open="openNote"
+            @changed="reloadTask"
+          />
+
+          <!-- Constraints and acceptance criteria are the brief of a standard task. A simple one has
+               none: there is nothing to deliver against criteria, and empty fields would only take
+               up the screen. -->
           <VCard v-if="layout.brief" variant="outlined" rounded="lg" class="task-page__card">
             <SectionHeader
               :title="t('tasks.task.detail.constraints')"
-              :description="t('tasks.task.detail.hint.constraints')"
+              :hint="t('tasks.task.detail.hint.constraints')"
             />
             <MarkdownEditor
               :model-value="draft.constraints"
@@ -722,7 +750,7 @@ async function purge() {
           <VCard v-if="layout.brief" variant="outlined" rounded="lg" class="task-page__card">
             <SectionHeader
               :title="t('tasks.task.detail.criteria')"
-              :description="t('tasks.task.detail.hint.criteria')"
+              :hint="t('tasks.task.detail.hint.criteria')"
             />
             <MarkdownEditor
               :model-value="draft.criteria"
@@ -737,207 +765,259 @@ async function purge() {
             />
           </VCard>
 
+          <!-- The agent's work, three cards in the order the work goes: the plan written before the
+               code changes, the progress diary kept along the way, the result written at
+               hand-over. Each answers its own question — intent, course, outcome — so they are
+               separate cards and not sections of one text. -->
           <VCard v-if="layout.plan" variant="outlined" rounded="lg" class="task-page__card">
             <SectionHeader
-              :title="t('tasks.task.detail.body')"
-              :description="t('tasks.task.detail.hint.body')"
+              :title="t('tasks.task.detail.plan')"
+              :hint="t('tasks.task.detail.hint.plan')"
             />
             <MarkdownEditor
-              :model-value="draft.body"
-              :aria-label="t('tasks.task.form.body')"
-              :max-length="BODY_MAX"
+              :model-value="draft.plan"
+              :aria-label="t('tasks.task.detail.plan')"
+              :max-length="TASK_PLAN_MAX"
               :readonly="deleted"
               :features="TASK_DOCUMENT_FEATURES"
               variant="plain"
               min-height="0"
-              @update:model-value="(value) => { draft.body = value; schedule() }"
+              @update:model-value="(value) => { draft.plan = value; schedule() }"
               @blur="commit"
             />
           </VCard>
 
-          <!-- Этапы и журнал — работа по задаче, и место им сразу под планом: план обещает, этапы
-               показывают ход, журнал держит то, что всплыло по дороге.
-               Этапы — только у расширенной, и это единственное, чем она отличается от
-               стандартной: у той план живёт прозой выше, а разбивать его на шаги с отдельными
-               доказательствами имеет смысл только у работы длиннее одного захода. -->
-          <section v-if="layout.stages">
-            <SectionHeader :title="t('tasks.stage.section')" :count="task.stages.length" />
-            <TaskStages
-              :task-code="task.code"
-              :stages="task.stages"
-              :disabled="deleted"
-              @changed="reloadTask"
-            />
-          </section>
+          <TaskNotes
+            v-if="layout.plan"
+            :task-code="task.code"
+            :notes="task.notes"
+            :disabled="deleted"
+            @open="openNote"
+            @changed="reloadTask"
+          />
 
+          <!-- Stages are the plan broken into steps, so they follow the plan and its notes and come
+               before the progress that reports on them.
+               Stages exist only on an extended task, and that is the only difference from a
+               standard one: there the plan lives as prose above, and splitting it into steps with
+               separate evidence only makes sense for work longer than one sitting. -->
+          <TaskStages
+            v-if="layout.stages"
+            :task-code="task.code"
+            :stages="task.stages"
+            :disabled="deleted"
+            @changed="reloadTask"
+          />
+
+          <VCard v-if="layout.plan" variant="outlined" rounded="lg" class="task-page__card">
+            <SectionHeader
+              :title="t('tasks.task.detail.progress')"
+              :hint="t('tasks.task.detail.hint.progress')"
+            />
+            <MarkdownEditor
+              :model-value="draft.progress"
+              :aria-label="t('tasks.task.detail.progress')"
+              :max-length="TASK_PROGRESS_MAX"
+              :readonly="deleted"
+              :features="TASK_DOCUMENT_FEATURES"
+              variant="plain"
+              min-height="0"
+              @update:model-value="(value) => { draft.progress = value; schedule() }"
+              @blur="commit"
+            />
+          </VCard>
+
+          <VCard v-if="layout.plan" variant="outlined" rounded="lg" class="task-page__card">
+            <SectionHeader
+              :title="t('tasks.task.detail.result')"
+              :hint="t('tasks.task.detail.hint.result')"
+            />
+            <MarkdownEditor
+              :model-value="draft.result"
+              :aria-label="t('tasks.task.detail.result')"
+              :max-length="TASK_RESULT_MAX"
+              :readonly="deleted"
+              :features="TASK_DOCUMENT_FEATURES"
+              variant="plain"
+              min-height="0"
+              @update:model-value="(value) => { draft.result = value; schedule() }"
+              @blur="commit"
+            />
+          </VCard>
+
+          <!-- The journal keeps what came up on the way. -->
           <section v-if="layout.plan">
-            <SectionHeader :title="t('tasks.note.section')" :count="task.notes.length" />
             <TaskJournal
               :task-code="task.code"
-              :notes="task.notes"
+              :entries="task.journal"
               :disabled="deleted"
               @changed="reloadTask"
             />
           </section>
 
-          <section>
-            <SectionHeader :title="t('tasks.task.detail.children')" :count="task.children.length">
-              <template #right>
-                <VBtn variant="text" size="small" :disabled="deleted" @click="addChild()">
-                  <template #prepend><IconPlus :size="16" /></template>
-                  {{ t('tasks.task.card.add_child') }}
-                </VBtn>
-              </template>
-            </SectionHeader>
-
-            <!-- Ветка под задачей — тем же видом, что в общем списке, со своим поиском и
-                 переключателями; каждая строка открывает СВОЮ страницу. -->
-            <TaskSubtasksPanel
-              ref="subtasks"
-              :task-code="task.code"
-              :workspace="task.workspace_code"
-              :deleted="deleted"
-              @open="goTask"
-              @edit="editChild"
-              @add-child="addChild"
-            />
-          </section>
+          <!-- The branch under the task — in the same form as in the main list, its header inside
+               its card; each row opens ITS OWN page. The tree is one level deep: a subtask cannot
+               have subtasks of its own. -->
+          <TaskSubtasksPanel
+            ref="subtasks"
+            :task-code="task.code"
+            :workspace="task.workspace_code"
+            :deleted="deleted"
+            :addable="!task.parent && !deleted"
+            @open="goTask"
+            @add="addChild()"
+            @add-child="addChild"
+          />
         </div>
 
-        <!-- Карточка сама себе `aside`: отдельная обёртка вокруг неё добавила бы уровень, на
-             котором нечему жить — колонка полей и есть эта карточка. -->
-        <VCard tag="aside" variant="outlined" rounded="lg" class="task-page__side">
-          <!-- Строка состояния молчит в покое: кнопки сохранения нет, поэтому про ошибку и про
-               идущую запись сказать обязательно, а про то, что всё сохранено, — нет. Пустая
-               строка в покое не занимала бы места, но занимала бы место в голове. -->
-          <p
-            v-if="store.saveError || store.saving"
-            class="task-page__save"
-            :class="{ 'task-page__save--error': store.saveError }"
-          >
-            {{ store.saveError || t('tasks.task.detail.saving') }}
-          </p>
+        <!-- The column holds cards by kind: where the task sits, then the fields the person sets,
+             then what the task stamps on itself. It is pinned as a whole, so the cards move
+             together. -->
+        <aside class="task-page__side">
+          <!-- A link to the parent. A root task has none — nowhere to go up. -->
+          <VCard v-if="task.parent" variant="outlined" rounded="lg" class="task-page__panel">
+            <span class="task-page__label">{{ t('tasks.task.detail.parent') }}</span>
+            <button type="button" class="task-page__parent" @click="goTask(task.parent.code)">
+              <IconArrowUp :size="14" :stroke-width="1.6" class="task-page__parent-icon" />
+              {{ task.parent.title }}
+            </button>
+          </VCard>
 
-          <!-- Группа необязательна: задача без неё попадает в секцию «Без группы», а не теряется.
-               Групп в пространстве бывает много, и узнают их по виду — иконке в цвете группы,
-               тому же, что в списке задач. Поиск прикреплён сверху меню и поле не меняет.
-               `:chips="false"` обязателен: с чипами Vuetify рисует `#chip` и молча игнорирует
-               `#selection`, то есть выбранная группа осталась бы без значка. -->
-          <VSelectSearch
-            :model-value="draft.groupCode"
-            :items="groupItems"
-            :label="t('tasks.task.detail.group')"
-            :search-placeholder="t('tasks.task.detail.group_search')"
-            :no-data-text="t('tasks.task.detail.group_empty')"
-            :disabled="deleted"
-            :chips="false"
-            variant="outlined"
-            density="compact"
-            clearable
-            hide-details
-            @update:model-value="(value) => pick('groupCode', (value ?? null) as string | null)"
-          >
-            <template #item="{ props: itemProps, item }">
-              <VListItem v-bind="itemProps">
-                <template #prepend>
-                  <IconSwatch :icon="item.icon" :color="item.color" :width="20" />
-                </template>
-              </VListItem>
-            </template>
-
-            <template #selection="{ item }">
-              <span class="task-page__group-value">
-                <IconSwatch :icon="item.icon" :color="item.color" :width="20" />
-                {{ item.title }}
-              </span>
-            </template>
-          </VSelectSearch>
-
-          <!-- Статус ходят по соседям — из плана в работу, из работы на проверку, — поэтому
-               поле со ступенями, как у приоритета, и со значком: тем же, что стоит в строке
-               списка задач. -->
-          <TaskStatusSelect
-            v-model="status"
-            :label="t('tasks.task.detail.status')"
-            :disabled="deleted || store.busy"
-            :loading="store.busy"
-            variant="outlined"
-            density="compact"
-            hide-details
-          />
-
-          <TaskPrioritySelect
-            :model-value="draft.priority"
-            :label="t('tasks.task.detail.priority')"
-            :disabled="deleted"
-            variant="outlined"
-            density="compact"
-            hide-details
-            @update:model-value="(value) => pick('priority', value as string)"
-          />
-
-          <!-- Единственная назначаемая дата: до какого числа успеть. Выбранный день уезжает
-               последней секундой суток (`formatDeadline`), иначе срок «на сегодня» был бы
-               просрочен с самого утра. -->
-          <!-- Значок календаря переезжает ВНУТРЬ поля: снаружи (`prepend-icon`, умолчание
-               VDateInput) он стоит отдельной коробкой перед рамкой, и поле съезжает вправо на
-               32px — в колонке, где все остальные поля начинаются по одной линии, это видно. -->
-          <VDateInput
-            :model-value="draft.deadlineAt"
-            :label="t('tasks.task.detail.deadline_at')"
-            :disabled="deleted"
-            prepend-icon=""
-            :prepend-inner-icon="IconCalendarEvent"
-            variant="outlined"
-            density="compact"
-            clearable
-            hide-details
-            @update:model-value="(value) => pick('deadlineAt', (value ?? null) as Date | null)"
-          />
-
-          <!-- Тип выбирается кнопками: все три значения видны сразу, без раскрытия списка.
-               Вид взят у дизайн-системы — `outlined` + `divided`, как умолчание проекта для
-               `VBtnToggle` (plugins/vuetify.ts) и как показано в витрине. Прежний `tonal`
-               заливал выбранное сплошным цветом, и ряд читался тяжёлой полосой.
-               Стоит последним из полей: тип ставят один раз при заведении, а меняют реже всего
-               остального в этой колонке. -->
-          <div class="task-page__field">
-            <span class="task-page__label">{{ t('tasks.task.detail.type') }}</span>
-            <VBtnToggle
-              :model-value="draft.type"
-              mandatory
-              divided
+          <VCard variant="outlined" rounded="lg" class="task-page__panel task-page__settings">
+            <!-- The group is optional: a task without one lands in the "No group" section, not lost.
+                 A workspace can have many groups, and they are recognised by look — an icon in the
+                 group's color, the same as in the task list. The search is pinned to the top of the
+                 menu and does not change the field.
+                 `:chips="false"` is mandatory: with chips Vuetify renders `#chip` and silently
+                 ignores `#selection`, so the selected group would be left without its icon. -->
+            <VSelectSearch
+              :model-value="draft.groupCode"
+              :items="groupItems"
+              :label="t('tasks.task.detail.group')"
+              :search-placeholder="t('tasks.task.detail.group_search')"
+              :no-data-text="t('tasks.task.detail.group_empty')"
+              :disabled="deleted"
+              :chips="false"
               variant="outlined"
               density="compact"
-              :disabled="deleted"
-              class="task-page__toggle"
-              @update:model-value="(value) => pick('type', value as string)"
+              clearable
+              hide-details
+              @update:model-value="(value) => pick('groupCode', (value ?? null) as string | null)"
             >
-              <VBtn v-for="item in typeItems" :key="item.value" :value="item.value">
-                {{ item.title }}
-              </VBtn>
-            </VBtnToggle>
-            <span class="task-page__hint">{{ t('tasks.task.detail.type_hint') }}</span>
-          </div>
+              <template #item="{ props: itemProps, item }">
+                <VListItem v-bind="itemProps">
+                  <template #prepend>
+                    <IconSwatch :icon="item.icon" :color="item.color" :width="20" />
+                  </template>
+                </VListItem>
+              </template>
 
-          <dl v-if="marks.length" class="task-page__marks">
+              <template #selection="{ item }">
+                <span class="task-page__group-value">
+                  <!-- Before the group list arrives the selection is a bare code with no icon. -->
+                  <IconSwatch :icon="item.icon ?? ''" :color="item.color ?? ''" :width="20" />
+                  {{ item.title }}
+                </span>
+              </template>
+            </VSelectSearch>
+
+            <!-- Status moves to its neighbours — from plan to work, from work to review — hence a
+                 field with steps, like priority's, and with an icon: the same one as in the task
+                 list row. -->
+            <TaskStatusSelect
+              v-model="status"
+              :label="t('tasks.task.detail.status')"
+              :disabled="deleted || store.busy"
+              :loading="store.busy"
+              variant="outlined"
+              density="compact"
+              hide-details
+            />
+
+            <TaskPrioritySelect
+              :model-value="draft.priority"
+              :label="t('tasks.task.detail.priority')"
+              :disabled="deleted"
+              variant="outlined"
+              density="compact"
+              hide-details
+              @update:model-value="(value) => pick('priority', value as string)"
+            />
+
+            <!-- The only assignable date: the day to finish by. The picked day is sent as the last
+                 second of that day (`formatDeadline`), otherwise a deadline "for today" would be
+                 overdue from the very morning. -->
+            <!-- The calendar icon moves INSIDE the field: outside (`prepend-icon`, the VDateInput
+                 default) it stands as a separate box before the outline, and the field shifts right
+                 by 32px — noticeable in a column where all other fields start on one line. -->
+            <VDateInput
+              :model-value="draft.deadlineAt"
+              :label="t('tasks.task.detail.deadline_at')"
+              :disabled="deleted"
+              prepend-icon=""
+              :prepend-inner-icon="IconCalendarEvent"
+              variant="outlined"
+              density="compact"
+              clearable
+              hide-details
+              @update:model-value="(value) => pick('deadlineAt', (value ?? null) as Date | null)"
+            />
+
+            <!-- Type is picked with buttons: all three values are visible at once, without opening
+                 a list. The look comes from the design system — `outlined` + `divided`, the project
+                 default for `VBtnToggle` (plugins/vuetify.ts) and as shown in the showcase. The
+                 former `tonal` filled the selection with solid color, and the row read as a heavy
+                 bar.
+                 It comes last among the fields: type is set once at creation and changed less often
+                 than anything else in this column. -->
+            <div class="task-page__field">
+              <span class="task-page__label">
+                {{ t('tasks.task.detail.type') }}
+                <HelpHint :text="t('tasks.task.detail.type_hint')" />
+              </span>
+              <VBtnToggle
+                :model-value="draft.type"
+                mandatory
+                divided
+                variant="outlined"
+                density="compact"
+                :disabled="deleted"
+                class="task-page__toggle"
+                @update:model-value="(value) => pick('type', value as string)"
+              >
+                <VBtn v-for="item in typeItems" :key="item.value" :value="item.value">
+                  {{ item.title }}
+                </VBtn>
+              </VBtnToggle>
+            </div>
+
+            <!-- Saving itself is not announced: every field saves on its own as it changes, and a
+                 "Saving…" line flashed on each pick. A failed save is — the person has to know the
+                 field did not land. It sits last in the fields card, so appearing it moves only the
+                 card's bottom edge, not the fields under the pointer. -->
+            <p v-if="store.saveError" class="task-page__save-error">
+              {{ store.saveError }}
+            </p>
+          </VCard>
+
+          <VCard v-if="marks.length" tag="dl" variant="outlined" rounded="lg" class="task-page__panel task-page__marks">
             <div v-for="mark in marks" :key="mark.key" class="task-page__mark">
               <dt class="task-page__mark-label">{{ mark.label }}</dt>
               <dd class="task-page__mark-value">{{ mark.value }}</dd>
             </div>
-          </dl>
-        </VCard>
+          </VCard>
+        </aside>
       </div>
     </div>
 
-    <!-- Поле, которое человек правил, тем временем изменили в базе: на странице уже версия из
-         базы, а набранное — здесь, чтобы его можно было скопировать. -->
+    <!-- A field the person was editing was changed in the database meanwhile: the page already
+         shows the database version, and what was typed is here so it can be copied. -->
     <TaskFieldConflictDialog v-model="conflictOpen" :items="conflictItems" />
 
     <TaskFormDialog
       v-model="formOpen"
       :workspace="task?.workspace_code ?? ''"
-      :task="editing"
+      :task="null"
       :parent="parent"
       @saved="onSaved"
     />
@@ -967,11 +1047,12 @@ async function purge() {
   gap: 16px;
 }
 
-/* Колонка полей не тянется и не жмётся: её ширину задают поля внутри, а всё остальное место
-   достаётся прозе. Ниже 900px колонки встают друг под друга — половинка экрана под текст задачи
-   уже не колонка чтения. */
-/* 312px = 280px полей + падинг карточки с двух сторон: колонка обзавелась рамкой, а поля внутри
-   обязаны остаться той же ширины, иначе ряд переключателя типа сожмётся ещё на 32px. */
+/* The field column neither stretches nor shrinks: its width is set by the fields inside, and all
+   the remaining space goes to the prose. Below 900px the columns stack — half a screen for the
+   task text is no longer a reading column. */
+/* 312px = 280px of fields + the card padding on both sides: the column gained a border, and the
+   fields inside must keep the same width, otherwise the type toggle row would shrink another
+   32px. */
 .task-page__grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 312px;
@@ -990,29 +1071,25 @@ async function purge() {
   min-width: 0;
 }
 
-/* Карточка получает только текстовая секция. Этапы, журнал и подзадачи остаются на полотне: у
-   каждой их строки своя рамка, и карточка вокруг дала бы рамку в рамке.
-   16px — между панелью фильтров (12px) и плиткой группы (18px): здесь пять карточек в колонке
-   подряд, и каждый лишний пиксель отступа умножается на пять.
-   Правило про рамку в рамке действует и ВНУТРИ карточки, поэтому поля прозы набраны тихими
-   (`quiet-field`, как заголовок страницы): рамка у секции одна — сама карточка, а то, что поле
-   можно править, показывают подложка под курсором и обводка под фокусом. */
+/* Only text sections get a card. Stages, journal and subtasks stay on the canvas: each of their
+   rows has its own border, and a card around them would give a frame within a frame.
+   16px — between the filter panel (12px) and the group tile (18px): there are five cards in a row
+   in this column, and every extra pixel of padding is multiplied by five.
+   The frame-within-a-frame rule applies INSIDE the card too, so the prose editors are plain: a
+   section has one frame — the card itself. */
 .task-page__card {
   padding: 16px;
 }
 
-/* Колонка полей держится в виду, пока листают длинный текст: статус и срок нужны на любой его
-   строке, а уехавшие вверх поля пришлось бы искать прокруткой обратно. Липнет она только в
-   двухколоночной раскладке — в одноколоночной липкая полоса накрывала бы сам текст.
-   Поля набраны самой плотной ступенью (28px), а расстояние между ними, наоборот, больше
-   обычного: в колонке из шести полей подряд рост коробки только отнимает место, а различает
-   поля пустота вокруг них. */
+/* The field column stays in view while scrolling through long text: status and deadline are
+   needed at any line of it, and fields that scrolled away would have to be found by scrolling
+   back. It sticks only in the two-column layout — in one column a sticky strip would cover the
+   text itself. */
 .task-page__side {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
   min-width: 0;
-  padding: 16px;
   position: sticky;
   top: 0;
 }
@@ -1021,65 +1098,72 @@ async function purge() {
   .task-page__side { position: static; }
 }
 
-/* Поднятая метка набрана мельче своего значения: общее правило `.v-field .v-label` из main.scss
-   прибивает ей 13px и лежит ВНЕ слоёв, поэтому собственный масштаб Vuetify (0.75em) до неё не
-   доходит — метка выходит ростом со значением и в узкой колонке читается второй строкой поля, а
-   не его именем. Сдвиг вверх — над линией рамки, на которую Vuetify сажает её серединой. */
+.task-page__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 16px;
+}
+
+/* The fields use the densest step (28px), while the spacing between them is, conversely, larger
+   than usual: in a column of six fields in a row a taller box only takes space, and what tells
+   the fields apart is the empty space around them. */
+.task-page__settings {
+  gap: 18px;
+}
+
+/* The floated label is set smaller than its value: the global `.v-field .v-label` rule from
+   main.scss pins it to 13px and sits OUTSIDE the layers, so Vuetify's own scale (0.75em) does not
+   reach it — the label comes out as tall as the value and in a narrow column reads as a second
+   line of the field rather than its name. The upward shift puts it above the outline, on which
+   Vuetify centres it. */
 .task-page__side :deep(.v-field .v-label.v-field-label--floating) {
   font-size: 11px;
   transform: translateY(calc(-50% - 2px));
 }
 
-/* Ссылка вверх набрана кнопкой, а не `RouterLink`: адресом заведует страница, и разметка не
-   должна знать, как он собран. Выглядит она при этом ссылкой — это и есть переход. */
+/* The link up is a button, not a `RouterLink`: the page owns the URL, and the markup must not
+   know how it is built. It still looks like a link — it is a navigation. */
 .task-page__parent {
-  display: inline-flex;
-  align-items: center;
+  display: flex;
+  align-items: flex-start;
   gap: 4px;
-  align-self: flex-start;
   max-width: 100%;
   padding: 0;
   border: none;
   background: none;
-  font-size: 12px;
-  color: var(--text-muted);
+  font: inherit;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--text);
+  text-align: start;
+  overflow-wrap: anywhere;
   cursor: pointer;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  transition: color 0.14s ease;
 }
 
-.task-page__parent:hover { color: var(--text); }
+.task-page__parent:hover { text-decoration: underline; }
 
-/* Поле без рамки: в покое это текст, под курсором — подложка, под фокусом — обводка акцентом.
-   Отступы совпадают с этой подложкой, поэтому вход в правку не сдвигает ни буквы. */
-.quiet-field :deep(.v-field) {
-  padding-inline: 8px;
-  border-radius: var(--radius-sm);
-  transition: background-color 0.14s ease;
+/* A long parent title wraps: the icon stays by its first line. */
+.task-page__parent-icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--text-muted);
 }
 
-.quiet-field :deep(.v-field:hover) { background: var(--surface-hi); }
-
-.quiet-field :deep(.v-field--focused) {
-  background: var(--input-bg);
-  box-shadow: inset 0 0 0 1px var(--accent);
-}
-
-/* Текстовая половина шапки ужимается по содержимому: обычному заголовку это ровно его длина, а
-   полю — его собственная ширина, около 20 символов, в которые не влезает и половина имени задачи.
-   Растягиваем её здесь, а не в общем `SectionHeader`: поле в заголовке пока только у задачи. */
+/* The header's text half shrinks to its content: for an ordinary title that is exactly its length,
+   for a field its own width, about 20 characters, which cannot fit even half a task name. It is
+   stretched here, not in the shared `SectionHeader`: so far only the task has a field in a title. */
 :deep(.section-header__text) {
   flex: 1 1 auto;
 }
 
-/* Поле заголовка стоит НА МЕСТЕ заголовка страницы и обязано занимать ровно его строку: метрика
-   взята у заголовка первого уровня, а вертикальные поля выведены из расчёта высоты обратным
-   отступом — иначе шапка выросла бы на высоту поля и разъехалась с шапками остальных страниц. */
+/* The title field stands IN PLACE of the page heading and must take exactly its line: the metrics
+   are taken from the first-level heading, and the vertical padding is excluded from the height by
+   a negative margin — otherwise the header would grow by the field's height and fall out of line
+   with the headers of other pages. */
 .task-page__title {
   width: 100%;
-  margin-inline-start: -8px;
 }
 
 .task-page__title :deep(.v-field__input) {
@@ -1091,34 +1175,31 @@ async function purge() {
   line-height: 28px;
 }
 
-/* Плашка кода: отрицательное поле слева выводит её собственную отбивку из строки — значок
-   копирования стоит по левому краю заголовка над ним, а подложка под курсором выступает за край,
-   как у кнопки. */
+/* The code chip: a negative left margin takes its own padding out of the line — the copy icon
+   aligns with the left edge of the title above it, and the hover background sticks out past the
+   edge, like a button's. */
 .task-page__code {
   margin-inline-start: -5px;
 }
 
-/* Строка состояния правки стоит над полями и молчит в покое — сообщением она становится только
-   когда правка в полёте или не дошла. */
-.task-page__save {
+/* The edit status line sits above the fields and is silent at rest — it becomes a message only
+   when an edit is in flight or failed to arrive. */
+.task-page__save-error {
   margin: 0;
-  min-height: 16px;
   font-size: 11px;
-  color: var(--text-faint);
+  color: var(--error);
 }
 
-.task-page__save--error { color: var(--error); }
-
-/* Подпись прижата к своему полю теснее, чем поля друг к другу, — иначе она читается как
-   заголовок всего блока, а не как пояснение к полю. */
+/* The label sits closer to its field than the fields sit to each other — otherwise it reads as a
+   heading for the whole block rather than an explanation of the field. */
 .task-page__field {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-/* Значок и имя группы в поле стоят тем же рядом, что и в пункте списка: выбранное значение —
-   это тот же пункт, только показанный в поле. */
+/* The group icon and name in the field sit in the same row as in a list item: the selected value
+   is the same item, just shown in the field. */
 .task-page__group-value {
   display: inline-flex;
   align-items: center;
@@ -1126,44 +1207,40 @@ async function purge() {
   min-width: 0;
 }
 
-/* У ряда кнопок нет поднятой метки, как у соседних полей, поэтому имя стоит строкой над ним. */
+/* A button row has no floated label like the neighbouring fields, so its name is a line above it. */
+/* What the type does is read once, not at every look at the column, so it sits behind a "?" next
+   to the label rather than as a caption under the buttons. */
 .task-page__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 12px;
   color: var(--text-muted);
 }
 
-/* Подпись под типом: она объясняет поведение, а не называет поле, поэтому тише метки и стоит
-   ПОД рядом, а не над ним. */
-.task-page__hint {
-  font-size: 11px;
-  line-height: 1.4;
-  color: var(--text-faint);
-}
-
-/* Размер у группы кнопок не наследуется детьми (docs/conventions/frontend.md), поэтому высота
-   ставится руками — по соседним полям, а они здесь идут плотной ступенью. Подписи в 11 символов
-   делят ширину колонки поровну, поэтому шрифт на ступень мельче кнопочного. */
+/* A button group's size is not inherited by its children (docs/conventions/frontend.md), so the
+   height is set by hand: 26px plus the toggle's 1px outline top and bottom matches the neighbouring 28px fields,
+   which use the dense step here. Labels of 11 characters split the column width evenly, so the
+   font is one step smaller than a button's.
+   The height goes through the variable: the group sets an inline `height: auto` on its buttons, and
+   the global `.v-btn-group .v-btn` rule beats it with `height: var(--v-btn-height) !important`. */
 .task-page__toggle { width: 100%; }
 
 .task-page__toggle :deep(.v-btn) {
   flex: 1;
   min-width: 0;
-  height: 28px;
+  --v-btn-height: 26px;
   padding-inline: 6px;
   font-size: 12px;
   letter-spacing: 0;
   text-transform: none;
 }
 
-/* Отметки времени идут строками «метка / значение» под полями: их не правят, и место под
-   колонкой полей у них общее. */
+/* Timestamps go as "label / value" lines in a card of their own: they are not edited, so they do
+   not sit among the fields. */
 .task-page__marks {
-  display: flex;
-  flex-direction: column;
   gap: 10px;
   margin: 0;
-  padding-top: 14px;
-  border-top: 1px solid var(--border);
 }
 
 .task-page__mark { min-width: 0; }

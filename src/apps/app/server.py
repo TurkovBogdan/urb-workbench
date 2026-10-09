@@ -1,8 +1,8 @@
-"""Сборка ``apps/app``: headless FastAPI-приложение (web API + раздача SPA).
+"""Assembly of ``apps/app``: a headless FastAPI app (web API + serving the SPA).
 
-Тот же ядровый HTTP-сервер отдаёт и API-зоны, и собранный фронт из ``web/dist``
-(``core/router/spa.py``) — nginx/Docker не нужны. В dev фронт обычно крутит Vite
-(HMR на исходниках); раздача из ``web/dist`` работает на собранном артефакте.
+The same core HTTP server serves both the API zones and the built frontend from ``web/dist``
+(``core/router/spa.py``) — no nginx/Docker needed. In dev the frontend usually runs under Vite
+(HMR on the sources); serving from ``web/dist`` works on the built artifact.
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from src.core.loggers.core_logger import CoreLogger
 
 
 def _bootstrap_logger(config: Config) -> None:
-    """Завести фабрику каналов: `logs/<channel>.log` с уровнем из config."""
+    """Set up the channel factory: `logs/<channel>.log` at the level from config."""
     paths = AppPath.from_root()
     ensure_dirs(paths)
 
@@ -37,8 +37,8 @@ _bootstrap_logger(config)
 
 app = create_app(modules=build_modules(), config=config)
 
-# Вся web-обвязка гейтится SERVER_ENABLED: при выключенном сервере процесс —
-# «только worker» (фон/задачи), HTTP-поверхности (зоны, CORS, docs) нет вовсе.
+# All the web wiring is gated by SERVER_ENABLED: with the server off the process is
+# "worker only" (background/jobs), with no HTTP surface (zones, CORS, docs) at all.
 if config.server_enabled:
     app.add_middleware(
         CORSMiddleware,

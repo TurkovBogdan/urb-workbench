@@ -1,12 +1,12 @@
-"""MCP-тулы задачи — основная поверхность работы агента.
+"""Task MCP tools — the agent's main working surface.
 
-Пять инструментов на четыре сценария: найти, прочитать целиком, завести, изменить, сдвинуть по
-жизненному циклу. Разводить их мельче незачем, сливать — некуда: у смены статуса своё правило
-(отметка фазы и недоступность терминальных значений), у правки своё (правится только то, что
-передано).
+Five tools for four scenarios: find, read in full, create, edit, move along the lifecycle.
+There is no reason to split them finer and nothing to merge them into: the status change has its
+own rule (the phase mark and terminal values being off-limits), the edit has its own (only what
+is passed gets edited).
 
-Ни один из них не принимает пространства: оно у сессии (``workspace/mcp/session.py``), и код из
-чужого отвергается забором (``scope.py``).
+None of them takes a workspace: it belongs to the session (``workspace/mcp/session.py``), and a
+code from another workspace is refused by the fence (``scope.py``).
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from src.modules.tasks.codes import bare_code
 from src.modules.tasks.constants import (
     ACTOR_AGENT,
     GROUP_CODE_PREFIX,
-    NOTE_TYPES_BLOCKING,
+    JOURNAL_TYPES_BLOCKING,
     STATUS_CANCELED,
     STATUS_DONE,
     TASK_CODE_PREFIX,
@@ -29,37 +29,39 @@ from src.modules.tasks.constants import (
     TASK_TYPES,
 )
 from src.modules.tasks.crud import group as group_crud
+from src.modules.tasks.crud import journal as journal_crud
 from src.modules.tasks.crud import link as link_crud
 from src.modules.tasks.crud import note as note_crud
 from src.modules.tasks.crud import stage as stage_crud
 from src.modules.tasks.crud import task as task_crud
 from src.modules.tasks.dto import (
-    AgentNoteRow,
+    AgentJournalRow,
     AgentStageRow,
     AgentTaskCreated,
     AgentTaskDetail,
     AgentTaskList,
+    AgentTaskNoteRow,
     AgentTaskRow,
     AgentTaskStatus,
 )
 from src.modules.tasks.mcp.scope import require_active, require_scope
 
-if TYPE_CHECKING:  # fork fastmcp — только backend (через mcp_server(ctx))
+if TYPE_CHECKING:  # fastmcp fork — backend only (via mcp_server(ctx))
     from fastmcp import FastMCP
 
-# Потолок выдачи списка. Стоит здесь, а не аргументом тула: поле в схеме оплачивается каждым
-# вызовом, а нужно оно в одном случае из двадцати — и тогда разрыв ``shown``/``total`` скажет
-# о нём внятнее, чем умолчание, которого агент не видел.
+# The list output cap. It lives here rather than as a tool argument: a field in the schema is
+# paid for on every call, yet it is needed once in twenty — and then the ``shown``/``total`` gap
+# says so more clearly than a default the agent never saw.
 LIST_CAP = 50
 
-# Агрегаты статуса рядом с семью настоящими. Отрицание («не done и не canceled») в перечислении
-# не выразить, а спрашивают про него чаще всего — поэтому у него есть имя.
+# Status aggregates next to the seven real ones. A negation ("not done and not canceled") cannot
+# be expressed in an enumeration, yet it is what gets asked for most often — so it has a name.
 STATUS_UNFINISHED = "unfinished"
 STATUS_ANY = "any"
 
-# Терминальные статусы агенту недоступны. ``done`` — потому что принимает работу постановщик, и
-# это прямое следствие самого частого режима отказа: объявлять победу раньше времени.
-# ``canceled`` — потому что решение «работы не будет» не принимают изнутри работы.
+# Terminal statuses are off-limits to the agent. ``done`` — because the task's author accepts
+# the work, a direct consequence of the most common failure mode: declaring victory too early.
+# ``canceled`` — because the decision "this work will not happen" is not made from inside the work.
 AGENT_STATUSES = tuple(s for s in TASK_STATUSES if s not in TASK_STATUSES_TERMINAL)
 
 _UNFINISHED = AGENT_STATUSES
@@ -76,7 +78,7 @@ def _checked(value: str, allowed: tuple[str, ...], what: str) -> str:
 
 
 async def _rows(tasks: list) -> list[AgentTaskRow]:
-    """Строки скана: поля задачи + место в дереве, одним запросом на весь список."""
+    """Scan rows: task fields + place in the tree, one query for the whole list."""
     codes = [task.code for task in tasks]
     links = await link_crud.link_map_by_task_codes(codes)
     children = await link_crud.link_child_count_by_parent_codes(codes)
@@ -120,7 +122,7 @@ def register(mcp: "FastMCP") -> None:
         Args:
             status: unfinished (default — everything not done or canceled) / any / backlog /
                 planned / in_progress / in_test / in_review / done / canceled.
-            group_code: A GROUP@ code for one theme; an empty string for the tasks filed in no
+            group_code: A TASKGROUP@ code for one theme; an empty string for the tasks filed in no
                 group at all; omit to see every group.
             query: Case-insensitive substring of the title or the goal. Omit to filter only.
         """
@@ -148,14 +150,18 @@ def register(mcp: "FastMCP") -> None:
 
     @mcp.tool()
     async def task_get(task_code: str) -> AgentTaskDetail:
-        """Read one task in full — the brief, the plan, its stages, and what is still open.
+        """Read one task in full — the brief, your work, its stages, and what is still open.
+
+        Your work comes in three fields: `plan` (the approach, written before the code changes),
+        `progress` (the diary along the way), `result` (what came out, written at hand-over).
 
         This is the working view: what you need before touching the work, and nothing you would
         have to ask twice for. Read it before you start and after anyone else has been here —
         the brief is the only place that says what "done" means here.
 
         Closed journal entries are not included, only their count: they answer "how was this
-        decided", which is a separate question — notes_list when you have it.
+        decided", which is a separate question — journal_list when you have it. The task's
+        `notes` come by title and description only; task_note_get reads one whole.
 
         Args:
             task_code: The task to read — a TASK@ code from tasks_list.
@@ -178,8 +184,8 @@ def register(mcp: "FastMCP") -> None:
         )
         children = await task_crud.task_list_by_parent(bare)
         stages = await stage_crud.stage_list_by_task(bare)
-        notes = await note_crud.note_list_by_task(bare)
-        open_notes = [note for note in notes if not note.resolution]
+        entries = await journal_crud.journal_list_by_task(bare)
+        open_entries = [entry for entry in entries if journal_crud.journal_is_open(entry)]
         return AgentTaskDetail(
             workspace=active.code,
             workspace_title=active.title,
@@ -189,7 +195,9 @@ def register(mcp: "FastMCP") -> None:
             context=task.context,
             constraints=task.constraints,
             criteria=task.criteria,
-            body=task.body,
+            plan=task.plan,
+            progress=task.progress,
+            result=task.result,
             status=task.status,
             priority=task.priority,
             type=task.type,
@@ -204,11 +212,15 @@ def register(mcp: "FastMCP") -> None:
             canceled_at=task.canceled_at,
             children=await _rows(children),
             stages=[AgentStageRow.model_validate(stage) for stage in stages],
-            open_notes=[AgentNoteRow.model_validate(note) for note in open_notes],
-            closed_notes=len(notes) - len(open_notes),
+            open_entries=[AgentJournalRow.model_validate(entry) for entry in open_entries],
+            closed_entries=len(entries) - len(open_entries),
             unfinished_stages=sum(
                 1 for stage in stages if stage.status not in TASK_STATUSES_TERMINAL
             ),
+            notes=[
+                AgentTaskNoteRow.model_validate(note)
+                for note in await note_crud.task_note_list(bare)
+            ],
         )
 
     @mcp.tool()
@@ -248,12 +260,12 @@ def register(mcp: "FastMCP") -> None:
                 reference implementation, a domain term. Markdown.
             constraints: What may change, what to ask about first, what must never be touched.
             criteria: Checkable conditions of done, one per line, each with what proves it.
-            type: simple (a title and a goal, nothing else) / standard (brief, plan as prose,
-                journal) / extended (all of that plus stages — the plan broken into steps, each
-                closed with its own evidence). Pick extended when the work outlasts one sitting;
-                a standard task refuses stages and says so.
+            type: simple (a title, a goal and the context, nothing else) / standard (the full
+                brief, plan / progress / result, journal) / extended (all of that plus stages —
+                the plan broken into steps, each closed with its own evidence). Pick extended
+                when the work outlasts one sitting; a standard task refuses stages and says so.
             priority: burning / high / normal / low / frozen. Default normal.
-            group_code: A GROUP@ code from groups_list; omit to leave it unfiled.
+            group_code: A TASKGROUP@ code from groups_list; omit to leave it unfiled.
             parent_code: A TASK@ code of a top-level task to make this a subtask of it.
             deadline_at: Hard deadline, `YYYY-MM-DD HH:MM:SS` in UTC.
         """
@@ -279,9 +291,9 @@ def register(mcp: "FastMCP") -> None:
             group_code=group_bare,
             parent_code=parent_bare,
             deadline_at=deadline_at,
-            # Авторство называет поверхность, а не вызывающий: значение из аргумента было бы
-            # словом на веру, и отличить заведённое агентом от заведённого человеком стало бы
-            # нечем — а бэклог, наполовину придуманный моделью, нечем и отфильтровать.
+            # Authorship is named by the surface, not by the caller: a value from an argument
+            # would be taken on faith, and there would be no way to tell what the agent created
+            # from what the person created — nor to filter out a backlog half invented by a model.
             created_by=ACTOR_AGENT,
         )
         return AgentTaskCreated(
@@ -314,17 +326,19 @@ def register(mcp: "FastMCP") -> None:
         that group, and a subtask's group is changed by refiling its parent, whose subtasks
         follow. A move lands at the end of the new row; the order within a row is the person's.
 
-        Two things are not here. The plan is text — body_set and its neighbours own it. Status
-        moves through task_status, which also stamps when the work started.
+        Two things are not here. Your work — plan, progress, result — is content, and
+        content_set and its neighbours own it; they also edit the brief's context, constraints
+        and criteria in place, where this sets them whole. Status moves through task_status,
+        which also stamps when the work started.
 
         The brief — title, goal, context, constraints and criteria — is editable on any task,
         whoever set it. On a task a person set, the brief is still their statement of what
         "done" means: when you change it, record what changed and why with
-        note_add(type="decision"), so the change is visible rather than silent.
+        journal_add(type="decision"), so the change is visible rather than silent.
 
         Args:
             task_code: The task to change — a TASK@ code.
-            group_code: A GROUP@ code, or an empty string to take it out of its group. With
+            group_code: A TASKGROUP@ code, or an empty string to take it out of its group. With
                 parent_code="" it files the task as it leaves its branch — one call.
             parent_code: A TASK@ code of a live top-level task to move this under — an
                 unfinished one, unless this task is finished too — or an empty string to make
@@ -370,10 +384,11 @@ def register(mcp: "FastMCP") -> None:
         set. So is `canceled` — deciding that work will not happen is not a decision made from
         inside it.
 
-        The answer says what is still open on this task. Clear it before handing over, not
-        after: an unresolved decision is an assumption nobody has checked, and an unresolved
-        remark is a request you have not answered. A finding is different — it is about work
-        outside this task, and only a person closes it.
+        The hand-over is not refused for what is still open — the answer counts it. Settle it
+        before handing over, not after: an unresolved decision is an assumption nobody has
+        checked, and an unresolved remark is a request you have not answered. A finding is
+        different — it is about work outside this task, and a person triages it. Write what you
+        did in `result` before you hand over.
 
         Args:
             task_code: The task to move — a TASK@ code.
@@ -392,17 +407,17 @@ def register(mcp: "FastMCP") -> None:
         if row is None:
             raise ValueError(f"Task {task_code} does not exist (or is deleted).")
         stages = await stage_crud.stage_list_by_task(bare)
-        open_notes = await note_crud.note_open_count_by_task_codes([bare])
-        blocking = await note_crud.note_open_count_by_task_codes(
-            [bare], types=NOTE_TYPES_BLOCKING
+        open_entries = await journal_crud.journal_open_count_by_task_codes([bare])
+        blocking = await journal_crud.journal_open_count_by_task_codes(
+            [bare], types=JOURNAL_TYPES_BLOCKING
         )
         return AgentTaskStatus(
             workspace=active.code,
             workspace_title=active.title,
             code=row.code,
             status=row.status,
-            open_notes=open_notes.get(bare, 0),
-            blocking_notes=blocking.get(bare, 0),
+            open_entries=open_entries.get(bare, 0),
+            blocking_entries=blocking.get(bare, 0),
             unfinished_stages=sum(
                 1 for stage in stages if stage.status not in TASK_STATUSES_TERMINAL
             ),

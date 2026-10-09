@@ -1,4 +1,4 @@
-"""Loggers: каналы, LoggerStore, прокси, CoreLogger, tee."""
+"""Loggers: channels, LoggerStore, proxies, CoreLogger, tee."""
 
 from __future__ import annotations
 
@@ -25,11 +25,11 @@ def _flush(*channels: str) -> None:
             h.flush()
 
 
-# ── Store: получение и фабрика ───────────────────────────────────────────────
+# ── Store: lookup and factory ────────────────────────────────────────────────
 
 @pytest.mark.pure
 def test_store_lazy_default_creates_core_logger():
-    """Без фабрики ``get`` лениво создаёт CoreLogger."""
+    """Without a factory, ``get`` lazily creates a CoreLogger."""
     log = LoggerStore.get("core")
     assert isinstance(log, CoreLogger)
 
@@ -60,7 +60,7 @@ def test_store_factory_called_with_channel_name(tmp_path: Path):
 
 @pytest.mark.pure
 def test_set_factory_clears_cached_channels(tmp_path: Path):
-    """После ``set_factory`` все ранее закэшированные каналы пересоздаются."""
+    """After ``set_factory`` all previously cached channels are recreated."""
     first = LoggerStore.get("core")
     set_logger_factory(lambda ch: CoreLogger(logs_dir=tmp_path, file_name=ch))
     second = LoggerStore.get("core")
@@ -80,7 +80,7 @@ def test_store_set_none_clears_override(tmp_path: Path):
     custom = CoreLogger(logs_dir=tmp_path, file_name="x")
     LoggerStore.set(custom, "alpha")
     LoggerStore.set(None, "alpha")
-    # снова через фабрику
+    # through the factory again
     log = LoggerStore.get("alpha")
     assert log is not custom
 
@@ -93,11 +93,11 @@ def test_store_set_default_channel_is_core(tmp_path: Path):
     assert LoggerStore.get("core") is custom
 
 
-# ── get_logger: прокси и канал по умолчанию ──────────────────────────────────
+# ── get_logger: proxy and default channel ────────────────────────────────────
 
 @pytest.mark.pure
 def test_get_logger_default_channel_is_core(tmp_path: Path):
-    """``get_logger()`` без аргумента — канал ``core``."""
+    """``get_logger()`` without an argument — the ``core`` channel."""
     factory_calls: list[str] = []
 
     def factory(channel: str) -> CoreLogger:
@@ -112,7 +112,7 @@ def test_get_logger_default_channel_is_core(tmp_path: Path):
 
 @pytest.mark.pure
 def test_get_logger_returns_proxy_resolving_through_store(tmp_path: Path):
-    """Прокси канала видит замену логгера, выполненную ПОСЛЕ его создания."""
+    """A channel proxy sees a logger replacement made AFTER the proxy was created."""
     set_logger_factory(lambda ch: CoreLogger(logs_dir=tmp_path, file_name=ch))
     proxy = get_logger("scheduler")
     proxy.info("first")
@@ -145,7 +145,7 @@ def test_get_logger_writes_to_per_channel_file(tmp_path: Path):
     assert "tick" not in (tmp_path / "page_scraper.log").read_text()
 
 
-# ── CoreLogger: конкретная реализация ────────────────────────────────────────
+# ── CoreLogger: the concrete implementation ──────────────────────────────────
 
 @pytest.mark.pure
 def test_core_logger_writes_file(tmp_path: Path):
@@ -169,7 +169,7 @@ def test_core_logger_creates_dir(tmp_path: Path):
 
 @pytest.mark.pure
 def test_core_logger_nested_channel_creates_subdir(tmp_path: Path):
-    """`file_name` со слешем → подпапка под logs_dir."""
+    """`file_name` with a slash → a subfolder under logs_dir."""
     log = CoreLogger(
         logs_dir=tmp_path, file_name="tasks/data_import", level=logging.DEBUG
     )
@@ -182,7 +182,7 @@ def test_core_logger_nested_channel_creates_subdir(tmp_path: Path):
 
 @pytest.mark.pure
 def test_get_logger_nested_channel(tmp_path: Path):
-    """get_logger('tasks/...') пишет в logs/tasks/<name>.log через фабрику."""
+    """get_logger('tasks/...') writes to logs/tasks/<name>.log through the factory."""
     set_logger_factory(lambda ch: CoreLogger(
         logs_dir=tmp_path, file_name=ch, level=logging.DEBUG
     ))
@@ -204,7 +204,7 @@ def test_core_logger_set_level(tmp_path: Path):
     assert "visible" in text
 
 
-# ── Tee: фан-аут в несколько каналов ─────────────────────────────────────────
+# ── Tee: fan-out to several channels ─────────────────────────────────────────
 
 @pytest.mark.pure
 def test_tee_writes_to_all_channels(tmp_path: Path):
@@ -239,7 +239,7 @@ def test_tee_dispatches_each_level(tmp_path: Path):
 
 @pytest.mark.pure
 def test_tee_resolves_through_store_after_replacement(tmp_path: Path):
-    """Tee видит замену канала, выполненную после создания прокси."""
+    """Tee sees a channel replacement made after the proxy was created."""
     set_logger_factory(lambda ch: CoreLogger(
         logs_dir=tmp_path, file_name=ch, level=logging.DEBUG
     ))
@@ -256,7 +256,7 @@ def test_tee_resolves_through_store_after_replacement(tmp_path: Path):
     assert "before" in (tmp_path / "alpha.log").read_text()
     assert "after" not in (tmp_path / "alpha.log").read_text()
     assert "after" in (tmp_path / "alpha-new.log").read_text()
-    # beta получает оба сообщения
+    # beta receives both messages
     beta_text = (tmp_path / "beta.log").read_text()
     assert "before" in beta_text
     assert "after" in beta_text
@@ -280,7 +280,7 @@ def test_tee_set_level_applies_to_all_channels(tmp_path: Path):
 
 @pytest.mark.pure
 def test_get_logger_single_channel_returns_plain_proxy():
-    """Один канал — обычный прокси, не tee (без накладных расходов на цикл)."""
+    """A single channel — a plain proxy, not a tee (no loop overhead)."""
     from src.core.loggers.logger_proxy import _LoggerProxy, _TeeProxy
 
     log = get_logger("solo")

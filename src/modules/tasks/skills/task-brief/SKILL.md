@@ -15,8 +15,8 @@ Four fields, and each answers a different question.
 
 **What becomes true when the work is done.** An outcome, not a sequence of steps.
 
-- ✅ «Счета выставляются по новой схеме тарифов, старые не ломаются»
-- ❌ «Открыть tariff.py, найти класс, добавить поле» — this turns the executor into a slow
+- ✅ «Invoices are issued under the new tariff scheme, the old ones do not break»
+- ❌ «Open tariff.py, find the class, add a field» — this turns the executor into a slow
   typist and moves the whole design risk onto you.
 
 If the approach is already decided, that is a constraint, not a goal. Keep them apart: the goal
@@ -55,19 +55,22 @@ checkable on its own, each with what proves it.
 The test of a criterion: could two readers disagree about whether it is met? If yes, it is not
 finished being written.
 
-- ✅ «1. `pytest tests/billing -q` зелёный»
-- ✅ «2. Счёт за март пересчитывается в те же копейки — сверка на трёх примерах из прода»
-- ❌ «Работает надёжно» — read as already satisfied.
-- ❌ «Быстро грузится» — say the number and the conditions.
+- ✅ «1. `pytest tests/billing -q` is green»
+- ✅ «2. The March invoice recalculates to the same cents — checked against three examples from prod»
+- ❌ «Works reliably» — read as already satisfied.
+- ❌ «Loads fast» — say the number and the conditions.
 
 Do not write twenty-five of them. Past a certain length they stop producing care and start
 producing selective compliance; five that matter beat twenty that do not.
 
 ## Which fields a task actually needs
 
-`simple` — a title and a goal, nothing else: no brief, no plan, no journal. Often a job for a
-person rather than for you.
-`standard` — the four fields above, a plan written as prose, and a journal. The normal profile.
+`simple` — a title, a goal and the context: what to know before starting. No constraints, no
+criteria, no plan, no journal — `content_*` and `journal_add` refuse them there and say to raise
+the type (`task_update` still sets constraints and criteria, but the page does not show them).
+Often a job for a person rather than for you.
+`standard` — the four fields above, the executor's work in three fields (`plan`, `progress`,
+`result`), and a journal. The normal profile.
 `extended` — the same plus **stages**: the plan broken into steps, each with its own state and
 its own evidence. That is the whole difference, and it is a real one — a step is a thing you can
 be part-way through, and tracking that only pays off when the work outlasts one sitting. Reach
@@ -76,12 +79,17 @@ ceremony costs more than it returns.
 
 ## Whose brief is it
 
-You may fill in and correct the brief of any task with `task_update`, including one a person
-set. A thin statement — a title and a goal — is often left on purpose for the executor to flesh
-out once the code has been read.
+You may fill in and correct the brief of any task, including one a person set. A thin
+statement — a title and a goal — is often left on purpose for the executor to flesh out once the
+code has been read.
+
+Two ways to write it. `task_update` sets a field whole — the title, the goal, or a brief field
+written from scratch. `content_set` / `content_replace` / `content_set_section` / `content_add`
+edit `context`, `constraints` and `criteria` in place — one criterion added, one constraint
+reworded — without resending the rest.
 
 On a task a person set, the brief is still their statement of what "done" means, so the edit
-must not be silent: record what changed and why with `note_add(type="decision")`. If the
+must not be silent: record what changed and why with `journal_add(type="decision")`. If the
 change is not a clarification but a different requirement, ask before making it.
 
 Write the brief into the task, never into a file of your own to be copied over later.

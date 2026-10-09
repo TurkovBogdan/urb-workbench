@@ -1,23 +1,24 @@
-// Привести разобранный документ к тому, что поле вообще принимает.
+// Reduce a parsed document to what the field accepts at all.
 //
-// Шаг обязателен, а не украшение. Схема режима не знает, например, заголовка — и если разбор
-// всё-таки соберёт узел `heading`, ProseMirror отвергнет ВЕСЬ документ, а не один узел: поле
-// молча останется пустым. Вставка чужого текста из буфера — самый обычный способ это устроить,
-// поэтому фильтр стоит между разбором и схемой, а не рядом с кнопками.
+// The step is mandatory, not decoration. A mode's schema may not know, say, a heading — and if
+// parsing still produces a `heading` node, ProseMirror rejects the WHOLE document, not one node:
+// the field silently stays empty. Pasting foreign text from the clipboard is the most ordinary way
+// to cause that, so the filter sits between parsing and the schema, not next to the buttons.
 //
-// Правило понижения одно: **сохранить текст, потерять оформление**. Заголовок становится
-// абзацем, а не исчезает; пункт списка — абзацем; блок кода — абзацем со своим текстом. Молча
-// пропадает только то, у чего текста нет вовсе (линия) или чей текст без своей структуры
-// превращается в кашу (таблица).
+// There is one downgrade rule: **keep the text, lose the formatting**. A heading becomes a
+// paragraph instead of vanishing; a list item becomes a paragraph; a code block becomes a
+// paragraph with its text. Only what has no text at all (a rule) or whose text turns into mush
+// without its structure (a table) is dropped silently.
 import type { JSONContent } from '@tiptap/core'
 import type { FeatureSet } from '../modes'
+import { DIAGRAM_LANGUAGE } from '../../shared/contracts'
 
 export function restrict(doc: JSONContent, features: FeatureSet): JSONContent {
   const blocks: JSONContent[] = []
   for (const node of doc.content ?? []) blocks.push(...block(node, features))
 
-  // Пустой документ ProseMirror не примет: `doc` требует хотя бы один блок. Дойти сюда пустым
-  // можно — например, тело из одной таблицы в режиме, где таблиц нет.
+  // ProseMirror will not accept an empty document: `doc` requires at least one block. Arriving
+  // here empty is possible — e.g. a body made of a single table in a mode without tables.
   return { type: 'doc', content: blocks.length ? blocks : [{ type: 'paragraph' }] }
 }
 
@@ -37,15 +38,27 @@ function block(node: JSONContent, features: FeatureSet): JSONContent[] {
       if (features.has('list')) {
         return [{ ...node, content: (node.content ?? []).map((item) => withInline(item, features)) }]
       }
-      // Уровень вложенности теряется вместе со списком: в абзаце его негде хранить, а
-      // изображать отступ пробелами значило бы подменить структуру оформлением.
+      // The nesting level is lost along with the list: a paragraph has nowhere to keep it, and
+      // faking the indent with spaces would substitute formatting for structure.
       return (node.content ?? []).map((item) => paragraph(inlineOf(item, features)))
 
     case 'codeBlock':
       if (features.has('codeBlock')) return [node]
-      // Текст листинга остаётся текстом абзаца — без языка и без ограждения.
+      // The listing's text stays as paragraph text — without a language and without a fence.
       return [paragraph((node.content ?? []).map((child) => ({ type: 'text', text: child.text ?? '' }))
         .filter((child) => (child.text ?? '').length > 0))]
+
+    // A field without diagrams still keeps the source: as the mermaid fence it was, when the field
+    // has code blocks, otherwise as the paragraph text a code block falls back to.
+    case 'diagram': {
+      if (features.has('diagram')) return [node]
+      const source = String(node.attrs?.source ?? '')
+      return block({
+        type: 'codeBlock',
+        attrs: { language: DIAGRAM_LANGUAGE },
+        content: source ? [{ type: 'text', text: source }] : [],
+      }, features)
+    }
 
     case 'horizontalRule':
       return features.has('divider') ? [node] : []
@@ -74,8 +87,8 @@ function inlineOf(node: JSONContent, features: FeatureSet): JSONContent[] {
 }
 
 function inline(node: JSONContent, features: FeatureSet): JSONContent[] {
-  // Пилюля без своей возможности — обычный текст с кодом: код сущности остаётся читаемым и
-  // по-прежнему уедет в тело, просто перестанет быть объектом.
+  // A pill without its feature becomes plain text holding the code: the entity code stays
+  // readable and still goes into the body, it just stops being an object.
   if (node.type === 'entityRef') {
     if (features.has('entityRef')) return [node]
     const code = String(node.attrs?.code ?? '')
@@ -88,9 +101,9 @@ function inline(node: JSONContent, features: FeatureSet): JSONContent[] {
   return marks.length ? [{ ...node, marks }] : [{ ...node, marks: undefined }]
 }
 
-// Имя метки в схеме и имя возможности совпадают у всех, кроме ссылки — у неё метка называется
-// так же, так что таблица соответствий не нужна вовсе; функция существует ради явного отказа
-// незнакомой метке, а не ради перевода имён.
+// A mark's schema name and its feature name coincide for every mark, the link included — its mark
+// carries the same name — so no mapping table is needed at all; the function exists to refuse an
+// unknown mark explicitly, not to translate names.
 function isAllowed(type: string | undefined, features: FeatureSet): boolean {
   if (!type) return false
   return features.has(type as never)

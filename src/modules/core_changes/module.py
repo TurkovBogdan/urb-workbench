@@ -1,11 +1,12 @@
-"""Модуль ``core_changes`` — лента изменений данных для живого обновления фронта.
+"""The ``core_changes`` module — the data changes feed for live frontend updates.
 
-**Уровень 0**, инфраструктурный: стоит в списке раньше модулей, чьи сущности он разносит. Они
-объявляют их в своём ``configure()`` (``register_entity``), а подписка на сессию ставится здесь же,
-в ``configure()`` этого модуля, — до первого запроса и до первой записи.
+**Level 0**, infrastructure: it sits in the list before the modules whose entities it carries.
+They declare them in their own ``configure()`` (``register_entity``), and the session
+subscription is installed here, in this module's ``configure()`` — before the first request and
+the first write.
 
-Модуль не знает ни одной конкретной сущности: что уходит в поток, решает владелец данных (см.
-``entities.py``). Своих таблиц нет — поток живёт в памяти процесса (``bus.py``).
+The module knows no concrete entity: what goes into the stream is decided by the data owner (see
+``entities.py``). No tables of its own — the stream lives in process memory (``bus.py``).
 """
 
 from __future__ import annotations
@@ -32,7 +33,7 @@ class CoreChangesModule(Module):
 
     def configure(self, app: FastAPI, config: Config) -> None:
         install()
-        # Метка вкладки-источника (``X-Client-Id``) для каждого запроса — см. ``origin.py``.
+        # The originating tab's mark (``X-Client-Id``) for every request — see ``origin.py``.
         app.add_middleware(OriginMiddleware)
 
 

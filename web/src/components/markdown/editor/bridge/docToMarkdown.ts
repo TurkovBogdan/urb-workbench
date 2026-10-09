@@ -1,18 +1,19 @@
-// Плоский документ → markdown: печатающая половина моста.
+// Flat document → markdown: the printing half of the bridge.
 //
-// Именно она решает, можно ли наводить редактор на настоящее тело. Плоская схема (blocks.ts)
-// снимает половину вопроса: сворачивать дерево не нужно, один блок кладётся в одну строку. Но
-// *написание* документа модель всё равно не хранит — какой маркер, какое ограждение, какое
-// экранирование, — поэтому цель не «байт в байт», чего не достигает ни один структурный
-// редактор, а контракт, который можно удержать:
+// This is the half that decides whether the editor can be pointed at a real body. The flat schema
+// (blocks.ts) settles half the question: there is no tree to fold, one block goes onto one line.
+// But the model still does not keep the document's *spelling* — which marker, which fence, which
+// escaping — so the goal is not "byte for byte", which no structural editor achieves, but a
+// contract that can be held:
 //
-//   1. второй проход равен первому (стабильность);
-//   2. текст не меняется — не добавляется экранирование, которого не требовал парсер;
-//   3. непереносимое видно, а не молчит (см. UNSUPPORTED в markdownToDoc.ts).
+//   1. the second pass equals the first (stability);
+//   2. the text does not change — no escaping is added that the parser did not require;
+//   3. whatever cannot be carried is visible, not silent (see UNSUPPORTED in markdownToDoc.ts).
 //
-// Проверяется в обе стороны панелью кругового прохода на странице дизайн-системы.
+// Checked in both directions by the round-trip panel on the design-system page.
 import type { JSONContent } from '@tiptap/core'
 import { escapeLineStarts, escapeText } from './escape'
+import { DIAGRAM_LANGUAGE } from '../../shared/contracts'
 
 export function docToMarkdown(doc: JSONContent): string {
   return (doc.content ?? [])
@@ -29,13 +30,16 @@ function block(node: JSONContent): string {
     case 'heading':
       return `${'#'.repeat(Number(node.attrs?.level ?? 1))} ${inline(node.content)}`
 
-    // Цитата — строчный блок, а не контейнер: соседние цитаты печатаются соседними абзацами
-    // цитаты и такими же читаются обратно.
+    // A quote is a line block, not a container: adjacent quotes print as adjacent quote
+    // paragraphs and read back as the same.
     case 'quote':
       return `> ${escapeLineStarts(inline(node.content))}`
 
     case 'codeBlock':
       return fenced(text(node.content), String(node.attrs?.language ?? '') || '')
+
+    case 'diagram':
+      return fenced(String(node.attrs?.source ?? ''), DIAGRAM_LANGUAGE)
 
     case 'horizontalRule':
       return '---'
@@ -51,12 +55,12 @@ function block(node: JSONContent): string {
   }
 }
 
-// ── Таблица ───────────────────────────────────────────────────────────────────
+// ── Table ─────────────────────────────────────────────────────────────────────
 
-// Единственный блок, который печатается НЕСКОЛЬКИМИ строками, и единственный, где это ничего не
-// стоит: форму задаёт сам формат — шапка, разделитель, ряды, — поэтому выбора у печати нет.
-// Ширина берётся у шапки: она же объявляет число колонок в markdown, и ряд, разошедшийся с ней,
-// GFM прочитал бы не так, как он выглядит в редакторе.
+// The only block printed over SEVERAL lines, and the only one where that costs nothing: the shape
+// is set by the format itself — header, delimiter, rows — so the printer has no choice to make.
+// The width is taken from the header: it is what declares the column count in markdown, and GFM
+// would read a row that diverges from it differently from how it looks in the editor.
 function tableLines(node: JSONContent): string {
   const sections = node.content ?? []
   const headRow = sections.find((section) => section.type === 'tableHead')?.content?.[0]
@@ -78,7 +82,7 @@ function tableRow(row: JSONContent, width: number): string {
   return `| ${cells.join(' | ')} |`
 }
 
-// Разделитель несёт выравнивание колонки — двоеточием с той стороны, к которой прижимают.
+// The delimiter row carries column alignment — a colon on the side the content is aligned to.
 function delimiterRow(align: (string | null)[], width: number): string {
   const cells = Array.from({ length: width }, (_, index) => {
     if (align[index] === 'left') return ':---'
@@ -91,21 +95,21 @@ function delimiterRow(align: (string | null)[], width: number): string {
 
 function cellText(cell: JSONContent | undefined): string {
   const value = inline(cell?.content)
-    // Вертикальная черта внутри ячейки обязана быть экранирована: GFM режет строку на ячейки ДО
-    // разбора строчной разметки, поэтому неэкранированная черта развалила бы ряд — в том числе
-    // из кода в бэктиках, где она выглядит безобидно.
+    // A pipe inside a cell must be escaped: GFM splits a line into cells BEFORE parsing inline
+    // markup, so an unescaped pipe would break the row — including one inside a backtick code
+    // span, where it looks harmless.
     .replace(/\|/g, '\\|')
-    // Перенос строки внутри ячейки в markdown не выражается вовсе: ряд — это одна строка.
-    // Мягкий перенос (Shift+Enter) схлопывается в пробел, а не ломает таблицу.
+    // A line break inside a cell cannot be expressed in markdown at all: a row is one line. A soft
+    // break (Shift+Enter) collapses into a space instead of breaking the table.
     .replace(/\s*\n\s*/g, ' ')
     .trim()
-  // Пустая ячейка печатается пробелом: `| |` читается ячейкой, а `||` — краем соседней.
+  // An empty cell prints as a space: `| |` reads as a cell, while `||` reads as a neighbour's edge.
   return value || ' '
 }
 
-// Плоский ряд пунктов превращается в отступы обратно. Ширина отступа берётся из маркеров
-// предков, а не из фиксированной двойки: под `10. ` содержимое начинается на четвёртой
-// колонке, и отступ в два пробела оторвал бы вложенный пункт от родителя.
+// The flat row of items is turned back into indentation. The indent width comes from the
+// ancestors' markers, not a fixed two: under `10. ` content starts at the fourth column, and a
+// two-space indent would detach the nested item from its parent.
 function listLines(items: JSONContent[]): string {
   const counters: number[] = []
   const widths: number[] = []
@@ -126,7 +130,7 @@ function listLines(items: JSONContent[]): string {
     if (checked !== null) {
       marker = `- [${checked ? 'x' : ' '}] `
       counters[depth] = 0
-      // Содержимое пункта-галочки начинается сразу за `- `: сама галочка — часть содержимого.
+      // A checkbox item's content starts right after `- `: the checkbox itself is part of it.
       widths[depth] = 2
     } else if (ordered) {
       counters[depth] = (counters[depth] ?? 0) + 1
@@ -146,7 +150,7 @@ function listLines(items: JSONContent[]): string {
   return lines.join('\n')
 }
 
-// Ограждение должно быть длиннее самой длинной череды бэктиков внутри, иначе блок кончится раньше.
+// The fence must be longer than the longest backtick run inside, or the block ends early.
 function fenced(code: string, language: string): string {
   const runs = [...code.matchAll(/`{3,}/g)].map((match) => match[0].length + 1)
   const fence = '`'.repeat(Math.max(3, ...runs))
@@ -157,19 +161,18 @@ function text(nodes: JSONContent[] | undefined): string {
   return (nodes ?? []).map((node) => node.text ?? '').join('')
 }
 
-// Метки печатаются ПРОГОНАМИ, а не поузлово. Tiptap хранит `**жирный `код` текст**` тремя
-// соседними узлами с одной и той же меткой, и если обернуть каждый отдельно, получится
-// `**жирный** `код` **текст**` — на экране то же самое, в тексте другое, и так на каждом
-// сохранении. Ограничители открываются, когда набор меток меняется, и закрываются в обратном
-// порядке — как теги.
+// Marks are printed in RUNS, not per node. Tiptap stores `**bold `code` text**` as three adjacent
+// nodes carrying the same mark, and wrapping each one separately would give
+// `**bold** `code` **text**` — the same on screen, different in the text, and so on every save.
+// Delimiters open when the set of marks changes and close in reverse order — like tags.
 const MARK_ORDER = ['link', 'bold', 'italic', 'strike']
 
 interface Wrap { key: string; open: string; close: string }
 
-// Ссылка, чей текст совпадает с адресом, — это голый адрес, а не ссылка в записи markdown.
-// Разбор включает `linkify`, поэтому написанный в тексте `https://…` приезжает сюда УЖЕ узлом со
-// ссылкой; напечатай мы его полной формой `[адрес](адрес)` — и текст, которого человек не писал,
-// появился бы у него в теле сам. На реальных телах это 25 переписанных строк из ничего.
+// A link whose text equals its address is a bare URL, not a markdown link. Parsing enables
+// `linkify`, so an `https://…` written in the text arrives here ALREADY as a node with a link;
+// printing it in the full `[url](url)` form would make text the person never wrote appear in
+// their body by itself. On real bodies that is 25 lines rewritten out of nothing.
 function isAutolink(node: JSONContent): boolean {
   if (node.type !== 'text') return false
   const marks = node.marks ?? []
@@ -194,9 +197,9 @@ function wraps(node: JSONContent): Wrap[] {
   return out
 }
 
-// Два соседних текстовых узла с одинаковыми метками — это один отрезок текста; Tiptap делит их
-// рутинно, границы транзакции достаточно. Склейка нужна до всего остального: по ней ищутся края
-// прогона, и она же убирает `**a****b**` на ровном месте.
+// Two adjacent text nodes with identical marks are one stretch of text; Tiptap splits them
+// routinely, a transaction boundary is enough. Merging comes before everything else: run edges are
+// found from it, and it is also what prevents a gratuitous `**a****b**`.
 function merged(nodes: JSONContent[]): JSONContent[] {
   const out: JSONContent[] = []
   for (const node of nodes) {
@@ -234,19 +237,19 @@ function inline(nodes: JSONContent[] | undefined): string {
 
 function content(node: JSONContent): string {
   if (node.type === 'entityRef') return String(node.attrs?.code ?? '')
-  // Два пробела — единственный перенос строки, который markdown знает внутри абзаца.
+  // Two spaces are the only line break markdown knows inside a paragraph.
   if (node.type === 'hardBreak') return '  \n'
-  // Адрес печатается как есть, без экранирования: подчёркивание или звёздочка внутри URL —
-  // часть адреса, и обратная косая черта перед ними его сломала бы.
+  // The URL prints as is, unescaped: an underscore or asterisk inside a URL is part of the
+  // address, and a backslash before it would break it.
   if (isAutolink(node)) return node.text ?? ''
   if (node.type !== 'text') return ''
-  // Внутри кода ничего не экранируется — сам код и есть экранирование.
+  // Nothing is escaped inside code — the code span itself is the escaping.
   const code = (node.marks ?? []).some((mark) => mark.type === 'code')
   return code ? codeSpan(node.text ?? '') : escapeText(node.text ?? '')
 }
 
-// Выделение считается только по этим меткам: ссылка краевые пробелы переживает (`[ текст ](url)`
-// читается обратно тем же), а звёздочка — нет.
+// Emphasis is keyed on these marks only: a link survives edge spaces (`[ text ](url)` reads back
+// the same), an asterisk does not.
 function emphasisKey(node: JSONContent): string {
   return (node.marks ?? [])
     .filter((mark) => mark.type === 'bold' || mark.type === 'italic' || mark.type === 'strike')
@@ -259,10 +262,10 @@ function plain(value: string): JSONContent {
   return { type: 'text', text: value }
 }
 
-// Пробелы с краёв выделенного прогона выносятся наружу. Закрывающая звёздочка после пробела по
-// CommonMark ничего не закрывает — `**слово **` расползлось бы на весь остаток абзаца. Границы
-// ищутся у прогона целиком, а не у каждого узла: иначе пробел внутри `**жирный `код` текст**`
-// тоже принялся бы за край.
+// Spaces at the edges of an emphasized run are moved outside. Per CommonMark a closing asterisk
+// after a space closes nothing — `**word **` would spill over the rest of the paragraph. Edges
+// are found for the run as a whole, not per node: otherwise a space inside
+// `**bold `code` text**` would also be taken for an edge.
 function liftEdgeSpaces(nodes: JSONContent[]): JSONContent[] {
   const out: JSONContent[] = []
 
@@ -297,7 +300,7 @@ function liftEdgeSpaces(nodes: JSONContent[]): JSONContent[] {
       }
     }
 
-    // Прогон из одних пробелов остаётся без разметки — выделять нечего.
+    // A run of nothing but spaces stays unmarked — there is nothing to emphasize.
     out.push(...run.filter((node) => !(node.type === 'text' && node.text === '')))
     if (trail) out.push(plain(trail))
   }
@@ -308,7 +311,7 @@ function liftEdgeSpaces(nodes: JSONContent[]): JSONContent[] {
 function codeSpan(value: string): string {
   const runs = [...value.matchAll(/`+/g)].map((match) => match[0].length + 1)
   const fence = '`'.repeat(Math.max(1, ...runs))
-  // Спан, начинающийся или кончающийся бэктиком, требует пробела — парсер съест его обратно.
+  // A span starting or ending with a backtick needs a space — the parser strips it back off.
   const pad = value.startsWith('`') || value.endsWith('`') ? ' ' : ''
   return `${fence}${pad}${value}${pad}${fence}`
 }

@@ -1,9 +1,10 @@
-"""Форма ENV подписана словарём на обоих языках.
+"""The ENV form is labelled from the dictionary in both languages.
 
-Бэкенд отдаёт подписи полей английским запасным текстом (``core_setup/keys.py``), а форма берёт
-перевод по коду группы и ENV-ключу поля (``web/src/features/setup/labels.ts``). Поле, добавленное
-на бэке без строки в словаре, не ломает страницу — оно просто выходит английским в русском
-интерфейсе. Здесь это падает сразу.
+The backend serves field labels as English fallback text (``core_setup/keys.py``), and the form
+looks the translation up by group code and the field's ENV key
+(``web/src/features/setup/labels.ts``). A field added on the backend without a dictionary string
+does not break the page — it just comes out in English in the Russian interface. Here it fails
+at once.
 """
 
 from __future__ import annotations

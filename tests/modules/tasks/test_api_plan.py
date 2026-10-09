@@ -1,9 +1,10 @@
-"""HTTP-API плана: этапы, журнал и то, что деталка задачи отдаёт одним ответом.
+"""The plan's HTTP API: stages, the journal, and what the task detail returns in one response.
 
-Здесь проверяется граница, а не правила: сами правила живут в ``test_stage.py`` и ``test_note.py``.
-Ручке важно другое — каким статусом отвечает отказ, едет ли рядом с ним КОД правила (по нему
-интерфейс показывает свою формулировку, а не английскую фразу из недр CRUD) и приезжают ли
-этапы с журналом внутри карточки задачи.
+This tests the boundary, not the rules: the rules themselves live in ``test_stage.py`` and
+``test_journal.py``. What matters to the endpoint is different — which status a refusal answers
+with, whether the rule CODE travels with it (the interface shows its own wording by that code
+rather than an English phrase from deep inside the CRUD), and whether stages and the journal
+arrive inside the task card.
 """
 
 from __future__ import annotations
@@ -11,33 +12,35 @@ from __future__ import annotations
 import pytest
 
 from src.modules.tasks.constants import (
-    NOTE_DECISION,
-    NOTE_FACT,
+    JOURNAL_DECISION,
+    JOURNAL_FACT,
     STATUS_DONE,
     TYPE_EXTENDED,
 )
+from src.modules.notes.crud import note as notes_crud
+from src.modules.tasks.crud import journal as journal_crud
 from src.modules.tasks.crud import note as note_crud
 from src.modules.tasks.crud import stage as stage_crud
 from src.modules.tasks.crud import task as task_crud
-from src.modules.tasks.errors import NOTE_ALREADY_RESOLVED, STAGE_EVIDENCE_REQUIRED
+from src.modules.tasks.errors import JOURNAL_ALREADY_RESOLVED, STAGE_EVIDENCE_REQUIRED
 from src.modules.workspace.crud import workspace as workspace_crud
 
 pytestmark = pytest.mark.db
 
 TASKS = "/internal/workbench/tasks"
 STAGES = "/internal/workbench/stages"
-NOTES = "/internal/workbench/notes"
+JOURNAL = "/internal/workbench/journal"
 
 
 async def _task(title: str = "Перенести тарифы"):
-    """Задача с этапами, то есть расширенная: у стандартной план живёт прозой и этапов нет."""
+    """A task with stages, i.e. extended: a standard one keeps its plan as prose, no stages."""
     workspace = await workspace_crud.workspace_create(title="Работа")
     return await task_crud.task_create(
         workspace_code=workspace.code, title=title, type=TYPE_EXTENDED
     )
 
 
-# ── этапы ─────────────────────────────────────────────────────────────────────
+# ── stages ────────────────────────────────────────────────────────────────────
 
 
 async def test_stage_list_is_scoped_to_its_task(client):
@@ -65,7 +68,7 @@ async def test_stage_create_returns_the_row_with_its_number(client):
 
 
 async def test_stage_create_on_a_deleted_task_is_409(client):
-    """Удалённая задача не правится нигде — этап к ней не завести, как и всё остальное."""
+    """A deleted task is not editable anywhere — no stage can be added to it, like anything else."""
     task = await _task()
     await task_crud.task_delete(task.code)
 
@@ -95,7 +98,7 @@ async def test_stage_update_replaces_the_card(client):
 
 
 async def test_closing_without_evidence_is_400_with_the_rule_code(client):
-    """Главный шлюз плана: отказ несёт код, по которому интерфейс говорит своими словами."""
+    """The plan's main gate: the refusal carries a code the interface words in its own terms."""
     task = await _task()
     stage = await stage_crud.stage_create(task_code=task.code, title="Модели")
 
@@ -141,42 +144,42 @@ async def test_a_foreign_prefix_in_the_stage_segment_is_400(client):
     assert response.status_code == 400
 
 
-# ── журнал ────────────────────────────────────────────────────────────────────
+# ── journal ───────────────────────────────────────────────────────────────────
 
 
-async def test_note_create_returns_an_open_entry(client):
+async def test_journal_create_returns_an_open_entry(client):
     task = await _task()
 
     response = await client.post(
-        f"{TASKS}/{task.code}/notes",
-        json={"type": NOTE_DECISION, "title": "Взяли SSE", "body": "поток односторонний"},
+        f"{TASKS}/{task.code}/journal",
+        json={"type": JOURNAL_DECISION, "title": "Взяли SSE", "body": "поток односторонний"},
     )
 
     assert response.status_code == 201
     body = response.json()
     assert body["resolution"] == ""
-    assert body["code"].startswith("NOTE@")
+    assert body["code"].startswith("JOURNAL@")
 
 
-async def test_note_create_with_an_unknown_type_is_400(client):
+async def test_journal_create_with_an_unknown_type_is_400(client):
     task = await _task()
 
     response = await client.post(
-        f"{TASKS}/{task.code}/notes", json={"type": "мысль", "title": "Что-то"}
+        f"{TASKS}/{task.code}/journal", json={"type": "мысль", "title": "Что-то"}
     )
 
     assert response.status_code == 400
 
 
-async def test_note_list_narrows_to_open_entries(client):
+async def test_journal_list_narrows_to_open_entries(client):
     task = await _task()
-    await note_crud.note_create(
-        task_code=task.code, type=NOTE_FACT, title="Факт", resolution="записано"
+    await journal_crud.journal_create(
+        task_code=task.code, type=JOURNAL_FACT, title="Факт", resolution="записано"
     )
-    await note_crud.note_create(task_code=task.code, type=NOTE_DECISION, title="Решение")
+    await journal_crud.journal_create(task_code=task.code, type=JOURNAL_DECISION, title="Решение")
 
     body = (
-        await client.get(f"{TASKS}/{task.code}/notes", params={"open_only": True})
+        await client.get(f"{TASKS}/{task.code}/journal", params={"open_only": True})
     ).json()
 
     assert [row["title"] for row in body] == ["Решение"]
@@ -184,67 +187,91 @@ async def test_note_list_narrows_to_open_entries(client):
 
 async def test_resolve_closes_the_entry(client):
     task = await _task()
-    note = await note_crud.note_create(
-        task_code=task.code, type=NOTE_DECISION, title="Куда девать agent"
+    entry = await journal_crud.journal_create(
+        task_code=task.code, type=JOURNAL_DECISION, title="Куда девать agent"
     )
 
     body = (
-        await client.post(f"{NOTES}/{note.code}/resolve", json={"resolution": "в standard"})
+        await client.post(f"{JOURNAL}/{entry.code}/resolve", json={"resolution": "в standard"})
     ).json()
 
     assert body["resolution"] == "в standard"
 
 
 async def test_second_resolve_is_409_with_the_rule_code(client):
-    """Журнал дописываемый: повтор — не «неверный запрос», а расхождение состояния."""
+    """The journal is append-only: a repeat is not a "bad request" but a state conflict."""
     task = await _task()
-    note = await note_crud.note_create(
-        task_code=task.code, type=NOTE_DECISION, title="Куда девать agent"
+    entry = await journal_crud.journal_create(
+        task_code=task.code, type=JOURNAL_DECISION, title="Куда девать agent"
     )
-    await note_crud.note_resolve(note.code, "в standard")
+    await journal_crud.journal_resolve(entry.code, "в standard")
 
     response = await client.post(
-        f"{NOTES}/{note.code}/resolve", json={"resolution": "нет, в extended"}
+        f"{JOURNAL}/{entry.code}/resolve", json={"resolution": "нет, в extended"}
     )
 
     assert response.status_code == 409
-    assert response.json()["code"] == NOTE_ALREADY_RESOLVED
+    assert response.json()["code"] == JOURNAL_ALREADY_RESOLVED
 
 
 async def test_resolve_of_a_missing_entry_is_404(client):
-    response = await client.post(f"{NOTES}/0000000000/resolve", json={"resolution": "готово"})
+    response = await client.post(f"{JOURNAL}/0000000000/resolve", json={"resolution": "готово"})
 
     assert response.status_code == 404
 
 
-# ── карточка задачи целиком ───────────────────────────────────────────────────
+# ── the whole task card ───────────────────────────────────────────────────────
 
 
 async def test_task_detail_carries_the_brief_the_plan_and_both_lists(client):
-    """Деталка — экран работы: постановка, план, этапы и журнал едут одним ответом."""
+    """The detail is the working screen: brief, plan, stages and journal come in one response."""
     task = await _task()
     await task_crud.task_update(
         task.code,
         context="Смотреть src/modules/tasks",
         constraints="- нельзя: трогать workspace",
         criteria="1. Тесты зелёные",
-        body="План: сначала модели",
+        plan="План: сначала модели",
+        progress="- модели готовы → API",
+        result="Модели и API на месте",
     )
     await stage_crud.stage_create(task_code=task.code, title="Модели")
-    await note_crud.note_create(task_code=task.code, type=NOTE_DECISION, title="Решение")
+    await journal_crud.journal_create(task_code=task.code, type=JOURNAL_DECISION, title="Решение")
 
     body = (await client.get(f"{TASKS}/{task.code}")).json()
 
     assert body["context"] == "Смотреть src/modules/tasks"
     assert body["constraints"] == "- нельзя: трогать workspace"
     assert body["criteria"] == "1. Тесты зелёные"
-    assert body["body"] == "План: сначала модели"
+    assert body["plan"] == "План: сначала модели"
+    assert body["progress"] == "- модели готовы → API"
+    assert body["result"] == "Модели и API на месте"
+    assert "body" not in body
     assert [row["title"] for row in body["stages"]] == ["Модели"]
-    assert [row["title"] for row in body["notes"]] == ["Решение"]
+    assert [row["title"] for row in body["journal"]] == ["Решение"]
+    # ``notes`` are the task's notes now, not the journal under its old name.
+    assert body["notes"] == []
+
+
+async def test_task_detail_lists_the_live_notes_in_order_without_their_text(client):
+    task = await _task()
+    first = await note_crud.task_note_add(task_code=task.code, title="Схема", body="длинный текст")
+    gone = await note_crud.task_note_add(task_code=task.code, title="Черновик")
+    second = await note_crud.task_note_add(task_code=task.code, title="Разбор", description="Когда")
+    await notes_crud.note_delete(gone.code)
+
+    notes = (await client.get(f"{TASKS}/{task.code}")).json()["notes"]
+
+    assert [(n["code"], n["title"]) for n in notes] == [
+        (f"NOTE@{first.code}", "Схема"),
+        (f"NOTE@{second.code}", "Разбор"),
+    ]
+    assert notes[1]["description"] == "Когда"
+    assert all("body" not in n for n in notes)
 
 
 async def test_task_list_row_carries_neither_stages_nor_journal(client):
-    """Строка списка остаётся лёгкой: план целиком открывает деталка, а не выдача списком."""
+    """A list row stays light: the full plan is opened by the detail, not by the list."""
     task = await _task()
     await stage_crud.stage_create(task_code=task.code, title="Модели")
 
@@ -257,7 +284,7 @@ async def test_task_list_row_carries_neither_stages_nor_journal(client):
 
 
 async def test_overlong_plan_is_refused_by_the_api(client):
-    """План отказывает, а не усекается: обрезался бы хвост, где перечислены файлы."""
+    """The plan is refused, not truncated: truncation would cut the tail that lists the files."""
     task = await _task()
 
     response = await client.put(
@@ -268,7 +295,7 @@ async def test_overlong_plan_is_refused_by_the_api(client):
             "context": "",
             "constraints": "",
             "criteria": "",
-            "body": "x" * 8193,
+            "plan": "x" * 8193,
             "type": TYPE_EXTENDED,
             "priority": "normal",
             "group_code": None,

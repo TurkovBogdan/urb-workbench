@@ -1,25 +1,25 @@
-// Перемещение блока без перетаскивания — и подтверждение того, что перемещение случилось.
+// Moving a block without dragging — and confirming that the move happened.
 //
-// Порядок внедрения взят из исследования RESEARCH@0b534e01e9: сначала альтернативный путь,
-// потом драг. Причины три, и все три практические.
+// The rollout order comes from research RESEARCH@0b534e01e9: the alternative path first, drag
+// second. There are three reasons, all practical.
 //
-// 1. Норма. WCAG 2.2 SC 2.5.7 (AA) требует, чтобы у каждого исхода перетаскивания был путь
-//    одним нажатием указателя, без самого перетаскивания. Клавиатурная эмуляция драга этот
-//    критерий НЕ закрывает — там нужен именно указатель. Отдельно SC 2.1.1 (A) требует, чтобы
-//    то же действие выполнялось с клавиатуры. Это два разных требования, и одно не заменяет
-//    другое: меню закрывает первое, сочетания клавиш — второе.
-// 2. Страховка. Пока драг не доведён, переместить блок всё равно можно.
-// 3. Экономия. Клавиатурная часть опирается на те же команды, что и меню; построй мы её после
-//    драга — переписывать обработчики пришлось бы дважды.
+// 1. The standard. WCAG 2.2 SC 2.5.7 (AA) requires every drag outcome to have a single-pointer
+//    path without dragging itself. Keyboard emulation of drag does NOT satisfy this criterion —
+//    it specifically needs a pointer. Separately, SC 2.1.1 (A) requires the same action to be
+//    operable from the keyboard. These are two different requirements, and one does not replace
+//    the other: the menu covers the first, the shortcuts the second.
+// 2. A safety net. While drag is unfinished, a block can still be moved.
+// 3. Economy. The keyboard part rests on the same commands as the menu; had we built it after
+//    drag, the handlers would have had to be rewritten twice.
 //
-// Раскладка `Alt+↑/↓` и `Alt+Shift+↑/↓` взята у Linear как разобранный в исследовании эталон.
-// Удержание клавиш не требуется нигде: тайминги на нажатии запрещены SC 2.1.1.
+// The `Alt+↑/↓` and `Alt+Shift+↑/↓` layout is borrowed from Linear, the reference analysed in the
+// research. Holding keys is never required: SC 2.1.1 forbids timing on keystrokes.
 import { Extension } from '@tiptap/core'
 import type { EditorState, Transaction } from '@tiptap/pm/state'
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 
-/** Куда двигать блок. `start` / `end` — в начало и конец документа. */
+/** Where to move the block. `start` / `end` mean the start and end of the document. */
 export type MoveTarget = 'up' | 'down' | 'start' | 'end'
 
 export interface BlockMovesOptions {
@@ -38,27 +38,27 @@ declare module '@tiptap/core' {
   }
 }
 
-// Вспышка на перемещённом блоке: 700 мс — величина из дизайн-фреймворка Atlassian. Нужна
-// потому, что после перемещения взгляд теряет объект среди соседей: блок встал на место, но
-// пользователь не уверен, встал ли он туда.
+// A flash on the moved block: 700 ms is the value from Atlassian's design framework. It is needed
+// because after a move the eye loses the object among its neighbours: the block has settled, but
+// the user is not sure it settled where intended.
 const FLASH_MS = 700
 const FLASH = new PluginKey<number | null>('blockMoveFlash')
 
-// ── Команда ───────────────────────────────────────────────────────────────────
+// ── Command ───────────────────────────────────────────────────────────────────
 
 interface TopBlock { pos: number; index: number; size: number }
 
 function topBlock(state: EditorState): TopBlock | null {
   const { $from } = state.selection
-  // Каретка внутри блока — обычный случай. Глубина 0 — это выделение блока целиком: так его
-  // выделяет ручка перед открытием меню, и команда обязана понимать оба вида.
+  // A caret inside the block is the usual case. Depth 0 is a whole-block selection: that is how
+  // the handle selects it before opening the menu, and the command must understand both kinds.
   const pos = $from.depth >= 1 ? $from.before(1) : $from.pos
   const node = state.doc.nodeAt(pos)
   return node ? { pos, index: $from.index(0), size: node.nodeSize } : null
 }
 
-// Позиция, куда блок встанет ПОСЛЕ удаления его самого. Считается от документа без него —
-// иначе смещение при движении вниз уезжает ровно на размер перемещаемого блока.
+// The position the block lands at AFTER the block itself is deleted. Computed against the
+// document without it — otherwise a move down is off by exactly the moved block's size.
 function landing(state: EditorState, block: TopBlock, target: MoveTarget): number | null {
   const doc = state.doc
   const total = doc.childCount
@@ -95,7 +95,7 @@ export const BlockMoves = Extension.create<BlockMovesOptions>({
         if (!block) return false
 
         const to = landing(state, block, target)
-        // Край документа — не ошибка, просто двигать некуда.
+        // The document edge is not an error, there is just nowhere to move.
         if (to === null) return false
 
         if (dispatch) {
@@ -128,7 +128,7 @@ export const BlockMoves = Extension.create<BlockMovesOptions>({
   },
 })
 
-// ── Вспышка ───────────────────────────────────────────────────────────────────
+// ── Flash ─────────────────────────────────────────────────────────────────────
 
 function moveFlash(): Plugin<number | null> {
   return new Plugin<number | null>({
@@ -139,8 +139,8 @@ function moveFlash(): Plugin<number | null> {
       apply(tr: Transaction, value: number | null): number | null {
         const set = tr.getMeta(FLASH)
         if (set !== undefined) return set as number | null
-        // Позиция переезжает вместе с документом: пока горит вспышка, соседние правки не
-        // должны сдвигать подсветку на чужой блок.
+        // The position moves with the document: while the flash is lit, nearby edits must not
+        // shift the highlight onto another block.
         return value === null ? null : tr.mapping.map(value)
       },
     },
@@ -157,8 +157,8 @@ function moveFlash(): Plugin<number | null> {
       },
     },
 
-    // Гасит вспышку сам плагин: команда о таймерах знать не обязана, а перемещений подряд
-    // может быть много — каждое следующее просто переставляет срок.
+    // The plugin itself puts the flash out: the command need not know about timers, and there may
+    // be many moves in a row — each next one simply resets the deadline.
     view(view) {
       let timer: number | undefined
       return {

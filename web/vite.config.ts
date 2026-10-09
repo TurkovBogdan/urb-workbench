@@ -10,14 +10,15 @@ export default defineConfig(({ mode }) => {
   const serverPort  = parseInt(env.SERVER_PORT         || '13405')
 
   const apiProxy = {
-    '/internal': `http://localhost:${serverPort}`,
+    // `ws` — the change feed (`core_changes`) is a WebSocket under /internal.
+    '/internal': { target: `http://localhost:${serverPort}`, ws: true },
     '/api': `http://localhost:${serverPort}`,
   }
 
   return {
   plugins: [
     vue(),
-    vuetify({ autoImport: true, styles: { configFile: 'src/styles/settings.scss' } }),
+    vuetify({ autoImport: true }),
   ],
   resolve: {
     alias: {

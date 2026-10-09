@@ -41,12 +41,12 @@ def test_ensure_dirs_creates(tmp_path: Path):
 def test_ensure_dirs_idempotent(tmp_path: Path):
     paths = AppPath.from_root(tmp_path)
     ensure_dirs(paths)
-    ensure_dirs(paths)  # не должно падать
+    ensure_dirs(paths)  # must not fail
 
 
 @pytest.mark.pure
 def test_app_env_changes_runtime_root(monkeypatch, tmp_path: Path):
-    """Резолвер берёт APP_ENV из env (только для не-frozen)."""
+    """The resolver takes APP_ENV from env (non-frozen only)."""
     monkeypatch.setenv("APP_ENV", "test_env_xyz")
     paths = AppPath.from_root()
     assert "test_env_xyz" in str(paths.root)

@@ -1,24 +1,33 @@
-"""Коды сущностей ``tasks``: генерация, презентационный префикс и его снятие.
+"""``tasks`` entity codes: generation, the presentation prefix, and stripping it.
 
-Хранимый код (PK и все FK модуля) — **голый hex-хеш** длиной ``CODE_LEN``, как его отдаёт
-``random_hash``. Тип-префикс (``WORKSPACE@`` / ``GROUP@`` / ``TASK@``) — **презентация**: он
-позволяет человеку и агенту отличить одну сущность от другой с одного взгляда и превращает
-свободно летающий код в типизированную ссылку. Форма на проводе — ``type@hash``: ``@`` читается
-как «ссылка в пространстве имён» и в hex-алфавите не встречается никогда.
+The stored code (the PK and every FK in the module) is a **bare hex hash** of length
+``CODE_LEN``, as ``random_hash`` returns it. The type prefix (``WORKSPACE@`` / ``TASKGROUP@`` /
+``TASK@``) is **presentation**: it lets the person and the agent tell one entity from another at
+a glance and turns a free-floating code into a typed reference. The wire form is ``type@hash``:
+``@`` reads as "reference in a namespace" and never occurs in the hex alphabet.
 
-Префикс живёт ТОЛЬКО на границе, в базу не попадает:
+The prefix lives ONLY at the boundary and never reaches the database:
 
-- **наружу** (DTO → агент / API): поле, аннотированное ``prefixed(PREFIX)``, сериализуется с
-  префиксом, причём только в JSON — внутренний ``model_dump()`` остаётся голым;
-- **внутрь** (агент / API → CRUD): ``bare_code`` снимает префикс до того, как значение
-  доедет до SQL.
+- **outbound** (DTO → agent / API): a field annotated ``prefixed(PREFIX)`` is serialized with
+  the prefix, and only in JSON — the internal ``model_dump()`` stays bare;
+- **inbound** (agent / API → CRUD): ``bare_code`` strips the prefix before the value reaches
+  SQL.
 
-Так как алфавит хеша — ``[0-9a-f]`` (символа ``@`` там нет), ``strip_prefix`` идемпотентен на
-уже голом коде: применять его к внутренним значениям безопасно.
+Since the hash alphabet is hex (no ``@`` in it), ``strip_prefix`` is idempotent on an already
+bare code: applying it to internal values is safe.
 
-``bare_code`` дополнительно проверяет, что префикс — **тот самый**. Код чужого типа (``GROUP@``
-там, где ждут задачу) — это не «не найдено», а перепутанный аргумент; отказ называет оба типа,
-и агент чинит вызов с первого раза, вместо того чтобы решать, что запись удалили.
+**A code is upper case, whole** — prefix and hash: ``TASK@3F9A0C21BE``. It is generated, stored
+and returned that way, and every incoming code is folded to upper case on the way in, prefix
+included — so a lower-case code from before the switch (in a client config, a journal entry, a link in a
+body) still finds its row. The database compares case-sensitively on both providers; the fold
+here is what makes the case not matter. The rows written before the switch were converted by
+``tsm_007_codes_upper``.
+
+``bare_code`` also checks that the prefix is **the right one**. A code of another type
+(``TASKGROUP@`` where a task is expected) is not "not found" but a mixed-up argument; the refusal
+names both types, and the agent fixes the call on the first try instead of concluding the row
+was deleted. A retired type word (``GROUP@``, see ``LEGACY_CODE_PREFIXES``) is read as its
+current one, so codes quoted before a rename keep resolving.
 """
 
 from __future__ import annotations
@@ -28,36 +37,43 @@ from typing import Annotated
 from pydantic import PlainSerializer
 
 from src.core.utils.hashing import random_hash
-from src.modules.tasks.constants import CODE_LEN
+from src.modules.tasks.constants import CODE_LEN, LEGACY_CODE_PREFIXES
 
 
 def new_code() -> str:
-    """Новый код сущности — голый ``CODE_LEN``-hex ``random_hash``.
+    """A new entity code — a bare ``CODE_LEN``-hex ``random_hash``, upper case.
 
-    Генератор один на модуль: естественного ключа дедупа нет ни у одной таблицы, а длина кода —
-    свойство модуля, не сущности. Коллизия роняет вставку, а не сливает две строки в одну.
+    One generator per module: no table has a natural dedup key, and code length is a property of
+    the module, not of an entity. A collision fails the insert rather than merging two rows.
     """
-    return random_hash(CODE_LEN)
+    return random_hash(CODE_LEN).upper()
 
 
 def code_prefix(value: str) -> str:
-    """Тип-слово входного кода (``TASK`` из ``TASK@<hash>``); ``""`` — код голый."""
-    return value.split("@", 1)[0] if "@" in value else ""
+    """The type word of an incoming code (``TASK`` from ``task@<hash>``); ``""`` — a bare code.
+
+    A retired word comes back as its current one (``GROUP`` → ``TASKGROUP``): every check and
+    dispatch by type goes through here, so an old code is accepted everywhere at once.
+    """
+    if "@" not in value:
+        return ""
+    word = value.split("@", 1)[0].upper()
+    return LEGACY_CODE_PREFIXES.get(word, word)
 
 
 def strip_prefix(value: str | None) -> str | None:
-    """Граница → хранилище: снять презентационный префикс, оставив голый хеш.
+    """Boundary → storage: strip the presentation prefix, leaving the bare hash in upper case.
 
-    Идемпотентно на голом коде (в hex-хеше нет ``@`` → значение возвращается как есть).
+    Idempotent on a bare code (a hex hash has no ``@`` → only the case is folded).
     """
-    return value.rpartition("@")[2] if value else value
+    return value.rpartition("@")[2].upper() if value else value
 
 
 def bare_code(value: str | None, prefix: str) -> str | None:
-    """Голый код сущности типа ``prefix``; чужой префикс — отказ с названием обоих типов.
+    """The bare code of a ``prefix`` entity; a foreign prefix is refused, naming both types.
 
-    Голый код проходит без вопросов: это внутренняя форма, и требовать префикс от неё значило
-    бы запретить передавать наружу то, что модуль вернул сам.
+    A bare code passes without question: it is the internal form, and demanding a prefix on it
+    would forbid passing back what the module itself returned.
     """
     if not value:
         return value
@@ -68,27 +84,28 @@ def bare_code(value: str | None, prefix: str) -> str | None:
             f"This is a wrong argument, not a missing row — pass the {prefix}@ code of the "
             "entity you mean (or its bare form)."
         )
-    # Пустой хвост нельзя пропустить дальше: «пусто» в CRUD значит «снять» (вынести в корень,
-    # убрать из группы), и обрезанный код молча превращался бы в эту операцию.
+    # An empty tail must not pass through: "empty" in CRUD means "clear" (move to the root,
+    # remove from the group), and a truncated code would silently turn into that operation.
     hash_part = value.partition("@")[2] if actual else value
     if not hash_part or "@" in hash_part:
         raise ValueError(
             f"{value!r} is not a {prefix}@ code — expected {prefix}@ followed by the code "
             "itself, exactly as a tool returned it. To clear the field, pass an empty string."
         )
-    return hash_part
+    return hash_part.upper()
 
 
 def tagged(prefix: str, value: str | None) -> str | None:
-    """Хранилище → граница: презентационная форма голого кода (``TASK@<hash>``); ``None`` → ``None``."""
+    """Storage → boundary: a bare code's presentation form (``TASK@<hash>``); ``None`` → ``None``."""
     return value if value is None else f"{prefix}@{value}"
 
 
 def prefixed(prefix: str):
-    """Тип ``str``, чья JSON-форма несёт ``prefix@`` (на вход по-прежнему принимается голый хеш).
+    """A ``str`` type whose JSON form carries ``prefix@`` (input still accepts the bare hash).
 
-    ``prefix`` — голое тип-слово (``TASK``/``GROUP``/…); разделитель ``@`` дописывается здесь,
-    чтобы константа не смешивала имя типа с синтаксисом ссылки. Для будущих DTO модуля.
+    ``prefix`` is the bare type word (``TASK``/``TASKGROUP``/…); the ``@`` separator is appended
+    here so the constant does not mix the type name with reference syntax. For the module's future
+    DTOs.
     """
     return Annotated[
         str,

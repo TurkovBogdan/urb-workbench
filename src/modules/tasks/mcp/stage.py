@@ -1,13 +1,14 @@
-"""MCP-тулы этапов плана.
+"""Plan stage MCP tools.
 
-Три инструмента, и их трое из-за одного: **закрытие требует доказательства, и требует его
-схема**. Отказ на записи агент увидел бы после попытки; обязательный аргумент не даёт собрать
-вызов вовсе — разница между третьим рычагом и первым.
+Three tools, and there are three because of one thing: **closing requires evidence, and the
+schema is what requires it**. A refusal on write the agent would only see after trying; a
+required argument does not let the call be assembled at all — the difference between the third
+lever and the first.
 
-Остальное поделено по тому же признаку: ``stage_update`` двигает этап между нетерминальными
-состояниями и правит его карточку, ``stage_close`` уводит в терминальное. Смешай их — и
-обязательность доказательства пришлось бы проверять по значению другого аргумента, то есть
-вернуть на запись то, что сейчас стоит в схеме.
+The rest is split along the same line: ``stage_update`` moves a stage between non-terminal
+states and edits its card, ``stage_close`` takes it to a terminal one. Merge them and the
+evidence requirement would have to be checked against the value of another argument — that is,
+moved back to the write what now sits in the schema.
 """
 
 from __future__ import annotations
@@ -28,11 +29,11 @@ from src.modules.tasks.crud import task as task_crud
 from src.modules.tasks.dto import AgentStageChanged, AgentStageCreated, AgentStageRow
 from src.modules.tasks.mcp.scope import require_scope
 
-if TYPE_CHECKING:  # fork fastmcp — только backend (через mcp_server(ctx))
+if TYPE_CHECKING:  # fastmcp fork — backend only (via mcp_server(ctx))
     from fastmcp import FastMCP
 
-# Состояния, между которыми этап двигают правкой. Терминальные сюда не входят — за ними
-# ``stage_close``, и это единственная дверь, за которой спрашивают доказательство.
+# States a stage is moved between by an edit. Terminal ones are not here — they are behind
+# ``stage_close``, the only door where evidence is asked for.
 STAGE_OPEN_STATUSES = (STATUS_PLANNED, STATUS_IN_PROGRESS)
 STAGE_OUTCOMES = (STATUS_DONE, STATUS_CANCELED)
 
@@ -42,11 +43,12 @@ def _stage_code(value: str) -> str:
 
 
 async def _changed(stage, active) -> AgentStageChanged:
-    """Ответ правки этапа: сам этап плюс статус ЗАДАЧИ.
+    """The reply to a stage edit: the stage itself plus the TASK's status.
 
-    Старт этапа задачу не двигает — это разные вопросы, ход исполнения против жизненного цикла
-    карточки. Но разойтись они могут молча, и тогда «в работе» по этапам соседствует с
-    «в очереди» по задаче, а заметить это неоткуда. Строка в ответе и есть это «откуда».
+    Starting a stage does not move the task — these are different questions, execution progress
+    versus the card's lifecycle. But they can drift apart silently, and then "in progress" by
+    stages sits next to "queued" by the task, with nothing to notice it by. That line in the
+    reply is the something to notice it by.
     """
     task = await task_crud.task_get(stage.task_code, include_deleted=True)
     return AgentStageChanged(
@@ -77,14 +79,14 @@ def register(mcp: "FastMCP") -> None:
         fine — do not renumber to close it: you refer to "the third stage" in the journal, and a
         silent shift would make those references false.
 
-        A stage that has not started can be rewritten freely. Once it is running, its body
-        refuses edits, and the rest is frozen by convention: changing a step behind you is a
-        new entry in the journal and a new stage after it, not a re-worded title.
+        Its body stays editable on any status — content_set(code, "body", …) and its
+        neighbours. Clarifying a step is fine; changing what a step behind you promised is a
+        decision in the journal and a new stage after it, not a re-worded one.
 
         Args:
             task_code: The task this stage belongs to — a TASK@ code. Stages belong to
                 `extended` tasks only; anything else refuses and says so. A `standard` task
-                carries its plan as prose in the body — write it there, or raise the type if
+                carries its plan as prose in `plan` — write it there, or raise the type if
                 the work really needs steps with their own evidence.
             title: What this step is, one line.
             description: What it is about, and whether the body needs reading at all.
@@ -118,9 +120,9 @@ def register(mcp: "FastMCP") -> None:
     ) -> AgentStageChanged:
         """Update a stage — only the fields you pass.
 
-        Two things are not here. The text of the stage is a body — body_set and its neighbours
-        own it, and they refuse once the stage is running. Closing is stage_close, which
-        requires the proof. Status here only moves it between planned and in_progress.
+        Two things are not here. The text of the stage is content — content_set(code, "body",
+        …) and its neighbours own it. Closing is stage_close, which requires the proof. Status
+        here only moves it between planned and in_progress.
 
         Starting a stage does not start the task — they answer different questions, so the
         answer tells you where the task itself stands and the two do not drift apart unnoticed.
@@ -179,8 +181,8 @@ def register(mcp: "FastMCP") -> None:
                 "evidence is empty. Closing a stage means saying what shows it happened — a "
                 "command and its result, a path, a diff summary. Whitespace does not count."
             )
-        # Доказательство записывается ДО перевода статуса: шлюз в CRUD смотрит на колонку, и
-        # обратный порядок упёрся бы в собственную проверку.
+        # Evidence is written BEFORE the status change: the gate in CRUD looks at the column, and
+        # the reverse order would run into its own check.
         await stage_crud.stage_update(bare, evidence=evidence)
         row = await stage_crud.stage_update_status(bare, outcome)
         if row is None:

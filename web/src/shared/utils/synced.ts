@@ -1,11 +1,11 @@
-// Ref настройки интерфейса: то же, что `persisted`, плюс отправка в базу.
+// An interface setting ref: the same as `persisted`, plus sending to the database.
 //
-// Кеш ведёт `persisted` (значение, равное умолчанию, из него удаляется), а здесь добавлены две
-// вещи: регистрация ключа в механизме обмена и постановка изменения в очередь на отправку.
+// `persisted` manages the cache (a value equal to the default is removed from it), and two things
+// are added here: registering the key with the sync mechanism and queueing the change for sending.
 //
-// Наблюдатель синхронный намеренно: флаг «применяем извне» снимается сразу после присваивания,
-// и отложенный наблюдатель увидел бы уже снятый флаг — значение, только что прочитанное из базы,
-// уехало бы в неё обратно.
+// The watcher is synchronous on purpose: the "applying from outside" flag is cleared right after
+// the assignment, and a deferred watcher would see the flag already cleared — a value just read
+// from the database would be sent straight back to it.
 import { watch, type Ref } from 'vue'
 
 import type { SettingValue } from '@/api/interface-settings'

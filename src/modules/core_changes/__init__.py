@@ -1,7 +1,8 @@
-"""core_changes — лента изменений данных: какие объявленные сущности созданы, изменены, удалены.
+"""core_changes — the data changes feed: which declared entities were created, updated, deleted.
 
-Модуль-владелец данных объявляет свои сущности (``register_entity``), массовые операции называют
-тронутые коды (``mark_changes``); фронт слушает ``/internal/core/changes/stream``.
+The module that owns the data declares its entities (``register_entity``), bulk operations name
+the codes they touched (``mark_changes``); the frontend listens on the WebSocket
+``/internal/core/changes/ws``.
 """
 
 from src.modules.core_changes.capture import CREATED, DELETED, UPDATED, mark_changes

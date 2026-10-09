@@ -168,8 +168,9 @@
 // ── Reset & base ─────────────────────────────────────────────────────────────
 *, *::before, *::after { box-sizing: border-box; }
 
-*:focus, *:focus-visible { outline: none !important; }
-video:focus, img:focus   { outline: none !important; }
+// Zero specificity and no !important: the browser's default ring goes, but a component that
+// draws its own :focus-visible ring still wins — an !important here silenced every one of them.
+:where(*:focus, *:focus-visible) { outline: none; }
 
 html, body, #app {
   height: 100%;
@@ -248,7 +249,7 @@ a { color: var(--accent); text-decoration: none; &:hover { text-decoration: unde
 // ── Link-style action ────────────────────────────────────────────────────────
 // A control chosen for behaviour but read as a link: an icon and its word, no plate, no border.
 // Use where the action continues the text or the navigation around it rather than commanding it
-// from a panel — «Изменить» under a paragraph, «Вернуться к реестру» at the top of a detail rail.
+// from a panel — "Edit" under a paragraph, "Back to the registry" at the top of a detail rail.
 // The reset is unavoidable: on a `<button>` the browser draws a grey plate with a border.
 //
 // Lives here rather than in a component because it is shared by unrelated ones; the interface
@@ -296,33 +297,38 @@ a { color: var(--accent); text-decoration: none; &:hover { text-decoration: unde
   * { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
 }
 
+// ── Vuetify overrides: no !important by default ──────────────────────────────
+// Vuetify 4 keeps all of its CSS in `@layer vuetify-*`, and everything in this file is unlayered,
+// so a plain rule here beats any Vuetify rule whatever its specificity. Theme colors, elevation and
+// density are layered classes, not inline styles. `!important` is needed only against a real inline
+// style — check the element's `style` attribute before adding one: an unlayered `!important` also
+// beats every component's own rule and silently disables it.
+
 // ── Vuetify application ──────────────────────────────────────────────────────
-// background — инлайн-стиль от темы (JS), font-family — из @layer (наш unlayered выигрывает)
 .v-application {
   font-family: var(--font);
-  background: var(--bg) !important;  // !important нужен: Vuetify ставит как inline style
+  background: var(--bg);
 }
 
 // ── Main layout ──────────────────────────────────────────────────────────────
-// background — инлайн от темы; height: 100% — VMain flex: 1 0 auto не сжимается
+// height: 100% because VMain's flex: 1 0 auto does not shrink
 .main-content {
-  background: var(--bg) !important;  // inline style
+  background: var(--bg);
   overflow: hidden;
   height: 100%;
 }
 
 // ── Sidebar ──────────────────────────────────────────────────────────────────
-// background — inline style от темы, нужен !important
 .app-sidebar,
 .app-sidebar .v-navigation-drawer__content,
 .v-navigation-drawer.app-sidebar,
 .v-navigation-drawer.app-sidebar > .v-navigation-drawer__content {
-  background: var(--sidebar-bg) !important;
+  background: var(--sidebar-bg);
 }
 
 .app-sidebar {
-  border-right: 1px solid var(--border-soft) !important;  // elevation inline style
-  box-shadow: none !important;
+  border-right: 1px solid var(--border-soft);
+  box-shadow: none;
 }
 
 // Collapsed rail: drop the reserved scrollbar gutter so the icons + toggle center in
@@ -343,18 +349,19 @@ a { color: var(--accent); text-decoration: none; &:hover { text-decoration: unde
   .logo-icon  { font-size: 18px; color: var(--accent); line-height: 1; flex-shrink: 0; }
   .logo-text  { flex: 1; font-size: 13px; font-weight: 600; color: var(--text); letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; }
   // Toggle reads as a normal nav row (square footprint + radius-sm + surface-hi hover),
-  // not a narrow icon button — in both expanded and collapsed states.
-  .collapse-btn {
+  // not a narrow icon button — in both expanded and collapsed states. `.v-btn` in the selector
+  // outweighs the generic `.v-btn.v-btn--variant-text` color further down the file.
+  .collapse-btn.v-btn {
     flex-shrink: 0;
-    width: 28px !important;
-    min-width: 28px !important;
-    height: 28px !important;
-    border-radius: var(--radius-sm) !important;
-    color: var(--text-faint) !important;  // inline color от Vuetify
+    width: 28px;
+    min-width: 28px;
+    height: 28px;
+    border-radius: var(--radius-sm);
+    color: var(--text-faint);
     opacity: 0.55;
     transition: opacity 0.15s, color 0.15s, background-color 0.15s;
-    .v-btn__overlay { display: none !important; }
-    &:hover { opacity: 1; color: var(--text) !important; background-color: var(--surface-hi) !important; }
+    .v-btn__overlay { display: none; }
+    &:hover { opacity: 1; color: var(--text); background-color: var(--surface-hi); }
   }
 
   &.sidebar-logo--collapsed {
@@ -368,18 +375,18 @@ a { color: var(--accent); text-decoration: none; &:hover { text-decoration: unde
     // Collapsed: compact nav-item footprint matching the rail icons.
     .collapse-btn {
       margin: 0;
-      width: 33px !important;
-      min-width: 33px !important;
-      height: 28px !important;
+      width: 33px;
+      min-width: 33px;
+      height: 28px;
     }
   }
 }
 
-.sidebar-divider { border-color: var(--border-soft) !important; margin: 0 !important; }
+.sidebar-divider { border-color: var(--border-soft); margin: 0; }
 
 .sidebar-section-divider {
-  border-color: var(--border-soft) !important;
-  margin: 8px 4px !important;
+  border-color: var(--border-soft);
+  margin: 8px 4px;
 }
 
 .nav-section {
@@ -392,40 +399,40 @@ a { color: var(--accent); text-decoration: none; &:hover { text-decoration: unde
 }
 
 .sidebar-nav {
-  background: transparent !important;  // inline style
-  border: none !important;
-  box-shadow: none !important;
-  padding: 8px !important;  // Vuetify ставит padding inline через density
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 8px;
 
-  &.sidebar-nav--collapsed { padding-inline: 6px !important; }
+  &.sidebar-nav--collapsed { padding-inline: 6px; }
 
   .nav-item {
-    margin-bottom: 2px !important;
-    min-height: 36px !important;  // inline от density
-    border-radius: var(--radius-sm) !important;
-    font-size: 13px !important;
-    font-weight: 500 !important;
-    color: var(--text-muted) !important;
-    transition: background-color 0.15s, color 0.15s !important;
+    margin-bottom: 2px;
+    min-height: 36px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-muted);
+    transition: background-color 0.15s, color 0.15s;
     position: relative;
-    overflow: visible !important;
+    overflow: visible;
 
-    > .v-list-item__overlay { display: none !important; }
+    > .v-list-item__overlay { display: none; }
 
     .v-list-item__prepend {
-      .v-icon { font-size: 17px !important; opacity: 1 !important; color: inherit !important; }
-      .v-list-item__spacer { width: 10px !important; }
+      .v-icon { font-size: 17px; opacity: 1; color: inherit; }
+      .v-list-item__spacer { width: 10px; }
     }
 
     &:not(.v-list-item--active):hover {
-      background-color: var(--surface-hi) !important;
-      color: var(--text) !important;
+      background-color: var(--surface-hi);
+      color: var(--text);
     }
 
     &.v-list-item--active {
-      background-color: transparent !important;
-      color: var(--accent) !important;
-      .v-icon { color: var(--accent) !important; }
+      background-color: transparent;
+      color: var(--accent);
+      .v-icon { color: var(--accent); }
 
       &::after {
         content: '';
@@ -438,73 +445,63 @@ a { color: var(--accent); text-decoration: none; &:hover { text-decoration: unde
     }
 
     &.nav-item--collapsed {
-      grid-template-columns: 1fr !important;
-      grid-template-areas: "prepend" !important;
-      padding-inline: 0 !important;
-      .v-list-item__prepend { grid-area: prepend !important; justify-self: center !important; margin: 0 !important; }
-      .v-list-item__spacer  { display: none !important; }
-      .v-list-item__content { display: none !important; }
+      grid-template-columns: 1fr;
+      grid-template-areas: "prepend";
+      padding-inline: 0;
+      .v-list-item__prepend { grid-area: prepend; justify-self: center; margin: 0; }
+      .v-list-item__spacer  { display: none; }
+      .v-list-item__content { display: none; }
     }
   }
 
-  .v-list-group__items > .nav-item { padding-inline-start: 24px !important; }
-}
-
-// ── View toolbar ──────────────────────────────────────────────────────────────
-.view-toolbar.v-toolbar {
-  background: var(--sidebar-bg) !important;  // inline style
-  border-bottom: 1px solid var(--border-soft) !important;
-  min-height: 46px !important;
-  height: 46px !important;
-  .v-toolbar__content { height: 46px !important; padding: 0 !important; }
+  .v-list-group__items > .nav-item { padding-inline-start: 24px; }
 }
 
 // ── Toolbar base ──────────────────────────────────────────────────────────────
 .v-toolbar {
   font-family: var(--font);
-  box-shadow: none !important;  // elevation inline style
-  &.v-toolbar--flat { box-shadow: none !important; }
+  box-shadow: none;
+  &.v-toolbar--flat { box-shadow: none; }
   .v-toolbar-title { font-size: 13px; font-weight: 600; letter-spacing: -0.01em; color: var(--text); }
 }
 
 // ── Cards ─────────────────────────────────────────────────────────────────────
-// background и box-shadow — inline от elevation/темы
 .v-card {
-  background: var(--surface) !important;
+  background: var(--surface);
   border: 1px solid var(--border-soft);
   border-radius: var(--radius);
-  box-shadow: none !important;
+  box-shadow: none;
 }
 
-// Кликабельная карточка (link / href / to → .v-card--link, проп hover → .v-card--hover):
-// ваниль-Vuetify затемняет поверхность через .v-card__overlay и поднимает material-тень.
-// Переопределяем под идиом приложения — фон остаётся белым, на hover подсвечиваем
-// акцентной обводкой, на клавиатурный фокус — акцентным кольцом (как .task-card / .agent-card).
+// Clickable card (link / href / to → .v-card--link, hover prop → .v-card--hover):
+// vanilla Vuetify darkens the surface via .v-card__overlay and raises a material shadow.
+// Overridden to the app's idiom — the background stays white, hover highlights with an
+// accent border, keyboard focus with an accent ring (like .task-card / .agent-card).
 .v-card--link,
 .v-card--hover {
   cursor: pointer;
-  // карточка с :to рендерится как <a> → гасим глобальный a:hover underline (текст не подчёркиваем)
+  // a card with :to renders as <a> → cancel the global a:hover underline (text is not underlined)
   text-decoration: none;
   transition: border-color 120ms ease, box-shadow 120ms ease;
 
-  // overlay красит поверхность на hover/focus — opacity inline от Vuetify
-  > .v-card__overlay { opacity: 0 !important; }
+  // the overlay tints the surface on hover/focus
+  > .v-card__overlay { opacity: 0; }
 
-  // остаёмся плоскими: hover-elevation Vuetify рисует на ::before/::after
+  // stay flat: Vuetify draws the hover elevation on ::before/::after
   &::before,
-  &::after { box-shadow: none !important; }
+  &::after { box-shadow: none; }
 
-  // Обводку красит цвет САМОЙ карточки, если она его несёт (`.color-tones` + шаги палитры на
-  // элементе): полка и лежащие на ней исследования выделяются своим цветом, а не общим акцентом.
-  // Без цвета переменных нет, и запасной путь оставляет прежний акцент.
+  // The border takes the card's OWN color when it carries one (`.color-tones` + palette steps on
+  // the element): a shelf and the research items on it stand out in their own color, not the
+  // shared accent. Without a color the variables are absent and the fallback keeps the accent.
   //
-  // .v-card--link:hover (0,2,0) перебивает глобальный a:hover (0,1,1) без !important
+  // .v-card--link:hover (0,2,0) beats the global a:hover (0,1,1) without !important
   &:hover { border-color: var(--gc-ink, var(--accent)); text-decoration: none; }
 
   &:focus-visible {
     outline: none;
     border-color: var(--gc-ink, var(--accent));
-    box-shadow: 0 0 0 2px var(--gc-fill, var(--accent-soft)) !important;
+    box-shadow: 0 0 0 2px var(--gc-fill, var(--accent-soft));
   }
 }
 
@@ -538,14 +535,14 @@ a { color: var(--accent); text-decoration: none; &:hover { text-decoration: unde
 }
 
 // ── Inputs (v-field / v-input) ───────────────────────────────────────────────
-// Vuetify ставит все значения в @layer — наш unlayered CSS побеждает без !important.
-// min-height ставим напрямую на .v-field__input: Vuetify задаёт его через
-// var(--v-input-control-height), но переменная может переопределяться на .v-field
-// (ближе в DOM), поэтому прямое свойство надёжнее.
+// Vuetify puts every value in @layer — our unlayered CSS wins without !important.
+// min-height is set directly on .v-field__input: Vuetify derives it from
+// var(--v-input-control-height), but that variable may be overridden on .v-field
+// (closer in the DOM), so the direct property is more reliable.
 //
-// РАЗМЕР поля = ось density (глобально, для всех v-field — селекты, текст, число, дата).
-// База ниже = density="default" (36px, самый высокий — семантика Vuetify: default >
-// comfortable > compact). Две меньшие ступени заданы ниже по density-классам.
+// Field SIZE = the density axis (global, for every v-field — selects, text, number, date).
+// The base below = density="default" (36px, the tallest — Vuetify semantics: default >
+// comfortable > compact). The two smaller steps are set further down by density class.
 .v-input {
   font-family: var(--font);
 }
@@ -555,11 +552,11 @@ a { color: var(--accent); text-decoration: none; &:hover { text-decoration: unde
   border-radius: var(--radius-sm);
   background: var(--input-bg);
 
-  // Плотность обводки задаётся на самой `.v-field__outline`, а не на поле: Vuetify объявляет
-  // `--v-field-border-opacity: 0.38` именно на ней, и переменная, поставленная выше по дереву,
-  // до кусков обводки не доходит — выигрывает ближайший предок (та же ловушка, что с высотой
-  // поля). Без этого обводка поля рисуется в 38% силы токена `--border`, а граница соседней
-  // кнопки — в полную: в сросшейся паре «поле + кнопка» половины выходят разной плотности.
+  // Border opacity is set on `.v-field__outline` itself, not on the field: Vuetify declares
+  // `--v-field-border-opacity: 0.38` right on it, and a variable set higher up the tree never
+  // reaches the outline pieces — the nearest ancestor wins (the same trap as with the field
+  // height). Without this the field outline draws at 38% of the `--border` token while the
+  // adjacent button's border is full strength: in a fused "field + button" pair the halves differ.
   .v-field__outline { --v-field-border-opacity: 1; color: var(--border); }
   &:hover .v-field__outline            { color: var(--accent); }
   &.v-field--focused .v-field__outline { color: var(--accent); }
@@ -572,19 +569,24 @@ a { color: var(--accent); text-decoration: none; &:hover { text-decoration: unde
     padding-bottom: 8px;
   }
 
-  // filled/underlined резервируют padding-top под floating label
+  // filled/underlined reserve padding-top for the floating label
   &.v-field--variant-filled .v-field__input,
   &.v-field--variant-underlined .v-field__input {
     padding-top: var(--v-field-input-padding-top);
   }
 
   .v-label { font-family: var(--font); font-size: 13px; color: var(--text-muted); }
+  // The floating label is the same 13px as the resting one, so the float animation must not scale.
+  // Vuetify animates the resting label by `--v-field-label-scale` (0.75 by default) and then swaps
+  // in the real floating label: the label shrank to 9.75px over the animation and snapped back to
+  // 13px on its last frame. Changing the floating size means changing this ratio with it.
+  .v-label.v-field-label--floating { --v-field-label-scale: 1em; }
   &:hover .v-label              { color: var(--accent); }
   &.v-field--focused .v-label   { color: var(--accent); }
 
   .v-icon { font-size: 16px; }
 
-  // plain и underlined — без фона
+  // plain and underlined have no background
   &.v-field--variant-plain,
   &.v-field--variant-underlined { background: transparent; }
 
@@ -596,10 +598,10 @@ a { color: var(--accent); text-decoration: none; &:hover { text-decoration: unde
   }
 }
 
-// Ступени высоты по density (см. комментарий у .v-field__input выше). default = 36px
-// (база). comfortable/compact сжимают высоту и вертикальные паддинги синхронно. У
-// outlined/plain (center-affix) правим оба паддинга; у filled/underlined трогаем только
-// нижний — верхний зарезервирован под floating label (правило `padding-top: var(...)` выше).
+// Height steps by density (see the comment at .v-field__input above). default = 36px
+// (the base). comfortable/compact shrink the height and vertical paddings together. For
+// outlined/plain (center-affix) both paddings change; for filled/underlined only the bottom
+// one — the top is reserved for the floating label (the `padding-top: var(...)` rule above).
 .v-input--density-comfortable .v-field__input { min-height: 32px; padding-bottom: 6px; }
 .v-input--density-compact     .v-field__input { min-height: 28px; padding-bottom: 4px; }
 
@@ -608,17 +610,27 @@ a { color: var(--accent); text-decoration: none; &:hover { text-decoration: unde
 .v-input--density-compact     .v-field--variant-outlined .v-field__input,
 .v-input--density-compact     .v-field--variant-plain    .v-field__input { padding-top: 4px; }
 
-// VTextarea: Vuetify маскирует .v-field__input верхним градиентом (fade 0→20px),
-// чтобы прокручиваемый текст уходил под floating label. С нашим уменьшённым
-// font-size/padding первая строка в покое попадает в зону затухания и выглядит
-// размытой белым. Укорачиваем fade до 8px: строка в покое чёткая, а уходящий
-// под label текст всё ещё мягко гаснет.
+// VTextarea: Vuetify masks .v-field__input with a top gradient (fade 0→20px) so
+// scrolled text slides under the floating label. With our smaller font-size/padding
+// the first line at rest falls into the fade zone and looks washed out with white.
+// Shorten the fade to 8px: the line at rest stays crisp, while text sliding under
+// the label still fades softly.
 .v-textarea .v-field__input {
   -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 8px);
   mask-image: linear-gradient(to bottom, transparent 0, #000 8px);
 }
 
-// Иконки вне поля (prepend / append на уровне v-input)
+// The resting label of an empty textarea must sit on the first line of text. Vuetify places it at
+// its own 16px top padding, ours is 8px (6/4 by density, above) — so the label hung half a line
+// below where typing starts, read as a fat top padding, and the text jumped up on the first key.
+// A single-line field centers its label instead, and so does a one-row textarea: Vuetify switches
+// it to center-affix (`top: 50%` + a -50% translate), and a fixed top on top of that translate
+// lifted the label half its height above the field. Those are left to Vuetify.
+.v-textarea .v-field:not(.v-field--center-affix) .v-field-label:not(.v-field-label--floating) { top: 8px; }
+.v-input--density-comfortable.v-textarea .v-field:not(.v-field--center-affix) .v-field-label:not(.v-field-label--floating) { top: 6px; }
+.v-input--density-compact.v-textarea     .v-field:not(.v-field--center-affix) .v-field-label:not(.v-field-label--floating) { top: 4px; }
+
+// Icons outside the field (prepend / append at the v-input level)
 .v-input__prepend .v-icon,
 .v-input__append  .v-icon { font-size: 16px; }
 
@@ -630,47 +642,47 @@ a { color: var(--accent); text-decoration: none; &:hover { text-decoration: unde
   }
 }
 
-// VTextField suffix/prefix: Vuetify в @layer даёт min-height: 56px и padding-bottom: 16px
-// под floating label. Для center-affix полей (outlined, VNumberInput) убираем это.
+// VTextField suffix/prefix: Vuetify's @layer gives min-height: 56px and padding-bottom: 16px
+// for the floating label. For center-affix fields (outlined, VNumberInput) remove that.
 .v-field--center-affix {
   .v-text-field__suffix,
   .v-text-field__prefix {
-    padding-top: 0 !important;    // inline computed Vuetify
-    padding-bottom: 0 !important;
-    min-height: unset !important;
+    padding-top: 0;
+    padding-bottom: 0;
+    min-height: unset;
     align-self: center;
   }
 }
 
-// VNumberInput: кнопки внутри поля — без своего border-radius (поле его задаёт),
-// и с flex: 1 чтобы вписывались в высоту поля.
+// VNumberInput: buttons inside the field have no border-radius of their own (the field sets
+// it), and flex: 1 so they fit the field height.
 .v-number-input .v-number-input__control .v-btn {
-  height: unset !important;
-  min-height: unset !important;
-  flex: 1 !important;
-  padding-inline: 4px !important;
+  height: unset;
+  min-height: unset;
+  flex: 1;
+  padding-inline: 4px;
   border-radius: 0;
-  &:hover { background: var(--accent-soft) !important; color: var(--accent) !important; }
+  &:hover { background: var(--accent-soft); color: var(--accent); }
 }
 
 // ── Buttons ──────────────────────────────────────────────────────────────────
-// Высоты: Vuetify задаёт через @layer, наш unlayered CSS побеждает без !important.
-// font/letter-spacing/transform: аналогично.
+// Heights: Vuetify sets them via @layer, our unlayered CSS wins without !important.
+// font/letter-spacing/transform: same.
 .v-btn {
   font-family: var(--font);
   font-weight: 500;
   letter-spacing: 0;
   text-transform: none;
-  border-radius: var(--radius-sm);  // без !important — Vuetify управляет в группах
+  border-radius: var(--radius-sm);  // no !important — Vuetify manages it inside groups
 
   &.v-btn--variant-flat,
   &.v-btn--variant-elevated {
     &.v-btn--color-primary,
-    &[class*="bg-primary"] { background: var(--accent) !important; color: #fff !important; }
+    &[class*="bg-primary"] { background: var(--accent); color: #fff; }
   }
 
   &.v-btn--variant-tonal {
-    &.v-btn--color-primary { background: var(--accent-soft) !important; color: var(--accent) !important; }
+    &.v-btn--color-primary { background: var(--accent-soft); color: var(--accent); }
   }
 
   &.v-btn--variant-outlined {
@@ -692,59 +704,62 @@ a { color: var(--accent); text-decoration: none; &:hover { text-decoration: unde
     &:hover { color: var(--text); background: var(--surface-hi); }
   }
 
-  > .v-btn__overlay { opacity: 0 !important; }  // overlay — inline opacity от Vuetify
+  > .v-btn__overlay { opacity: 0; }
 
   &.v-btn--disabled {
-    color: var(--text-muted) !important;
+    color: var(--text-muted);
     &:not(.v-btn--variant-outlined):not(.v-btn--variant-text):not(.v-btn--variant-plain) {
-      background: var(--border) !important;
+      background: var(--border);
     }
-    // tonal primary держит accent-фон/текст своим !important — гасим для disabled
-    // (и тональную подложку), иначе кнопка читается светлее обычной неактивной.
+    // tonal primary sets its accent background/text with an equally specific selector — this one
+    // wins by coming later. Cancel it for disabled (and the tonal underlay too), otherwise the
+    // button reads lighter than a plain disabled one.
     &.v-btn--variant-tonal {
-      color: var(--text-muted) !important;
-      .v-btn__underlay { opacity: 0 !important; }
+      color: var(--text-muted);
+      .v-btn__underlay { opacity: 0; }
     }
     &.v-btn--variant-outlined {
-      background: transparent !important;
-      border-color: var(--border) !important;
+      background: transparent;
+      border-color: var(--border);
     }
     &.v-btn--variant-text,
-    &.v-btn--variant-plain { background: transparent !important; }
+    &.v-btn--variant-plain { background: transparent; }
   }
 
   &.v-btn--icon { border-radius: 6px; }
 
-  // --v-btn-height используется и Vuetify (.v-btn--density-* { height: calc(var(--v-btn-height) + …) }),
-  // и нашим override для кнопок в группе (.v-btn-group .v-btn { height: var(--v-btn-height) !important }).
-  // Задаём только переменную → единая шкала внутри и вне групп.
+  // --v-btn-height is used both by Vuetify (.v-btn--density-* { height: calc(var(--v-btn-height) + …) })
+  // and by our override for buttons in a group (.v-btn-group .v-btn { height: var(--v-btn-height) !important }).
+  // Set only the variable → one scale inside and outside groups. A component that needs another
+  // height sets this variable too, not `height` — inside a group a plain height is overridden.
   &.v-btn--size-x-small { font-size: 11px; padding: 0 6px;  --v-btn-height: 22px; min-width: 22px; }
   &.v-btn--size-small   { font-size: 12px; padding: 0 8px;  --v-btn-height: 26px; min-width: 26px; }
   &.v-btn--size-default { font-size: 13px; padding: 0 12px; --v-btn-height: 30px; min-width: 30px; }
   &.v-btn--size-large   { font-size: 13px; padding: 0 16px; --v-btn-height: 36px; min-width: 36px; }
   &.v-btn--size-x-large { font-size: 14px; padding: 0 20px; --v-btn-height: 42px; min-width: 42px; }
 
-  .v-btn__loader .v-progress-circular { color: inherit !important; }
+  .v-btn__loader .v-progress-circular { color: inherit; }
 }
 
 // ── Button group / toggle ────────────────────────────────────────────────────
-// Vuetify механизм скругления групп (первый/последний child) — в @layer.
-// Наш .v-btn { border-radius } перебивает его → воспроизводим механизм вне @layer.
+// Vuetify's group rounding mechanism (first/last child) lives in @layer.
+// Our .v-btn { border-radius } overrides it → reproduce the mechanism outside @layer.
 .v-btn-group {
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border);  // единый аккуратный бордер вокруг группы
-  box-shadow: none !important;
-  overflow: hidden;                 // чтобы дочерние фоны не вылезали за скругление
+  border: 1px solid var(--border);  // one neat border around the whole group
+  box-shadow: none;
+  overflow: hidden;                 // so child backgrounds don't spill past the rounding
 }
 
-.v-btn-group--horizontal { height: auto; }  // Vuetify задаёт 48px в @layer
+.v-btn-group--horizontal { height: auto; }  // Vuetify sets 48px in @layer
 
 .v-btn-group .v-btn {
   border-radius: 0;
-  border: none !important;          // у группы свой бордер — снимаем outline с кнопок
-  font-weight: 400;                 // в группах текст не жирный
-  // Vuetify через :style ставит детям inline height:auto — нужен !important.
-  // --v-btn-height задаётся size-классами (22/26/30/36/42px).
+  border: none;                     // the group has its own border — drop the buttons' outline
+  font-weight: 400;                 // text in groups is not bold
+  // The group passes `height: 'auto'` to its buttons as a prop, which lands as an inline style
+  // (VBtnGroup.js) — the one place in this file where !important is genuinely required.
+  // --v-btn-height is set by the size classes (22/26/30/36/42px).
   height: var(--v-btn-height) !important;
 }
 
@@ -760,29 +775,52 @@ a { color: var(--accent); text-decoration: none; &:hover { text-decoration: unde
 .v-btn-toggle {
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
-  box-shadow: none !important;
+  box-shadow: none;
 
-  .v-btn { color: var(--text-muted); background: transparent !important; }
-  .v-btn.v-btn--active { background: var(--accent-soft) !important; color: var(--accent) !important; }
+  // :hover keeps the plate off under the pointer — the outlined/text buttons' own hover would
+  // paint one; the border and text still answer the hover.
+  .v-btn,
+  .v-btn:hover { background: transparent; }
+  .v-btn { color: var(--text-muted); }
+  .v-btn.v-btn--active { background: var(--accent-soft); color: var(--accent); }
 }
 
-// divided: восстанавливаем разделитель между кнопками (border у дочерних снят).
+// divided: restore the separator between buttons (the children's border is removed).
 .v-btn-group--divided .v-btn:not(:last-child) {
-  border-inline-end: 1px solid var(--border) !important;
+  border-inline-end: 1px solid var(--border);
+}
+
+// A toggle outlines each button itself, not the group: a pressed one has to show its OWN accent
+// outline, and a frame drawn around the whole group stayed grey however many buttons were on —
+// the fill and the text turned accent, the outline never did. Neighbours overlap by one pixel, so
+// a shared edge is one line, and the pressed button is lifted above them so its accent edge is
+// the one that shows. The sizes stay what they were with the group frame: the button grows by
+// the two border pixels the group no longer adds.
+.v-btn-toggle {
+  border: none;
+
+  .v-btn {
+    position: relative;
+    border: 1px solid var(--border);
+    height: calc(var(--v-btn-height) + 2px) !important;
+  }
+  .v-btn + .v-btn { margin-inline-start: -1px; }
+  .v-btn:hover { border-color: var(--accent); z-index: 1; }
+  .v-btn.v-btn--active { border-color: var(--accent); z-index: 2; }
 }
 
 // ── Skeleton loader ──────────────────────────────────────────────────────────
-// VSkeletonLoader не имеет своей переменной цвета — кость берёт --v-theme-on-surface
-// с альфой. Наш theme.variables ставит border-opacity:1, из-за чего альфа теряется и
-// кость выходит сплошным тёмным on-surface. Перекрываем цвет токеном + лёгкий шиммер.
+// VSkeletonLoader has no color variable of its own — a bone takes --v-theme-on-surface
+// with alpha. Our theme.variables set border-opacity:1, which loses the alpha and the
+// bone comes out solid dark on-surface. Override the color with a token + a light shimmer.
 .v-skeleton-loader {
   background: transparent;
 
-  // листовая кость — серая
+  // a leaf bone is grey
   .v-skeleton-loader__bone {
     background: var(--border-soft);
   }
-  // кость-обёртка (содержит вложенные кости) — прозрачна, серыми остаются только листья
+  // a wrapper bone (contains nested bones) is transparent; only the leaves stay grey
   .v-skeleton-loader__bone:has(.v-skeleton-loader__bone) {
     background: transparent;
   }
@@ -795,15 +833,17 @@ a { color: var(--accent); text-decoration: none; &:hover { text-decoration: unde
 // Flat design: Vuetify renders elevation on a dedicated .v-expansion-panel__shadow
 // element (not on the panel itself), so per-page box-shadow:none on .v-expansion-panel
 // misses it. Kill it globally here.
-.v-expansion-panel__shadow { box-shadow: none !important; }
-.v-expansion-panel::before  { box-shadow: none !important; }
+.v-expansion-panel__shadow { box-shadow: none; }
+.v-expansion-panel::before  { box-shadow: none; }
 
 // ── Pagination ───────────────────────────────────────────────────────────────
-// Активная страница: .text-primary перебивается нашим .v-btn--variant-text { color: --text-muted },
-// поэтому красим явно через селектор пагинации.
-.v-pagination__item--is-active .v-btn {
-  background: var(--accent-soft) !important;
-  color: var(--accent) !important;
+// Active page: .text-primary is overridden by our .v-btn--variant-text { color: --text-muted },
+// so color it explicitly through the pagination selector. The :hover form outweighs the text
+// button's own hover, which would otherwise repaint the active page under the pointer.
+.v-pagination__item--is-active .v-btn,
+.v-pagination__item--is-active .v-btn:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 // ── Chips ────────────────────────────────────────────────────────────────────
@@ -815,18 +855,18 @@ a { color: var(--accent); text-decoration: none; &:hover { text-decoration: unde
   height: auto;
   padding: 2px 7px;
   line-height: 1.5;
-  // Hover-оверлей гасим (плоский язык). Тональную подложку (.v-chip__underlay) НЕ
-  // трогаем — это фон tonal-чипа (шильдики статусов/приоритета); у селект-чипов,
-  // где фон рисуем сами, гасим её точечно ниже.
-  .v-chip__overlay { opacity: 0 !important; }  // inline opacity
+  // Cancel the hover overlay (flat visual language). The tonal underlay (.v-chip__underlay) is
+  // NOT touched — it is the tonal chip's background (status/priority badges); for select chips,
+  // where we paint the background ourselves, it is cancelled selectively below.
+  .v-chip__overlay { opacity: 0; }
 }
 
-// Селекты по умолчанию рендерят выбранное чипами (chips/closableChips —
-// глобальные дефолты в vuetify.ts). Vuetify не умеет включать чипы только для
-// multiple, поэтому одиночный выбор тоже оборачивается в чип — здесь возвращаем
-// ему вид простого текста, а у мультиселекта оформляем чипы под дизайн-систему.
+// Selects render the selection as chips by default (chips/closableChips are
+// global defaults in vuetify.ts). Vuetify cannot enable chips only for multiple,
+// so a single selection is wrapped in a chip too — here it gets back the look of
+// plain text, while the multiselect's chips are styled for the design system.
 
-// ── Одиночный селект: чип → обычный текст поля ───────────────────────────────
+// ── Single select: chip → plain field text ───────────────────────────────────
 .v-select--single,
 .v-autocomplete--single,
 .v-combobox--single {
@@ -835,17 +875,17 @@ a { color: var(--accent); text-decoration: none; &:hover { text-decoration: unde
     border: none;
     border-radius: 0;
     padding: 0;
-    font-size: 13px;     // вровень с .v-select__selection-text
+    font-size: 13px;     // level with .v-select__selection-text
     font-weight: 400;
-    // Чип чисто декоративный (значение как текст) — клик по нему должен
-    // проходить к полю и открывать меню, а не «съедаться» чипом.
+    // The chip is purely decorative (the value as text) — a click on it must
+    // pass through to the field and open the menu, not be swallowed by the chip.
     pointer-events: none;
-    .v-chip__close   { display: none; }            // без ×-удаления на одиночном выборе
-    .v-chip__underlay { opacity: 0 !important; }   // без тональной подложки — это текст поля
+    .v-chip__close   { display: none; }            // no × removal on a single selection
+    .v-chip__underlay { opacity: 0; }   // no tonal underlay — this is field text
   }
 }
 
-// ── Мультиселект: чипы выбранных значений ────────────────────────────────────
+// ── Multiselect: chips for the selected values ───────────────────────────────
 .v-select--multiple,
 .v-autocomplete--multiple,
 .v-combobox--multiple {
@@ -853,8 +893,8 @@ a { color: var(--accent); text-decoration: none; &:hover { text-decoration: unde
     background: var(--surface-hi);
     border: 1px solid var(--border);
     color: var(--text);
-    // Свой фон (surface-hi) — тональную/selected подложку гасим, чтобы не тинтила.
-    .v-chip__underlay { opacity: 0 !important; }
+    // Own background (surface-hi) — cancel the tonal/selected underlay so it doesn't tint.
+    .v-chip__underlay { opacity: 0; }
 
     .v-chip__close {
       opacity: 1;
@@ -867,36 +907,35 @@ a { color: var(--accent); text-decoration: none; &:hover { text-decoration: unde
 }
 
 // ── Lists & dropdowns ────────────────────────────────────────────────────────
-.v-menu > .v-overlay__content .v-list,
-.v-select > .v-overlay__content .v-list,
-.v-combobox > .v-overlay__content .v-list,
-.v-autocomplete > .v-overlay__content .v-list {
-  background: var(--surface) !important;  // inline surface color
+// Select, combobox and autocomplete dropdowns are VMenus too, teleported out of the field, so
+// this one selector covers them all.
+.v-menu > .v-overlay__content .v-list {
+  background: var(--surface);
   border: 1px solid var(--border-soft);
   border-radius: var(--radius);
-  box-shadow: 0 8px 24px rgba(0,0,0,.12) !important;  // inline elevation
+  box-shadow: 0 8px 24px rgba(0,0,0,.12);
   font-family: var(--font);
   padding: 4px;
 
-  // Иконка пункта отбита от подписи на 32px по умолчанию — место под аватарку, которой в
-  // выпадающих списках не бывает: на такой ширине иконки и подписи читаются как два
-  // несвязанных столбца. 10px — та же величина, что в боковом меню.
+  // By default an item's icon sits 32px from its label — room for an avatar, which dropdowns
+  // never have: at that width the icons and labels read as two unrelated columns. 10px is the
+  // same value as in the sidebar.
   --v-list-prepend-gap: 10px;
 
-  // Пункт отбит от края списка примерно так же, как список от своей рамки. Ванильные 16px —
-  // мера строки меню во всю ширину экрана; в выпадайке шириной с поле значок из-за них отъезжает
-  // к середине, и столбец значков перестаёт совпадать с тем, что показано в самом поле.
-  // Величина общая на все пункты, включая чекбоксные: раньше отступ им резало отдельное правило.
+  // An item is inset from the list edge about as much as the list is from its frame. Vanilla
+  // 16px is sized for a full-screen-width menu row; in a field-wide dropdown it pushes the icon
+  // toward the middle, and the icon column stops lining up with what the field itself shows.
+  // The value is shared by all items, checkbox ones included: a separate rule used to cut theirs.
   .v-list-item { padding-inline: 10px; }
 
-  // Пункты не слипаются — вертикальный зазор между соседними.
+  // Items don't stick together — a vertical gap between neighbours.
   .v-list-item + .v-list-item { margin-top: 3px; }
 
-  // Выбранный пункт — фирменный акцент вместо серого selected-оверлея
-  // (и фон, и текст, и галочка чекбокса в мультиселекте).
+  // Selected item — the brand accent instead of the grey selected overlay
+  // (background, text, and the checkbox tick in a multiselect).
   .v-list-item--active {
     background: var(--accent-soft);
-    > .v-list-item__overlay { opacity: 0 !important; }  // гасим серый tint
+    > .v-list-item__overlay { opacity: 0; }  // cancel the grey tint
     .v-list-item-title { color: var(--accent); }
     .v-list-item__prepend .v-icon { color: var(--accent); }
   }
@@ -904,35 +943,35 @@ a { color: var(--accent); text-decoration: none; &:hover { text-decoration: unde
 
 .v-menu > .v-overlay__content > .v-list { min-width: 120px; }
 
-// Двойное скругление: обёртка меню (.v-overlay__content + внутренний .v-sheet)
-// несёт собственный радиус 4px и белый фон, торчащий из-под скруглённого на
-// 10px .v-list. Скругление/фон рисует сам список — обёртку делаем прозрачной и
-// выравниваем радиус, чтобы скругление осталось одно.
+// Double rounding: the menu wrapper (.v-overlay__content + the inner .v-sheet)
+// carries its own 4px radius and a white background that pokes out from under the
+// 10px-rounded .v-list. The list itself draws the rounding/background — make the
+// wrapper transparent and match the radius so only one rounding remains.
 .v-select__content,
 .v-combobox__content,
 .v-autocomplete__content,
 .v-menu > .v-overlay__content {
   border-radius: var(--radius);
-  background: transparent !important;
-  .v-sheet { background: transparent !important; border-radius: var(--radius); box-shadow: none !important; }
+  background: transparent;
+  .v-sheet { background: transparent; border-radius: var(--radius); box-shadow: none; }
 }
 
-// Правило выше зануляет фон у любого .v-sheet внутри меню — но VDatePicker /
-// VTimePicker построены на .v-picker (тот же .v-sheet) и фон им нужен. Возвращаем
-// surface + рамку + тень пикерам (как у диалога).
+// The rule above clears the background of any .v-sheet inside a menu — but VDatePicker /
+// VTimePicker are built on .v-picker (also a .v-sheet) and need a background. Give the
+// pickers back surface + border + shadow (as on a dialog).
 .v-menu > .v-overlay__content .v-date-picker,
 .v-menu > .v-overlay__content .v-time-picker {
-  background: var(--surface) !important;
+  background: var(--surface);
   border: 1px solid var(--border-soft);
   border-radius: var(--radius);
-  box-shadow: 0 24px 64px rgba(0,0,0,.18) !important;
+  box-shadow: 0 24px 64px rgba(0,0,0,.18);
 }
 
 .v-list-item {
   font-family: var(--font);
   font-size: 13px;
   border-radius: var(--radius-sm);
-  min-height: 32px !important;  // inline от density
+  min-height: 32px;
   color: var(--text);
 
   &:hover { background: var(--surface-hi); }
@@ -942,21 +981,21 @@ a { color: var(--accent); text-decoration: none; &:hover { text-decoration: unde
 }
 
 // ── Dividers ─────────────────────────────────────────────────────────────────
-.v-divider { border-color: var(--border-soft) !important; }  // inline color
+.v-divider { border-color: var(--border-soft); }
 
 // ── Dialogs ───────────────────────────────────────────────────────────────────
 .v-dialog > .v-overlay__content > .v-card {
-  background: var(--surface) !important;
+  background: var(--surface);
   border: 1px solid var(--border-soft);
   border-radius: var(--radius);
-  box-shadow: 0 24px 64px rgba(0,0,0,.18) !important;
+  box-shadow: 0 24px 64px rgba(0,0,0,.18);
 }
 
-// Затемнение под модалкой Vuetify собирает из двух множителей: цвета скрима и
-// `--v-overlay-opacity` (0.32 в его слое). Альфа в `background` умножалась на неё и давала
-// едва заметные 0.14 — сила задаётся переменной, цвет остаётся чистым чёрным.
+// Vuetify builds the dimming under a modal from two factors: the scrim color and
+// `--v-overlay-opacity` (0.32 in its layer). An alpha in `background` got multiplied by it and
+// gave a barely visible 0.14 — the strength is set by the variable, the color stays pure black.
 .v-overlay { --v-overlay-opacity: .5; }
-.v-overlay__scrim { background: #000 !important; }  // inline
+.v-overlay__scrim { background: #000; }
 
 .v-card-actions {
   padding: 8px 12px;
@@ -970,81 +1009,90 @@ a { color: var(--accent); text-decoration: none; &:hover { text-decoration: unde
   border-radius: var(--radius-sm);
 
   &.v-alert--variant-tonal {
-    &[class*="error"]   { background: var(--legacy-error-tint-12) !important; color: var(--legacy-error-text) !important; border: 1px solid var(--legacy-error-tint-28) !important; }
-    &[class*="success"] { background: var(--accent-soft)           !important; color: var(--accent)            !important; border: 1px solid var(--accent-mid)            !important; }
-    &[class*="warning"] { background: var(--legacy-warn-tint-12)  !important; color: var(--legacy-warn-text)  !important; }
-    &[class*="info"]    { background: var(--legacy-info-tint-12)  !important; color: var(--legacy-info-text)  !important; }
+    &[class*="error"]   { background: var(--legacy-error-tint-12); color: var(--legacy-error-text); border: 1px solid var(--legacy-error-tint-28); }
+    &[class*="success"] { background: var(--accent-soft);          color: var(--accent);            border: 1px solid var(--accent-mid); }
+    &[class*="warning"] { background: var(--legacy-warn-tint-12);  color: var(--legacy-warn-text); }
+    &[class*="info"]    { background: var(--legacy-info-tint-12);  color: var(--legacy-info-text); }
   }
 
   .v-alert__content { font-family: var(--font); }
 }
 
 // ── Selection controls (checkbox, radio, switch) ─────────────────────────────
-// Цвета управляются через color prop и theme — не переопределяем.
-// Только шрифт и label-opacity (Vuetify ставит medium-emphasis opacity на label).
+// Colors are driven by the color prop and the theme — not overridden.
+// Only the font and label opacity (Vuetify puts medium-emphasis opacity on the label).
 .v-checkbox, .v-switch, .v-radio {
   .v-label { font-family: var(--font); font-size: 13px; color: var(--text); opacity: 1; }
 }
 
 // ── Switch ────────────────────────────────────────────────────────────────────
-// Размеры и opacity — через SASS-переменные в settings.scss (компилируется в компонент).
-// CSS здесь только для состояний, недоступных через SASS:
-//   • OFF-трек: нейтральный --border (Vuetify ставит bg через CSS-класс из @layer)
-//   • OFF-thumb: светлый, чтобы был виден на тёмном треке (surface-bright = #252839)
+// A compact inset switch: a 34×20 track and a 12px thumb in both states (Vuetify: 52×32, a 24px
+// thumb scaled to 16px when off). Plain unlayered CSS rather than Vuetify's SASS variables — those
+// switched the build to recompiling Vuetify's SASS and doubled its time, for these few values.
+// The off-state scale is cancelled only outside indeterminate/loading, which shrink the thumb too.
+.v-switch__track { opacity: 1; }
+.v-switch--inset .v-switch__track { height: 20px; min-width: 34px; }
+.v-switch--inset .v-switch__thumb { width: 12px; height: 12px; }
+.v-switch--inset:not(.v-switch--indeterminate):not(.v-switch--loading) .v-switch__thumb { transform: none; }
+
+// Colors:
+//   • OFF track: neutral --border (Vuetify sets the bg via a CSS class from @layer)
+//   • OFF thumb: light, so it shows on the dark track (surface-bright = #252839)
 .v-switch {
   &:has(input:not(:checked)) .v-switch__track { background: var(--border); }
-  // ON: наш --accent (oklch) ярче на P3-дисплеях, чем Vuetify's rgb из sRGB. Только для
-  // primary (bg-primary) — у цветных свитчей (success/warning/error) сохраняем цвет темы.
+  // ON: our --accent (oklch) is brighter on P3 displays than Vuetify's sRGB rgb. Only for
+  // primary (bg-primary) — colored switches (success/warning/error) keep the theme color.
   &:has(input:checked) .v-switch__track.bg-primary { background: var(--accent); }
-  // Thumb: Vuetify хардкодит surface-bright, SASS-переменная игнорируется.
+  // Thumb: Vuetify hardcodes surface-bright, the SASS variable is ignored.
   .v-switch__thumb { background: #fff; box-shadow: none; }
 
-  // Thumb position: Vuetify компилирует ±12px из дефолтных размеров, игнорируя наш thumb 12px.
-  // Container base = (34-40)/2 = -3px. gap=4px с обеих сторон → OFF: -7px, ON: +7px.
+  // Thumb position: Vuetify compiles ±10px from its default sizes, ignoring our 12px thumb.
+  // Container base = (34-40)/2 = -3px. gap=4px on both sides → OFF: -7px, ON: +7px.
   .v-selection-control__input                          { transform: translateX(-7px); }
   .v-selection-control--dirty .v-selection-control__input { transform: translateX(7px); }
 }
 
 // ── Slider ────────────────────────────────────────────────────────────────────
-// Только для primary-цвета (bg-primary): oklch вместо sRGB, фон -- accent-mid.
-// Остальные цвета (error, success) не трогаем.
+// Only for the primary color (bg-primary): oklch instead of sRGB, background is accent-mid.
+// Other colors (error, success) are left alone.
 .v-slider-track__fill.bg-primary       { background: var(--accent); }
 .v-slider-track__background.bg-primary { background: var(--accent-mid); opacity: 1; }
 
 // ── Progress ──────────────────────────────────────────────────────────────────
-// color prop ставится Vuetify как inline-style → нужен !important.
-// Circular: blanket override (color prop задаётся inline, class text-primary не добавляется).
-.v-progress-circular { color: var(--accent) !important; }
-// Underlay (трек) у Vuetify рисуется как rgba(--v-border-color, --v-border-opacity).
-// У нас border-opacity=1 для outlined-инпутов → трек становится сплошным чёрным.
-// Заглушаем underlay явно и красим в мягкий border.
+// Circular: blanket accent; a component that wants another color overrides it with a more
+// specific selector.
+.v-progress-circular { color: var(--accent); }
+// Vuetify draws the underlay (track) as rgba(--v-border-color, --v-border-opacity).
+// We have border-opacity=1 for outlined inputs → the track turns solid black.
+// Override the underlay explicitly and paint it the soft border color.
 .v-progress-circular__underlay {
-  stroke: var(--border-soft) !important;
-  opacity: 1 !important;
+  stroke: var(--border-soft);
+  opacity: 1;
 }
 
 .v-progress-linear {
   border-radius: 3px;
-  // currentColor наследуется indeterminate-барами → ставим accent здесь тоже
-  color: var(--accent) !important;
-  .v-progress-linear__background  { background: var(--border-soft) !important; }  // inline
-  .v-progress-linear__determinate { background: var(--accent)       !important; }  // inline
+  // indeterminate bars inherit currentColor → set the accent here too
+  color: var(--accent);
+  .v-progress-linear__background  { background: var(--border-soft); }
+  .v-progress-linear__determinate { background: var(--accent); }
 }
 
 // ── Date / Time pickers ──────────────────────────────────────────────────────
-// VDatePicker: выделенный день получает только класс --selected, color="primary"
-// на v-btn не вешается → красим напрямую. Диапазон рендерится как набор
-// последовательных --selected клеток, поэтому первая/последняя/средние стилуются
-// одинаково — заливка плюс «склейка» соседних через прямоугольный фон на самом
-// дне ячейки.
+// VDatePicker: the selected day only gets the --selected class, color="primary" is
+// not put on the v-btn → paint it directly. A range renders as a run of consecutive
+// --selected cells, so first/last/middle are styled the same — a fill plus a "join"
+// between neighbours via a rectangular background at the very bottom of the cell.
 .v-date-picker-month__day--selected {
   position: relative;
-  .v-btn {
-    background: var(--accent) !important;
-    color: #fff !important;
-    z-index: 1;
+  // The day is a text button: :hover outweighs that button's own hover, which would repaint it.
+  .v-btn,
+  .v-btn:hover {
+    background: var(--accent);
+    color: #fff;
   }
-  // фон-«мост» между соседними выбранными днями (для range)
+  .v-btn { z-index: 1; }
+  // a "bridge" background between adjacent selected days (for a range)
   &::before {
     content: '';
     position: absolute;
@@ -1058,28 +1106,28 @@ a { color: var(--accent); text-decoration: none; &:hover { text-decoration: unde
   &.v-date-picker-month__day--week-end::before   { inset-inline-end: 50%; }
 }
 
-// одиночное выделение — без «моста»
+// a single selection has no "bridge"
 .v-date-picker-month:not(:has(.v-date-picker-month__day--selected + .v-date-picker-month__day--selected))
   .v-date-picker-month__day--selected::before { display: none; }
 
-// VTimePicker: активные часы/минуты в шапке и активный сегмент на циферблате
+// VTimePicker: active hours/minutes in the header and the active segment on the dial
 .v-time-picker-controls__time__field--active,
 .v-time-picker-controls__time__field--active .v-field {
-  color: var(--accent) !important;
-  .v-field__input, input { color: var(--accent) !important; }
+  color: var(--accent);
+  .v-field__input, input { color: var(--accent); }
 }
 
-.v-time-picker-clock__hand        { background: var(--accent) !important; }
-.v-time-picker-clock__hand::after { background: var(--accent) !important; }
+.v-time-picker-clock__hand        { background: var(--accent); }
+.v-time-picker-clock__hand::after { background: var(--accent); }
 .v-time-picker-clock__item--active {
-  background: var(--accent) !important;
-  color: #fff !important;
+  background: var(--accent);
+  color: #fff;
 }
 
 // ── Data tables ──────────────────────────────────────────────────────────────
-// background: inline → !important. border ставим на td, не tr (tr border не рендерится в table).
+// The border goes on td, not tr (a tr border doesn't render in a table).
 .v-data-table {
-  background: transparent !important;
+  background: transparent;
   font-family: var(--font);
   font-size: 13px;
 
@@ -1090,36 +1138,36 @@ a { color: var(--accent); text-decoration: none; &:hover { text-decoration: unde
     letter-spacing: 0.05em;
     text-transform: uppercase;
     color: var(--text-faint);
-    background: var(--surface-hi) !important;
-    height: 36px !important;
+    background: var(--surface-hi);
+    height: 36px;
     white-space: nowrap;
-    border-bottom: 1px solid var(--border) !important;
+    border-bottom: 1px solid var(--border);
   }
 
-  // fixed-header: Vuetify убирает border-bottom шапки и рисует разделитель как inset
-  // box-shadow цветом --v-border-color (тёмный on-surface) — приводим к токену --border,
-  // чтобы у sticky-шапки был тот же мягкий разделитель, что и у обычных таблиц.
+  // fixed-header: Vuetify drops the header's border-bottom and draws the separator as an inset
+  // box-shadow in --v-border-color (dark on-surface) — switch it to the --border token so a
+  // sticky header gets the same soft separator as regular tables.
   &.v-table--fixed-header .v-data-table__th {
-    box-shadow: inset 0 -1px 0 var(--border) !important;
+    box-shadow: inset 0 -1px 0 var(--border);
   }
 
   .v-data-table__tr {
     td {
-      border-bottom: 1px solid var(--border-soft) !important;
-      padding-top: 6px !important;
-      padding-bottom: 6px !important;
+      border-bottom: 1px solid var(--border-soft);
+      padding-top: 6px;
+      padding-bottom: 6px;
     }
-    &:last-child td { border-bottom: none !important; }
-    &:hover td { background: var(--legacy-accent-tint-05) !important; }
+    &:last-child td { border-bottom: none; }
+    &:hover td { background: var(--legacy-accent-tint-05); }
   }
 }
 
 // ── Plain tables (VTable) ─────────────────────────────────────────────────────
-// VTable renders native thead/tbody без классов __th/__tr — повторяем оформление
-// data-table на голых ячейках, чтобы обычная <VTable> выглядела идентично.
-// :not(.v-data-table) — корень VDataTable несёт оба класса, исключаем его.
+// VTable renders native thead/tbody without the __th/__tr classes — repeat the data-table
+// styling on bare cells so a plain <VTable> looks identical.
+// :not(.v-data-table) — the VDataTable root carries both classes, so exclude it.
 .v-table:not(.v-data-table) {
-  background: transparent !important;
+  background: transparent;
   font-family: var(--font);
   font-size: 13px;
 
@@ -1129,19 +1177,19 @@ a { color: var(--accent); text-decoration: none; &:hover { text-decoration: unde
     font-weight: 600;
     letter-spacing: 0.05em;
     text-transform: uppercase;
-    color: var(--text-faint) !important;
-    background: var(--surface-hi) !important;
-    height: 36px !important;
+    color: var(--text-faint);
+    background: var(--surface-hi);
+    height: 36px;
     white-space: nowrap;
-    border-bottom: 1px solid var(--border) !important;
+    border-bottom: 1px solid var(--border);
   }
 
   tbody > tr {
-    td { border-bottom: 1px solid var(--border-soft) !important; }
-    &:last-child td { border-bottom: none !important; }
+    td { border-bottom: 1px solid var(--border-soft); }
+    &:last-child td { border-bottom: none; }
   }
 
-  &.v-table--hover tbody > tr:hover td { background: var(--legacy-accent-tint-05) !important; }
+  &.v-table--hover tbody > tr:hover td { background: var(--legacy-accent-tint-05); }
 }
 
 // ── Sortable header arrows (unified: VDataTable + plain VTable) ────────────────
@@ -1152,9 +1200,9 @@ a { color: var(--accent); text-decoration: none; &:hover { text-decoration: unde
 .v-data-table-header__sort-icon svg { width: 16px; height: 16px; }
 .v-data-table__th--sorted .v-data-table-header__sort-icon { color: var(--text-muted); }
 
-// Указатель сортировки всегда ПОСЛЕ названия колонки. Vuetify разворачивает шапку колонок,
-// выровненных по правому краю (`flex-direction: row-reverse`), и в одной таблице стрелка
-// оказывалась то справа от названия, то слева — у числовых колонок.
+// The sort indicator always comes AFTER the column name. Vuetify reverses the header of
+// right-aligned columns (`flex-direction: row-reverse`), so within one table the arrow ended up
+// right of the name in some columns and left of it in others — the numeric ones.
 .v-data-table-column--align-end .v-data-table-header__content { flex-direction: row; }
 
 // Plain VTable opts in by marking a header `th.sortable` (+ `.sorted` when active)
@@ -1235,38 +1283,40 @@ a { color: var(--accent); text-decoration: none; &:hover { text-decoration: unde
 .font-weight-bold      { font-weight: 600; }
 
 // ── Tooltip (default) ─────────────────────────────────────────────────────────
-// Vuetify в 4.x рендерит VTooltip с .v-overlay__content и стилями из @layer
-// (белый фон, без тени) — для нашей светлой темы пилюля невидима.
+// Vuetify 4.x renders VTooltip with .v-overlay__content and styles from @layer
+// (white background, no shadow) — on our light theme the pill is invisible.
 .v-tooltip > .v-overlay__content {
-  background: var(--legacy-tooltip-bg) !important;
-  color: #E8ECF0 !important;
+  background: var(--legacy-tooltip-bg);
+  color: #E8ECF0;
   font-family: var(--font);
   font-size: 12px;
   font-weight: 500;
   line-height: 1.4;
-  padding: 6px 10px !important;
-  border-radius: var(--radius-sm) !important;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18) !important;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
   max-width: 320px;
 }
 
-// Пока строку задачи держат в руке, подсказки молчат: они всплывают по одной на каждую кнопку и
-// глиф под курсором и закрывают как раз ту строку, куда целятся. Признак ставит стор задач
-// (`features/tasks/stores/tasks.store.ts`, `dragging`) — и на списке, и на странице задачи.
+// While a task row is being dragged, tooltips stay silent: they pop up one per button and glyph
+// under the pointer and cover exactly the row being aimed at. The flag is set by the tasks store
+// (`features/tasks/stores/tasks.store.ts`, `dragging`) — on both the list and the task page.
 body.tasks-dragging .v-tooltip > .v-overlay__content {
-  display: none !important;
+  display: none;
 }
 
 // ── Sidebar tooltip ───────────────────────────────────────────────────────────
-.sidebar-tooltip {
-  background: var(--legacy-tooltip-bg) !important;  // inline overlay background
-  color: #E8ECF0 !important;
-  font-family: var(--font) !important;
-  font-size: 12px !important;
-  font-weight: 500 !important;
-  padding: 4px 10px !important;
-  border-radius: var(--radius-sm) !important;
-  box-shadow: 0 2px 6px rgba(0,0,0,.10) !important;
+// `content-class` lands on the same element as the default tooltip rule above, so the selector
+// repeats that rule's path to outweigh it.
+.v-tooltip > .v-overlay__content.sidebar-tooltip {
+  background: var(--legacy-tooltip-bg);
+  color: #E8ECF0;
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 2px 6px rgba(0,0,0,.10);
   position: relative;
 
   &::before {
@@ -1298,9 +1348,11 @@ body.tasks-dragging .v-tooltip > .v-overlay__content {
     padding: 10px 14px 4px;
   }
 
-  &__list {
-    padding: 4px 6px 6px !important;
-    background: transparent !important;
+  // The flyout opens in a VMenu, so `.v-menu > .v-overlay__content .v-list` (0,3,0) styles this
+  // list too — the selector is made as specific and comes later to win.
+  > .v-list.nav-flyout__list {
+    padding: 4px 6px 6px;
+    background: transparent;
   }
 }
 
@@ -1313,18 +1365,18 @@ body.tasks-dragging .v-tooltip > .v-overlay__content {
   display: inline-block;
 }
 
-// ── Utility: поле с приросшей кнопкой (.field-group) ──────────────────────────
-// Пара «выпадающий список + иконочная кнопка», которая читается как одна ручка: направление
-// сортировки бессмысленно без поля, по которому сортируют, а кнопка на отступе рядом выглядит
-// самостоятельным действием. Живой пример и сниппет — /design-system/selects.
+// ── Utility: field with an attached button (.field-group) ─────────────────────
+// A "dropdown + icon button" pair that reads as a single control: a sort direction means nothing
+// without the field being sorted by, and a button set apart next to it looks like an independent
+// action. Live example and snippet — /design-system/selects.
 //
-// Скругления срезаются на стыке, кнопка сдвинута на пиксель — иначе границы соседей рисуются
-// подряд и стык выходит вдвое толще. Коробка кнопки задана здесь же и следует за её density:
-// density правит только высоту, а сторону иконочной кнопки Vuetify считает от неё — без ширины
-// выходит прямоугольник.
+// The rounding is cut at the joint and the button is shifted by a pixel — otherwise the
+// neighbours' borders draw side by side and the joint comes out twice as thick. The button box is
+// set here too and follows its density: density only changes the height, and Vuetify derives the
+// icon button's side from it — without a width it comes out a rectangle.
 //
-// Склейка — про вид, а не про поведение: поле и кнопка делают разное, поэтому наведение и фокус
-// у каждой половины свои. Общий стык при этом рисует кнопка (см. её z-index ниже).
+// The fusion is about looks, not behaviour: the field and the button do different things, so
+// hover and focus are per half. The shared joint, though, is drawn by the button (see its z-index below).
 .field-group {
   display: flex;
   align-items: stretch;
@@ -1334,21 +1386,21 @@ body.tasks-dragging .v-tooltip > .v-overlay__content {
     border-end-end-radius: 0;
   }
 
-  // Кнопка перед полем встречается только у шага «предыдущий/следующий», поэтому левый край
-  // поля срезается по её наличию, а не всегда: у пары с одной кнопкой справа он круглый.
+  // A button before the field only occurs in the "previous/next" stepper, so the field's left
+  // edge is cut only when one is present, not always: in a pair with one button on the right it stays round.
   &:has(> .field-group__btn--before) .v-field {
     border-start-start-radius: 0;
     border-end-start-radius: 0;
   }
 }
 
-// Селектор с `.v-btn` намеренно: скругление иконочной кнопке задаёт `.v-btn.v-btn--icon` выше по
-// файлу, и правило в один класс до него не дотягивается — левые углы остались бы круглыми, а
-// стык с полем не склеился бы.
+// The selector includes `.v-btn` on purpose: the icon button's rounding is set by
+// `.v-btn.v-btn--icon` earlier in the file, and a single-class rule can't outweigh it — the left
+// corners would stay round and the joint with the field wouldn't fuse.
 .field-group__btn.v-btn {
-  // Стык у пары общий — границы наложены друг на друга, — и рисует его кнопка: без этого
-  // подсвеченное поле забирает столбец себе (его обводка позиционирована и лежит выше), и
-  // кнопка рядом с подсвеченным полем читается незакрытой слева.
+  // The pair shares one joint — the borders overlap — and the button draws it: otherwise a
+  // highlighted field claims that column (its outline is positioned and sits above), and the
+  // button next to a highlighted field reads as open on the left.
   position: relative;
   z-index: 1;
 
@@ -1362,18 +1414,19 @@ body.tasks-dragging .v-tooltip > .v-overlay__content {
   &.v-btn--density-comfortable { width: 32px; min-width: 32px; height: 32px; }
   &.v-btn--density-compact     { width: 28px; min-width: 28px; height: 28px; }
 
-  // Подложка у пары общая. Контурная кнопка сама по себе прозрачна, и рядом с залитым полем её
-  // половина читается дырой в фон окна — тем заметнее, чем темнее тема. Обводка у обеих половин
-  // и так одного цвета (`--border`), расходилась только заливка.
+  // The pair shares one fill. An outlined button is transparent on its own, and next to a filled
+  // field its half reads as a hole through to the window background — the darker the theme, the
+  // more visible. The outline of both halves is already the same color (`--border`); only the fill differed.
   background: var(--input-bg);
 
-  // Выключенная держит подложку тем же цветом: на краях набора («предыдущий» на первом пункте)
-  // пара иначе теряет половину, хотя поле рядом никуда не делось. Гаснет только значок —
-  // общее правило для контурных кнопок сносит фон вместе с ним, поэтому здесь `!important`.
-  &.v-btn--disabled { background: var(--input-bg) !important; }
+  // When disabled it keeps the same fill: at the ends of the set ("previous" on the first item)
+  // the pair would otherwise lose a half while the field next to it is still there. Only the icon
+  // fades — the shared disabled rule for outlined buttons wipes the background along with it; this
+  // selector is as specific and comes later, so it wins.
+  &.v-btn--disabled { background: var(--input-bg); }
 }
 
-// Та же кнопка, но с другой стороны поля: круглые углы и наложение границы переезжают налево.
+// The same button on the other side of the field: the round corners and border overlap move left.
 .field-group__btn--before.v-btn {
   margin-inline-start: 0;
   margin-inline-end: -1px;
@@ -1383,15 +1436,15 @@ body.tasks-dragging .v-tooltip > .v-overlay__content {
   border-end-end-radius: 0;
 }
 
-// ── Utility: поля группы настроек в колонках (.settings-columns) ──────────────
-// Карточка настроек идёт во всю ширину страницы, а её поля стоят в три колонки: ключи одной
-// группы читаются одним взглядом, а не длинным столбцом. Один дом на оба экрана настроек —
-// схемные поля модулей (/settings/modules) и клиентские (/settings/interface) раскладываются
-// одинаково, иначе они выглядели бы настройками разного сорта.
+// ── Utility: settings group fields in columns (.settings-columns) ─────────────
+// The settings card spans the full page width while its fields stand in three columns: one
+// group's keys are read at a glance rather than as a long column. One home for both settings
+// screens — module schema fields (/settings/modules) and client ones (/settings/interface) are laid
+// out the same, otherwise they would look like settings of a different kind.
 //
-// `align-items: start` — у полей в строке подписи разной длины; без него короткое поле
-// растянулось бы по высоте соседа. Ниже ~1200px три колонки дают поле уже читаемого, поэтому
-// ступеньками сходим к одной.
+// `align-items: start` — fields in a row have labels of different lengths; without it a short
+// field would stretch to its neighbour's height. Below ~1200px three columns make a field narrower
+// than readable, so we step down to one.
 .settings-columns {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

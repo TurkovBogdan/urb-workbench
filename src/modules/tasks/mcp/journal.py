@@ -1,0 +1,142 @@
+"""Work journal MCP tools.
+
+The agent picks an entry kind from three: ``decision`` / ``finding`` / ``fact``. ``remark`` is
+not in the enumeration — a remark is written by the task's author, and the agent has no tool
+with that type: both halves of an entry written by one hand turn the gate into self-assessment.
+
+The values go from most to least frequent: a model picks the first value of an enumeration
+noticeably more often than the others, so the frequent kind must come before the rare one.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from src.modules.tasks.codes import bare_code
+from src.modules.tasks.constants import (
+    JOURNAL_CODE_PREFIX,
+    JOURNAL_REMARK,
+    JOURNAL_TYPES,
+    JOURNAL_TYPES_BY_AGENT,
+    STAGE_CODE_PREFIX,
+    TASK_CODE_PREFIX,
+)
+from src.modules.tasks.crud import journal as journal_crud
+from src.modules.tasks.dto import AgentJournalCreated, AgentJournalList, AgentJournalRow
+from src.modules.tasks.mcp.scope import require_scope
+
+if TYPE_CHECKING:  # fastmcp fork — backend only (via mcp_server(ctx))
+    from fastmcp import FastMCP
+
+
+def register(mcp: "FastMCP") -> None:
+
+    @mcp.tool()
+    async def journal_add(
+        task_code: str,
+        type: str,
+        title: str,
+        body: str | None = None,
+        stage_code: str | None = None,
+    ) -> AgentJournalCreated:
+        """Record something in this task's journal — a decision, a finding or a fact.
+
+        An entry is never deleted, and its title and resolution are never rewritten; changing
+        your mind is a new entry. The body takes detail later through content_add(code, "body",
+        …). Pick the kind by what the line IS:
+
+        `decision` — a choice you made along the way, and what it rests on. Leave it open until
+        it rests on something: an open decision is what an assumption looks like here, and being
+        able to see them is the point.
+        `finding` — something broken or owed that you noticed OUTSIDE this task. Without
+        somewhere to put it the moment you see it, it dies with the session and gets paid for
+        again next time. It is not counted against your hand-over — a person triages it.
+        `fact` — a number, a path, an exact name, the reason something failed. Closed the moment
+        it is written; it is waiting for nobody.
+
+        A remark from the requester is theirs to write, not yours.
+
+        Args:
+            task_code: The task this belongs to — a TASK@ code. The task needs a journal:
+                a `simple` one refuses, and says to raise its type first.
+            type: decision / finding / fact.
+            title: The point in one line.
+            body: The detail — options weighed, what you saw, where.
+            stage_code: The STAGE@ this came up in, if it was one step and not the whole task.
+        """
+        bare = bare_code(task_code, TASK_CODE_PREFIX) or ""
+        active = await require_scope(TASK_CODE_PREFIX, bare)
+        if type == JOURNAL_REMARK:
+            raise ValueError(
+                "A remark is the requester's word about your work, and writing it yourself "
+                "would make the entry answer to nobody. What you noticed is a `finding`; what "
+                "you decided is a `decision`."
+            )
+        if type not in JOURNAL_TYPES_BY_AGENT:
+            raise ValueError(
+                f"Unknown entry type {type!r}; expected one of "
+                f"{', '.join(JOURNAL_TYPES_BY_AGENT)}."
+            )
+        row = await journal_crud.journal_create(
+            task_code=bare,
+            type=type,
+            title=title,
+            body=body,
+            stage_code=bare_code(stage_code, STAGE_CODE_PREFIX),
+        )
+        return AgentJournalCreated(
+            workspace=active.code, workspace_title=active.title, code=row.code
+        )
+
+    @mcp.tool()
+    async def journal_resolve(journal_code: str, resolution: str) -> AgentJournalRow:
+        """Close a journal entry with what settled it.
+
+        Once only: a second call on a resolved entry is refused — a resolution rewritten after
+        the fact turns the history into a story about how it was always going to work. Changed
+        your mind — new entry.
+
+        A decision is settled by what it now rests on: the requester's answer, or your own check
+        with the pointer to it. A remark is settled by how you took it into account.
+
+        Args:
+            journal_code: The entry to close — a JOURNAL@ code.
+            resolution: What was decided, how it was taken into account, or what the answer
+                turned out to be.
+        """
+        bare = await journal_crud.journal_code_of(journal_code)
+        await require_scope(JOURNAL_CODE_PREFIX, bare)
+        row = await journal_crud.journal_resolve(bare, resolution)
+        if row is None:
+            raise ValueError(f"Journal entry {JOURNAL_CODE_PREFIX}@{bare} does not exist.")
+        return AgentJournalRow.model_validate(row)
+
+    @mcp.tool()
+    async def journal_list(
+        task_code: str, type: str | None = None, open_only: bool = False
+    ) -> AgentJournalList:
+        """Read a task's journal, oldest first.
+
+        task_get already gives you what is still open; this is for the history behind it — why
+        the work is shaped the way it is, and what was tried and dropped.
+
+        Args:
+            task_code: The task whose journal to read — a TASK@ code.
+            type: decision / remark / finding / fact, to see one kind only.
+            open_only: Only the entries nothing has settled yet.
+        """
+        bare = bare_code(task_code, TASK_CODE_PREFIX) or ""
+        active = await require_scope(TASK_CODE_PREFIX, bare)
+        if type is not None and type not in JOURNAL_TYPES:
+            raise ValueError(
+                f"Unknown entry type {type!r}; expected one of {', '.join(JOURNAL_TYPES)}."
+            )
+        rows = await journal_crud.journal_list_by_task(bare, type=type, open_only=open_only)
+        return AgentJournalList(
+            workspace=active.code,
+            workspace_title=active.title,
+            entries=[AgentJournalRow.model_validate(row) for row in rows],
+        )
+
+
+__all__ = ["register"]

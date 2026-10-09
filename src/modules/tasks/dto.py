@@ -1,32 +1,32 @@
-"""DTO модуля ``tasks`` — контракты обеих поверхностей: web-вьюера и агента.
+"""DTOs of the ``tasks`` module — the contracts of both surfaces: the web viewer and the agent.
 
-**Префикс ``Agent`` = поверхность агента.** Класс с этим префиксом возвращается тулами MCP
-(``mcp/``) и больше никем, всё остальное — контракты web-вьюера. Граница сплошная: общих
-контрактов у поверхностей нет даже там, где наборы полей совпадают. Общий контракт разъезжается
-в одну сторону — поле, добавленное ради колонки в таблице, молча начинает стоить агенту
-контекста в каждой сессии.
+**The ``Agent`` prefix = the agent surface.** A class with this prefix is returned by MCP tools
+(``mcp/``) and nothing else; everything else is a web-viewer contract. The boundary is total: the
+surfaces share no contracts even where the field sets coincide. A shared contract drifts one way —
+a field added for a table column silently starts costing the agent context in every session.
 
-Докстринга у агентского класса нет намеренно: pydantic кладёт его в JSON-схему тула описанием, и
-агент оплачивает его при каждом подключении. Поэтому пояснения агентских контрактов живут в
-комментариях НАД классом.
+Agent classes have no docstring on purpose: pydantic puts it into the tool's JSON schema as the
+description, and the agent pays for it on every connection. So the notes on agent contracts live
+in comments ABOVE the class.
 
-Код в выдаче несёт презентационный префикс (``WORKSPACE@…``) — за это отвечает ``prefixed``
-из ``tasks.codes``: сериализатор надевает тип-слово только в JSON, внутренний ``model_dump()``
-остаётся голым. На вход код принимается в обеих формах — снимает префикс ``bare_code`` на
-границе ручки, а не здесь: DTO описывает ответ, разбор адреса — работа маршрута.
+A code in the output carries a presentation prefix (``WORKSPACE@…``) — that is the job of
+``prefixed`` from ``tasks.codes``: the serializer puts the type word on only in JSON, the internal
+``model_dump()`` stays bare. On input a code is accepted in both forms — ``bare_code`` strips the
+prefix at the endpoint boundary, not here: a DTO describes the response, parsing an address is the
+route's job.
 
-Даты отдаются ядровым ``DatetimeUTCStr`` (SQL-формат без ``T``) — ровно его ждёт фронт-парсер
-``web/src/shared/utils/date.ts`` (Luxon ``fromSQL``). ISO с ``T`` он не разбирает, и дата на
-карточке молча превратилась бы в «неверную».
+Dates are emitted via the core ``DatetimeUTCStr`` (SQL format without ``T``) — exactly what the
+frontend parser ``web/src/shared/utils/date.ts`` (Luxon ``fromSQL``) expects. It does not parse
+ISO with ``T``, and the date on a card would silently turn "invalid".
 
-Карточки пространства здесь нет: она живёт в модуле ``workspace`` вместе с самой сущностью.
-Отсюда наружу едет только ССЫЛКА на него — ``workspace_code`` с префиксом, собранным из чужой
-константы: тип-слово принадлежит владельцу сущности, а не тому, кто на неё ссылается.
+There is no workspace card here: it lives in the ``workspace`` module alongside the entity itself.
+Only a REFERENCE to it goes out from here — ``workspace_code`` with a prefix built from another
+module's constant: the type word belongs to the entity's owner, not to whoever references it.
 
-У задачи место в дереве едет **в той же строке**, что и её поля (``parent_code`` / ``sort``),
-хотя в базе они лежат в отдельной таблице (``tasks_link``). Разделение
-там нужно записи (перенос ветки не переписывает карточку), а читателю — нет: списку всё равно
-нужны обе половины сразу, и второй запрос за рёбрами он бы всё равно сделал.
+A task's place in the tree travels **in the same row** as its fields (``parent_code`` / ``sort``),
+even though in the DB they sit in a separate table (``tasks_link``). The split is needed for
+writing (moving a branch does not rewrite the card), not for reading: the list needs both halves
+at once anyway, and would have made a second request for the edges regardless.
 """
 
 from __future__ import annotations
@@ -37,6 +37,7 @@ from src.core.utils.date import DatetimeUTCStr
 from src.modules.tasks.codes import prefixed
 from src.modules.tasks.constants import (
     GROUP_CODE_PREFIX,
+    JOURNAL_CODE_PREFIX,
     NOTE_CODE_PREFIX,
     SORT_DEFAULT,
     STAGE_CODE_PREFIX,
@@ -48,17 +49,18 @@ from src.modules.tasks.constants import (
 from src.modules.workspace.constants import WORKSPACE_CODE_PREFIX
 from src.modules.workspace.dto import AgentScope
 
-# Презентационный тип кода: голый хеш внутрь, ``WORKSPACE@<hash>`` наружу. Префикс пространства
-# взят у его модуля: переименуй он своё тип-слово — ссылка поедет следом сама.
+# Presentation code type: bare hash inside, ``WORKSPACE@<hash>`` outside. The workspace prefix is
+# taken from its module: should it rename its type word, the reference follows on its own.
 WorkspaceCode = prefixed(WORKSPACE_CODE_PREFIX)
 GroupCode = prefixed(GROUP_CODE_PREFIX)
 TaskCode = prefixed(TASK_CODE_PREFIX)
 StageCode = prefixed(STAGE_CODE_PREFIX)
+JournalCode = prefixed(JOURNAL_CODE_PREFIX)
 NoteCode = prefixed(NOTE_CODE_PREFIX)
 
 
 class GroupRow(BaseModel):
-    """Группа задач — заголовок секции в списке задач и карточка в своём разделе."""
+    """A task group — a section header in the task list and a card in its own section."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -75,23 +77,23 @@ class GroupRow(BaseModel):
 
 
 class GroupListRow(GroupRow):
-    """Строка списка групп: карточка плюс счётчик живых задач внутри.
+    """A group list row: the card plus a count of the live tasks inside.
 
-    Счётчик тут по той же причине, что и у пространства: группа существует ради того, чтобы в ней
-    что-то лежало, и «удалить» без числа было бы предложением подтвердить неизвестное.
+    The count is here for the same reason as on the workspace: a group exists to hold something,
+    and "delete" without a number would be asking to confirm the unknown.
     """
 
     task_count: int = 0
 
 
 class TaskRow(BaseModel):
-    """Собственные поля задачи — всё, что лежит в ``tasks_task``, кроме тела.
+    """The task's own fields — everything in ``tasks`` except the brief and the work text.
 
-    Тела здесь нет намеренно: в списке оно не показывается ни одной строкой, а весит больше
-    всей остальной карточки вместе взятой. Его отдаёт только деталь (``TaskDetail``).
+    The long text is left out on purpose: the list shows not a single line of it, yet it outweighs
+    the rest of the card combined. Only the detail (``TaskDetail``) returns it.
 
-    Отметки фаз (``started_at`` / ``completed_at`` / ``canceled_at``) едут и в списке: это
-    единственный способ отличить «сделано вчера» от «сделано в марте», не открывая задачу.
+    Phase timestamps (``started_at`` / ``completed_at`` / ``canceled_at``) travel in the list too:
+    it is the only way to tell "done yesterday" from "done in March" without opening the task.
     """
 
     model_config = ConfigDict(from_attributes=True)
@@ -115,11 +117,11 @@ class TaskRow(BaseModel):
 
 
 class TaskListRow(TaskRow):
-    """Строка списка: карточка задачи плюс её место в дереве и признак ветки под ней.
+    """A list row: the task card plus its place in the tree and a flag for a branch beneath it.
 
-    ``has_children`` — признак, а не счётчик: список рисует им пометку «внутри есть ещё», а
-    точное число там негде показать, и считать его на каждую строку значило бы платить за то,
-    чего не видно. Сам список плоский: дерево раскрывает деталь.
+    ``has_children`` is a flag, not a count: the list uses it to draw a "there is more inside"
+    mark, there is nowhere to show the exact number, and counting it per row would mean paying for
+    something invisible. The list itself is flat: the detail unfolds the tree.
     """
 
     parent_code: TaskCode | None = None
@@ -128,7 +130,7 @@ class TaskListRow(TaskRow):
 
 
 class StageRow(BaseModel):
-    """Этап плана — строка полотна и карточка в детали задачи."""
+    """A plan stage — a row of the canvas and a card in the task detail."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -146,16 +148,17 @@ class StageRow(BaseModel):
     updated_at: DatetimeUTCStr
 
 
-class NoteRow(BaseModel):
-    """Запись журнала: предмет (``title`` + ``body``) и разрешение.
+class JournalRow(BaseModel):
+    """A journal entry: the subject (``title`` + ``body``) and the resolution.
 
-    Отдельного признака «открыта» нет: он выводится из пустого ``resolution``, и держать рядом
-    вычислимый флаг значило бы завести второй источник правды о том же.
+    There is no separate "open" flag: it is derived from an empty ``resolution`` on a kind that
+    waits for one (a ``fact`` never does), and keeping a computable flag alongside would create a
+    second source of truth for the same thing.
     """
 
     model_config = ConfigDict(from_attributes=True)
 
-    code: NoteCode
+    code: JournalCode
     task_code: TaskCode
     stage_code: StageCode | None = None
     type: str
@@ -165,39 +168,65 @@ class NoteRow(BaseModel):
     created_at: DatetimeUTCStr
 
 
+class TaskNoteRow(BaseModel):
+    """A task note in the task's list: the document's scan layer, without its text.
+
+    The text is read and saved on the document's own route (``/internal/notes/{code}``): a task
+    with three 64K documents would otherwise carry them on every open of its page.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    code: NoteCode
+    title: str
+    description: str = ""
+    created_at: DatetimeUTCStr
+    updated_at: DatetimeUTCStr
+
+
+class TaskNoteDetail(TaskNoteRow):
+    """A task note whole — its page: the text, and the task it belongs to."""
+
+    task_code: TaskCode
+    body: str = ""
+
+
 class TaskDetail(TaskListRow):
-    """Задача целиком: постановка, план, соседи по дереву, группа, этапы и журнал.
+    """The whole task: brief, plan, tree neighbours, group, stages, journal and notes.
 
-    Дети — такие же строки списка (с их собственными рёбрами и признаком ветки), поэтому
-    карточка ребёнка на детали и карточка в списке — один и тот же объект: разойтись их
-    разметке негде.
+    Children are the same list rows (with their own edges and branch flag), so a child's card on
+    the detail and a card in the list are one and the same object: their markup has nowhere to
+    diverge.
 
-    Группа и родитель едут строками, а не одними кодами, хотя коды в ответе тоже есть. Причина
-    прикладная: страница показывает их НАЗВАНИЯМИ («Биллинг», «Счета»), а из кода названия не
-    добыть — клиенту пришлось бы делать два дополнительных запроса на каждое открытие задачи
-    ради двух строк текста. Коды при этом остаются: по ним работает правка и перенос.
+    The group and the parent travel as rows, not just codes, although the codes are in the
+    response too. The reason is practical: the page shows them by NAME ("Billing", "Invoices"),
+    and a name cannot be got from a code — the client would have to make two extra requests on
+    every task open for two lines of text. The codes stay anyway: editing and moving work by them.
 
-    Этапы и журнал едут здесь же: деталь задачи — это и есть экран работы, и второй запрос за
-    планом клиент сделал бы всё равно. У простой задачи оба списка пустые — их просто некому
-    заводить.
+    Stages and the journal travel here as well: the task detail is the work screen, and the client
+    would make a second request for the plan regardless. A simple task has both lists empty —
+    there is simply no one to create them.
     """
 
     context: str = ""
     constraints: str = ""
     criteria: str = ""
-    body: str = ""
+    plan: str = ""
+    progress: str = ""
+    result: str = ""
     group: GroupRow | None = None
     parent: TaskListRow | None = None
     children: list[TaskListRow] = []
     stages: list[StageRow] = []
-    notes: list[NoteRow] = []
+    journal: list[JournalRow] = []
+    notes: list[TaskNoteRow] = []
 
 
-# Группа глазами агента: куда класть задачу и что там уже лежит. Оформления (цвет, иконка) здесь
-# нет — их рисует интерфейс, а агенту они сказали бы ровно ничего и стоили бы двух полей в каждой
-# строке ответа; поверхности разведены, и общего контракта у них не будет даже там, где наборы
-# полей совпадут. ``description`` наоборот обязателен по смыслу: в нём границы группы, и по ним
-# агент решает, в какую класть новую задачу, — по одному названию он ошибается чаще.
+# A group as the agent sees it: where to put a task and what is already there. No styling (color,
+# icon) — the UI draws those, they would tell the agent nothing and cost two fields in every
+# response row; the surfaces are separated and will share no contract even where the field sets
+# coincide. ``description``, by contrast, is essential: it holds the group's boundaries, and by
+# them the agent decides where a new task goes — by the title alone it errs more often.
 class AgentGroupRow(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -207,25 +236,26 @@ class AgentGroupRow(BaseModel):
     task_count: int = 0
 
 
-# Группы активного пространства — вместе с тем, какое пространство это было (``AgentScope``).
-# Тот же тип отвечает и на правку раскладки: после заведения или перестановки группы агенту нужно
-# не эхо присланного, а новое состояние списка — счётчики и порядок он своей правкой сдвинул и
-# иначе пошёл бы за ними вторым вызовом.
+# Groups of the active workspace — together with which workspace it was (``AgentScope``).
+# The same type answers layout edits too: after creating or reordering a group the agent needs
+# not an echo of what it sent but the new state of the list — its edit shifted the counts and the
+# order, and otherwise it would fetch them with a second call.
 class AgentGroupList(AgentScope):
     groups: list[AgentGroupRow] = []
 
 
-# Раскладка после переноса пачки задач: те же группы плюс сколько строк легло. Коды задач назад
-# не едут — их агент только что передал сам; счётчики обеих затронутых групп он не знает.
+# The layout after moving a batch of tasks: the same groups plus how many rows landed. Task codes
+# do not come back — the agent just sent them itself; the counts of both affected groups it does
+# not know.
 class AgentTasksRegrouped(AgentGroupList):
     moved: int = 0
 
 
-# ── задача ────────────────────────────────────────────────────────────────────
-# Строка сканирующего слоя: то, по чему выбирают, за чтó браться. Постановки и плана здесь нет —
-# за ними идут в ``task_get``; тянуть их на весь список дороже, чем прочесть список дважды.
-# ``description`` (цель) остаётся: без него строка отвечает только «как называется», а решение
-# принимают по «что станет правдой».
+# ── task ──────────────────────────────────────────────────────────────────────
+# A scanning-layer row: what one picks the next thing to take on by. No brief and no plan here —
+# those come from ``task_get``; pulling them for the whole list costs more than reading the list
+# twice. ``description`` (the goal) stays: without it a row answers only "what is it called",
+# while the decision is made on "what will become true".
 class AgentTaskRow(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -241,16 +271,16 @@ class AgentTaskRow(BaseModel):
     deadline_at: DatetimeUTCStr | None = None
 
 
-# ``shown`` против ``total`` — потолок выдачи, показанный числом, а не умолчанием в схеме.
-# Разрыв виден сразу, и описание говорит, что сузить; аргумент ``limit`` стоил бы поля в каждом
-# вызове ради того, что решается одной строкой ответа.
+# ``shown`` versus ``total`` — the output cap shown as a number, not as a default in the schema.
+# The gap is visible at once, and the description says what to narrow; a ``limit`` argument would
+# cost a field in every call for something one response line settles.
 class AgentTaskList(AgentScope):
     tasks: list[AgentTaskRow] = []
     shown: int = 0
     total: int = 0
 
 
-# Этап плана: шаг с собственным состоянием и собственным доказательством.
+# A plan stage: a step with its own state and its own evidence.
 class AgentStageRow(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -263,12 +293,13 @@ class AgentStageRow(BaseModel):
     evidence: str = ""
 
 
-# Запись журнала. Признака «открыта» нет — он выводится из пустого ``resolution``, и держать
-# рядом вычислимый флаг значило бы завести второй источник правды о том же.
-class AgentNoteRow(BaseModel):
+# A journal entry. There is no "open" flag — it is derived from an empty ``resolution`` on a kind
+# that waits for one (a ``fact`` never does), and keeping a computable flag alongside would create
+# a second source of truth for the same thing.
+class AgentJournalRow(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    code: NoteCode
+    code: JournalCode
     type: str
     title: str
     body: str = ""
@@ -277,14 +308,48 @@ class AgentNoteRow(BaseModel):
     created_at: DatetimeUTCStr
 
 
-# Рабочий экран: постановка, план, этапы и то, что ещё не закрыто.
+# A task note as the task lists it: what it is and when it changed, never its text — the agent
+# decides by the description whether to open it with task_note_get.
+class AgentTaskNoteRow(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    code: NoteCode
+    title: str
+    description: str = ""
+    updated_at: DatetimeUTCStr
+
+
+# A task note whole: the document and the task it belongs to.
+class AgentTaskNote(AgentScope):
+    code: NoteCode
+    task_code: TaskCode
+    title: str
+    description: str = ""
+    body: str = ""
+    updated_at: DatetimeUTCStr
+
+
+# A task note after task_note_update: the scan layer, without the text the agent did not touch.
+class AgentTaskNoteUpdated(AgentScope):
+    code: NoteCode
+    task_code: TaskCode
+    title: str
+    description: str = ""
+    updated_at: DatetimeUTCStr
+
+
+class AgentTaskNoteCreated(AgentScope):
+    code: NoteCode
+
+
+# The work screen: brief, plan, stages and whatever is still open.
 #
-# Закрытых записей журнала здесь нет, только их число: они отвечают на вопрос «как дошли», а его
-# задают отдельно и редко. У долгой задачи журнал длиннее постановки, и возить его в каждом
-# чтении значит платить за то, что читают раз.
+# Closed journal entries are not here, only their count: they answer "how did we get here", which
+# is asked separately and rarely. A long task's journal outgrows its brief, and shipping it on
+# every read means paying for what is read once.
 #
-# Группа и родитель едут кодом И названием: страницу агент не открывает, а из кода названия не
-# добыть — пришлось бы звать ещё два инструмента ради двух строк текста.
+# The group and the parent travel as code AND title: the agent does not open the page, and a title
+# cannot be got from a code — it would have to call two more tools for two lines of text.
 class AgentTaskDetail(AgentScope):
     code: TaskCode
     title: str
@@ -292,7 +357,9 @@ class AgentTaskDetail(AgentScope):
     context: str = ""
     constraints: str = ""
     criteria: str = ""
-    body: str = ""
+    plan: str = ""
+    progress: str = ""
+    result: str = ""
     status: str
     priority: str
     type: str
@@ -307,13 +374,14 @@ class AgentTaskDetail(AgentScope):
     canceled_at: DatetimeUTCStr | None = None
     children: list[AgentTaskRow] = []
     stages: list[AgentStageRow] = []
-    open_notes: list[AgentNoteRow] = []
-    closed_notes: int = 0
+    open_entries: list[AgentJournalRow] = []
+    closed_entries: int = 0
     unfinished_stages: int = 0
+    notes: list[AgentTaskNoteRow] = []
 
 
-# Расписка о заведении: код и пространство, больше ничего. Эхо собственного ввода агент оплатил
-# бы на каждой заведённой строке, а знает он его и так.
+# A creation receipt: the code and the workspace, nothing more. The agent would pay for an echo of
+# its own input on every created row, and it knows that input already.
 class AgentTaskCreated(AgentScope):
     code: TaskCode
 
@@ -323,98 +391,114 @@ class AgentStageCreated(AgentScope):
     number: int
 
 
-class AgentNoteCreated(AgentScope):
-    code: NoteCode
+class AgentJournalCreated(AgentScope):
+    code: JournalCode
 
 
-# Ответ на смену статуса несёт не только новый статус, но и то, что ещё висит на задаче: это
-# единственный момент, когда агент про это думает. ``blocking_notes`` — те, что держат сдачу
-# (решение и замечание); ``open_notes`` шире на находки, которые разбирает человек.
+# A status change response carries not only the new status but also what still hangs on the
+# task: this is the one moment the agent thinks about it. ``blocking_entries`` are the open
+# journal entries the executor settles (decision and remark); ``open_entries`` additionally counts
+# findings, which the person triages. Neither refuses the hand-off — they are counted.
 class AgentTaskStatus(AgentScope):
     code: TaskCode
     status: str
-    open_notes: int = 0
-    blocking_notes: int = 0
+    open_entries: int = 0
+    blocking_entries: int = 0
     unfinished_stages: int = 0
 
 
-# Ответ правки этапа несёт статус ЗАДАЧИ рядом со статусом этапа: старт этапа задачу не двигает,
-# и без этой строки расхождение видно только тому, кто за ним следит.
+# A stage edit response carries the TASK status next to the stage status: starting a stage does
+# not move the task, and without this line the mismatch is visible only to whoever watches for it.
 class AgentStageChanged(AgentScope):
     stage: AgentStageRow
     task_code: TaskCode
     task_status: str
 
 
-class AgentNoteList(AgentScope):
-    notes: list[AgentNoteRow] = []
+class AgentJournalList(AgentScope):
+    entries: list[AgentJournalRow] = []
 
 
-# ── редактор тела ─────────────────────────────────────────────────────────────
-# Правка тела отвечает тем, чего агент ещё не знает. Присланный им текст назад не едет ни в
-# каком виде: он его только что написал, а платить за эхо пришлось бы на каждой правке.
+# ── content editor ────────────────────────────────────────────────────────────
+# A content edit answers with what the agent does not know yet. The text it sent does not come
+# back in any form: it has just written it, and an echo would cost on every edit. ``code`` and
+# ``field`` name what was edited, so a log of answers reads on its own.
 #
-# ``body_set`` — расписка: тело и есть присланный текст, шва там нет, и сообщить можно только
-# новую длину (заодно видно, сколько осталось до потолка — а потолок отказывает, не усекает).
-class AgentBodySet(BaseModel):
+# ``content_set`` is a receipt: the field is exactly the sent text, there is no seam, and all
+# there is to report is the new length (which also shows how much room is left below the cap — and
+# the cap refuses, it does not truncate).
+class AgentContentSet(BaseModel):
     code: str
+    field: str
     length: int
 
 
-# Шов — окно тела по обе стороны правки с заглушкой на месте текста. Он показывает ровно то, что
-# нельзя было предвидеть: во что вставка упёрлась слева и справа.
-class AgentBodyAdded(BaseModel):
+# A seam is a window of the field on both sides of the edit with a placeholder in place of the
+# text. It shows exactly what could not be foreseen: what the insertion butted against on the left
+# and on the right.
+class AgentContentAdded(BaseModel):
     code: str
+    field: str
     edit: str
 
 
-# ``replaced`` совпадает с длиной ``edits``: швы идут в порядке документа, по одному на вхождение.
-class AgentBodyReplaced(BaseModel):
+# ``replaced`` equals the length of ``edits``: seams come in document order, one per occurrence.
+class AgentContentReplaced(BaseModel):
     code: str
+    field: str
     replaced: int
     edits: list[str] = []
 
 
-# У правки раздела непредсказуем не стык, а размах выреза: границу считает сервер по уровню
-# заголовка. Поэтому ответ показывает вырезанное, его настоящую длину и заголовок, на котором
-# вырез остановился. Раздел, который считали коротким, вернувшийся длинным, — это вырез, ушедший
-# дальше, чем думали, и заметить это можно только здесь: вырезанное нигде не сохраняется.
-class AgentBodySectionSet(BaseModel):
+# For a section edit the unpredictable part is not the joint but the extent of the cut: the server
+# computes the boundary from the heading level. So the response shows what was removed, its real
+# length and the heading where the cut stopped. A section thought to be short that comes back long
+# is a cut that went further than intended, and this is the only place to notice it: the removed
+# text is not saved anywhere.
+class AgentContentSectionSet(BaseModel):
     code: str
+    field: str
     removed: str
     removed_length: int
     stopped_at: str | None = None
 
 
 __all__ = [
-    "AgentBodyAdded",
-    "AgentBodyReplaced",
-    "AgentBodySectionSet",
-    "AgentBodySet",
+    "AgentContentAdded",
+    "AgentContentReplaced",
+    "AgentContentSectionSet",
+    "AgentContentSet",
     "AgentGroupList",
     "AgentGroupRow",
-    "AgentNoteCreated",
-    "AgentNoteList",
-    "AgentNoteRow",
+    "AgentJournalCreated",
+    "AgentJournalList",
+    "AgentJournalRow",
     "AgentStageChanged",
     "AgentStageCreated",
     "AgentStageRow",
     "AgentTaskCreated",
     "AgentTaskDetail",
     "AgentTaskList",
+    "AgentTaskNote",
+    "AgentTaskNoteCreated",
+    "AgentTaskNoteRow",
+    "AgentTaskNoteUpdated",
     "AgentTaskRow",
     "AgentTaskStatus",
     "AgentTasksRegrouped",
     "GroupCode",
     "GroupListRow",
     "GroupRow",
+    "JournalCode",
+    "JournalRow",
     "NoteCode",
-    "NoteRow",
     "StageCode",
     "StageRow",
     "TaskCode",
     "TaskDetail",
     "TaskListRow",
+    "TaskNoteDetail",
+    "TaskNoteRow",
     "TaskRow",
     "WorkspaceCode",
 ]

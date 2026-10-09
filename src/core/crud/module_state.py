@@ -1,7 +1,7 @@
-"""CRUD для core_modules_state. Каждая функция открывает session_scope сама.
+"""CRUD for core_modules_state. Every function opens its own session_scope.
 
-Произвольное состояние модуля по ключу (module, code). Зеркало
-``crud/module_settings.py``, но value — JSONB (структура, а не typed-string).
+Arbitrary module state keyed by (module, code). Mirrors
+``crud/module_settings.py``, but value is JSONB (a structure, not a typed string).
 """
 
 from __future__ import annotations
@@ -53,7 +53,7 @@ async def get_value(module: str, code: str) -> Any | None:
 
 
 async def upsert(module: str, code: str, value: Any) -> None:
-    """INSERT … ON CONFLICT DO UPDATE: обновляет value+updated_at, created_at — только при первом INSERT."""
+    """INSERT … ON CONFLICT DO UPDATE: updates value+updated_at; created_at only on the first INSERT."""
     async with write_scope() as s:
         insert = _insert_for(s)
         now = utc_now()
@@ -72,7 +72,7 @@ async def upsert(module: str, code: str, value: Any) -> None:
 
 
 async def seed_if_absent(module: str, code: str, value: Any) -> bool:
-    """INSERT … ON CONFLICT DO NOTHING. Возвращает True, если строка создана."""
+    """INSERT … ON CONFLICT DO NOTHING. Returns True if the row was created."""
     async with write_scope() as s:
         insert = _insert_for(s)
         now = utc_now()

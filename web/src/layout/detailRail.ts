@@ -1,11 +1,13 @@
-// Что показывает колонка деталки — и кто это ей говорит.
+// What the detail page's rail shows — and who tells it.
 //
-// Сама колонка живёт в `DetailShell` и переживает переходы между деталками: при уходе на другой
-// артефакт меняется только содержимое справа, а плашка выхода, поиск и оглавление перестраиваются
-// на месте, не мигая. Значит, страница не рисует колонку, а ЗАПОЛНЯЕТ её — через этот реестр.
+// The rail itself lives in `DetailShell` and survives transitions between detail pages: moving to
+// another artifact changes only the content on the right, while the exit bar, search and table of
+// contents rebuild in place without flicker. So a page doesn't render the rail, it FILLS it —
+// through this registry.
 //
-// Строку поиска реестр не хранит: она принадлежит стору страницы (по ней же идёт фильтрация её
-// разделов), поэтому сюда приходит пара «текущее значение + как его записать».
+// The registry doesn't hold the search string: it belongs to the page's store (it also drives the
+// filtering of the page's sections), so what arrives here is a "current value + how to write it"
+// pair.
 import { onActivated, onDeactivated, onMounted, onUnmounted, ref, shallowRef, watchEffect } from 'vue'
 
 import type { NavSection } from '@/components/SectionNav.vue'
@@ -14,22 +16,23 @@ export interface DetailRailSearch {
   label: string
   value: string
   update: (query: string) => void
-  /** «Найдено элементов: N» — пусто, когда не ищут. */
+  /** "Items found: N" — empty when not searching. */
   summary: string
-  /** Подпись догоняющей половины поиска («ищу в текстах…») — пусто, когда искать больше негде.
-      Пока она есть, счётчик рядом промежуточный, и колесо рядом с ней об этом говорит. */
+  /** Label of the catching-up half of the search ("searching in texts…") — empty when there is
+      nowhere left to search. While it is there, the counter next to it is provisional, and the
+      spinner beside it says so. */
   pending?: string
 }
 
 export interface DetailRailConfig {
-  /** Запасной адрес выхода: ближайший родитель в дереве. */
+  /** Fallback exit address: the nearest parent in the tree. */
   parent: string
-  /** Имя запасного места — стоит на кнопке при заходе по прямой ссылке. */
+  /** Name of the fallback place — shown on the button when arriving via a direct link. */
   label: string
-  /** Код показанного объекта: в строке выхода появляется кнопка его копирования. Пусто, пока
-      страница грузится. */
+  /** Code of the shown object: a copy button for it appears in the exit row. Empty while the
+      page is loading. */
   code?: string
-  /** Страница показывает документ: в строке выхода появляется шестерёнка оформления. */
+  /** The page shows a document: an appearance gear appears in the exit row. */
   appearance?: boolean
   sections?: NavSection[]
   search?: DetailRailSearch
@@ -37,16 +40,16 @@ export interface DetailRailConfig {
 
 const config = shallowRef<DetailRailConfig | null>(null)
 
-/** Читает колонка. */
+/** Read by the rail. */
 export function detailRail() {
   return config
 }
 
 /**
- * Заполняет страница. Собранное значение пересчитывается само, пока страница на экране.
+ * Filled by the page. The built value recomputes itself while the page is on screen.
  *
- * Сверка с экраном обязательна: `KeepAlive` не размонтирует ушедшую вьюху, и её эффект
- * продолжал бы переписывать колонку данными чужой страницы поверх пришедшей.
+ * The on-screen check is mandatory: `KeepAlive` doesn't unmount a view that was left, and its
+ * effect would keep overwriting the rail with the old page's data on top of the new one.
  */
 export function useDetailRail(build: () => DetailRailConfig): void {
   const onScreen = ref(false)

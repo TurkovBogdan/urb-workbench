@@ -1,24 +1,25 @@
-"""Сбор изменений из сессии SQLAlchemy и их публикация после коммита.
+"""Collecting changes from the SQLAlchemy session and publishing them after commit.
 
-Источник — сама сессия, а не каждый CRUD по отдельности: все записи приложения идут через неё
-(``core/database/runtime.py::write_scope``), и объявленная сущность попадает в поток, как бы её ни
-меняли — из интерфейса, из MCP-инструмента агента или из фоновой задачи этого процесса.
+The source is the session itself, not each CRUD separately: every write in the application goes
+through it (``core/database/runtime.py::write_scope``), so a declared entity reaches the stream
+however it was changed — from the interface, from an agent's MCP tool, or from a background job
+in this process.
 
-Три хода:
+Three hooks:
 
-- ``after_flush`` — ORM-объекты: ``new`` → ``created``, ``dirty`` с настоящими изменениями →
-  ``updated``, ``deleted`` → ``deleted``. Ссылки берутся из текущих значений, а у изменённой строки
-  — ещё и из прежних: задача, переехавшая из группы в группу, касается обеих;
-- ``do_orm_execute`` — массовые ``update()`` / ``delete()``: объектов у них нет, известна только
-  таблица. Коды такой операции модуль передаёт явно (``mark_changes``); не передал — уходит событие
-  сущности с пустым ``ids``, и слушатель перечитывает всё своё. Забытая пометка стоит лишнего
-  запроса, а не устаревшего экрана;
-- ``after_commit`` — собранное за транзакцию уходит одним сообщением. Откат выбрасывает его:
-  события о том, чего в базе нет, не бывает.
+- ``after_flush`` — ORM objects: ``new`` → ``created``, ``dirty`` with real changes →
+  ``updated``, ``deleted`` → ``deleted``. Refs are taken from the current values, and for an
+  updated row from the previous ones too: a task moved from one group to another concerns both;
+- ``do_orm_execute`` — bulk ``update()`` / ``delete()``: they have no objects, only the table is
+  known. The module passes the codes of such an operation explicitly (``mark_changes``); if it
+  does not, an entity event with an empty ``ids`` goes out and the listener re-reads everything
+  it holds. A forgotten mark costs an extra request, not a stale screen;
+- ``after_commit`` — what was collected over the transaction goes out as one message. A rollback
+  discards it: there is never an event about something that is not in the database.
 
-Сообщение транзакции склеено по паре «сущность + событие»: задача, тронутая трижды, — один код.
-Созданное и тут же изменённое — только ``created``; созданное и удалённое в той же транзакции не
-существовало вовсе и не сообщается.
+A transaction's message is merged by the "entity + event" pair: a task touched three times is
+one code. Created and then updated is only ``created``; created and deleted in the same
+transaction never existed at all and is not reported.
 """
 
 from __future__ import annotations
@@ -44,7 +45,7 @@ UPDATED = "updated"
 DELETED = "deleted"
 EVENTS = (CREATED, UPDATED, DELETED)
 
-# Имя SSE-события, которым уходит сообщение транзакции.
+# The feed event name a transaction's message is sent under.
 MESSAGE_EVENT = "changes"
 
 _INFO_KEY = "core_changes.pending"
@@ -58,14 +59,14 @@ class _Group:
 
 @dataclass
 class _Pending:
-    """Собранное за одну транзакцию сессии."""
+    """What was collected over one session transaction."""
 
     groups: dict[tuple[str, str], _Group] = field(default_factory=dict)
-    # Массовые операции, для которых кодов может не прийти: (сущность, событие).
+    # Bulk operations for which codes may never arrive: (entity, event).
     bulk: set[tuple[str, str]] = field(default_factory=set)
-    # Что пришло явной пометкой — страховка массовой операции тогда не нужна.
+    # What arrived as an explicit mark — the bulk-operation fallback is then not needed.
     marked: set[tuple[str, str]] = field(default_factory=set)
-    # Вкладка, сделавшая правку (``origin.py``); ``None`` — не вкладка: агент, фоновая задача.
+    # The tab that made the edit (``origin.py``); ``None`` — not a tab: the agent, a background job
     origin: str | None = None
 
     def add(self, name: str, event_name: str, ids: Iterable[str], refs: Iterable[str] = ()) -> None:
@@ -79,7 +80,7 @@ class _Pending:
         for name in sorted(names):
             created = set(self._group(name, CREATED).ids)
             deleted = set(self._group(name, DELETED).ids)
-            # Родилось и умерло в одной транзакции — снаружи этого не было.
+            # Born and died within one transaction — from the outside it never happened.
             ghosts = created & deleted
             ids = {
                 CREATED: created - ghosts,
@@ -105,9 +106,9 @@ def _item(name: str, event_name: str, ids: Iterable[str], refs: Iterable[str]) -
 
 
 def _pending(session: Session) -> _Pending:
-    # Источник читается при первой записи транзакции: сессия живёт внутри одного запроса, и его
-    # переменная контекста доходит сюда (обработчики событий SQLAlchemy async зовёт в greenlet,
-    # унаследовавшем контекст вызвавшей задачи — это проверяет ``test_origin``).
+    # The origin is read on the transaction's first write: the session lives inside one request,
+    # and its context variable reaches here (SQLAlchemy async calls event handlers in a greenlet
+    # that inherited the calling task's context — ``test_origin`` checks this).
     pending = session.info.get(_INFO_KEY)
     if pending is None:
         pending = session.info[_INFO_KEY] = _Pending(origin=current_origin.get())
@@ -133,8 +134,8 @@ def _refs(entity: ChangeEntity, obj: object, *, with_previous: bool) -> set[str]
 
 
 def _after_flush(session: Session, _flush_context: object) -> None:
-    # До ``after_flush`` списки new/dirty/deleted и история атрибутов ещё описывают только что
-    # сброшенное — позже сессия их очистит.
+    # Up to ``after_flush`` the new/dirty/deleted lists and the attribute history still describe
+    # what was just flushed — later the session clears them.
     for event_name, objects, previous in (
         (CREATED, session.new, False),
         (UPDATED, session.dirty, True),
@@ -177,13 +178,15 @@ def _after_rollback(session: Session) -> None:
 
 
 def mark_changes(session: object, entity: str, event_name: str, codes: Iterable[str]) -> None:
-    """Назвать коды, которые тронула массовая операция (``update()`` / ``delete()`` без объектов).
+    """Name the codes a bulk operation touched (``update()`` / ``delete()`` without objects).
 
-    Зовётся рядом с самой операцией, внутри той же транзакции: ``session`` — сессия из
-    ``write_scope``. Коды голые, как в базе; префикс ставит объявление сущности.
+    Called next to the operation itself, inside the same transaction: ``session`` is the session
+    from ``write_scope``. Codes are bare, as in the database; the entity declaration adds the
+    prefix.
 
-    Необъявленная сущность — не ошибка, а «не в потоке»: CRUD зовёт пометку всегда, а объявляет
-    сущность ``configure()`` модуля, которого в голом прогоне CRUD (тесты модуля) нет вовсе.
+    An undeclared entity is not an error but "not in the stream": the CRUD always calls the mark,
+    while the entity is declared by the module's ``configure()``, which does not run at all in a
+    bare CRUD run (the module's tests).
     """
     if event_name not in EVENTS:
         raise ValueError(f"Unknown change event {event_name!r}; expected one of {EVENTS}")
@@ -201,7 +204,7 @@ _installed = False
 
 
 def install() -> None:
-    """Подписаться на события всех сессий. Повторный вызов (пересборка приложения) ничего не делает."""
+    """Subscribe to the events of all sessions. A repeat call (app rebuild) does nothing."""
     global _installed
     if _installed:
         return

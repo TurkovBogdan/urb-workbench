@@ -1,15 +1,15 @@
-"""Каталог навыков — справка, которую агент забирает по требованию, а не носит в контексте.
+"""Skill catalogue — reference the agent fetches on demand instead of carrying it in context.
 
-Навык — папка ``skills/<name>/`` с файлом ``SKILL.md`` и необязательными разделами
-``sections/<section>.md``. Три уровня раскрытия: имя с условием вызова стоит десяток токенов,
-тело приезжает под задачу, раздел — под ветку задачи.
+A skill is a ``skills/<name>/`` folder with a ``SKILL.md`` file and optional sections
+``sections/<section>.md``. Three levels of disclosure: the name with its trigger condition costs
+a dozen tokens, the body arrives for a task, a section for a branch of the task.
 
-Справка лежит файлами в самом модуле и версионируется тем же коммитом, что и код, который
-описывает. Разъехавшаяся справка вреднее отсутствующей: агент считает её авторитетной и
-уверенно делает по ней не то.
+The reference lives as files inside the module and is versioned in the same commit as the code
+it describes. Reference that has drifted is worse than none: the agent treats it as
+authoritative and confidently does the wrong thing by it.
 
-Имя навыка приходит от агента, поэтому путь из него не склеивается: открываем только те папки,
-которые нашли на диске сами.
+The skill name comes from the agent, so no path is assembled from it: we open only the folders
+we found on disk ourselves.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ _FRONTMATTER_FENCE = "---"
 
 @dataclass(frozen=True)
 class SkillSummary:
-    """Строка каталога — всё, кроме текста."""
+    """A catalogue row — everything but the text."""
 
     name: str
     description: str
@@ -35,7 +35,7 @@ class SkillSummary:
 
 @dataclass(frozen=True)
 class SkillPage:
-    """Прочитанный навык: тело целиком или один раздел (``section`` пуст у целого)."""
+    """A skill as read: the whole body or one section (``section`` is empty for the whole)."""
 
     name: str
     section: str
@@ -62,7 +62,7 @@ def _section_files(skill_dir: Path) -> dict[str, Path]:
 
 
 def _split_frontmatter(raw: str) -> tuple[str, str]:
-    """Отделить ``description`` фронтматтера от тела; без фронтматтера — пустое описание."""
+    """Split the frontmatter ``description`` from the body; no frontmatter — empty description."""
     if not raw.startswith(_FRONTMATTER_FENCE):
         return "", raw
     _, _, after_opening = raw.partition("\n")
@@ -82,7 +82,7 @@ def _read_skill_file(skill_dir: Path) -> tuple[str, str]:
 
 
 def list_skills() -> list[SkillSummary]:
-    """Каталог: имя, условие вызова, имена разделов — без текстов."""
+    """The catalogue: name, trigger condition, section names — without the texts."""
     catalogue = []
     for name, skill_dir in _skill_dirs().items():
         description, _ = _read_skill_file(skill_dir)
@@ -95,7 +95,7 @@ def list_skills() -> list[SkillSummary]:
 
 
 def read_skill(skill_name: str, section: str | None = None) -> SkillPage:
-    """Навык целиком или один его раздел; неизвестное имя — отказ со списком доступных."""
+    """A whole skill or one of its sections; an unknown name is refused with the available list."""
     skill_dirs = _skill_dirs()
     skill_dir = skill_dirs.get(skill_name)
     if skill_dir is None:

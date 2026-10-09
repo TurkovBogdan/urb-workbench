@@ -1,17 +1,17 @@
 <script setup lang="ts">
-// Этапы плана: полотно шагов задачи со своим состоянием и доказательством выполнения.
+// Plan stages: the board of a task's steps, each with its own state and evidence of completion.
 //
-// Правится на месте, как и вся деталка: строка разворачивается, поля уезжают по уходу из них.
-// Кнопки сохранения нет — её нет и у самой задачи, и второй порядок работы на одной странице
-// читался бы как ошибка.
+// Edited in place, like the whole detail page: a row expands, fields are sent on leaving them.
+// There is no save button — the task itself has none either, and a second way of working on one
+// page would read as a bug.
 //
-// ЗАКРЫТЬ ЭТАП БЕЗ ДОКАЗАТЕЛЬСТВА НЕЛЬЗЯ — это правило бэка, и интерфейс его не дублирует
-// проверкой, а показывает: пока `evidence` пуст, кнопка «Готово» заперта и объясняет почему.
-// Продублируй мы проверку здесь, у одного правила стало бы два места, и разошлись бы они в первый
-// же день.
+// A STAGE CANNOT BE CLOSED WITHOUT EVIDENCE — this is a backend rule, and the UI does not duplicate
+// it with a check but shows it: while `evidence` is empty, the "Done" button is locked and explains
+// why. Were we to duplicate the check here, one rule would live in two places, and they would
+// diverge on day one.
 import { computed, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { IconChevronRight, IconPlus, IconTrash } from '@tabler/icons-vue'
+import { IconChevronRight, IconTrash } from '@tabler/icons-vue'
 
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { MarkdownEditor } from '@/components/markdown/editor'
@@ -25,6 +25,7 @@ import {
   type StageRow,
 } from '../api'
 import { TASK_BRIEF_FEATURES, TASK_DOCUMENT_FEATURES } from '../editor'
+import CollectionHeader from './CollectionHeader.vue'
 import {
   BODY_MAX,
   STAGE_EVIDENCE_MAX,
@@ -37,7 +38,7 @@ import {
 const props = defineProps<{
   taskCode: string
   stages: StageRow[]
-  /** Задача в корзине: править нечего, показываем как есть. */
+  /** The task is in the trash: nothing to edit, shown as is. */
   disabled?: boolean
 }>()
 
@@ -55,7 +56,7 @@ const statusItems = computed(() =>
   TASK_STATUSES.map((value) => ({ value, title: t(`tasks.task.status.${value}`) })),
 )
 
-/** Развернуть строку или свернуть её же: второй клик по открытой закрывает. */
+/** Expand a row or collapse the same one: a second click on the open row closes it. */
 function toggle(code: string) {
   open.value = open.value === code ? null : code
 }
@@ -84,10 +85,10 @@ async function add() {
   })
 }
 
-// ── Набранное, но ещё не отправленное ─────────────────────────────────────────
-// Поля уезжают по уходу из них, а у редактора разметки значение приходит событием, не лежит в
-// DOM: прочитать его в момент blur, как у `VTextarea`, неоткуда. Поэтому последнее набранное
-// копится здесь по паре «этап + поле», а blur его забирает.
+// ── Typed but not yet sent ────────────────────────────────────────────────────
+// Fields are sent on leaving them, but the markdown editor delivers its value via an event, it is
+// not in the DOM: there is nowhere to read it from at blur time, as with `VTextarea`. So the last
+// typed value accumulates here per "stage + field" pair, and blur picks it up.
 type MarkdownField = 'description' | 'body' | 'evidence'
 
 const pending = reactive<Record<string, Partial<Record<MarkdownField, string>>>>({})
@@ -99,8 +100,8 @@ function stash(stage: StageRow, field: MarkdownField, value: string): void {
 function flush(stage: StageRow, field: MarkdownField): void {
   const value = pending[stage.code]?.[field]
   delete pending[stage.code]?.[field]
-  // Неизменившееся не отправляем: уход из поля, в котором ничего не набрали, не должен
-  // выглядеть правкой — ни в журнале изменений, ни по времени обновления задачи.
+  // Unchanged values are not sent: leaving a field where nothing was typed must not look like an
+  // edit — neither in the change log nor in the task's update time.
   if (value === undefined || value === stage[field]) return
   void patch(stage, { [field]: value })
 }
@@ -138,16 +139,24 @@ async function remove() {
 </script>
 
 <template>
-  <div class="stages">
+  <section class="stages">
+    <CollectionHeader
+      :title="t('tasks.stage.section')"
+      :hint="t('tasks.stage.hint')"
+      :add-label="props.disabled ? undefined : t('tasks.stage.add')"
+      :adding="busy"
+      :empty="!props.stages.length && !error"
+      class="stages__header"
+      @add="add"
+    />
+
     <VAlert v-if="error" type="error" variant="tonal" density="compact" class="stages__error">
       {{ error }}
     </VAlert>
 
-    <p v-if="!props.stages.length" class="stages__empty">{{ t('tasks.stage.empty') }}</p>
-
     <div v-for="stage in props.stages" :key="stage.code" class="stage" :class="{ 'stage--open': open === stage.code }">
-      <!-- Свёрнутая строка отвечает на три вопроса разом: который по счёту, в каком состоянии и
-           о чём. Разворачивают её ради правки и доказательства — то есть редко. -->
+      <!-- A collapsed row answers three questions at once: which number, in what state and about
+           what. It is expanded for editing and evidence — that is, rarely. -->
       <button type="button" class="stage__head" @click="toggle(stage.code)">
         <IconChevronRight :size="14" :stroke-width="1.8" class="stage__chevron" />
         <span class="stage__number">{{ stage.number }}</span>
@@ -168,8 +177,8 @@ async function remove() {
           @blur="(event: FocusEvent) => patch(stage, { title: (event.target as HTMLInputElement).value })"
         />
 
-        <!-- Цель этапа — фраза, поэтому простой режим: заголовку или таблице в ней взяться
-             неоткуда, и схема их не знает. -->
+        <!-- A stage goal is a phrase, hence simple mode: a heading or table has no place in it, and
+             the schema does not know them. -->
         <MarkdownEditor
           :model-value="stage.description"
           :label="t('tasks.stage.description')"
@@ -181,8 +190,7 @@ async function remove() {
           @blur="flush(stage, 'description')"
         />
 
-        <!-- Тело этапа — такой же документ, как план задачи, и потолок у них общий: в бэке это
-             одна колонка `BODY_MAX`. -->
+        <!-- A stage body is the same kind of document as the task plan: one step of it. -->
         <MarkdownEditor
           :model-value="stage.body"
           :label="t('tasks.stage.body')"
@@ -194,9 +202,9 @@ async function remove() {
           @blur="flush(stage, 'body')"
         />
 
-        <!-- Доказательство — указатель, а не рассказ: подпись под полем говорит, что сюда кладут,
-             потому что по имени поля это не угадывается. Отсюда и состав: перечень со строчной
-             разметкой, без разделов и таблиц. -->
+        <!-- Evidence is a pointer, not a story: the hint under the field says what goes here,
+             because the field name does not reveal it. Hence the feature set: a list with inline
+             markup, no sections or tables. -->
         <MarkdownEditor
           :model-value="stage.evidence"
           :label="t('tasks.stage.evidence')"
@@ -236,11 +244,6 @@ async function remove() {
       </div>
     </div>
 
-    <VBtn variant="text" size="small" :disabled="props.disabled || busy" @click="add">
-      <template #prepend><IconPlus :size="16" /></template>
-      {{ t('tasks.stage.add') }}
-    </VBtn>
-
     <ConfirmDialog
       v-model="removeOpen"
       :title="t('tasks.stage.remove_title')"
@@ -249,7 +252,7 @@ async function remove() {
       :loading="busy"
       @confirm="remove"
     />
-  </div>
+  </section>
 </template>
 
 <style scoped>
@@ -260,13 +263,8 @@ async function remove() {
   align-items: flex-start;
 }
 
+.stages__header,
 .stages__error { align-self: stretch; }
-
-.stages__empty {
-  margin: 0;
-  font-size: 13px;
-  color: var(--text-muted);
-}
 
 .stage {
   align-self: stretch;
@@ -277,7 +275,7 @@ async function remove() {
 
 .stage--open { border-color: var(--border-strong, var(--border)); }
 
-/* Шапка — вся строка кликабельна: попадать в маленький шеврон при плотном списке неудобно. */
+/* The whole header row is clickable: hitting a tiny chevron in a dense list is awkward. */
 .stage__head {
   display: flex;
   align-items: center;
@@ -298,7 +296,7 @@ async function remove() {
 
 .stage--open .stage__chevron { transform: rotate(90deg); }
 
-/* Номер моноширинным: столбец номеров читается сверху вниз, а не пляшет по ширине цифр. */
+/* Monospaced number: the column of numbers reads top to bottom instead of jumping with digit width. */
 .stage__number {
   font-family: var(--font-mono);
   font-size: 12px;
@@ -317,7 +315,7 @@ async function remove() {
   white-space: nowrap;
 }
 
-/* Пометка о доказательстве — не текст, а признак: сам указатель длинный и в строку не поместится. */
+/* The evidence mark is a flag, not the text: the pointer itself is long and will not fit the row. */
 .stage__evidence-mark {
   font-size: 11px;
   color: var(--success);

@@ -179,7 +179,7 @@ const usageSnippet = `<!-- A section inside a page: the level sets both the <h*>
   flex-wrap: wrap;
   gap: 8px;
 }
-/* Заголовок занимает всю ширину колонки: он и есть предмет показа, а не элемент в ряду. */
+/* The header takes the full column width: it is the subject of the demo, not an item in a row. */
 .ds-controls--block { display: block; }
 
 .ds-note {

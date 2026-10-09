@@ -1,15 +1,15 @@
-// Ref, переживающий перезагрузку страницы: значение лежит в localStorage, в состоянии — обычный
-// типизированный ref, а перевод между ними делает кодек.
+// A ref that survives a page reload: the value lives in localStorage, the state is a plain typed
+// ref, and a codec translates between them.
 //
-// Значение, равное умолчанию, НЕ пишется (ключ удаляется): в хранилище остаются только
-// осознанные отклонения, и смена умолчания в коде доезжает до всех, кто его не трогал.
+// A value equal to the default is NOT written (the key is removed): storage keeps only deliberate
+// deviations, and a change of the default in code reaches everyone who didn't touch it.
 //
-// Живёт отдельно от `stores/settings`, потому что домов у такого ref'а два: настройки человека и
-// состояние интерфейсов (`stores/ui-state`). Общий помощник в одном из них означал бы, что второй
-// импортирует чужой стор ради строчки кода.
+// Lives apart from `stores/settings` because such a ref has two homes: the person's settings and
+// interface state (`stores/ui-state`). A shared helper in one of them would mean the other imports
+// a foreign store for one line of code.
 //
-// Настройки интерфейса берут отсюда `synced` (соседний файл): там же хранилище становится кешем
-// поверх базы. Здесь остаётся то, что живёт только в браузере.
+// Interface settings take `synced` from here (the neighbouring file): there storage becomes a
+// cache on top of the database. What stays here is what lives only in the browser.
 import { ref, watch, type Ref } from 'vue'
 
 export interface Codec<T> {

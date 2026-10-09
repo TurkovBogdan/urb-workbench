@@ -1,20 +1,20 @@
 /**
- * Ожидание перезапуска: сначала бэкенд должен пропасть, и только потом — ответить.
+ * Waiting for a restart: first the backend must disappear, and only then answer again.
  *
- * Ждать одного «ответил» нельзя: между ответом на запуск и остановкой процессов проходят
- * секунды (`uv run`, опрос remote), и опрос попал бы в ещё живой СТАРЫЙ бэкенд — страница
- * перезагрузилась бы, чтобы через мгновение упасть вместе с ним.
+ * Waiting for "answered" alone won't do: seconds pass between the reply to the start call and the
+ * processes stopping (`uv run`, polling the remote), and the poll would hit the still-alive OLD
+ * backend — the page would reload only to fall over with it a moment later.
  *
- * Клиент API здесь не годится: его отказы в это время — нормальный ход событий, а не ошибки,
- * которые стоит показывать. Отсюда голый `fetch`, тихо глотающий отказы.
+ * The API client is no good here: its failures during this time are the normal course of events,
+ * not errors worth showing. Hence a bare `fetch` that silently swallows failures.
  */
 
 const HEALTH_URL = `${import.meta.env.VITE_API_BASE ?? ''}/internal/health`
 
 const POLL_INTERVAL_MS = 2000
-/** Сколько ждём исчезновения. Не дождались — значит команда отказалась, не тронув процессы. */
+/** How long to wait for it to go away. If it doesn't, the command refused without touching processes. */
 const DISAPPEARANCE_BUDGET_MS = 90 * 1000
-/** Полная последовательность: остановка, sync, копия базы, миграции, старт. */
+/** The full sequence: stop, sync, database copy, migrations, start. */
 const RETURN_BUDGET_MS = 15 * 60 * 1000
 
 export async function waitForRestart(): Promise<boolean> {
@@ -24,7 +24,7 @@ export async function waitForRestart(): Promise<boolean> {
   return waitUntil(backendIsServing, RETURN_BUDGET_MS)
 }
 
-/** «Жив» — это `ok`: деградировавший бэкенд отвечает 200 и заглушкой, перезагружать рано. */
+/** "Alive" means `ok`: a degraded backend answers 200 with a stub, too early to reload. */
 async function backendIsServing(): Promise<boolean> {
   try {
     const response = await fetch(HEALTH_URL, { cache: 'no-store' })

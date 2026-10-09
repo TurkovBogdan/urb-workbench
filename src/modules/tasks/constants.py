@@ -1,70 +1,97 @@
-"""Константы модуля ``tasks`` — длина кода, префиксы, размеры полей и справочники значений.
+"""Constants of the ``tasks`` module — code length, prefixes, field sizes and value vocabularies.
 
-Единый источник для трёх мест, которые обязаны совпадать: ORM-модель (``String(n)`` +
-``CheckConstraint``), миграция (``sa.CheckConstraint``) и усечение в CRUD (``text.clip``).
-Разъехались бы они — расхождение всплыло бы только на PostgreSQL: SQLite ширину ``VARCHAR``
-не проверяет вовсе.
+The single source for three places that must agree: the ORM model (``String(n)`` +
+``CheckConstraint``), the migration (``sa.CheckConstraint``) and truncation in CRUD
+(``text.clip``). If they drifted apart, the mismatch would surface only on PostgreSQL: SQLite does
+not check ``VARCHAR`` width at all.
 
-Справочники (``TASK_STATUSES`` и соседи) — **кортежи строк, а не нативный enum БД**. Причина
-ровно одна: миграции катятся и на SQLite (dev, zero-install), и на PostgreSQL, а ``CREATE TYPE``
-на SQLite не существует. Побочная выгода — новое значение статуса добавляется правкой кортежа и
-одного ``CHECK``, без ``ALTER TYPE`` и без переливки таблицы.
+The vocabularies (``TASK_STATUSES`` and its neighbours) are **tuples of strings, not a native DB
+enum**. There is exactly one reason: migrations run on both SQLite (dev, zero-install) and
+PostgreSQL, and ``CREATE TYPE`` does not exist on SQLite. A side benefit — a new status value is
+added by editing the tuple and one ``CHECK``, with no ``ALTER TYPE`` and no table rebuild.
 
-Лимиты текста едины на весь модуль: ``title`` и ``description`` — это строки, по которым человек
-и агент просматривают список, а не текст (текст живёт в ``body`` без лимита).
+Text limits are uniform across the module: ``title`` and ``description`` are the lines a person
+and an agent scan a list by, not prose (prose lives in ``body`` with no limit).
 """
 
 from __future__ import annotations
 
-# ── presentation code prefixes (граница, НЕ хранилище — см. tasks.codes) ──
-# В базе лежит голый hex-код; тип-слово надевается на выходе и снимается на входе.
-# Префикса пространства здесь нет: сущность принадлежит модулю ``workspace``, и тип-слово к ней
-# берётся оттуда (``workspace.constants.WORKSPACE_CODE_PREFIX``). Своя копия разошлась бы с
-# оригиналом ровно в тот день, когда владелец своё слово переименует.
-GROUP_CODE_PREFIX = "GROUP"
+from src.modules.notes.constants import NOTE_CODE_PREFIX as NOTES_CODE_PREFIX
+
+# ── presentation code prefixes (the boundary, NOT storage — see tasks.codes) ──
+# The DB holds a bare hex code; the type word is put on at output and stripped at input.
+# There is no workspace prefix here: that entity belongs to the ``workspace`` module, and its type
+# word is taken from there (``workspace.constants.WORKSPACE_CODE_PREFIX``). A local copy would
+# drift from the original the very day the owner renames its word.
+# A task group is ``TASKGROUP``, not a bare ``GROUP``: an agent connected to several MCP servers
+# meets more than one kind of group, and a code that names its own system is refused as the wrong
+# type instead of being looked up and reported "not found".
+GROUP_CODE_PREFIX = "TASKGROUP"
 TASK_CODE_PREFIX = "TASK"
 STAGE_CODE_PREFIX = "STAGE"
-NOTE_CODE_PREFIX = "NOTE"
+JOURNAL_CODE_PREFIX = "JOURNAL"
+# A task note is a document of the ``notes`` module linked to a task; its code is that module's.
+NOTE_CODE_PREFIX = NOTES_CODE_PREFIX
 
-# Длина кода сущности в hex-символах. Код агент перепечатывает в каждый вызов и платит за него
-# токенами: 10 знаков вместо 22 экономят ~6.8 токена на ссылку. Короче нельзя — на 8 знаках
-# опечатка в один символ попадает в живую строку раз на 3600, на 10 — раз на 733000.
-# Совпадает с ``workspace.constants.CODE_LEN``: код пространства лежит в наших колонках, и
-# разная ширина под один код — это будущая усечённая ссылка.
+# Retired type words still accepted on input, mapped to the current one. Codes already written into
+# task bodies, journals and agents' notes keep resolving; output never uses them.
+# ``NOTE`` is not here although it was the journal's word until 2026-10-09: it now names a task
+# note, and an old journal code is told apart by a lookup (``crud.journal.retired_note_refusal``).
+LEGACY_CODE_PREFIXES = {"GROUP": GROUP_CODE_PREFIX}
+
+# Entity code length in hex characters. The agent retypes the code into every call and pays for it
+# in tokens: 10 characters instead of 22 save ~6.8 tokens per reference. It cannot be shorter — at
+# 8 characters a one-character typo hits a live row once in 3600, at 10 once in 733000.
+# Matches ``workspace.constants.CODE_LEN``: the workspace code is stored in our columns, and
+# different widths for one code are a future truncated reference.
 CODE_LEN = 10
 
-# ── размеры текстовых колонок ──
-# Триада одинакова у всех сущностей модуля: ``title`` — название, ``description`` — что это и
-# зачем (по этим двум агент решает, читать ли дальше), ``body`` — тело в markdown.
+# ── text column sizes ──
+# The triad is the same for every entity in the module: ``title`` is the name, ``description`` is
+# what it is and why (by these two the agent decides whether to read on), ``body`` is the markdown
+# body.
 TITLE_MAX = 128
 DESCRIPTION_MAX = 512
+# A group's description is a one-line boundary under its name in every list card, not a goal: a
+# paragraph there pushes the tasks below the fold. Refused over the limit rather than cut.
+GROUP_DESCRIPTION_MAX = 128
+# The body of a stage. A task has no ``body`` of its own: its text is the brief and the work fields
+# below.
 BODY_MAX = 8192
 COLOR_MAX = 32
 ICON_MAX = 64
-# Постановка задачи: детали, границы и требования к сдаче.
+# Task brief: details, boundaries and acceptance requirements. Constraints and criteria are lists —
+# each criterion carries what proves it — and 1024 cut a real brief short (``tsm_008``).
 CONTEXT_MAX = 4048
-CONSTRAINTS_MAX = 1024
-CRITERIA_MAX = 1024
-# Указатель на доказательство выполнения этапа. Тесен намеренно: вывод команды сюда не влезает,
-# и писать в него рассказ вместо ссылки не выйдет.
+CONSTRAINTS_MAX = 2048
+CRITERIA_MAX = 2048
+# The agent's work on a task, three fields in the order the work goes: the plan written before the
+# code changes, the progress diary kept along the way, the result written at hand-over. Each
+# answers its own question — intent, course, outcome — and sections inside one field would blur
+# them. ``PROGRESS_MAX`` is provisional: the live journal puts 90% of tasks under 8.7k of entries.
+PLAN_MAX = 8192
+PROGRESS_MAX = 16384
+RESULT_MAX = 2048
+# Pointer to the evidence that a stage is done. Tight on purpose: command output does not fit, and
+# writing a story instead of a reference will not work.
 EVIDENCE_MAX = 1024
-# Журнал: предмет записи и её разрешение.
-NOTE_BODY_MAX = 2048
+# Journal: the subject of an entry and its resolution.
+JOURNAL_BODY_MAX = 2048
 RESOLUTION_MAX = 1024
-# Ширина колонок, хранящих значение из справочника ниже (статус/приоритет/тип/актор). Самое
-# длинное значение — ``in_progress`` (11), запас на одно-два будущих слова.
+# Width of columns holding a value from the vocabularies below (status/priority/type/actor). The
+# longest value is ``in_progress`` (11), with room for a future word or two.
 ENUM_VALUE_MAX = 16
 
-# ── позиции в списке ──
-# Больший ``sort`` = выше. Ненулевое стартовое значение, чтобы первую строку можно было двинуть
-# и вверх, и вниз, не перенумеровывая соседей; шаг 5 оставляет место для четырёх вставок между
-# любыми двумя соседями без переупорядочивания всего списка.
+# ── list positions ──
+# Higher ``sort`` = higher up. A non-zero starting value, so the first row can be moved both up
+# and down without renumbering its neighbours; a step of 5 leaves room for four insertions between
+# any two neighbours without reordering the whole list.
 SORT_DEFAULT = 500
 SORT_STEP = 5
 
-# ── статусы ──
-# Один справочник на задачу и на этап плана: два набора значений в одном модуле разъехались бы,
-# и читателю пришлось бы держать в голове, какой где. Отличаются только умолчания.
+# ── statuses ──
+# One vocabulary for the task and the plan stage: two value sets in one module would drift apart,
+# and the reader would have to keep in mind which is which. Only the defaults differ.
 STATUS_BACKLOG = "backlog"
 STATUS_PLANNED = "planned"
 STATUS_IN_PROGRESS = "in_progress"
@@ -82,13 +109,14 @@ TASK_STATUSES = (
     STATUS_CANCELED,
 )
 TASK_STATUS_DEFAULT = STATUS_BACKLOG
-# Этап заводят уже назначенным: он часть плана, а не идея на будущее, и очередь ему задаёт номер.
+# A stage is created already planned: it is part of the plan, not an idea for later, and its
+# number sets its place in the queue.
 STAGE_STATUS_DEFAULT = STATUS_PLANNED
-# Терминальные статусы: работа окончена (успехом или отказом) и обратно сама не поедет. Нужны
-# там, где «активное» отделяется от истории, — и у задачи, и у этапа.
+# Terminal statuses: the work is over (succeeded or abandoned) and will not move back on its own.
+# Needed wherever "active" is separated from history — for both the task and the stage.
 TASK_STATUSES_TERMINAL = (STATUS_DONE, STATUS_CANCELED)
 
-# ── приоритеты задачи ──
+# ── task priorities ──
 PRIORITY_BURNING = "burning"
 PRIORITY_HIGH = "high"
 PRIORITY_NORMAL = "normal"
@@ -102,9 +130,9 @@ TASK_PRIORITIES = (
     PRIORITY_FROZEN,
 )
 TASK_PRIORITY_DEFAULT = PRIORITY_NORMAL
-# Вес для сортировки: меньший вес = важнее (``ORDER BY weight ASC`` ставит горящее наверх).
-# Сортировать по самому слову нельзя — алфавит про важность ничего не знает. Шаг 10 оставляет
-# место новому приоритету между любыми двумя соседними.
+# Sort weight: lower weight = more important (``ORDER BY weight ASC`` puts burning on top).
+# Sorting by the word itself is impossible — the alphabet knows nothing about importance. A step of
+# 10 leaves room for a new priority between any two neighbours.
 TASK_PRIORITY_WEIGHTS = {
     PRIORITY_BURNING: 10,
     PRIORITY_HIGH: 20,
@@ -113,52 +141,66 @@ TASK_PRIORITY_WEIGHTS = {
     PRIORITY_FROZEN: 50,
 }
 
-# ── тип задачи ──
-# Глубина ведения, а не место в иерархии: контейнером задача становится от наличия детей.
-# Три уровня, и каждый следующий добавляет ровно один способ вести работу:
+# ── task type ──
+# Depth of tracking, not a place in the hierarchy: a task becomes a container by having children.
+# Three levels, each adding exactly one way of tracking the work:
 #
-#   simple    — заголовок и цель. Ни постановки, ни плана; часто это задача человеку.
-#   standard  — постановка (контекст, границы, критерии), план прозой и журнал работы.
-#   extended  — плюс ЭТАПЫ: работа разбита на шаги, каждый со своим состоянием и
-#               доказательством выполнения.
+#   simple    — title, goal and context (what to know before starting). No constraints,
+#               criteria, plan or journal; often a task for the person.
+#   standard  — plus constraints and criteria (the full brief), a prose plan and a work journal.
+#   extended  — plus STAGES: the work is split into steps, each with its own state and
+#               evidence of completion.
 #
-# Граница между standard и extended проходит именно по этапам, а не по «плотности ведения»
-# вообще: план прозой отвечает на вопрос «как я это сделаю», этапы — на «где я сейчас и чем
-# доказано пройденное». Второй вопрос осмыслен только у работы, которая длится дольше одного
-# захода, и навязывать его обычной задаче значит требовать церемонии там, где хватает абзаца.
+# The line between standard and extended runs exactly along stages, not along "tracking density"
+# in general: a prose plan answers "how will I do this", stages answer "where am I now and what
+# proves what is done". The second question only makes sense for work lasting longer than one
+# session, and forcing it on an ordinary task demands ceremony where a paragraph is enough.
 TYPE_SIMPLE = "simple"
 TYPE_STANDARD = "standard"
 TYPE_EXTENDED = "extended"
 TASK_TYPES = (TYPE_SIMPLE, TYPE_STANDARD, TYPE_EXTENDED)
 TASK_TYPE_DEFAULT = TYPE_SIMPLE
-# Типы с постановкой, планом и журналом — всё, кроме простой.
+# Types with a brief, a plan and a journal — everything except simple.
 TASK_TYPES_WITH_PLAN = (TYPE_STANDARD, TYPE_EXTENDED)
-# Типы с этапами — только расширенная. Отдельный кортеж, а не срез предыдущего: это два разных
-# правила, и склеить их значит однажды сдвинуть оба, меняя одно.
+# Types with stages — extended only. A separate tuple, not a slice of the previous one: these are
+# two different rules, and gluing them together means one day shifting both while changing one.
 TASK_TYPES_WITH_STAGES = (TYPE_EXTENDED,)
 
-# ── тип записи журнала ──
-# Что описывает строка. Порядок от частого к редкому: первое значение перечисления агент
-# выбирает заметно чаще прочих, и частый вид должен стоять раньше редкого.
-NOTE_DECISION = "decision"
-NOTE_REMARK = "remark"
-NOTE_FINDING = "finding"
-NOTE_FACT = "fact"
-NOTE_TYPES = (NOTE_DECISION, NOTE_REMARK, NOTE_FINDING, NOTE_FACT)
-# Виды, которые вообще бывают открытыми. ``fact`` закрыт в момент записи — он ничего не ждёт.
-NOTE_TYPES_OPENABLE = (NOTE_DECISION, NOTE_REMARK, NOTE_FINDING)
-# Виды, незакрытость которых держит сдачу. Решение без разрешения — это допущение, и снять его
-# обязан тот, кто его принял; замечание — просьба постановщика, и учесть её обязан исполнитель.
-# Находка сюда НЕ входит: она про работу вне этой задачи, разбирает её человек в своём порядке,
-# и посчитай мы её наравне — первая же находка заперла бы сдачу навсегда.
-NOTE_TYPES_BLOCKING = (NOTE_DECISION, NOTE_REMARK)
-# Виды, которые заводит агент. ``remark`` — слово постановщика, и инструмента с ним у агента
-# нет: обе половины записи, написанные одной рукой, превращают шлюз в самооценку.
-NOTE_TYPES_BY_AGENT = (NOTE_DECISION, NOTE_FINDING, NOTE_FACT)
+# ── what becomes of a group's tasks when the group is deleted ──
+# A soft-deleted group must not keep tasks pointing at it: no screen draws a group that is gone,
+# so its tasks vanished from the list while still existing. Deleting a group with live tasks
+# therefore names one of these, and it is applied in the same transaction as the deletion.
+#   ungroup — the tasks lose their group and land in "No group";
+#   move    — the tasks go to another live group of the same workspace;
+#   delete  — the live tasks go to the trash with their subtask branches.
+GROUP_TASKS_UNGROUP = "ungroup"
+GROUP_TASKS_MOVE = "move"
+GROUP_TASKS_DELETE = "delete"
+GROUP_TASK_DISPOSALS = (GROUP_TASKS_UNGROUP, GROUP_TASKS_MOVE, GROUP_TASKS_DELETE)
 
-# ── вид актора ──
-# Кто завёл строку. Тот же словарь, что и у типа задачи, но смысл другой (авторство, а не
-# адресат), поэтому кортеж отдельный: разъехаться им никто не мешает.
+# ── journal entry type ──
+# What the row describes. Ordered from frequent to rare: the agent picks the first value of an
+# enumeration noticeably more often than the rest, so the frequent kind must come before the rare.
+JOURNAL_DECISION = "decision"
+JOURNAL_REMARK = "remark"
+JOURNAL_FINDING = "finding"
+JOURNAL_FACT = "fact"
+JOURNAL_TYPES = (JOURNAL_DECISION, JOURNAL_REMARK, JOURNAL_FINDING, JOURNAL_FACT)
+# Kinds that can be open at all. ``fact`` is closed the moment it is written — it awaits nothing.
+JOURNAL_TYPES_OPENABLE = (JOURNAL_DECISION, JOURNAL_REMARK, JOURNAL_FINDING)
+# Kinds whose being unresolved blocks hand-off. A decision without a resolution is an assumption,
+# and whoever made it must lift it; a remark is a request from the brief's author, and the executor
+# must address it. A finding is NOT included: it is about work outside this task, the person
+# triages it in their own order, and if we counted it alongside, the very first finding would lock
+# hand-off forever.
+JOURNAL_TYPES_BLOCKING = (JOURNAL_DECISION, JOURNAL_REMARK)
+# Kinds the agent creates. ``remark`` is the brief author's word, and the agent has no tool for it:
+# both halves of an entry written by one hand turn the gate into self-assessment.
+JOURNAL_TYPES_BY_AGENT = (JOURNAL_DECISION, JOURNAL_FINDING, JOURNAL_FACT)
+
+# ── actor kind ──
+# Who created the row. The same vocabulary as the task type's, but a different meaning (authorship,
+# not addressee), hence a separate tuple: nothing stops them from drifting apart.
 ACTOR_HUMAN = "human"
 ACTOR_AGENT = "agent"
 ACTOR_KINDS = (ACTOR_HUMAN, ACTOR_AGENT)
@@ -166,7 +208,7 @@ TASK_CREATED_BY_DEFAULT = ACTOR_HUMAN
 
 
 def sql_in(values: tuple[str, ...]) -> str:
-    """Кортеж значений → строка для ``col IN (...)`` в ``CheckConstraint``."""
+    """Tuple of values → string for ``col IN (...)`` in a ``CheckConstraint``."""
     return ", ".join(f"'{value}'" for value in values)
 
 
@@ -184,23 +226,32 @@ __all__ = [
     "ENUM_VALUE_MAX",
     "EVIDENCE_MAX",
     "GROUP_CODE_PREFIX",
+    "GROUP_DESCRIPTION_MAX",
+    "GROUP_TASKS_DELETE",
+    "GROUP_TASKS_MOVE",
+    "GROUP_TASKS_UNGROUP",
+    "GROUP_TASK_DISPOSALS",
     "ICON_MAX",
-    "NOTE_BODY_MAX",
+    "JOURNAL_BODY_MAX",
+    "JOURNAL_CODE_PREFIX",
+    "JOURNAL_DECISION",
+    "JOURNAL_FACT",
+    "JOURNAL_FINDING",
+    "JOURNAL_REMARK",
+    "JOURNAL_TYPES",
+    "JOURNAL_TYPES_BLOCKING",
+    "JOURNAL_TYPES_BY_AGENT",
+    "JOURNAL_TYPES_OPENABLE",
     "NOTE_CODE_PREFIX",
-    "NOTE_DECISION",
-    "NOTE_FACT",
-    "NOTE_FINDING",
-    "NOTE_REMARK",
-    "NOTE_TYPES",
-    "NOTE_TYPES_BLOCKING",
-    "NOTE_TYPES_BY_AGENT",
-    "NOTE_TYPES_OPENABLE",
+    "PLAN_MAX",
     "PRIORITY_BURNING",
     "PRIORITY_FROZEN",
     "PRIORITY_HIGH",
     "PRIORITY_LOW",
     "PRIORITY_NORMAL",
+    "PROGRESS_MAX",
     "RESOLUTION_MAX",
+    "RESULT_MAX",
     "SORT_DEFAULT",
     "SORT_STEP",
     "STAGE_CODE_PREFIX",

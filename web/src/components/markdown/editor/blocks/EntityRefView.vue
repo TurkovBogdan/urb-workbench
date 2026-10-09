@@ -32,9 +32,9 @@ const label = computed(() => code.value.split('@')[1]?.slice(0, 6) ?? '')
 </template>
 
 <style scoped>
-/* Только то, чего у просмотра нет и быть не может: состояние выделения узла. Форма, цвет,
-   глиф и кегль пилюли приходят из общего файла документа — дублировать их здесь значило бы
-   завести вторую правду о том, как выглядит ссылка на сущность. */
+/* Only what the viewer does not and cannot have: the node's selection state. The pill's shape,
+   colour, glyph and size come from the shared document stylesheet — duplicating them here would
+   start a second truth about what an entity reference looks like. */
 .md-ref {
   cursor: default;
   user-select: none;

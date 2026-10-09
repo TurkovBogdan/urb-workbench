@@ -38,11 +38,11 @@ function _parse(s: string | null): DateTime | null {
 }
 
 /**
- * Пояс, в котором приложение ПОКАЗЫВАЕТ время: выбранный человеком или, при «авто», браузерный.
+ * The zone in which the app DISPLAYS time: the one the person picked or, on "auto", the browser's.
  *
- * Нужен тем, кто не форматирует, а СОБИРАЕТ момент времени из календарного дня — например, срок
- * задачи («до конца такого-то числа»). Считай такой день в другом поясе, чем показывает `fmtDate`,
- * и выставленное число читалось бы на сутки в сторону.
+ * Needed by code that doesn't format but BUILDS a point in time from a calendar day — e.g. a task's
+ * due date ("by the end of such-and-such day"). Compute that day in a different zone than the one
+ * `fmtDate` shows, and the set date would read a day off.
  */
 export function displayZone(): string {
   const { locale } = useSettingsStore()

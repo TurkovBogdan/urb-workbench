@@ -5,8 +5,8 @@ import PageLayout from '@/layout/templates/PageLayout.vue'
 import ErrorState from '@/components/ErrorState.vue'
 import { ERROR_KINDS, type ErrorKind } from '@/constants/errors'
 
-// Единственный способ показать экран отказа: вид → иконка, код, тексты и выходы берутся из
-// каталога, а не собираются на месте. Второй способ развёл бы формулировки по вьюхам.
+// The only way to show a failure screen: kind → icon, code, texts and exits come from the
+// catalog rather than being assembled on the spot. A second way would scatter the wording across views.
 
 const props = defineProps<{ kind: ErrorKind }>()
 

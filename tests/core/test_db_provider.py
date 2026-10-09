@@ -1,4 +1,4 @@
-"""DB_PROVIDER: выбор провайдера БД (postgres|sqlite) + sqlite-схема из моделей."""
+"""DB_PROVIDER: choosing the DB provider (postgres|sqlite) + the sqlite schema from the models."""
 
 from __future__ import annotations
 
@@ -14,10 +14,10 @@ from src.core.utils.date import utc_now
 
 @pytest.mark.pure
 def test_postgres_url_and_pool_kwargs():
-    """Реквизиты задаются здесь, а не подтягиваются из ``.env`` установки.
+    """Credentials are set here rather than pulled from the installation's ``.env``.
 
-    Postgres их требует, и без явных полей тест ловил не поведение провайдера, а то, как
-    настроена машина, на которой он запущен: на установке с SQLite он падал валидацией.
+    Postgres requires them, and without explicit fields the test caught not the provider's
+    behaviour but how the machine running it was set up: on a SQLite install it failed validation.
     """
     cfg = Config(
         _env_file=None,
@@ -33,7 +33,7 @@ def test_postgres_url_and_pool_kwargs():
 def test_sqlite_url_and_minimal_kwargs():
     cfg = Config(db_provider="sqlite", db_path="/tmp/x.sqlite3")
     assert cfg.database_url == "sqlite+aiosqlite:////tmp/x.sqlite3"
-    # SQLite не тюнит пул — только busy-timeout на соединение.
+    # SQLite does not tune the pool — only a per-connection busy timeout.
     assert cfg.engine_kwargs == {"connect_args": {"timeout": cfg.db_connect_timeout}}
 
 
@@ -50,7 +50,7 @@ def test_sqlite_in_memory_url_and_static_pool():
     cfg = Config(db_provider="sqlite", db_path=":memory:")
     assert cfg.sqlite_in_memory is True
     assert cfg.database_url == "sqlite+aiosqlite://"
-    # In-memory БД живёт в одном коннекте — общий StaticPool обязателен.
+    # An in-memory DB lives in one connection — a shared StaticPool is mandatory.
     assert cfg.engine_kwargs["poolclass"] is StaticPool
     assert cfg.engine_kwargs["connect_args"]["check_same_thread"] is False
 
@@ -69,7 +69,7 @@ async def test_sqlite_in_memory_create_all_roundtrip():
                     created_at=now, updated_at=now,
                 )
             )
-        # Та же in-memory БД видна новой сессии — благодаря StaticPool.
+        # The same in-memory DB is visible to a new session — thanks to StaticPool.
         async with engine.connect() as conn:
             value = (
                 await conn.execute(

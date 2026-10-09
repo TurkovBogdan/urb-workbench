@@ -22,11 +22,11 @@ import {
 } from '@tabler/icons-vue'
 import type { Component } from 'vue'
 
-// Возвращаем как `any` чтобы устроить Vuetify `IconValue` (Component-типы
-// @tabler/icons-vue не совпадают по сигнатуре с тем, что ожидает VIcon).
+// Returned as `any` to satisfy Vuetify's `IconValue` (the Component types of
+// @tabler/icons-vue don't match the signature VIcon expects).
 
-// Сопоставление tool-имени с иконкой по ключевому слову в имени.
-// Имена в MCP обычно snake_case: `tech_list`, `skill_upsert`, `run_query`, …
+// Maps a tool name to an icon by a keyword in the name.
+// MCP names are usually snake_case: `tech_list`, `skill_upsert`, `run_query`, …
 const RULES: { match: RegExp; icon: Component }[] = [
   { match: /(^|[_.\-])list($|[_.\-])|(^|[_.\-])index($|[_.\-])/i, icon: IconList },
   { match: /(^|[_.\-])search($|[_.\-])|(^|[_.\-])find($|[_.\-])|(^|[_.\-])query($|[_.\-])/i, icon: IconSearch },
@@ -48,7 +48,7 @@ export function toolIcon(name: string): any {
   return IconTool
 }
 
-// Тематическая иконка MCP-сервера по его коду (keyword-match по коду сервера).
+// A themed icon for an MCP server by its code (keyword match on the server code).
 const SERVER_RULES: { match: RegExp; icon: Component }[] = [
   { match: /insight/i, icon: IconBulb },
   { match: /conversation|chat|message/i, icon: IconMessages },

@@ -1,27 +1,27 @@
 <script setup lang="ts">
-// Кнопка-счётчик: значок, число и стрелка сворачивания — одна мишень.
+// Counter button: icon (optional), number and collapse arrow — one target.
 //
-// Одна на всё приложение: её носят и строка задачи с подзадачами, и шапка карточки группы. Пока
-// стилей было два, они разъехались — счёт группы набирался иначе, чем счёт строки, и соседние
-// кнопки читались разными предметами. Отличаются места применения только значком и подписью.
+// One for the whole app: both a task row with subtasks and a group card header carry it. While
+// there were two styles they drifted apart — the group count was set differently from the row
+// count, and neighbouring buttons read as different objects. Call sites differ only in icon and label.
 //
-// Всё собрано в одну кнопку, потому что по отдельности стрелка — мишень 20px, в которую трудно
-// попасть, а значок и число рядом с ней выглядят нажимаемыми и ничего не делают. Счёт стоит
-// первым: он отвечает на вопрос, стоит ли разворачивать.
+// Everything is packed into one button because on its own the arrow is a 20px target that is hard
+// to hit, while the icon and number next to it look clickable and do nothing. The count comes
+// first: it answers whether expanding is worth it.
 //
-// Клик и Enter дальше кнопки не уходят: строка задачи по ним открывает задачу, а свернуть ветку
-// и уйти со списка одним нажатием — не то, что человек просил.
+// Click and Enter don't propagate past the button: on them a task row opens the task, and
+// collapsing a branch and leaving the list in one press is not what the person asked for.
 import type { Component } from 'vue'
 import { IconChevronDown, IconChevronRight } from '@tabler/icons-vue'
 
 const props = defineProps<{
-  /** Что считаем: подзадачи у строки, задачи у группы. */
-  icon: Component
-  /** Не передан — числа нет, остаются значок и стрелка. Ноль показывается: это тоже ответ. */
+  /** What is being counted: subtasks for a row. Not passed — the number and arrow remain. */
+  icon?: Component
+  /** Not passed — no number, the icon and arrow remain. Zero is shown: it is an answer too. */
   count?: number
-  /** Содержимое свёрнуто: стрелка смотрит вбок, туда, откуда оно выедет. */
+  /** Content is collapsed: the arrow points sideways, where it will slide out from. */
   folded: boolean
-  /** Подпись действия — для читалки и для подсказки; зависит от `folded`, её знает вызывающий. */
+  /** The action label — for screen readers and the tooltip; depends on `folded`, the caller knows it. */
   label: string
 }>()
 
@@ -37,7 +37,7 @@ const emit = defineEmits<{ toggle: [] }>()
     @click.stop="emit('toggle')"
     @keydown.enter.stop
   >
-    <component :is="props.icon" :size="14" :stroke-width="1.6" />
+    <component :is="props.icon" v-if="props.icon" :size="14" :stroke-width="1.6" />
     <span v-if="props.count !== undefined" class="counter-button__number">{{ props.count }}</span>
     <component :is="props.folded ? IconChevronRight : IconChevronDown" :size="14" :stroke-width="1.8" />
     <VTooltip activator="parent" location="top">{{ props.label }}</VTooltip>
@@ -45,26 +45,26 @@ const emit = defineEmits<{ toggle: [] }>()
 </template>
 
 <style scoped>
-/* Выглядит пометкой, а не кнопкой: мелкий кегль и приглушённый цвет. Кнопкой её выдаёт только
-   подложка под курсором — поле вокруг значков и есть мишень. Шрифт сбрасывается целиком: кнопка
-   стоит и в полужирном имени группы, и в обычной строке, и наследовать там ей нечего. Гарнитура —
-   шрифт интерфейса (`--font`), а не наследованная и не названная по имени: его выбирает человек
-   в настройках, и кнопка обязана меняться вместе с остальным интерфейсом.
+/* Looks like an annotation, not a button: small size and a muted color. Only the fill under the
+   pointer gives it away as a button — the area around the icons is the target. The font is reset
+   entirely: the button sits both in a bold group name and in a plain row, and has nothing to
+   inherit there. The typeface is the interface font (`--font`), neither inherited nor named: the
+   person picks it in settings, and the button must change along with the rest of the interface.
 
-   Число — 11px обычными цифрами. Сравнивали вживую с 12px и цифрами одной ширины
-   (`tabular-nums`) и с моноширинным: табличные цифры широкие и рядом с 13px названием выглядят
-   грубо, моноширинный читается чужеродно. Кнопка при смене числа чуть меняет
-   ширину — это дешевле, чем грубые цифры в каждой строке.
+   The number is 11px with regular digits. Compared live against 12px with fixed-width digits
+   (`tabular-nums`) and against monospace: tabular digits are wide and look coarse next to a 13px
+   name, monospace reads as foreign. The button changes width slightly when the number
+   changes — cheaper than coarse digits in every row.
 
-   Цвет в покое задаёт место применения через `--counter-button-color`: и строка, и карточка
-   проявляют кнопку, когда курсор над ними, а не только над ней самой. Переменная, а не
-   правило снаружи: чужое правило со своим весом перебивало бы наведение на саму кнопку.
+   The resting color is set by the call site via `--counter-button-color`: both the row and the card
+   reveal the button when the pointer is over them, not only over the button itself. A variable, not
+   an outside rule: a foreign rule with its own specificity would override hover on the button itself.
 
-   Все три части — в коробке одной высоты, 14px: и значки, и строка числа (`line-height`).
-   Центрирует их flex, и при разных высотах смещение внутри кнопки выходит дробным (у 11px
-   строки — 5.5px, у 13px стрелки — 4.5px). Браузер округляет такие смещения по-разному, и на
-   экране число вставало на пиксель выше значка. С равными коробками смещение у всех целое и
-   одно и то же. */
+   All three parts sit in boxes of the same height, 14px: the icons and the number's line
+   (`line-height`). Flex centers them, and with different heights the offset inside the button is
+   fractional (5.5px for an 11px line, 4.5px for a 13px arrow). The browser rounds such offsets
+   differently, and on screen the number sat a pixel above the icon. With equal boxes every offset
+   is whole and identical. */
 .counter-button {
   display: inline-flex;
   flex: none;

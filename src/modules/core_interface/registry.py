@@ -1,15 +1,15 @@
-"""Реестр настроек интерфейса: единственное место, где объявлены ключи и умолчания.
+"""The interface settings registry: the only place where keys and defaults are declared.
 
-О настройке здесь известно три вещи: умолчание (оно же задаёт тип), набор допустимых
-значений и предикат для случаев, которые набором не описать. Как настройка выглядит на
-экране — подпись, группа, порядок — реестр не знает: интерфейсы собирает фронт, а сервер
-остаётся хранилищем, умеющим отказать.
+Three things are known about a setting here: its default (which also defines its type), the
+set of allowed values, and a predicate for cases a set cannot describe. How a setting looks on
+screen — label, group, order — the registry does not know: the frontend assembles the UI, and
+the server stays a store that can refuse.
 
-Умолчания в базу не пишутся. Строка появляется только на отклонение, поэтому смена
-умолчания здесь доезжает до установки мгновенно: у того, кто настройку не трогал, строки
-просто нет, и он читает новое значение.
+Defaults are not written to the database. A row appears only for a deviation, so changing a
+default here reaches an installation instantly: whoever never touched the setting simply has
+no row, and reads the new value.
 
-Карта закрывает пространство ключей: незнакомый ключ отвергается, а не создаёт строку.
+The map closes the key space: an unknown key is rejected rather than creating a row.
 """
 
 from __future__ import annotations
@@ -29,22 +29,22 @@ TYPE_BOOLEAN = "boolean"
 
 @dataclass(frozen=True)
 class Setting:
-    """Объявление настройки: умолчание плюс необязательное ограничение значения."""
+    """A setting declaration: the default plus an optional constraint on the value."""
 
     default: Any
     options: tuple[Any, ...] | None = None
     check: Callable[[Any], bool] | None = None
 
 
-# Приставка ``interface_`` — не проверка (пространство ключей закрывает сама карта), а признак
-# принадлежности: по имени видно, отвечает ключ за внешний вид приложения или за что-то другое.
+# The ``interface_`` prefix is not a check (the map itself closes the key space) but a mark of
+# ownership: the name shows whether a key governs the application's look or something else.
 SETTINGS: dict[str, Setting] = {
-    # Язык интерфейса человека. Поверхность агента (MCP) им не управляется — она всегда английская.
+    # The human's interface language. It does not govern the agent surface (MCP) — always English.
     "interface_language": Setting("en", options=("en", "ru")),
     "interface_theme":Setting("dark", options=("dark", "light", "system")),
     "interface_font": Setting("onest"),
     "interface_font_reading": Setting("onest"),
-    # ``reading`` — не гарнитура, а «как шрифт текста»: заголовки следуют за ним при смене.
+    # ``reading`` is not a typeface but "same as the body font": headings follow it when it changes.
     "interface_font_heading": Setting("reading"),
     "interface_font_reading_size": Setting(14, options=(14, 15, 16, 17, 18, 20)),
     "interface_font_reading_weight": Setting(300, options=(100, 200, 300, 400, 500, 600, 700, 800, 900)),
@@ -55,7 +55,7 @@ SETTINGS: dict[str, Setting] = {
     "interface_font_code_size": Setting(12, options=(11, 12, 13, 14, 15, 16)),
     "interface_code_line_numbers": Setting(True),
     "interface_font_diagram": Setting("onest"),
-    # ``system`` — цвета приложения; остальное — готовые палитры движка схем.
+    # ``system`` — the application's colours; the rest are the diagram engine's ready palettes.
     "interface_diagram_theme": Setting(
         "system",
         options=(
@@ -86,16 +86,17 @@ _KEY_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
 
 
 def validate_registry() -> None:
-    """Самопроверка карты на подъёме модуля: кривой ключ роняет старт, а не первый запрос."""
+    """Self-check of the map at module startup: a malformed key fails the start, not the first
+    request."""
     for key, setting in SETTINGS.items():
         if not _KEY_PATTERN.match(key):
-            raise ValueError(f"core_interface: ключ {key!r} не является идентификатором snake_case")
+            raise ValueError(f"core_interface: key {key!r} is not a snake_case identifier")
         if len(key) > KEY_MAX_LENGTH:
-            raise ValueError(f"core_interface: ключ {key!r} длиннее {KEY_MAX_LENGTH} символов")
+            raise ValueError(f"core_interface: key {key!r} is longer than {KEY_MAX_LENGTH} chars")
         refusal = rejection(key, setting.default)
         if refusal is not None:
             raise ValueError(
-                f"core_interface: умолчание {key!r} не проходит собственную проверку — {refusal}"
+                f"core_interface: the default of {key!r} fails its own check — {refusal}"
             )
 
 
@@ -105,13 +106,13 @@ CHECK_FAILED = "value failed the check"
 
 
 def rejection(key: str, value: Any) -> str | None:
-    """Причина отказа или ``None``, если значение принимается.
+    """The reason for refusal, or ``None`` if the value is accepted.
 
-    Причина — английский текст: клиент интерфейса синхронизирует настройки молча и по ней
-    только снимает ключ с очереди, человеку она не показывается.
+    The reason is English text: the interface client syncs settings silently and uses it only
+    to drop the key from its queue; it is never shown to a human.
 
-    Порядок проверок — от общего к частному: каждая следующая имеет смысл только после
-    предыдущей (набор нечего сверять у значения чужого типа).
+    The checks go from general to specific: each one makes sense only after the previous one
+    (there is no point matching a value of the wrong type against the option set).
     """
     setting = SETTINGS.get(key)
     if setting is None:
@@ -128,10 +129,10 @@ def rejection(key: str, value: Any) -> str | None:
 
 
 def matches_default_type(value: Any, default: Any) -> bool:
-    """Тип значения задаёт умолчание — отдельной пометки у настройки нет.
+    """The value's type is defined by the default — a setting carries no separate type mark.
 
-    ``bool`` проверяется первым: в Python он подкласс ``int``, и без явного исключения
-    ``True`` прошёл бы как число, а ``1`` — как переключатель.
+    ``bool`` is checked first: in Python it is a subclass of ``int``, and without an explicit
+    exclusion ``True`` would pass as a number and ``1`` as a toggle.
     """
     if isinstance(default, bool):
         return isinstance(value, bool)
@@ -149,10 +150,10 @@ def value_type(default: Any) -> str:
 
 
 def schema() -> list[dict[str, Any]]:
-    """Машинное описание полей в порядке объявления: тип, умолчание, набор.
+    """A machine description of the fields in declaration order: type, default, option set.
 
-    Предикат ``check`` сюда не попадает: он отвечает «да/нет» и данными не описывается.
-    Там, где набор должен быть виден человеку, объявляется ``options``.
+    The ``check`` predicate is not included: it answers yes/no and cannot be described as data.
+    Where the set must be visible to a human, ``options`` is declared.
     """
     return [
         {
@@ -166,7 +167,7 @@ def schema() -> list[dict[str, Any]]:
 
 
 def effective_values(stored: Mapping[str, Any]) -> dict[str, Any]:
-    """Действующие значения всех полей: умолчание там, где отклонения нет."""
+    """Effective values of all fields: the default wherever there is no deviation."""
     return {key: stored.get(key, setting.default) for key, setting in SETTINGS.items()}
 
 

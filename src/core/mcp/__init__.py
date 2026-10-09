@@ -1,11 +1,12 @@
-"""MCP-server-инструментарий ядра — единственная граница импорта ``fastmcp``.
+"""The core's MCP server toolkit — the only import boundary for ``fastmcp``.
 
-Подпакет изолирует +13 МБ форка в одно backend-only место (его тянет только
-``mount_mcp_servers`` под ``server_enabled`` — не воркер, не ``build_modules``)
-и даёт модулям одну точку импорта: ``from src.core.mcp import make_mcp_server``.
+The subpackage confines the fork's +13 MB to one backend-only place (only
+``mount_mcp_servers`` pulls it in, under ``server_enabled`` — not the worker, not
+``build_modules``) and gives modules a single import point:
+``from src.core.mcp import make_mcp_server``.
 
-НЕ модуль: основа И ЕСТЬ сборщик — она правит контракт ``Module`` и монтирует
-приложения модулей в ``create_app``; зарегистрированный модуль так не может.
+NOT a module: the platform IS the assembler — it owns the ``Module`` contract and mounts
+the modules' apps in ``create_app``; a registered module cannot do that.
 """
 
 from __future__ import annotations

@@ -1,32 +1,34 @@
-// Печать документа на виртуальном принтере — то же самое, что «сохранить в PDF» в диалоге печати
-// браузера.
+// Printing a document to a virtual printer — the same as "Save as PDF" in the browser's print
+// dialog.
 //
-// Печатается не тот экран, с которого нажали, а отдельный адрес печати того же приложения: вокруг
-// документа на странице стоят колонка навигации, шапка и карточки разделов, и прятать их правилами
-// `@media print` пришлось бы заново при каждом новом блоке. Скрытый кадр открывает страницу печати,
-// где документ нарисован один на пустом листе, и печатает её: `print()`, вызванный у окна кадра,
-// отправляет на принтер документ КАДРА, а не хозяина страницы.
+// What gets printed is not the screen the button was pressed on but a separate print address of
+// the same app: around the document on the page sit the navigation rail, the header and section
+// cards, and hiding them with `@media print` rules would have to be redone for every new block. A
+// hidden frame opens the print page, where the document is rendered alone on a blank sheet, and
+// prints it: `print()` called on the frame's window sends the FRAME's document to the printer,
+// not the host page's.
 
 const PRINT_SIGNAL = 'app-print'
 
 interface PrintSignalMessage {
   signal: typeof PRINT_SIGNAL
-  /** Пусто — документ готов к печати; иначе текст отказа, из-за которого печатать нечего. */
+  /** Empty — the document is ready to print; otherwise the failure text that left nothing to print. */
   error: string
 }
 
-// Лист A4 при 96 dpi. Размер кадра — не украшение невидимого элемента: раскладку схем и таблиц
-// считают по ширине контейнера, и в кадре нулевой ширины она посчиталась бы под лист, которого
-// не бывает.
+// An A4 sheet at 96 dpi. The frame size is not decoration on an invisible element: diagram and
+// table layout is computed from the container width, and in a zero-width frame it would be laid
+// out for a sheet that doesn't exist.
 const FRAME_WIDTH_PX = 794
 const FRAME_HEIGHT_PX = 1123
 
-// Сколько ждём сигнала готовности: страница печати успевает дозапросить исследование, разобрать
-// тело, нарисовать схемы и дождаться шрифтов.
+// How long to wait for the ready signal: the print page has to re-fetch the research, parse the
+// body, render diagrams and wait for fonts.
 const READY_TIMEOUT_MS = 60_000
 
-// Часть браузеров возвращает управление из `print()`, не дожидаясь конца печати. Снятый сразу
-// кадр унёс бы с собой печатаемый документ, поэтому он живёт ещё немного после отправки.
+// Some browsers return from `print()` without waiting for printing to finish. A frame removed
+// immediately would take the document being printed with it, so it lives a little longer after
+// sending.
 const FRAME_KEEP_MS = 2000
 
 function postSignal(error: string): void {
@@ -34,21 +36,21 @@ function postSignal(error: string): void {
   window.parent.postMessage(message, window.location.origin)
 }
 
-/** Зовёт страница печати, когда её документ нарисован целиком и его можно отправлять на принтер. */
+/** Called by the print page when its document is fully rendered and can be sent to the printer. */
 export function announcePrintReady(): void {
   postSignal('')
 }
 
-/** Зовёт страница печати, когда документа не будет: печатать нечего, и ждать его — тоже. */
+/** Called by the print page when there will be no document: nothing to print, nothing to wait for. */
 export function announcePrintFailure(error: string): void {
   postSignal(error)
 }
 
 /**
- * Напечатать страницу приложения по её адресу.
+ * Print an app page by its address.
  *
- * Разрешается, когда документ ушёл на принтер; отклоняется с текстом отказа страницы печати —
- * либо с пустым, когда она не ответила вовсе (тогда причину знает только она сама).
+ * Resolves once the document has gone to the printer; rejects with the print page's failure text —
+ * or with an empty one when it didn't answer at all (then only the page itself knows why).
  */
 export function printPage(url: string): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -82,8 +84,8 @@ export function printPage(url: string): Promise<void> {
         return
       }
 
-      // Фокус в кадре обязателен: браузер печатает документ активного окна, и без него на принтер
-      // ушла бы страница-хозяин со всем интерфейсом.
+      // Focusing the frame is mandatory: the browser prints the active window's document, and
+      // without it the host page with the whole interface would go to the printer.
       frame.contentWindow?.focus()
       frame.contentWindow?.print()
       finish(null)

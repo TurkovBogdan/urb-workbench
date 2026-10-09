@@ -1,13 +1,13 @@
 """tasks: tasks_group table
 
-Creates ``tasks_group`` — группа задач в пространстве (биллинг / интерфейс / инфраструктура).
+Creates ``tasks_group`` — a group of tasks in a workspace (billing / interface / infrastructure).
 Column order mirrors ``models/group.py::TasksGroup``. String PK ``code``; FK ``workspace_code`` →
-workspaces.code (CASCADE) с индексом на дочерней стороне; ``sort`` — порядок в интерфейсе
-(больший выше); удаление логическое.
+workspaces.code (CASCADE) with an index on the child side; ``sort`` is the order in the interface
+(higher goes first); deletion is soft.
 
-Первая ревизия цепочки модуля: пространство ему не принадлежит и создаётся своим модулем.
-``depends_on`` указывает на ту ревизию — цель FK обязана существовать к моменту создания
-таблицы, а порядок между ветками не определён ничем, кроме ``depends_on``.
+The first revision of the module's chain: the workspace does not belong to this module and is
+created by its own. ``depends_on`` points at that revision — the FK target must exist by the time
+the table is created, and nothing but ``depends_on`` orders revisions across branches.
 
 Revision ID: tsm_001_group
 Revises:

@@ -1,4 +1,4 @@
-"""CRUD для :class:`CoreLockRow`."""
+"""CRUD for :class:`CoreLockRow`."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from src.core.locks import CoreLockRow
 
 
 async def get(key: str) -> CoreLockRow | None:
-    """Прочитать строку лока по ключу. ``None`` — лок свободен."""
+    """Read a lock row by key. ``None`` means the lock is free."""
     stmt = select(CoreLockRow).where(CoreLockRow.key == key)
     async with session_scope() as s:
         return (await s.execute(stmt)).scalar_one_or_none()

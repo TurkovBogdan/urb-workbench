@@ -1,17 +1,18 @@
 import type { Router } from 'vue-router'
 import { setShellError } from '@/composables/useShellError'
 
-// Выкладка уносит старые чанки Vite (хэш в имени), и у вкладки, открытой до неё, переход по
-// ленивому маршруту падает МОЛЧА: навигация отменяется, экран остаётся прежним — «клик, и ничего».
-// Правильный ответ тут не экран отказа, а перезагрузка на ТОТ ЖЕ адрес: свежий бандл покажет
-// нужную страницу. Ключ в sessionStorage не даёт петли, если чанк не отдаётся и после перезагрузки.
+// A deploy removes the old Vite chunks (hash in the name), and in a tab opened before it a
+// transition to a lazy route fails SILENTLY: navigation is cancelled, the screen stays the same —
+// "click, and nothing". The right answer here is not a failure screen but a reload at THE SAME
+// address: the fresh bundle will show the right page. A sessionStorage key prevents a loop if the
+// chunk still isn't served after the reload.
 const GUARD_KEY = 'app.chunk-reload'
 
-// Текст ошибки динамического импорта различается по браузерам, общего типа у неё нет.
+// The dynamic import error text differs across browsers, and it has no common type.
 const CHUNK_ERROR = /dynamically imported module|Importing a module script failed|Failed to fetch/i
 
 function reloadOnce(path: string): void {
-  // Перезагрузка на этот адрес уже была и не помогла — дальше только честный экран сбоя.
+  // A reload at this address already happened and didn't help — only an honest failure screen left.
   if (sessionStorage.getItem(GUARD_KEY) === path) {
     sessionStorage.removeItem(GUARD_KEY)
     setShellError('failure')
@@ -24,8 +25,8 @@ function reloadOnce(path: string): void {
 }
 
 export function setupChunkReload(router: Router): void {
-  // Два входа в один и тот же сценарий: `vite:preloadError` ловит провал предзагрузки модуля
-  // (в том числе вне навигации), `router.onError` — провал ленивого импорта самого маршрута.
+  // Two entries into the same scenario: `vite:preloadError` catches a failed module preload
+  // (including outside navigation), `router.onError` — a failed lazy import of the route itself.
   window.addEventListener('vite:preloadError', () => {
     reloadOnce(window.location.pathname + window.location.search + window.location.hash)
   })
@@ -36,7 +37,7 @@ export function setupChunkReload(router: Router): void {
     reloadOnce(to.fullPath)
   })
 
-  // Дошли до места — предохранитель больше не нужен.
+  // Arrived — the safety catch is no longer needed.
   router.afterEach(() => {
     sessionStorage.removeItem(GUARD_KEY)
   })

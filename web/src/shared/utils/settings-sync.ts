@@ -1,10 +1,12 @@
-// Обмен настройками интерфейса с базой: гидрация, очередь, дебаунс и флаг «применяем извне».
-// Вся сетевая логика собрана здесь, а не размазана по стору — стор остаётся набором ref'ов.
+// Syncing interface settings with the database: hydration, queue, debounce and the "applying from
+// outside" flag. All the network logic is gathered here rather than smeared over the store — the
+// store stays a set of refs.
 //
-// Правило, из которого следует всё остальное: источник истины — база, localStorage остаётся
-// кешем. Кеш красит страницу до первого кадра, поэтому запрос на этом месте означал бы вспышку
-// чужого оформления; гидрация идёт ПОСЛЕ монтирования и ничего не блокирует (backend, поднятый
-// MCP-шимом, отвечает не сразу, и блокирующий запрос превратил бы старт в неподвижный сплэш).
+// The rule everything else follows from: the database is the source of truth, localStorage stays a
+// cache. The cache paints the page before the first frame, so a request at that point would mean a
+// flash of the wrong styling; hydration runs AFTER mount and blocks nothing (a backend raised by
+// the MCP shim doesn't answer right away, and a blocking request would turn startup into a frozen
+// splash).
 import { ref, type Ref } from 'vue'
 
 import { ApiError } from '@/api/client/internal'
@@ -19,16 +21,16 @@ import { pushToast } from '@/composables/useToasts'
 import { i18n } from '@/plugins/i18n'
 import type { Codec } from './persisted'
 
-/** Служебные ключи кеша носят точку — настройки реестра её не носят и не спутаются с ними. */
+/** Service cache keys contain a dot — registry settings don't, so they can't be confused. */
 const PENDING_KEY = 'sync.pending'
 const IMPORT_MARKER = 'sync.imported'
 
 const DEBOUNCE_MS = 450
 
-/** Сколько подряд неудачных отправок терпим молча, прежде чем сказать человеку. */
+/** How many failed sends in a row we tolerate silently before telling the person. */
 const FAILURES_BEFORE_TOAST = 3
 
-/** Старые точечные имена в кеше браузера → ключи реестра. Нужны ровно один раз, при переезде. */
+/** Old dotted names in the browser cache → registry keys. Needed exactly once, during migration. */
 const LEGACY_KEYS: Record<string, string> = {
   'app.theme': 'interface_theme',
   'app.font.interface': 'interface_font',
@@ -51,7 +53,7 @@ interface Synced {
 const synced = new Map<string, Synced>()
 const pending = new Set<string>(pendingFromCache())
 
-/** Схема полей: тип, умолчание и набор допустимых значений. Пуста, пока не пришла гидрация. */
+/** Field schema: type, default and the set of allowed values. Empty until hydration arrives. */
 export const settingsSchema = ref<SettingSchema[]>([])
 
 let applyingExternal = false
@@ -72,7 +74,7 @@ export function registerSetting<T extends SettingValue>(
   })
 }
 
-/** Применяем значение, пришедшее из базы: изменение ref'а в этот момент отправлять обратно не надо. */
+/** Applying a value from the database: a ref change at this moment must not be sent back. */
 export function isApplyingExternal(): boolean {
   return applyingExternal
 }
@@ -89,15 +91,15 @@ function schedule(): void {
 }
 
 /**
- * Отправить накопленное. Изменённые значения уходят картой, вернувшиеся к умолчанию — списком
- * на сброс: строка, равная дефолту, в базе не хранится.
+ * Send what has accumulated. Changed values go as a map, ones returned to the default as a reset
+ * list: a row equal to the default is not stored in the database.
  *
- * Очередь очищается только после успеха. Отказ не всплывает на каждую настройку — значение уже
- * применено, чинить человеку нечего; про упорный отказ говорим один раз.
+ * The queue is cleared only after success. A failure doesn't pop up per setting — the value is
+ * already applied, the person has nothing to fix; a persistent failure is reported once.
  *
- * Отвергнутое сервером снимается с очереди сразу: пачка применяется целиком, поэтому одно
- * негодное значение (испорченный кеш, набор, сузившийся с прошлой выкладки) держало бы в
- * очереди и все остальные ключи — вечно и с тостом каждую третью попытку.
+ * What the server rejected is dropped from the queue right away: the batch applies as a whole, so
+ * one invalid value (a corrupted cache, a set narrowed since the last deploy) would hold every
+ * other key in the queue too — forever, with a toast every third attempt.
  */
 export async function flush(): Promise<void> {
   if (sending || pending.size === 0) return
@@ -114,15 +116,15 @@ export async function flush(): Promise<void> {
   }
 
   sending = true
-  // Взводить дебаунс заново стоит только после разобранной пачки: очередь, оставшаяся после
-  // сетевого отказа, ждёт следующего движения человека или старта, а не долбится в тот же
-  // погашенный backend каждые полсекунды.
+  // Re-arm the debounce only after a settled batch: a queue left over after a network failure
+  // waits for the person's next move or the next startup, rather than hammering the same downed
+  // backend every half second.
   let queueMoved = false
   try {
     if (Object.keys(values).length > 0) await saveSettings(values)
     if (resets.length > 0) await resetSettings(resets)
-    // Снимаем с очереди только то, что успели отправить в этом виде: настройка, переставленная
-    // ещё раз, пока запрос был в пути, иначе осталась бы в кеше и не доехала до базы.
+    // Drop from the queue only what was sent in this exact form: otherwise a setting changed again
+    // while the request was in flight would stay in the cache and never reach the database.
     const settled = [...sent]
       .filter(([key, value]) => synced.get(key)?.state.value === value)
       .map(([key]) => key)
@@ -138,13 +140,13 @@ export async function flush(): Promise<void> {
     }
   } finally {
     sending = false
-    // Пока запрос был в пути, дебаунс мог отработать вхолостую — сорванное им изменение иначе
-    // ждало бы следующего движения человека или перезагрузки страницы.
+    // While the request was in flight the debounce may have fired idle — the change it missed
+    // would otherwise wait for the person's next move or a page reload.
     if (queueMoved && pending.size > 0) schedule()
   }
 }
 
-/** Ключи, которые сервер назвал негодными (422 с картой полей); пусто — отказ не про них. */
+/** Keys the server called invalid (422 with a field map); empty — the failure isn't about them. */
 function rejectedKeys(error: unknown): string[] {
   if (!(error instanceof ApiError) || error.status !== 422) return []
   return Object.keys(error.fields ?? {}).filter((key) => pending.has(key))
@@ -163,16 +165,16 @@ function failed(): void {
 }
 
 /**
- * Старт обмена: досылаем неотправленное, забираем значения вместе со схемой, при первом запуске
- * переносим накопленное в браузере.
+ * Start syncing: send what wasn't sent, fetch the values along with the schema, and on the first
+ * run carry over what accumulated in the browser.
  *
- * Порядок важен: сначала очередь (иначе ответ базы откатил бы изменение, сделанное в прошлый
- * заход и не дошедшее), потом чтение.
+ * Order matters: the queue first (otherwise the database's answer would roll back a change made on
+ * the previous visit that never arrived), then the read.
  */
 export async function startSettingsSync(): Promise<void> {
   if (typeof window !== 'undefined') {
-    // Уход со страницы не должен стоить последнего изменения: дебаунс не успевает,
-    // а `visibilitychange` — единственное событие, которое браузер даёт надёжно.
+    // Leaving the page must not cost the last change: the debounce doesn't get to fire,
+    // and `visibilitychange` is the only event the browser delivers reliably.
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden') void flush()
     })
@@ -189,7 +191,7 @@ export async function startSettingsSync(): Promise<void> {
   await importLegacyKeys(payload.values)
 }
 
-/** Значения из базы в ref'ы. Ключи, чьё изменение ещё не доехало, не трогаем — иначе откат на глазах. */
+/** Database values into refs. Keys whose change hasn't arrived yet are left alone — else a visible rollback. */
 function applyExternal(values: Record<string, SettingValue>): void {
   applyingExternal = true
   try {
@@ -204,11 +206,11 @@ function applyExternal(values: Record<string, SettingValue>): void {
 }
 
 /**
- * Одноразовый перенос настроек, накопленных в браузере до появления модуля.
+ * One-time carry-over of settings accumulated in the browser before the module existed.
  *
- * Идёт только после успешного ответа: маркер и удаление старых ключей при недоступном бэкенде
- * стёрли бы выбор человека. Ключ, по которому у базы уже есть своё мнение, не трогаем — там
- * настройка, сделанная в другом браузере, и она новее нашего наследия.
+ * Runs only after a successful response: the marker and the removal of old keys with the backend
+ * unavailable would erase the person's choice. A key the database already has its own opinion on
+ * is left alone — that's a setting made in another browser, and it is newer than our legacy.
  */
 async function importLegacyKeys(serverValues: Record<string, SettingValue>): Promise<void> {
   if (typeof localStorage === 'undefined' || localStorage.getItem(IMPORT_MARKER) !== null) return
@@ -245,12 +247,12 @@ function pendingFromCache(): string[] {
   }
 }
 
-// Очередь живёт в том же кеше: закрытая внутри дебаунса вкладка и погашенный backend не
-// теряют изменение — его дошлют при следующем открытии.
+// The queue lives in the same cache: a tab closed within the debounce and a downed backend don't
+// lose the change — it is sent on the next open.
 //
-// Запись идёт слиянием, а не заменой: хранилище общее на все вкладки, и вкладка, выложившая
-// туда свой набор целиком, стёрла бы неотправленное соседней. Уходит из очереди только то,
-// что названо явно, — разобранное этой вкладкой.
+// Writes merge rather than replace: storage is shared by all tabs, and a tab writing its whole set
+// there would erase a neighbour's unsent changes. Only what is named explicitly — what this tab
+// settled — leaves the queue.
 function writePending(settled: string[] = []): void {
   if (typeof localStorage === 'undefined') return
   const queued = new Set([...pendingFromCache(), ...pending])

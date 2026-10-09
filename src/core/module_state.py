@@ -1,14 +1,14 @@
-"""Аксессор к произвольному состоянию модуля (``core_modules_state``).
+"""Accessor for a module's arbitrary state (``core_modules_state``).
 
-``module_store(code)`` отдаёт ``ModuleStore`` с предзашитым кодом модуля, чтобы
-не таскать ``module=`` в каждый вызов:
+``module_store(code)`` returns a ``ModuleStore`` with the module code baked in, so that
+``module=`` need not be passed to every call:
 
     store = module_store("mail_sync")
     await store.set("gmail_import_cursor", {"history_id": "98213"})
     cursor = await store.get("gmail_import_cursor")   # -> dict | None
 
-Тонкая обёртка над ``crud/module_state.py``; место для внутреннего runtime-состояния
-(курсоры, счётчики, маркеры), а не пользовательского конфига (тот — в settings).
+A thin wrapper over ``crud/module_state.py``; the place for internal runtime state
+(cursors, counters, markers), not for user configuration (that goes in settings).
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ from src.core.crud import module_state as crud
 
 @dataclass(frozen=True)
 class ModuleStore:
-    """Хранилище состояния одного модуля. Код модуля привязан к экземпляру."""
+    """State store of a single module. The module code is bound to the instance."""
 
     module: str
 

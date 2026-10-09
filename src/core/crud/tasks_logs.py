@@ -1,4 +1,4 @@
-"""CRUD для core_tasks_logs."""
+"""CRUD for core_tasks_logs."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from src.core.database import session_scope, write_scope
 from src.core.models.tasks import CoreTask, CoreTaskLog, CoreTaskLogLevel
 from src.core.utils.date import utc_now
 
-MESSAGE_MAX = 1024  # лимит ``core_tasks_logs.message`` (String(1024))
+MESSAGE_MAX = 1024  # limit of ``core_tasks_logs.message`` (String(1024))
 
 
 async def create(*, task_id: int, level: CoreTaskLogLevel, message: str) -> None:
@@ -28,7 +28,7 @@ async def create(*, task_id: int, level: CoreTaskLogLevel, message: str) -> None
 async def list_for_task(
     *, task_id: int, module: str, code: str
 ) -> list[CoreTaskLog]:
-    """Логи запуска по id; module/code — защита от обращения к чужому task_id."""
+    """A run's logs by id; module/code guard against reaching someone else's task_id."""
     stmt = (
         select(CoreTaskLog)
         .join(CoreTask, CoreTask.id == CoreTaskLog.task_id)

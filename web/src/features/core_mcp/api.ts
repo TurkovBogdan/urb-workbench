@@ -21,7 +21,7 @@ export interface McpServerDetail {
   version: string | null
   instructions: string | null
   tools: McpToolInfo[]
-  // Единый stdio-конфиг (Claude Desktop и Claude Code — одинаково через обёртку).
+  // A single stdio config (Claude Desktop and Claude Code both go through the wrapper).
   connection_config: string
 }
 

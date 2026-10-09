@@ -1,0 +1,8 @@
+{
+  "error": {
+    "note": {
+      "not_found": "Document not found",
+      "deleted": "The document is deleted — restore it first"
+    }
+  }
+}

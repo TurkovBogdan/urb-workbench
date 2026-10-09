@@ -1,4 +1,4 @@
-"""CRUD для core_modules_settings. Каждая функция открывает session_scope сама."""
+"""CRUD for core_modules_settings. Every function opens its own session_scope."""
 
 from __future__ import annotations
 
@@ -44,7 +44,7 @@ async def get_one(module: str, key: str) -> CoreModuleSetting | None:
 
 
 async def upsert(module: str, key: str, value: str) -> None:
-    """INSERT … ON CONFLICT DO UPDATE: обновляет value+updated_at, created_at — только при первом INSERT."""
+    """INSERT … ON CONFLICT DO UPDATE: updates value+updated_at; created_at only on the first INSERT."""
     async with write_scope() as s:
         insert = _insert_for(s)
         now = utc_now()
@@ -63,7 +63,7 @@ async def upsert(module: str, key: str, value: str) -> None:
 
 
 async def seed_if_absent(module: str, key: str, value: str) -> bool:
-    """INSERT … ON CONFLICT DO NOTHING. Возвращает True, если строка создана."""
+    """INSERT … ON CONFLICT DO NOTHING. Returns True if the row was created."""
     async with write_scope() as s:
         insert = _insert_for(s)
         now = utc_now()

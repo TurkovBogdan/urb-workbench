@@ -1,15 +1,15 @@
-"""Зона ``internal`` — сборка агрегирующего роутера (монтируется на ``/internal``).
+"""The ``internal`` zone — assembly of the aggregating router (mounted at ``/internal``).
 
-Состав зоны: публичный ``/health`` + эндпоинты ядра (``/core/settings``) +
-под-роутеры модулей (``Module.internal_router``/``internal_router_prefix``).
+Zone contents: the public ``/health`` + core endpoints (``/core/settings``) +
+the modules' sub-routers (``Module.internal_router``/``internal_router_prefix``).
 
-Зона строится СВЕЖЕЙ на каждый ``create_app`` (``build_internal_zone`` возвращает
-новый ``APIRouter``) — без глобального синглтона, иначе повторные ``create_app`` в
-тестах копили бы маршруты. Защиту вешает ``mount_router_zones`` (``router/mounting.py``)
-зон-guard'ом (``make_zone_guard(registry, default=INTERNAL_DEFAULT_GUARDS)``); здесь —
-только состав.
+The zone is built FRESH on every ``create_app`` (``build_internal_zone`` returns a
+new ``APIRouter``) — no global singleton, otherwise repeated ``create_app`` calls in
+tests would pile up routes. Protection is attached by ``mount_router_zones`` (``router/mounting.py``)
+as a zone guard (``make_zone_guard(registry, default=INTERNAL_DEFAULT_GUARDS)``); this file holds
+only the contents.
 
-``api``/``webhook`` — отдельные зоны-болванки рядом (``api.py``/``webhook.py``), пока не смонтированы.
+``api``/``webhook`` are separate stub zones alongside (``api.py``/``webhook.py``), not mounted yet.
 """
 
 from __future__ import annotations
@@ -25,23 +25,25 @@ from src.core.module import Module
 from src.core.router.degraded import health_payload
 from src.core.router.guards import guard
 
-# Префикс монтажа зоны и её умолчательные виды guard'ов (default-on).
-# Чистое ядро auth-модуля не имеет, поэтому умолчание — встроенный ``allow_all``.
-# Когда добавится провайдер auth (свой ``Module.guards`` с видом ``auth``), вернуть сюда ``["auth"]``.
+# The zone's mount prefix and its default guard kinds (default-on).
+# The bare core has no auth module, so the default is the built-in ``allow_all``.
+# Once an auth provider arrives (its own ``Module.guards`` with an ``auth`` kind), put ``["auth"]`` back here.
 INTERNAL_PREFIX = "/internal"
 INTERNAL_DEFAULT_GUARDS = ["allow_all"]
 
 HEALTH_ROUTE = "/health"
-# Полный путь нужен снаружи: гейт отставшей цепочки освобождает ровно его (router/degraded.py).
+# The full path is needed outside: the behind-chain gate exempts exactly it (router/degraded.py).
 HEALTH_PATH = INTERNAL_PREFIX + HEALTH_ROUTE
+
+APP_ROUTE = "/core/app"
 
 
 def make_request_delay(ms: int) -> Callable[[], Awaitable[None]]:
-    """DEBUG-only зон-зависимость: тормозит каждый запрос зоны на ``ms`` миллисекунд.
+    """DEBUG-only zone dependency: delays every request in the zone by ``ms`` milliseconds.
 
-    Для отладки фронта (скелетоны/лоадеры). Монтируется только при ``ms > 0`` (см.
-    ``mount_router_zones`` в ``router/mounting.py``) — в проде нулевой оверхед.
-    Вешается ПОСЛЕ guard'а, поэтому отклонённые (401) запросы не ждут впустую.
+    For debugging the frontend (skeletons/loaders). Mounted only when ``ms > 0`` (see
+    ``mount_router_zones`` in ``router/mounting.py``) — zero overhead in prod.
+    Attached AFTER the guard, so rejected (401) requests don't wait for nothing.
     """
     seconds = ms / 1000
 
@@ -53,18 +55,25 @@ def make_request_delay(ms: int) -> Callable[[], Awaitable[None]]:
 
 @guard("allow_all")
 async def _health(request: Request) -> dict[str, object]:
-    """Публичный liveness зоны internal (без auth). Доступен только при
-    смонтированной зоне ⇒ отражает, что API реально поднят (SERVER_ENABLED).
+    """Public liveness of the internal zone (no auth). Reachable only while the
+    zone is mounted ⇒ reflects that the API is actually up (SERVER_ENABLED).
 
-    Отставшая цепочка миграций отвечает 200 и ``degraded`` — не-200 MCP-шим счёл бы смертью
-    backend'а и полез бы поднимать второй (см. ``router/degraded.py``)."""
+    A migration chain that is behind answers 200 and ``degraded`` — the MCP shim would take a
+    non-200 as the backend's death and go spawn a second one (see ``router/degraded.py``)."""
     return health_payload(request.app)
 
 
+async def _app_flags(request: Request) -> dict[str, object]:
+    """The process-level switches the SPA shapes itself by. The values are those this process
+    started with, not the current ``.env``: an edit there takes effect only after a restart."""
+    return {"dev_mode": request.app.state.config.app_dev_mode}
+
+
 def build_internal_zone(modules: Sequence[Module]) -> APIRouter:
-    """Свежий агрегатор зоны internal: health + ядро + под-роутеры модулей."""
+    """A fresh internal-zone aggregator: health + core + the modules' sub-routers."""
     zone = APIRouter()
     zone.add_api_route(HEALTH_ROUTE, _health, methods=["GET"], tags=["core"])
+    zone.add_api_route(APP_ROUTE, _app_flags, methods=["GET"], tags=["core"])
     zone.include_router(settings_router, prefix="/core/settings", tags=["core"])
     zone.include_router(update_router, prefix="/core/update", tags=["core"])
     for m in modules:
@@ -76,6 +85,7 @@ def build_internal_zone(modules: Sequence[Module]) -> APIRouter:
 
 
 __all__ = [
+    "APP_ROUTE",
     "HEALTH_PATH",
     "HEALTH_ROUTE",
     "INTERNAL_DEFAULT_GUARDS",

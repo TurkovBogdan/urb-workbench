@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { IconInfoCircle } from '@tabler/icons-vue'
 
-// Иконка-пояснение про источник данных диаграммы (как у KPI-метрик).
+// An info icon explaining the chart's data source (as on KPI metrics).
 defineProps<{ text: string }>()
 </script>
 

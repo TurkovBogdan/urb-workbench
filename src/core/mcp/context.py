@@ -1,14 +1,14 @@
-"""Контекст MCP-сервера: общая обвязка, отдаваемая конструктору каждого модуля.
+"""MCP server context: the shared wiring handed to every module's builder.
 
-``McpServerContext`` строится ОДИН раз в ``mount_mcp_servers`` и передаётся в
-каждый ``mcp_server(ctx)`` модуля. Несёт agnostic-верификатор (общий на все
-серверы), audit-middleware и список ``allowed_hosts`` (защиту от DNS-rebinding
-навешивает ASGI-слой через ``TrustedHostMiddleware`` в момент ``http_app()`` —
-форк ``fastmcp`` 3.x не имеет ``TransportSecuritySettings`` bundled-SDK).
+``McpServerContext`` is built ONCE in ``mount_mcp_servers`` and passed to every module's
+``mcp_server(ctx)``. It carries the agnostic verifier (shared by all servers), the audit
+middleware and the ``allowed_hosts`` list (DNS-rebinding protection is attached by the
+ASGI layer through ``TrustedHostMiddleware`` at ``http_app()`` time — the ``fastmcp`` 3.x
+fork lacks the bundled SDK's ``TransportSecuritySettings``).
 
-Типы ``TokenResolver`` / ``McpServerBuilder`` объявлены здесь (leaf-модуль без
-импорта ``fastmcp`` на верхнем уровне), чтобы ``core/module.py`` мог типизировать
-``Module.mcp_servers`` / ``Module.mcp_token_resolver`` без тяги +13 МБ.
+The ``TokenResolver`` / ``McpServerBuilder`` types are declared here (a leaf module with
+no top-level ``fastmcp`` import) so that ``core/module.py`` can type
+``Module.mcp_servers`` / ``Module.mcp_token_resolver`` without dragging in +13 MB.
 """
 
 from __future__ import annotations
@@ -24,28 +24,28 @@ if TYPE_CHECKING:
 
 
 class McpPrincipal(Protocol):
-    """Утиный тип принципала, возвращаемого резолвером токена.
+    """Duck type of the principal returned by the token resolver.
 
-    Совпадает с принципалом auth-модуля по используемым полям —
-    ядро его НЕ импортирует, читает только ``id``/``group``.
+    Matches the auth module's principal on the fields in use — the core does NOT import
+    it, and reads only ``id``/``group``.
     """
 
     id: int
     group: str
 
 
-# Резолвер токена: (token, scope) -> принципал | None. Поставляет auth-модуль
-# через ``Module.mcp_token_resolver``.
+# Token resolver: (token, scope) -> principal | None. Supplied by the auth module
+# via ``Module.mcp_token_resolver``.
 TokenResolver = Callable[[str, str], Awaitable["McpPrincipal | None"]]
 
-# Конструктор MCP-сервера: ``(ctx) -> FastMCP``. В модуле ВСЕГДА именуется
-# ``mcp_server`` и кладётся в ``Module.mcp_servers`` под ключом-``code``.
+# MCP server builder: ``(ctx) -> FastMCP``. In a module it is ALWAYS named
+# ``mcp_server`` and placed in ``Module.mcp_servers`` under its ``code`` key.
 McpServerBuilder = Callable[["McpServerContext"], "FastMCP"]
 
 
 @dataclass(frozen=True)
 class McpServerContext:
-    """Общая обвязка, передаваемая конструктору каждого MCP-сервера."""
+    """Shared wiring passed to the builder of every MCP server."""
 
     auth: "TokenVerifier"
     audit: "Middleware"

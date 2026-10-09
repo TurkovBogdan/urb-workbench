@@ -1,14 +1,15 @@
-"""Строки с числом склоняются правилом своего языка.
+"""Strings with a number are inflected by their own language's rule.
 
-Правила лежат в `web/src/plugins/plural.ts` и подключены к `vue-i18n` (`pluralRules`). Без них
-библиотека выбирает форму по индексу `min(n, 2)`, и русское «5 коммитов» выходит «5 коммита».
-Промах не роняет страницу — он просто читается неграмотно, поэтому ловится здесь.
+The rules live in `web/src/plugins/plural.ts` and are wired into `vue-i18n` (`pluralRules`).
+Without them the library picks the form by index `min(n, 2)`, and the Russian "5 коммитов" comes
+out as "5 коммита". The miss does not break the page — it just reads as illiterate, so it is
+caught here.
 
-Правило исполняется настоящим файлом под Node (`--experimental-strip-types`), а не копией на
-Python: копия разошлась бы с оригиналом молча. Без Node тест пропускается.
+The rule is executed from the real file under Node (`--experimental-strip-types`), not from a
+Python copy: a copy would drift from the original silently. Without Node the test is skipped.
 
-Заодно ловится буквальная `|` в тексте: для `vue-i18n` это разделитель форм, и строка без числа
-рисуется одним своим куском. Пишется она как `{'|'}`.
+A literal `|` in text is caught along the way: to `vue-i18n` it is the form separator, and a
+string without a number renders just one of its pieces. It is written as `{'|'}`.
 """
 
 from __future__ import annotations
@@ -26,7 +27,7 @@ pytestmark = pytest.mark.pure
 WEB_SRC = Path(__file__).resolve().parents[2] / "web" / "src"
 RULES = WEB_SRC / "plugins" / "plural.ts"
 
-# Сколько форм пишется в строке с числом: с отдельной формой нуля и без неё.
+# How many forms a string with a number carries: with a separate zero form and without one.
 FORM_COUNTS = {"en": {2, 3}, "ru": {3, 4}}
 
 _ESCAPED_PIPE = "{'|'}"
@@ -67,7 +68,7 @@ def _plural_messages(locale: str) -> dict[str, list[str]]:
 def _forms_chosen(locale: str, numbers: list[int], forms: int) -> list[int]:
     node = shutil.which("node")
     if node is None:
-        pytest.skip("Node не найден — правило склонения нечем исполнить")
+        pytest.skip("Node not found — nothing to execute the plural rule with")
     script = (
         f"import {{ PLURAL_RULES }} from '{RULES.as_uri()}';"
         f"console.log(JSON.stringify({json.dumps(numbers)}.map((n) => PLURAL_RULES.{locale}(n, {forms}))))"
@@ -133,6 +134,27 @@ def test_english_takes_one_other():
         "2 commits",
         "21 commits",
     ]
+
+
+def test_group_card_counts_tasks_in_russian():
+    message = _message("tasks", "ru", "group.card.tasks")
+
+    assert [_render(message, "ru", n) for n in (0, 1, 3, 5, 21)] == [
+        "задач",
+        "задача",
+        "задачи",
+        "задач",
+        "задача",
+    ]
+
+
+def test_group_deletion_names_an_empty_group_without_a_number():
+    message = _message("tasks", "ru", "group.delete.has_tasks")
+
+    assert _render(message, "ru", 0) == "В группе нет задач."
+    assert _render(message, "ru", 1) == "В группе 1 задача — что с ней сделать?"
+    assert _render(message, "ru", 2).startswith("В группе 2 задачи — что с ними")
+    assert _render(message, "ru", 5).startswith("В группе 5 задач — что с ними")
 
 
 def test_a_zero_form_is_picked_only_when_written():

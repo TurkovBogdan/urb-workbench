@@ -1,8 +1,8 @@
-// Цитата — строчный блок, а не контейнер.
+// A quote is a line block, not a container.
 //
-// В дереве ProseMirror по умолчанию blockquote держит внутри абзацы, и многострочная цитата
-// становится ещё одной формой того же содержимого. Здесь многострочная цитата — несколько
-// соседних блоков с одним признаком, и каждый по-прежнему ложится в одну строку markdown.
+// In the default ProseMirror tree a blockquote holds paragraphs inside, and a multi-line quote
+// becomes yet another shape of the same content. Here a multi-line quote is several adjacent
+// blocks sharing one flag, and each still maps onto a single markdown line.
 import { InputRule, Node, mergeAttributes } from '@tiptap/core'
 
 export const Quote = Node.create({
@@ -19,17 +19,17 @@ export const Quote = Node.create({
     return ['blockquote', mergeAttributes(HTMLAttributes), 0]
   },
 
-  // Сочетание то же, что у выключенного blockquote из StarterKit — но зарегистрировано в ОБОИХ
-  // написаниях. При нажатом Shift браузер отдаёт `key: "B"`, и привязка, записанная строчной
-  // буквой, не срабатывает никогда: у самого Tiptap это давняя мина, проверено в браузере.
-  // С цифрами так не выходит — там выручает запасной разбор по коду клавиши.
+  // The same shortcut as the disabled StarterKit blockquote — but registered in BOTH cases. With
+  // Shift held the browser reports `key: "B"`, and a binding written in lowercase never fires: a
+  // long-standing trap in Tiptap itself, verified in the browser. Digits cannot be handled this
+  // way — there the fallback match on the key code saves the day.
   addKeyboardShortcuts() {
     const toQuote = () => this.editor.commands.toggleNode(this.name, 'paragraph')
     return { 'Mod-Shift-b': toQuote, 'Mod-Shift-B': toQuote }
   },
 
-  // Выключив blockquote из StarterKit, мы унесли и его правило ввода: `> ` перестал заводить
-  // цитату и оставался литералом, который сериализатор потом экранировал в `\>`.
+  // Disabling the StarterKit blockquote took its input rule with it: `> ` stopped starting a quote
+  // and stayed a literal, which the serializer then escaped into `\>`.
   addInputRules() {
     return [
       new InputRule({

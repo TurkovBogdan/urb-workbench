@@ -1,35 +1,36 @@
-// Карточка, которая едет за курсором во время переноса блока.
+// The card that follows the cursor while a block is being dragged.
 //
-// Нативное превью браузер рисует с самого элемента и делает полупрозрачным — управлять ни
-// прозрачностью, ни тенью нативного снимка нельзя, это ограничение платформы. Единственный
-// способ получить непрозрачную карточку — убрать нативное превью совсем (прозрачным пикселем)
-// и вести своё руками.
+// The browser draws the native preview from the element itself and makes it translucent — neither
+// the opacity nor the shadow of the native snapshot can be controlled, it is a platform limit. The
+// only way to get an opaque card is to drop the native preview entirely (with a transparent pixel)
+// and drive our own by hand.
 //
-// Превью обязано совпадать с оригиналом один в один: та же ширина, та же разбивка строк, та же
-// высота. Иначе текст переверстается в момент захвата, и это читается как «шрифт поехал».
+// The preview must match the original exactly: same width, same line breaks, same height.
+// Otherwise the text reflows the moment it is grabbed, and that reads as "the font slipped".
 import { ref } from 'vue'
 import type { Ref } from 'vue'
 import type { Editor } from '@tiptap/core'
 import type { EditorView } from '@tiptap/pm/view'
 
-// Создаётся заранее: незагруженную картинку браузер проигнорирует и вернёт снимок по умолчанию.
+// Created up front: the browser ignores an image that has not loaded and falls back to the
+// default snapshot.
 const EMPTY_DRAG_IMAGE = new Image()
 EMPTY_DRAG_IMAGE.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
 
 interface DraggedBlock { pos: number; dom: HTMLElement }
 
 export interface DragPreview {
-  /** Идёт ли перенос — зона подсвечивает себя рамкой, пока он идёт. */
+  /** Whether a drag is in progress — the zone outlines itself while it is. */
   dragging: Ref<boolean>
   start: (event: DragEvent) => void
   end: () => void
-  /** Снять глобальный слушатель и убрать карточку, если размонтировались посреди переноса. */
+  /** Remove the global listener and the card if unmounted mid-drag. */
   dispose: () => void
 }
 
 /**
- * @param editor  редактор; до монтирования `undefined`
- * @param handlePos позиция блока под ручкой перетаскивания
+ * @param editor  the editor; `undefined` until mounted
+ * @param handlePos position of the block under the drag handle
  */
 export function useDragPreview(
   editor: Ref<Editor | undefined>,
@@ -38,9 +39,9 @@ export function useDragPreview(
   const dragging = ref(false)
   let ghost: HTMLElement | null = null
 
-  // Блоки, которые уедут. Перетаскивание берёт всё выделение целиком, поэтому и превью обязано
-  // показывать всё: карточка с одним абзацем, когда переезжают пять, — прямая ложь о том, что
-  // произойдёт при отпускании.
+  // The blocks that will move. A drag takes the whole selection, so the preview must show all of
+  // it: a card with one paragraph when five are moving is a flat lie about what happens on
+  // release.
   function draggedBlocks(view: EditorView): DraggedBlock[] {
     const { from, to } = view.state.selection
     const selected: DraggedBlock[] = []
@@ -53,9 +54,9 @@ export function useDragPreview(
       if (offset === handlePos.value) handleInSelection = true
     })
 
-    // Выделение берётся, только если оно охватывает несколько блоков И среди них тот, за который
-    // тянут. Иначе уедет блок под ручкой, а каретка может стоять совсем в другом месте — и
-    // превью показало бы не то, что переезжает.
+    // The selection is used only if it spans several blocks AND includes the one being dragged.
+    // Otherwise the block under the handle moves while the caret may sit somewhere else entirely —
+    // and the preview would show something other than what is moving.
     if (selected.length > 1 && handleInSelection) return selected
 
     const pos = handlePos.value
@@ -65,8 +66,8 @@ export function useDragPreview(
   }
 
   function buildPreview(sources: DraggedBlock[]): HTMLElement {
-    // Хост живёт ВНУТРИ зоны правки: снаружи клон потерял бы стили компонента и приехал бы
-    // голым текстом.
+    // The host lives INSIDE the editing zone: outside it the clone would lose the component's
+    // styles and arrive as bare text.
     const host = document.createElement('div')
     host.className = 'editor__preview'
     host.setAttribute('aria-hidden', 'true')
@@ -74,9 +75,10 @@ export function useDragPreview(
     const card = document.createElement('div')
     card.className = 'editor__preview-card'
 
-    // Отдельный слой документа: он несёт ту же типографику, что и сам документ (класс `md-body`
-    // из общего файла), и получает ТОЧНУЮ ширину оригинала. Ширина здесь — не оформление, а
-    // условие совпадения: от неё зависит, где лягут переносы строк, а значит и высота.
+    // A separate document layer: it carries the same typography as the document itself (the
+    // `md-body` class from the shared file) and gets the EXACT width of the original. The width is
+    // not styling here but the condition for a match: it decides where lines break, and so the
+    // height.
     const body = document.createElement('div')
     body.className = 'md-body editor__preview-doc'
     body.style.width = `${sources[0].dom.offsetWidth}px`
@@ -87,8 +89,8 @@ export function useDragPreview(
     return host
   }
 
-  // Карточка двигается только трансформом: смещение через `left`/`top` пересчитывало бы
-  // раскладку на каждом кадре.
+  // The card moves by transform only: shifting it via `left`/`top` would recompute layout on
+  // every frame.
   function moveGhost(x: number, y: number): void {
     if (ghost) ghost.style.transform = `translate3d(${x - 24}px, ${y - 24}px, 0)`
   }
@@ -110,20 +112,22 @@ export function useDragPreview(
     moveGhost(event.clientX, event.clientY)
 
     event.dataTransfer.setDragImage(EMPTY_DRAG_IMAGE, 0, 0)
-    // Координаты берём из `dragover`: у события `drag` они в части браузеров нулевые.
+    // Coordinates come from `dragover`: on the `drag` event some browsers report zeros.
     document.addEventListener('dragover', trackGhost)
 
     editor.value?.commands.markDragSource(sources.map((source) => source.pos))
   }
 
-  // Конец перетаскивания — любой: дроп, отмена по Esc, отпускание мимо цели.
+  // Any end of a drag: a drop, a cancel with Esc, a release off target.
   //
-  // prosemirror-dropcursor вешает свои обработчики на сам `editorView.dom`, а источник
-  // перетаскивания у нас — ручка, которая лежит рядом с ним, а не внутри. Поэтому `dragend` до
-  // плагина не доходит, и после отмены линия вставки остаётся висеть на экране. Пробрасываем
-  // событие внутрь: мусор после отмены — отдельный анти-паттерн, индикатор обязан сниматься по
-  // тому событию, которое приходит и при неудаче.
+  // prosemirror-dropcursor attaches its handlers to `editorView.dom` itself, while our drag source
+  // is the handle, which sits next to it rather than inside. So `dragend` never reaches the plugin,
+  // and after a cancel the insertion line is left hanging on screen. We forward the event inside:
+  // debris after a cancel is an anti-pattern of its own, and the indicator must be cleared by the
+  // event that also arrives on failure.
   function end(): void {
+    // A drag this preview never started (text pulled inside the document) ends on its own.
+    if (!dragging.value) return
     dragging.value = false
 
     document.removeEventListener('dragover', trackGhost)

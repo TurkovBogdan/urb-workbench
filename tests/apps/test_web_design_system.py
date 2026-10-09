@@ -1,10 +1,10 @@
-"""Витрина дизайн-системы: у каждой страницы есть и вьюха, и её строки.
+"""The design-system showcase: every page has both a view and its strings.
 
-Страница витрины регистрируется в трёх местах сразу — маршрут, плитка в индексе, словарь. Забыть
-одно из трёх легко, и промах словаря молчит: `vue-i18n` рисует сам ключ, то есть страница
-открывается и выглядит почти нормально. Поэтому связка проверяется здесь.
+A showcase page is registered in three places at once — route, index tile, dictionary. Forgetting
+one of the three is easy, and a dictionary miss is silent: `vue-i18n` renders the key itself, so
+the page opens and looks almost normal. Hence the link is checked here.
 
-Читаем исходники как текст — ни сборки, ни браузера, поэтому тест ``pure``.
+Sources are read as text — no build, no browser, hence the test is ``pure``.
 """
 
 from __future__ import annotations
@@ -24,9 +24,9 @@ STRINGS = WEB_SRC / "locales" / "design-system" / "ru.json"
 
 
 def _pages() -> list[tuple[str, str]]:
-    """``slug → путь вьюхи`` из таблицы ``PAGES`` маршрутизатора витрины."""
+    """``slug → view path`` from the ``PAGES`` table of the showcase router."""
     table = re.search(r"const PAGES[^{]*\{(.*?)\n\}", ROUTES.read_text(encoding="utf-8"), re.S)
-    assert table, "таблица страниц витрины не найдена — тест ниже стал бы молчаливо зелёным"
+    assert table, "showcase page table not found — the tests below would go silently green"
     return re.findall(r"^\s*'?([\w-]+)'?:\s*'([\w/]+)',", table.group(1), re.M)
 
 
@@ -49,13 +49,13 @@ def test_page_has_its_strings(slug: str, view: str):
     tile = strings["index"]["page"].get(slug)
     page = strings["page"].get(slug)
 
-    assert tile and tile.get("label"), f"{slug}: плитка витрины без подписи"
-    assert page and page.get("title") and page.get("description"), f"{slug}: страница без имени"
+    assert tile and tile.get("label"), f"{slug}: showcase tile without a label"
+    assert page and page.get("title") and page.get("description"), f"{slug}: page without a name"
 
 
 @pytest.mark.parametrize("slug,view", _pages(), ids=lambda value: value)
 def test_page_is_listed_on_the_index(slug: str, view: str):
-    """Маршрут без плитки — страница, до которой не дойти иначе как по прямой ссылке."""
+    """A route without a tile is a page reachable only by a direct link."""
     assert f"slug: '{slug}'" in INDEX_VIEW.read_text(encoding="utf-8")
 
 
@@ -70,11 +70,12 @@ def _value_at(strings: dict, key: str):
 
 @pytest.mark.parametrize("slug,view", _pages(), ids=lambda value: value)
 def test_page_asks_only_for_strings_it_has(slug: str, view: str):
-    """Промах ключа не роняет страницу — `vue-i18n` рисует сам ключ, и текст «section.rule_note»
-    посреди витрины замечают в лучшем случае через неделю. Собираемые по месту ключи (шаблонная
-    строка внутри `t(...)`) сюда не попадают — их значение известно только в рантайме."""
+    """A missing key does not break the page — `vue-i18n` renders the key itself, and the text
+    "section.rule_note" in the middle of the showcase gets noticed a week later at best. Keys
+    assembled in place (a template string inside `t(...)`) are not covered — their value is known
+    only at runtime."""
     source = (WEB_SRC / "views" / "design-system" / f"{view}.vue").read_text(encoding="utf-8")
     strings = _strings()
 
     for key in re.findall(r"t\('design-system\.([\w.-]+)'\)", source):
-        assert _value_at(strings, key) is not None, f"{view}: нет строки design-system.{key}"
+        assert _value_at(strings, key) is not None, f"{view}: no string design-system.{key}"

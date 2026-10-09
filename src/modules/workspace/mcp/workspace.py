@@ -1,11 +1,11 @@
-"""MCP-тулы пространства — два: посмотреть, что есть, и выбрать, в чём работать.
+"""Workspace MCP tools — two of them: see what exists, and pick what to work in.
 
-Заводить, править и удалять пространства агенту не отдаётся: пространство — раскладка человека,
-а не результат работы, и живёт она в интерфейсе (см. ``workspace/MODULE.md``). Отсюда поверхность
-из двух инструментов вместо семи.
+Creating, editing and deleting workspaces is not handed to the agent: a workspace is the human's
+layout, not a work product, and it lives in the interface (see ``workspace/MODULE.md``). Hence a
+surface of two tools instead of seven.
 
-Оба инструмента — единственные, кто **не** ограничен активным пространством: одному надо показать
-все, другой его и назначает. Всё остальное на сервере через этот забор проходит.
+These two are the only tools **not** confined to the active workspace: one has to show them all,
+the other is what sets it. Everything else on the server passes through this fence.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ from src.modules.workspace.crud import workspace as workspace_crud
 from src.modules.workspace.dto import AgentWorkspaceBound, AgentWorkspaceRow
 from src.modules.workspace.mcp import session
 
-if TYPE_CHECKING:  # fork fastmcp — только backend (через mcp_server(ctx))
+if TYPE_CHECKING:  # the fastmcp fork — backend only (via mcp_server(ctx))
     from fastmcp import FastMCP
 
 _BIND_NOTE = (
@@ -79,8 +79,8 @@ def register(mcp: "FastMCP") -> None:
                 "workspaces_list() shows the ones you can pick."
             )
         await session.bind(row.code)
-        # Уборка брошенных привязок — здесь: она нужна раз в месяц, и вешать ради неё задачу
-        # планировщика значит завести орган, который нечем кормить.
+        # Cleanup of abandoned bindings happens here: it is needed once a month, and hanging a
+        # scheduler job on it would mean growing an organ with nothing to feed it.
         await session.prune()
         counted = await stats.counts_for([row.code])
         return AgentWorkspaceBound(

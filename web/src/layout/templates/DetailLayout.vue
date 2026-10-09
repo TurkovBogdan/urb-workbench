@@ -1,13 +1,14 @@
 <script setup lang="ts">
-// Раскладка страницы-деталки: липкая колонка навигации слева и содержимое справа.
+// Layout of a detail page: a sticky navigation rail on the left and the content on the right.
 //
-// Своя шапка деталке не нужна — выход со страницы, её действия и оглавление живут в колонке и
-// остаются на экране на всей длине документа, а имя артефакта принадлежит самому документу и
-// открывает его содержимое надписью над карточками. Стандартная `PageHeader` осталась за
-// списками, где смысл ровно обратный: там имя раздела и есть заголовок страницы.
+// A detail page needs no header of its own — the exit, the page's actions and the table of contents
+// live in the rail and stay on screen along the whole document, while the artifact's name belongs
+// to the document itself and opens its content as a caption above the cards. The standard
+// `PageHeader` stays with lists, where the meaning is exactly the opposite: there the section name
+// is the page title.
 //
-// Шаблон вкладывается в `PageLayout` (прокруткой и отбивками владеет он) и сам не задаёт ни
-// прокрутки, ни полей — только две дорожки.
+// The template nests inside `PageLayout` (which owns scrolling and spacing) and sets neither
+// scrolling nor padding itself — only the two tracks.
 </script>
 
 <template>
@@ -23,10 +24,11 @@
 </template>
 
 <style scoped>
-/* Колонка задана в пикселях, а не долей двенадцати: ей нужна ширина под подпись и оглавление, и
-   от ширины экрана эта нужда не зависит — на широком мониторе доля отдавала бы ей лишнее место,
-   отняв его у текста. Содержимое забирает весь остаток именно через `minmax(0, 1fr)`: без нижней
-   границы таблица с длинными url раздувает свою дорожку и уносит сетку за экран. */
+/* The rail is sized in pixels, not in twelfths: it needs width for the label and the table of
+   contents, and that need doesn't depend on screen width — on a wide monitor a fraction would give
+   it extra room taken from the text. The content takes all the rest precisely via
+   `minmax(0, 1fr)`: without the lower bound a table with long urls inflates its track and pushes
+   the grid off screen. */
 .detail-layout {
   --rail-width: 320px;
 
@@ -36,9 +38,10 @@
   align-items: start;
 }
 
-/* Липкая вся колонка целиком, а не одно оглавление: разъехавшись, её плашки уползли бы друг от
-   друга на полэкрана. Расстояние между плашками принадлежит им самим (`margin-bottom`), а не
-   `gap` колонки — колонка переживает появление и уход своих частей. */
+/* The whole rail is sticky, not just the table of contents: if they came apart, its panels would
+   drift half a screen away from each other. The spacing between panels belongs to the panels
+   themselves (`margin-bottom`), not to the rail's `gap` — the rail outlives its parts appearing and
+   leaving. */
 .detail-layout__rail {
   min-width: 0;
   position: sticky;
@@ -52,8 +55,8 @@
   min-width: 0;
 }
 
-/* На узком экране отдельная дорожка под навигацию — уже не запас, а отнятое у текста место:
-   сетка схлопывается в одну, и обе части встают друг под другом в полную ширину. */
+/* On a narrow screen a separate navigation track is no longer spare room but space taken from the
+   text: the grid collapses into one, and both parts stack at full width. */
 @media (max-width: 1099px) {
   .detail-layout {
     grid-template-columns: minmax(0, 1fr);

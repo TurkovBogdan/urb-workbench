@@ -2,13 +2,13 @@
 import { computed } from 'vue'
 import { IconChevronRight } from '@tabler/icons-vue'
 
-// Сворачиваемая секция: кликабельная шапка (заголовок + шеврон) над раскрываемым
-// содержимым. Раскрытие — VExpandTransition (плавная высота). Состояние через
-// v-model:boolean (необязательное, по умолчанию закрыт).
-// `variant` задаёт тему оформления: default — плашка с рамкой; minimal —
-// безрамочная строка-заголовок; card — заливка surface-hi в шапке.
-// `color`/`activeColor` переопределяют цвет шапки (заголовок + шеврон) в покое и
-// при наведении — для отдельных интерфейсов; не заданы → цвета темы варианта.
+// A collapsible section: a clickable header (title + chevron) above expandable
+// content. Expansion uses VExpandTransition (smooth height). State via
+// v-model:boolean (optional, closed by default).
+// `variant` sets the styling: default — a bordered plate; minimal —
+// a borderless heading row; card — a surface-hi fill in the header.
+// `color`/`activeColor` override the header color (title + chevron) at rest and
+// on hover — for specific interfaces; when unset → the variant's theme colors.
 type Variant = 'default' | 'minimal' | 'card'
 
 const model = defineModel<boolean>({ default: false })

@@ -1,4 +1,4 @@
-"""Публичный API планировщика задач ядра."""
+"""Public API of the core task scheduler."""
 
 from __future__ import annotations
 
@@ -16,8 +16,8 @@ from src.core.scheduler.ticker import Ticker
 
 
 _TICKER: Ticker | None = None
-# Override от worker-процесса: форсирует запуск тикера (минуя worker_enabled) и
-# задаёт scope/ручки. Выставляется точкой входа (src/app.py) ДО lifespan.
+# Override from the worker process: forces the ticker to start (bypassing worker_enabled) and
+# sets the scope/knobs. Set by the entry point (src/app.py) BEFORE the lifespan.
 _WORKER_OVERRIDE: dict | None = None
 
 
@@ -27,10 +27,10 @@ def configure_worker(
     max_concurrent: int,
     tick: int,
 ) -> None:
-    """Сконфигурировать процесс как worker: форс-старт тикера + scope модулей.
+    """Configure the process as a worker: forced ticker start + module scope.
 
-    Зовётся точкой входа чистого worker-процесса до старта lifespan. После этого
-    ``start()`` поднимет тикер независимо от ``config.worker_enabled``.
+    Called by the entry point of a pure worker process before the lifespan starts.
+    After that ``start()`` brings up the ticker regardless of ``config.worker_enabled``.
     """
     global _WORKER_OVERRIDE
     _WORKER_OVERRIDE = {
@@ -53,7 +53,7 @@ def register(
     user_request: bool = False,
     sort: int = 500,
 ) -> None:
-    """Регистрация задачи. ``schedule`` — стандартный 5-польный cron; None → только по запросу."""
+    """Register a task. ``schedule`` is a standard 5-field cron; None → on request only."""
     get_registry().register(
         module=module,
         code=code,
@@ -69,10 +69,10 @@ def register(
 
 
 async def start(config: Config) -> None:
-    """Поднять тикер. Источник параметров: worker-override (если задан) либо config.
+    """Start the ticker. Parameters come from the worker override (if set) or the config.
 
-    Без override тикер стартует только при ``config.worker_enabled`` (встроенный
-    режим dev). Override (чистый worker-процесс) форсит старт и задаёт scope.
+    Without an override the ticker starts only when ``config.worker_enabled`` (the embedded
+    dev mode). The override (a pure worker process) forces the start and sets the scope.
     """
     global _TICKER
     if _TICKER is not None:

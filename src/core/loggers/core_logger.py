@@ -1,4 +1,4 @@
-"""Логгер ядра: пишет в файл и в stdout."""
+"""The core logger: writes to a file and to stdout."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ _FMT = logging.Formatter(
 
 
 class CoreLogger:
-    """Логгер ядра. Пишет в файл; stdout опционален (отключать для MCP-серверов)."""
+    """The core logger. Writes to a file; stdout is optional (turn it off for MCP servers)."""
 
     def __init__(
         self,
@@ -23,7 +23,7 @@ class CoreLogger:
         level: int | str = logging.INFO,
         stdout: bool = True,
     ) -> None:
-        # `file_name` со слешем трактуется как путь внутри `logs_dir`:
+        # A `file_name` with a slash is treated as a path inside `logs_dir`:
         # "tasks/hh_vacancy" → logs_dir/tasks/hh_vacancy.log.
         log_path = logs_dir / f"{file_name}.log"
         log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -31,8 +31,8 @@ class CoreLogger:
         self._logger = logging.getLogger(logger_name)
         self._logger.setLevel(level)
         self._logger.propagate = False
-        # Защита от повторной инициализации (reload, тесты): без этого
-        # `logging.getLogger` вернул бы тот же инстанс с накопленными хендлерами.
+        # Guard against re-initialisation (reload, tests): without it
+        # `logging.getLogger` would return the same instance with handlers piled up.
         for h in list(self._logger.handlers):
             self._logger.removeHandler(h)
         file_handler = logging.FileHandler(log_path, encoding="utf-8")

@@ -1,10 +1,11 @@
-// Поведение без собственного интерфейса: расширения и композаблы, которые ничего не рисуют
-// сами, а меняют то, что документ делает в ответ на действие.
+// Behaviour with no interface of its own: extensions and composables that draw nothing
+// themselves but change what the document does in response to an action.
 //
-// Граница с `controls/` проходит по видимости: здесь нет ни одной кнопки и ни одного меню —
-// только реакция на клавиши, вставку и перетаскивание. Всё, что видно на экране, живёт либо
-// декорацией (подсветка исходника переноса, вспышка после перемещения), либо в `controls/`.
+// The line with `controls/` is drawn by visibility: there is not a single button or menu here —
+// only reactions to keys, paste and drag. Anything visible on screen lives either as a decoration
+// (the drag source highlight, the flash after a move) or in `controls/`.
 export { BlockMoves, type MoveTarget } from './blockMoves'
 export { DragSource } from './dragSource'
+export { LENGTH_LIMIT_BYPASS, LengthLimit } from './lengthLimit'
 export { MarkdownPaste } from './markdownPaste'
 export { useDragPreview, type DragPreview } from './useDragPreview'

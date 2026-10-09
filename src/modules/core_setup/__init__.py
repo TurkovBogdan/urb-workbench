@@ -1,8 +1,8 @@
-"""core_setup — страница настроек, редактирующая ``.env`` и перезапускающая сервер.
+"""core_setup — a settings page that edits ``.env`` and restarts the server.
 
-Редактирует слой ENV/``Config`` (deploy-time: провайдер БД, коннект, порты, воркер);
-изменения применяются рестартом процесса (``os.execv``). Отдельно от рантайм-настроек
-(``core/settings`` → ``/core/settings``), которые применяются горячо.
+Edits the ENV/``Config`` layer (deploy-time: DB provider, connection, ports, worker); changes
+take effect by restarting the process (``os.execv``). Separate from the runtime settings
+(``core/settings`` → ``/core/settings``), which apply hot.
 """
 
 from src.modules.core_setup.module import CoreSetupModule

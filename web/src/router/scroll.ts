@@ -1,12 +1,12 @@
 import type { RouteLocationNormalized } from 'vue-router'
 
-// Возврат по истории или новый переход — единственное, что роутер знает о прокрутке, и
-// единственное, что нужно странице. Отличает их `savedPosition`: браузер отдаёт его роутеру
-// только на back/forward, а на обычном переходе (клик по ссылке, `router.push`) там `null`.
+// A history return or a new transition — the only thing the router knows about scrolling, and the
+// only thing a page needs. `savedPosition` tells them apart: the browser hands it to the router
+// only on back/forward, while on a regular transition (a link click, `router.push`) it is `null`.
 //
-// Сам роутер при этом не мотает ничего: прокручивается не окно, а зона содержимого
-// (`PageLayout`), и позицию восстанавливает она — этот модуль отвечает лишь на вопрос «нас
-// сюда вернули или мы сюда пришли».
+// The router itself scrolls nothing: what scrolls is not the window but the content zone
+// (`PageLayout`), and it restores the position itself — this module only answers "were we brought
+// back here, or did we arrive here".
 let backNavigation = false
 
 export function trackNavigationKind(

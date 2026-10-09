@@ -27,8 +27,8 @@ const confirmBusy   = ref(false)
 
 const { t } = useI18n()
 
-// ConfirmDialog спрашивает, но не делает: работу ведёт родитель и сам закрывает окно —
-// поэтому при отказе окно остаётся открытым, с ошибкой там, куда человек смотрит.
+// ConfirmDialog asks but doesn't act: the parent does the work and closes the window itself —
+// so on failure the window stays open, with the error where the person is looking.
 async function runConfirm() {
   confirmBusy.value = true
   await new Promise(r => setTimeout(r, 800))
@@ -97,7 +97,7 @@ async function fakeSubmit() {
       </div>
     </section>
 
-    <!-- Сборные окна проекта: анатомия задана компонентом, а не собирается на месте. -->
+    <!-- The project's assembled windows: the anatomy is set by the component, not assembled on the spot. -->
     <section class="ds-section">
       <h6 class="mb-3">{{ t('design-system.section.dialogs.app_dialog') }}</h6>
       <div class="ds-card">

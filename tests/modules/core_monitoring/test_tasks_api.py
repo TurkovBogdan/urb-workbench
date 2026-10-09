@@ -1,4 +1,4 @@
-"""HTTP-API раздела «Задачи» модуля core_monitoring (/internal/tasks)."""
+"""HTTP API of the core_monitoring "Tasks" section (/internal/tasks)."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ _MODULE = "test_monitoring"
 _CODE = "demo"
 
 
-async def _noop_handler(ctx) -> None:  # noqa: ANN001 — сигнатура хендлера задачи
+async def _noop_handler(ctx) -> None:  # noqa: ANN001 — scheduled task handler signature
     return None
 
 

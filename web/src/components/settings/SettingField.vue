@@ -35,15 +35,15 @@ const editors = {
   list: SettingFieldList,
 } as const
 
-// Секретная строка сохраняется вручную (кнопка) — свой редактор вместо автосейва.
+// A secret string is saved manually (a button) — its own editor instead of autosave.
 const editor = computed(() =>
   props.field.kind === 'str' && props.field.secret
     ? SettingFieldSecret
     : editors[props.field.kind],
 )
 
-// Bool-поле рисует описание внутри плашки-переключателя (сгруппировано с заголовком),
-// поэтому общая подпись снизу для него не нужна.
+// A bool field draws its description inside the switch panel (grouped with the title),
+// so it doesn't need the shared caption below.
 const descriptionBelow = computed(
   () => Boolean(props.field.description) && props.field.kind !== 'bool',
 )

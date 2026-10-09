@@ -12,12 +12,12 @@ import { errorText } from '@/api/errorText'
 import { useSettingLabels } from '../labels'
 import { listModules, putValue, type ModulePayload } from '../api'
 
-/** Блок полей на экране: либо со своей подписью, либо во главе с тумблером. */
+/** A block of fields on screen: either with its own caption or headed by a switch. */
 interface FieldBlock {
   key: string
-  /** Подпись блока. Пусто, когда её роль исполняет тумблер в шапке. */
+  /** The block caption. Empty when the switch in the header plays its role. */
   caption: string
-  /** Bool-поле, поднятое в шапку блока: остальные поля читаются как его содержимое. */
+  /** A bool field lifted into the block header: the other fields read as its content. */
   header: FieldDescriptor | null
   fields: FieldDescriptor[]
 }
@@ -25,10 +25,10 @@ interface FieldBlock {
 const { t } = useI18n()
 const { localizeField } = useSettingLabels()
 
-// Названия модулей в шапке карточек: подпись нужна там, где имя модуля читается хуже, чем
-// название раздела. Если ключа нет — показываем имя как есть, поэтому пустая карта законна.
-// Сейчас она пуста: настроек не объявляет ни один модуль сборки, а прежние три записи
-// (`hh`, `core_connectors`, `web_search`) пережили свои модули.
+// Module names in the card headers: a label is needed where the module name reads worse than the
+// section name. Without a key the name is shown as is, so an empty map is legitimate.
+// It is empty now: no module in this build declares settings, and the former three entries
+// (`hh`, `core_connectors`, `web_search`) outlived their modules.
 const MODULE_LABELS: Record<string, string> = {}
 
 const modules = ref<ModulePayload[]>([])
@@ -36,10 +36,10 @@ const loading = ref(true)
 const refreshing = ref(false)
 const saving = ref(false)
 const error = ref<string | null>(null)
-// values — редактируемая копия; saved — снимок с сервера для детекции изменений.
+// values — the editable copy; saved — the server snapshot for change detection.
 const values = reactive<Record<string, Record<string, unknown>>>({})
 const saved = reactive<Record<string, Record<string, unknown>>>({})
-// Ошибки валидации по конкретному полю (заполняются на сохранении).
+// Per-field validation errors (filled on save).
 const fieldErrors = reactive<Record<string, Record<string, string | null>>>({})
 
 function moduleLabel(name: string): string {
@@ -55,15 +55,16 @@ const localizedModules = computed(() =>
   })),
 )
 
-// Условие видимости считается по ТЕКУЩЕЙ форме, а не по сохранённому: выключил сервис — его ключ
-// уходит сразу, не дожидаясь сохранения. Скрытое поле не стирается и вернётся вместе с условием.
+// The visibility condition is evaluated against the CURRENT form, not the saved one: switch a
+// service off and its key goes away at once, without waiting for save. A hidden field is not
+// erased and comes back with the condition.
 function visible(module: string, field: FieldDescriptor): boolean {
   const condition = field.visible_when
   return condition === null || values[module]?.[condition.key] === condition.equals
 }
 
-// Поля одной группы идут в схеме подряд, поэтому блок закрывается на первом же поле с другой
-// группой — сортировать и раскладывать по словарю не нужно, порядок схемы и есть порядок экрана.
+// Fields of one group come consecutively in the schema, so a block closes at the first field of a
+// different group — no sorting or bucketing by dictionary is needed: schema order is screen order.
 function splitByGroup(fields: FieldDescriptor[]): FieldDescriptor[][] {
   const blocks: FieldDescriptor[][] = []
   for (const field of fields) {
@@ -74,8 +75,8 @@ function splitByGroup(fields: FieldDescriptor[]): FieldDescriptor[][] {
   return blocks
 }
 
-// Тумблер во главе группы («Включить Tavily») сам называет блок, поэтому подпись при нём не
-// рисуется — иначе название сервиса стояло бы дважды подряд.
+// A switch heading a group ("Enable Tavily") names the block itself, so no caption is rendered
+// with it — otherwise the service name would appear twice in a row.
 function toBlock(module: string, group: FieldDescriptor[]): FieldBlock {
   const [first, ...rest] = group
   const headed = first.group !== '' && first.kind === 'bool'
@@ -92,7 +93,7 @@ const moduleBlocks = computed(() =>
     ...m,
     blocks: splitByGroup(m.fields)
       .map((group) => toBlock(m.module, group))
-      // Группа, где скрыто всё и нет тумблера, не должна оставлять пустую рамку.
+      // A group with everything hidden and no switch must not leave an empty frame.
       .filter((b) => b.header !== null || b.fields.length > 0),
   })),
 )
@@ -131,10 +132,10 @@ function onChange(module: string, key: string, value: unknown) {
   fieldErrors[module][key] = null
 }
 
-// Единая кнопка «Сохранить»: пишем ВСЕ изменённые поля. Введённое значение остаётся
-// в поле (снимок двигаем на него), страницу НЕ перечитываем — иначе секрет пришёл бы
-// сентинелом и «стёр» бы только что введённый токен из поля. Свежий сентинел придёт
-// уже при следующем открытии страницы.
+// A single "Save" button: we write ALL changed fields. The entered value stays in the field
+// (the snapshot moves onto it), and the page is NOT reloaded — otherwise the secret would come
+// back as a sentinel and "erase" the token just typed into the field. A fresh sentinel arrives
+// on the next page open.
 async function saveAll() {
   saving.value = true
   error.value = null
@@ -250,25 +251,25 @@ async function saveAll() {
 </template>
 
 <style scoped>
-/* Карточка модуля занимает всю ширину страницы: раскладку в колонки взял на себя блок полей
-   внутри, и модули идут стопкой сверху вниз в порядке схемы. */
+/* A module card takes the full page width: the field block inside handles the column layout, and
+   modules stack top to bottom in schema order. */
 .modules-list {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
-/* Блок = группа полей схемы. Внутри поля стоят теснее, чем блоки между собой: расстояние и есть
-   то, чем группировка читается, отдельной рамки для этого не нужно. */
+/* Block = a schema field group. Fields inside sit closer than blocks do to each other: the spacing
+   is what makes the grouping readable, no separate frame is needed for it. */
 .field-block {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
-/* Поля под тумблером — его содержимое, а не соседи: сдвиг и линейка слева показывают, что ключ
-   принадлежит именно этому сервису и уедет вместе с ним. Сдвиг равен ширине переключателя, чтобы
-   поля вставали под текстом плашки, а не под её краем. */
+/* Fields under a switch are its content, not its neighbours: the indent and the rule on the left
+   show that the key belongs to this particular service and goes away with it. The indent equals
+   the switch width, so the fields line up under the panel's text, not under its edge. */
 .field-block--headed .field-block__fields {
   margin-left: 14px;
   padding-left: 14px;

@@ -1,17 +1,17 @@
 """Field classes for the runtime settings subsystem.
 
-Каждое поле описывает один user-tunable параметр модуля. Поле:
-- хранит метаданные (label, description, default, ограничения, UI-hints);
-- умеет parse/serialize TEXT ↔ python value (для хранения в БД);
-- валидирует значение через ``validate(value)``;
-- декларирует свой UI через ``ui_descriptor()``.
+Each field describes one user-tunable parameter of a module. A field:
+- holds metadata (label, description, default, constraints, UI hints);
+- can parse/serialize TEXT ↔ python value (for storage in the DB);
+- validates a value via ``validate(value)``;
+- declares its UI via ``ui_descriptor()``.
 
-Все поля frozen-dataclass'ы — список схемы хешируем, поля попадают в кеш
-без сюрпризов.
+All fields are frozen dataclasses — the schema list is hashable, so fields go into
+a cache without surprises.
 
-Конструкторы используют ``object.__setattr__`` для нормализации входных
-структур (``options`` → tuple-of-tuples и т.п.), потому что фабрики ``Field``
-работают через ``__post_init__`` поверх ``frozen=True``.
+Constructors use ``object.__setattr__`` to normalise input structures
+(``options`` → tuple-of-tuples, etc.), because the ``Field`` factories work
+through ``__post_init__`` on top of ``frozen=True``.
 """
 
 from __future__ import annotations
@@ -29,13 +29,13 @@ from typing import Any, ClassVar
 
 @dataclass(frozen=True)
 class VisibleWhen:
-    """Поле показывается, только когда ТЕКУЩЕЕ значение ``key`` равно ``equals``.
+    """The field is shown only while the CURRENT value of ``key`` equals ``equals``.
 
-    Условие вычисляется на фронте по значениям формы, а не на бэке: пока настройки не
-    сохранены, «текущее» значение живёт только там. Скрытое поле не перестаёт
-    существовать — оно хранится, читается кодом и вернётся на экран вместе с условием.
-    Значение по умолчанию ``True`` покрывает основной случай: ключ сервиса виден, пока
-    сам сервис включён.
+    The condition is evaluated on the frontend against the form values, not on the
+    backend: until the settings are saved, the "current" value lives only there. A hidden
+    field does not stop existing — it is stored, read by code, and returns to the screen
+    with its condition. The default ``True`` covers the main case: a service key is
+    visible while the service itself is enabled.
     """
 
     key: str
@@ -44,14 +44,14 @@ class VisibleWhen:
 
 @dataclass(frozen=True)
 class Field(ABC):
-    """Базовый класс поля настройки."""
+    """Base class of a settings field."""
 
     key: str
     label: str
     description: str = ""
-    #: Заголовок блока, в который поле собирается на экране. Пусто — поле само по себе.
+    #: Heading of the block the field is gathered into on screen. Empty — the field stands alone.
     group: str = ""
-    #: Условие видимости (см. ``VisibleWhen``); без него поле видно всегда.
+    #: Visibility condition (see ``VisibleWhen``); without it the field is always visible.
     visible_when: VisibleWhen | None = None
 
     kind: ClassVar[str] = ""
@@ -61,26 +61,26 @@ class Field(ABC):
 
     @abstractmethod
     def default(self) -> Any:
-        """Свежий default. Для list/multichoice — новый список на каждый вызов."""
+        """A fresh default. For list/multichoice — a new list on every call."""
 
     @abstractmethod
     def parse(self, text: str) -> Any:
-        """TEXT → python value. Может бросить ValueError."""
+        """TEXT → python value. May raise ValueError."""
 
     @abstractmethod
     def serialize(self, value: Any) -> str:
-        """python value → TEXT для хранения в БД."""
+        """python value → TEXT for storage in the DB."""
 
     @abstractmethod
     def validate(self, value: Any) -> None:
-        """Проверка значения. На неуспех — ValueError с понятным сообщением."""
+        """Check a value. On failure — ValueError with a clear message."""
 
     @abstractmethod
     def ui_descriptor(self) -> dict[str, Any]:
-        """Описатель поля для UI."""
+        """Field descriptor for the UI."""
 
     def is_secret(self) -> bool:
-        """Секрет (токен/пароль): маскируется на чтение, не логируется."""
+        """A secret (token/password): masked on read, never logged."""
         return False
 
     def repr_for_log(self, value: Any) -> str:
@@ -511,8 +511,8 @@ class ListField(Field):
     def ui_descriptor(self) -> dict[str, Any]:
         assert self.item is not None
         item_desc = self.item.ui_descriptor()
-        # Элемент списка — это тип значения, а не отдельная настройка: собственного ключа,
-        # подписи, места в блоке и условия видимости у него нет.
+        # A list item is a value type, not a separate setting: it has no key, label,
+        # place in a block or visibility condition of its own.
         for own_field_only in ("key", "label", "description", "default", "group", "visible_when"):
             item_desc.pop(own_field_only, None)
         return {

@@ -48,13 +48,14 @@ import vuetify from '@/plugins/vuetify'
 // and plugins/i18n.ts. State holds NORMAL typed values (real booleans / enums); the
 // codec translates each to/from its localStorage string (see shared/utils/persisted).
 //
-// Здесь живут ВЫБОРЫ человека — то, что он однажды настроил под себя. Состояние интерфейсов
-// (какой порядок в каком списке он оставил, пока работал) — соседний стор `ui-state`.
+// This holds the person's CHOICES — what they once set up for themselves. Interface state
+// (which order they left in which list while working) is the neighbouring store `ui-state`.
 //
-// Внешний вид приложения ведёт `synced`: источник истины — база (модуль `core_interface`),
-// localStorage под ним остаётся кешем, который красит страницу до первого кадра. Имена ключей
-// совпадают с ключами реестра на бэкенде. То, чего в реестре нет — таймзона, формат даты и
-// наследие витрины, — остаётся на `persisted`, то есть живёт только в этом браузере.
+// The app's appearance is driven by `synced`: the source of truth is the database (the
+// `core_interface` module), and localStorage underneath stays a cache that paints the page before
+// the first frame. Key names match the registry keys on the backend. What the registry doesn't
+// have — timezone, date format and the showcase legacy — stays on `persisted`, i.e. lives only in
+// this browser.
 
 export const AUTO = 'auto'
 
@@ -109,20 +110,21 @@ export const useSettingsStore = defineStore('settings', () => {
     headingWeight: synced('interface_font_heading_weight', DEFAULT_HEADING_WEIGHT, intCodec),
     readingMeasure: synced('interface_font_reading_measure', DEFAULT_READING_MEASURE, intCodec),
     monoFont: synced('interface_font_mono', DEFAULT_MONO_FONT, strCodec),
-    // Вид блока чинится на чтении: испорченный ключ иначе разъехался бы по всем блокам тела.
+    // The block style is repaired on read: otherwise a corrupted key would spread to every block.
     codeVariant: synced<CodeVariant>('interface_code_variant', DEFAULT_CODE_VARIANT, {
       parse: codeVariant,
       serialize: (v) => v,
     }),
     codeSize: synced('interface_font_code_size', DEFAULT_CODE_SIZE, intCodec),
-    // Нумерация строк в блоке кода: выбор задаёт, с чем блок открывается. Кнопка в шапке самого
-    // блока остаётся — она гасит или зажигает номера в одном листинге, не трогая настройку.
+    // Line numbers in a code block: the choice sets what the block opens with. The button in the
+    // block's own header stays — it toggles numbers in one listing without touching the setting.
     codeLineNumbers: synced('interface_code_line_numbers', true, boolCodec),
   })
 
-  // Оформление схем — свой узел, а не часть типографики: токенами оно не раздаётся, его читает
-  // сам компонент схемы. Гарнитура тоже здесь, чтобы у настроек схем был один дом; в CSS она не
-  // уходит — рендерер подставляет имя семьи внутрь SVG и по нему же считает ширину подписей.
+  // Diagram styling is its own node, not part of typography: it isn't distributed via tokens, the
+  // diagram component reads it itself. The typeface is here too, so diagram settings have one
+  // home; it doesn't go to CSS — the renderer puts the family name inside the SVG and measures
+  // label widths by it.
   const diagrams = reactive({
     theme: synced('interface_diagram_theme', DEFAULT_DIAGRAM_THEME, {
       parse: diagramTheme,
@@ -185,8 +187,8 @@ function applyTypographyTokens({ interfaceFont, readingFont, headingFont, readin
   root.setProperty('--v-font-body', ui)
   root.setProperty('--v-font-heading', ui)
   root.setProperty('--font-reading', fontStack(READING_FONTS, readingFont, DEFAULT_READING_FONT))
-  // Пункт «как шрифт текста» несёт стеком ссылку на соседний токен, поэтому развилки здесь нет:
-  // при нём в `--font-heading` уезжает `var(--font-reading)` и следует за ним сам.
+  // The "same as text" option carries a reference to the neighbouring token as its stack, so there
+  // is no branch here: with it `--font-heading` gets `var(--font-reading)` and follows it by itself.
   root.setProperty('--font-heading', fontStack(HEADING_FONTS, headingFont, DEFAULT_HEADING_FONT))
   root.setProperty('--font-mono', fontStack(MONO_FONTS, monoFont, DEFAULT_MONO_FONT))
   // A stale or hand-edited storage value would otherwise reach CSS as `NaNpx` / `NaNch` and
@@ -199,9 +201,9 @@ function applyTypographyTokens({ interfaceFont, readingFont, headingFont, readin
   root.setProperty('--heading-weight', `${heading}`)
   const measure = Number.isFinite(readingMeasure) ? readingMeasure : DEFAULT_READING_MEASURE
   root.setProperty('--reading-measure', measure === NO_MEASURE ? 'none' : `${measure}ch`)
-  // Кегль листинга принадлежит зоне чтения, а не всякому блоку кода в приложении: сниппеты
-  // дизайн-системы и панели подсказок живут своей жизнью. Зона чтения раздаёт его дальше сама
-  // (`MarkdownRenderer` → `--code-size`), поэтому имя токена с приставкой роли.
+  // The listing font size belongs to the reading zone, not to every code block in the app:
+  // design-system snippets and hint panels live their own life. The reading zone passes it on
+  // itself (`MarkdownRenderer` → `--code-size`), hence the role prefix in the token name.
   const code = Number.isFinite(codeSize) ? codeSize : DEFAULT_CODE_SIZE
   root.setProperty('--reading-code-size', `${code}px`)
 }

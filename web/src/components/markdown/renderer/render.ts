@@ -4,7 +4,7 @@
 import MarkdownIt from 'markdown-it'
 import type { Env, MarkdownIt as MarkdownParser, StateCore, Token } from 'markdown-it'
 import DOMPurify from 'dompurify'
-import { REF_CODE, TASK_MARKER, WHOLE_CODE_SPAN } from '../shared/contracts'
+import { canonicalCode, REF_CODE, TASK_MARKER, WHOLE_CODE_SPAN } from '../shared/contracts'
 
 // What a code *is* — the vocabulary, its length, the patterns — is a contract shared with the
 // editor and lives in `shared/contracts`. Where a code leads is this file's business alone:
@@ -67,7 +67,7 @@ function refTokens(text: Token, state: StateCore): Token[] {
 function refToken(refType: string, hash: string, level: number, state: StateCore): Token {
   const ref = new state.Token('entity_ref', '', 0)
   ref.level = level
-  ref.meta = { refType, hash }
+  ref.meta = { refType: canonicalCode(refType), hash: canonicalCode(hash) }
   return ref
 }
 

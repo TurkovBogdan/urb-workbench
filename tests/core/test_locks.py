@@ -1,7 +1,7 @@
-"""Тесты core.locks: CRUD + CoreLock.
+"""Tests for core.locks: CRUD + CoreLock.
 
-CRUD-уровень — детерминированная семантика owner-based локов.
-CoreLock — статический ``acquire`` создаёт объект, методы делают release/extend.
+CRUD level — deterministic semantics of owner-based locks.
+CoreLock — the static ``acquire`` creates the object, methods do release/extend.
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from src.core.locks.lock import _acquire, _extend, _is_owner, _release
 
 @pytest.fixture
 async def db(config: Config):
-    """Инициализирует engine и создаёт core-таблицы."""
+    """Initializes the engine and creates the core tables."""
     engine = await init_database(config)
     from src.core.database.runtime import Base
 
@@ -30,7 +30,7 @@ async def db(config: Config):
         await close_database()
 
 
-# ── CRUD-уровень ────────────────────────────────────────────────────────────
+# ── CRUD level ──────────────────────────────────────────────────────────────
 
 
 @pytest.mark.db
@@ -137,7 +137,7 @@ async def test_crud_release_for_owners_empty_list_noop(db):
     assert len(rows) == 1
 
 
-# ── Lock-модель ─────────────────────────────────────────────────────────────
+# ── Lock model ──────────────────────────────────────────────────────────────
 
 
 @pytest.mark.db
@@ -166,7 +166,7 @@ async def test_lock_release_removes_row(db):
 
 @pytest.mark.db
 async def test_lock_release_after_takeover_returns_false(db):
-    """Если протух и кто-то перехватил — release нашего Lock-а ничего не сносит."""
+    """If it expired and someone took it over — releasing our Lock removes nothing."""
     lock_a = await CoreLock.acquire("k", -1, owner="a")
     assert lock_a is not None
     lock_b = await CoreLock.acquire("k", 60, owner="b")
@@ -185,10 +185,10 @@ async def test_lock_extend_keeps_ownership(db):
 
 @pytest.mark.db
 async def test_lock_acquire_without_owner_generates_ulid(db):
-    """Если owner не передан — генерируется уникальный ULID."""
+    """If no owner is passed — a unique ULID is generated."""
     lock_a = await CoreLock.acquire("ka", 60)
     lock_b = await CoreLock.acquire("kb", 60)
     assert lock_a is not None and lock_b is not None
-    # 26-символьный Crockford base32 — формат ULID
+    # 26-character Crockford base32 — the ULID format
     assert len(lock_a.owner) == 26
     assert lock_a.owner != lock_b.owner

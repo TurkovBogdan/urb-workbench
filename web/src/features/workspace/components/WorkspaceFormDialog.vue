@@ -1,28 +1,38 @@
 <script setup lang="ts">
-// Карточка пространства: название, описание, иконка и цвет. Одно окно на создание и на правку —
-// поля и проверки у них общие, а различие ровно в двух местах (заголовок и вызываемая ручка),
-// и второй компонент ради них означал бы две формы, расходящиеся при первой же новой колонке.
-// Режим задаёт проп: `workspace === null` — создание.
+// The workspace card: title, description, icon and colour. One dialog for create and edit — they
+// share fields and checks, and differ in exactly two places (the title and the endpoint called);
+// a second component for those would mean two forms drifting apart at the very first new column.
+// The mode is set by a prop: `workspace === null` — create.
 //
-// Анатомия окна (шапка, тело, полоса кнопок) приходит из AppDialog, здесь только поля. Форма
-// ведёт СВОЮ копию значений и синхронизируется при открытии: правка не должна менять карточку
-// в списке до сохранения, а отмена обязана оставлять список нетронутым.
+// The dialog anatomy (header, body, button bar) comes from AppDialog, only the fields are here. The
+// form keeps ITS OWN copy of the values and syncs on open: an edit must not change the card in the
+// list before saving, and a cancel must leave the list untouched.
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppDialog from '@/components/AppDialog.vue'
 import IconColorPicker from '@/components/IconColorPicker.vue'
+import LimitField from '@/components/LimitField.vue'
 import { errorText } from '@/api/errorText'
 
 import { colorNames, colorVarsByName } from '@/shared/colors'
 import { iconByName, iconNames } from '@/shared/icons'
 import { createWorkspace, updateWorkspace, type WorkspaceBody, type WorkspaceRow } from '../api'
 
-// Потолки повторяют колонки БД (`workspace/constants.py`: TITLE_MAX / DESCRIPTION_MAX). Бэк длинное не
-// примет (422), но узнать об этом после отправки — значит потерять набранное: поле само не даёт
-// перебрать, а счётчик показывает, сколько ещё осталось.
+// The limits mirror the DB columns (`workspace/constants.py`: TITLE_MAX / DESCRIPTION_MAX). The
+// backend won't accept anything longer (422), but finding that out after submitting means losing
+// what was typed: the field itself prevents overtyping. The description is one line under the
+// name — the same 128 as a task group's.
 const TITLE_MAX = 96
-const DESCRIPTION_MAX = 512
+const DESCRIPTION_MAX = 128
+/** Default position mirrors `constants.py::SORT_DEFAULT` — the middle of the scale. */
+const SORT_DEFAULT = 500
+
+/** A cleared field falls back to the default; 0 is a real position — the bottom of the list. */
+function sortOrDefault(value: unknown): number {
+  const number = Number(value)
+  return String(value ?? '').trim() !== '' && Number.isFinite(number) ? number : SORT_DEFAULT
+}
 
 const open = defineModel<boolean>({ required: true })
 
@@ -38,18 +48,19 @@ const title = ref('')
 const description = ref('')
 const icon = ref<string | null>(null)
 const color = ref<string | null>(null)
+const sort = ref<number>(SORT_DEFAULT)
 const saving = ref(false)
 const error = ref<string | null>(null)
 
 const creating = computed(() => props.workspace === null)
 
-// Счётчик показывает ОСТАТОК, а не набранное: вопрос у человека всегда «сколько ещё влезет».
-const titleLeft = computed(() => TITLE_MAX - title.value.length)
-const descriptionLeft = computed(() => DESCRIPTION_MAX - description.value.length)
-
-// Пустое название не сохраняется: без имени карточка неразличима в списке. Пробелы бэк срежет
-// до проверки длины — значит и здесь строка из одних пробелов считается пустой.
-const valid = computed(() => title.value.trim().length > 0)
+// An empty title is not saved: without a name the card is indistinguishable in the list. The
+// backend trims whitespace before the length check — so here too a whitespace-only string counts
+// as empty. A description stored before the limit existed may still be longer than it: the field
+// shows it in red rather than cutting it, and the save waits until the person shortens it.
+const valid = computed(() =>
+  title.value.trim().length > 0 && description.value.trim().length <= DESCRIPTION_MAX,
+)
 
 watch(() => [open.value, props.workspace] as const, ([isOpen, workspace]) => {
   if (!isOpen) return
@@ -57,6 +68,7 @@ watch(() => [open.value, props.workspace] as const, ([isOpen, workspace]) => {
   description.value = workspace?.description ?? ''
   icon.value = workspace?.icon || null
   color.value = workspace?.color || null
+  sort.value = workspace?.sort ?? SORT_DEFAULT
   error.value = null
 }, { immediate: true })
 
@@ -69,10 +81,11 @@ async function save() {
     description: description.value.trim(),
     color: color.value ?? '',
     icon: icon.value ?? '',
+    sort: sortOrDefault(sort.value),
   }
   try {
-    // `report: false` — отказ операции показываем ЗДЕСЬ, рядом с кнопкой: окно остаётся
-    // открытым с введённым текстом, а тост увёл бы сообщение из поля зрения.
+    // `report: false` — the operation failure is shown HERE, next to the button: the dialog stays
+    // open with the typed text, and a toast would take the message out of sight.
     await (props.workspace
       ? updateWorkspace(props.workspace.code, body, { report: false })
       : createWorkspace(body, { report: false }))
@@ -95,36 +108,48 @@ async function save() {
     :persistent="saving"
     :close-disabled="saving"
   >
-    <!-- Порядок: что это (название, описание) → как выглядит (иконка и цвет). Пикер последний —
-         он самый высокий, и над ним ничего не должно прыгать при прокрутке. -->
+    <!-- Order: what it is (title, description) → how it looks (icon and colour). The picker goes
+         last — it is the tallest, and nothing above it should jump while scrolling. -->
     <div class="workspace-form">
       <VTextField
         v-model="title"
         :label="t('workspace.form.name')"
-        variant="outlined"
         :maxlength="TITLE_MAX"
-        :hint="t('workspace.form.left', { count: titleLeft })"
-        persistent-hint
+        variant="outlined"
+        hide-details
         autofocus
       />
 
-      <VTextarea
+      <LimitField
         v-model="description"
         :label="t('workspace.form.description')"
-        variant="outlined"
-        rows="2"
+        :max-length="DESCRIPTION_MAX"
+        multiline
         auto-grow
-        :maxlength="DESCRIPTION_MAX"
-        :hint="t('workspace.form.left', { count: descriptionLeft })"
+        variant="outlined"
+        rows="1"
+        hide-details
+      />
+
+      <!-- As in the group form: a number, not drag and drop — there are only a handful of
+           workspaces. Higher `sort` comes first. -->
+      <VNumberInput
+        v-model="sort"
+        :label="t('workspace.form.sort')"
+        :hint="t('workspace.form.sort_hint')"
         persistent-hint
+        :min="0"
+        :step="10"
+        control-variant="stacked"
+        variant="outlined"
       />
 
       <div class="workspace-form__field">
         <span class="workspace-form__label">{{ t('workspace.form.look') }}</span>
-        <!-- Предпросмотр плашки живёт внутри панели, рядом с палитрой: рисунок и цвет
-             оценивают вместе, врозь выбирать их не по чему.
-             Наборы имён — общие реестры фронта (`shared/colors.ts` / `shared/icons.ts`), те же,
-             что у групп исследований: палитра одна на приложение, второй её копии быть не должно. -->
+        <!-- The badge preview lives inside the panel, next to the palette: glyph and colour are
+             judged together, there is nothing to choose them by separately.
+             The name sets are shared frontend registries (`shared/colors.ts` / `shared/icons.ts`),
+             the same as for research groups: one palette per app, there must be no second copy. -->
         <IconColorPicker
           v-model:icon="icon"
           v-model:color="color"
@@ -144,13 +169,7 @@ async function save() {
       <VBtn variant="text" :disabled="saving" @click="open = false">
         {{ t('common.action.cancel') }}
       </VBtn>
-      <VBtn
-        color="primary"
-        variant="flat"
-        :loading="saving"
-        :disabled="!valid"
-        @click="save"
-      >
+      <VBtn color="primary" variant="flat" :loading="saving" :disabled="!valid" @click="save">
         {{ creating ? t('common.action.add') : t('common.action.save') }}
       </VBtn>
     </template>
@@ -158,21 +177,22 @@ async function save() {
 </template>
 
 <style scoped>
-/* У полей висит постоянная подсказка со счётчиком, поэтому шаг между ними меньше обычного:
-   собственный отступ подсказки уже разделяет их. */
+/* The group form's rhythm: the fields are hide-details — the description's counter sits inside
+   the field — so nothing below them adds air, and at a smaller gap a floating label nearly
+   touches the field above. */
 .workspace-form {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 16px;
 }
 
-/* Подпись прижата к своему полю теснее, чем поля друг к другу, — иначе она читается как
-   заголовок всего блока, а не как метка пикера. */
+/* The label sits closer to its field than the fields do to each other — otherwise it reads as the
+   heading of the whole block rather than the picker's label. */
 .workspace-form__field {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  margin-top: 8px;
+  margin-top: 4px;
 }
 
 .workspace-form__label {

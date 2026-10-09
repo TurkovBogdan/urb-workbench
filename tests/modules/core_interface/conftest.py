@@ -1,4 +1,4 @@
-"""Фикстуры core_interface: база с таблицей настроек и HTTP-клиент над зон-роутером."""
+"""core_interface fixtures: a DB with the settings table and an HTTP client over the zone router."""
 
 from __future__ import annotations
 

@@ -1,21 +1,21 @@
 # tools
 
-Скрипты для работы с установкой, которые нужны не приложению, а человеку рядом с ним: наполнить
-базу, посмотреть на интерфейс с живыми данными, воспроизвести сценарий. Приложение из них ничего
-не импортирует — обратное направление, `tools/` → `src/`, единственное допустимое.
+Scripts for operating an installation that serve not the application but the person next to it: seed
+the database, look at the interface with live data, reproduce a scenario. The application imports
+nothing from them — the reverse direction, `tools/` → `src/`, is the only one allowed.
 
 ## seed_demo.py
 
-Демо-данные модуля `tasks`: три пространства, семь групп и полтора десятка задач со всеми типами,
-статусами, приоритетами, этапами и журналом. Нужен для отладки интерфейса — на пустом списке не
-видно ни секций, ни веток, ни корзины.
+Demo data for the `tasks` module: three workspaces, seven groups and some fifteen tasks covering
+every type, status, priority, stages and the journal. Meant for debugging the interface — an empty
+list shows no sections, no branches and no trash.
 
 ```bash
-uv run python tools/seed_demo.py            # три пространства, полный состав
-uv run python tools/seed_demo.py --small    # только «Демо: разработка»
+uv run python tools/seed_demo.py            # three workspaces, the full set
+uv run python tools/seed_demo.py --small    # only "Demo: development"
 ```
 
-Пишет в базу из `.env` — ту же, что видит приложение. **Только вставками**: удалений в скрипте нет,
-и каждый прогон добавляет новый набор пространств с префиксом «Демо:». Убрать наведённое — из
-интерфейса: «Пространства» → удалить → «Удалить навсегда» (каскад уносит группы, задачи, этапы и
-журнал).
+Writes to the database from `.env` — the same one the application sees. **Inserts only**: the script
+deletes nothing, and every run adds a new set of workspaces prefixed "Demo:". To clean up, use the
+interface: "Workspaces" → delete → "Delete forever" (the cascade takes the groups, tasks, stages and
+journal with it).

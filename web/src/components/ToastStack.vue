@@ -5,20 +5,20 @@ import {
 } from '@tabler/icons-vue'
 import { dismissToast, toasts, type ToastLevel } from '@/composables/useToasts'
 
-// Показ всплывающих сообщений: по одному, снизу справа, поверх всего. Очередь держит
-// `useToasts`, здесь показ и отсчёт до автозакрытия.
+// Toast display: one at a time, bottom right, on top of everything. `useToasts` holds the queue;
+// this is the display and the countdown to auto-close.
 //
-// Цвет берётся ТОКЕНАМИ палитры, а не палитрой Vuetify (`color="error"` красит сплошным):
-// мягкая заливка, рамка из того же тона, текст обычный, тоном окрашена только иконка. Светлая
-// тема достаётся даром, токены в ней уже переопределены.
+// Color comes from palette TOKENS, not the Vuetify palette (`color="error"` paints solid):
+// a soft fill, a border of the same tone, plain text, only the icon is tinted. The light theme
+// comes for free — the tokens are already overridden there.
 //
-// Срок отсчитываем сами, а не `:timeout` у VSnackbar: то же время рисует кольцо у крестика, и
-// два владельца одного срока разошлись бы. Наведение отсчёт ДЕРЖИТ — иначе сообщение исчезает
-// из-под курсора, который тянулся его закрыть.
+// We count the time down ourselves rather than via VSnackbar's `:timeout`: the same time drives the
+// ring around the ×, and two owners of one deadline would drift apart. Hover HOLDS the countdown —
+// otherwise the message vanishes from under the pointer that was reaching to close it.
 //
-// ⚠️ Остаток считается от ОТМЕТКИ ВРЕМЕНИ, а не вычитанием шага: в фоновой вкладке браузер
-// душит таймеры до одного тика в секунду, и вычитание растянуло бы пять секунд на пятьдесят,
-// заперев очередь.
+// ⚠️ The remainder is computed from a TIMESTAMP, not by subtracting the step: in a background tab
+// the browser throttles timers to one tick per second, and subtraction would stretch five seconds
+// into fifty, blocking the queue.
 
 const icons: Record<ToastLevel, Icon> = {
   success: IconCheck,
@@ -27,21 +27,21 @@ const icons: Record<ToastLevel, Icon> = {
   error: IconAlertCircle,
 }
 
-/** Шаг отсчёта: кольцо должно таять плавно, а не прыгать раз в секунду. */
+/** Countdown step: the ring must melt smoothly, not jump once a second. */
 const TICK_MS = 100
 
-// Показываем самое старое: пришедшие следом ждут своей очереди, а не перекрывают его.
+// Show the oldest: later arrivals wait their turn rather than covering it.
 const current = computed(() => toasts.value[0] ?? null)
 
 const left = ref(0)
-// Две РАЗНЫЕ вещи: `paused` — курсор где угодно на сообщении (читают текст, срок держим);
-// `overClose` — курсор или фокус на самой кнопке (там кольцо уступает место крестику).
+// Two DIFFERENT things: `paused` — the pointer anywhere on the message (text is being read, hold the
+// deadline); `overClose` — pointer or focus on the button itself (there the ring yields to the ×).
 const paused = ref(false)
 const overClose = ref(false)
 let ticker: ReturnType<typeof setInterval> | undefined
 let deadlineAt = 0
 
-/** Целые секунды в кольце: 5-4-3-2-1. */
+/** Whole seconds in the ring: 5-4-3-2-1. */
 const seconds = computed(() => Math.ceil(left.value / 1000))
 const percent = computed(() => {
   const total = current.value?.timeout ?? 0
@@ -49,7 +49,7 @@ const percent = computed(() => {
   return total > 0 ? (left.value / total) * 100 : 0
 })
 
-// Сообщение без срока (`timeout: 0`) висит до закрытия — там кольцу нечего показывать.
+// A message without a deadline (`timeout: 0`) stays until closed — the ring has nothing to show there.
 const counting = computed(() => left.value > 0)
 
 function stopTicker(): void {
@@ -72,7 +72,7 @@ watch(current, (toast) => {
   deadlineAt = Date.now() + toast.timeout
 
   ticker = setInterval(() => {
-    // Пауза сдвигает срок вперёд ровно на прошедшее время, а не «замораживает» счётчик.
+    // A pause pushes the deadline forward by exactly the elapsed time rather than "freezing" the counter.
     if (paused.value) {
       deadlineAt = Date.now() + left.value
 
@@ -89,6 +89,17 @@ watch(current, (toast) => {
 }, { immediate: true })
 
 onBeforeUnmount(stopTicker)
+
+// Closed first, then run (see `ToastAction`).
+function runAction(): void {
+  const toast = current.value
+  if (!toast?.action) {
+    return
+  }
+
+  dismissToast(toast.id)
+  void toast.action.run()
+}
 </script>
 
 <template>
@@ -111,9 +122,25 @@ onBeforeUnmount(stopTicker)
     </div>
 
     <template #actions>
-      <!-- Кнопка есть ВСЕГДА: она и фокусируемая цель для клавиатуры, и место под отсчёт.
-           Меняется только её содержимое — кольцо в покое, крестик под курсором и под фокусом,
-           поэтому вёрстка не двигается. -->
+      <!-- An action ("Restore") sits before the close button, in the message tone — it answers
+           the message. Hover holds the countdown here too: the toast must not vanish from under
+           the pointer reaching for it. -->
+      <button
+        v-if="current.action"
+        type="button"
+        class="toast__action"
+        @mouseenter="paused = true"
+        @mouseleave="paused = false"
+        @focus="paused = true"
+        @blur="paused = false"
+        @click="runAction"
+      >
+        {{ current.action.label }}
+      </button>
+
+      <!-- The button is ALWAYS there: it is both the keyboard focus target and the place for the
+           countdown. Only its content changes — the ring at rest, the × under pointer and focus —
+           so the layout doesn't move. -->
       <button
         type="button"
         class="toast__close"
@@ -146,8 +173,8 @@ onBeforeUnmount(stopTicker)
 .toast--warn    { --toast-accent: var(--warn);    --toast-bg: var(--warn-soft); }
 .toast--error   { --toast-accent: var(--error);   --toast-bg: var(--error-soft); }
 
-/* Полотно рисует сам Vuetify, поэтому тон кладём на его обёртку. Текст обычный, а не в цвет
-   тона: мягкая заливка + цветная строка дают контраст ниже читаемого. */
+/* Vuetify draws the surface itself, so the tone goes on its wrapper. The text is plain, not in the
+   tone color: a soft fill + a colored line give contrast below readable. */
 .toast :deep(.v-snackbar__wrapper) {
   background: var(--toast-bg);
   color: var(--text);
@@ -173,21 +200,44 @@ onBeforeUnmount(stopTicker)
   font-variant-numeric: tabular-nums;
 }
 
-/* Кольцо целиком в тоне сообщения. ⚠️ `!important` тут не украшение: глобальные правила в
-   `styles/main.scss` красят ЛЮБОЙ `v-progress-circular` акцентом, а его дорожку —
-   `--border-soft`, и оба объявлены важными. Локально перебить их можно только так. */
+/* The ring is entirely in the message tone. Global rules in `styles/main.scss` paint ANY
+   `v-progress-circular` with the accent and its track with `--border-soft`; the `.toast` prefix
+   makes these selectors outweigh them. */
 .toast :deep(.toast__count) {
-  color: var(--toast-accent) !important;
+  color: var(--toast-accent);
 }
 .toast :deep(.v-progress-circular__overlay) {
   stroke: var(--toast-accent);
 }
 .toast :deep(.v-progress-circular__underlay) {
-  stroke: color-mix(in srgb, var(--toast-accent) 20%, transparent) !important;
+  stroke: color-mix(in srgb, var(--toast-accent) 20%, transparent);
 }
 
-/* Размер держит кнопка, а не содержимое: кольцо и крестик меняются в одной коробке 28×28,
-   поэтому полотно не дёргается. */
+.toast__action {
+  height: 28px;
+  margin-right: 4px;
+  padding: 0 10px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--toast-accent);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s ease;
+}
+.toast__action:hover {
+  background: color-mix(in srgb, var(--toast-accent) 12%, transparent);
+}
+.toast__action:focus-visible {
+  outline: 2px solid var(--toast-accent);
+  outline-offset: 1px;
+}
+
+/* The button holds the size, not its content: the ring and the × swap within one 28×28 box,
+   so the surface doesn't twitch. */
 .toast__close {
   display: grid;
   place-items: center;

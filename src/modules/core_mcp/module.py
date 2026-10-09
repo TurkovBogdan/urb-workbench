@@ -1,10 +1,10 @@
-"""Module-провайдер модуля core_mcp.
+"""Module provider of the core_mcp module.
 
-Инфра-модуль интроспекции MCP-серверов: прикладная поверхность над фундаментом
-``src/core/mcp/`` (тот правит контракт ``Module`` и монтирует сабапы — модулем
-быть не может). Здесь — только чтение: API ``/core-mcp/servers`` отдаёт список
-поднятых серверов, их инструменты и конфиг подключения для UI. Своих таблиц/
-миграций/настроек нет; читает живые инстансы из ``app.state.mcp_servers``.
+An infra module for MCP server introspection: the application surface over the foundation in
+``src/core/mcp/`` (that one amends the ``Module`` contract and mounts the sub-apps — it cannot
+be a module). This side only reads: the ``/core-mcp/servers`` API returns the list of servers
+brought up, their tools and the connection config for the UI. No tables/migrations/settings of
+its own; it reads the live instances from ``app.state.mcp_servers``.
 """
 
 from __future__ import annotations

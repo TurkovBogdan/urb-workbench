@@ -1,16 +1,17 @@
-"""Подсистема защиты маршрутов: реестр guard'ов + встроенные виды + метка ``@guard``.
+"""Route protection subsystem: the guard registry + built-in kinds + the ``@guard`` mark.
 
-Guard — FastAPI-зависимость ``async (request) -> None``, прерывающая запрос через
-``raise`` (``ApiError``); её форма — тип ``GuardFn``. Имя функции-реализации =
-``guard_`` + вид. Состав подпакета:
+A guard is a FastAPI dependency ``async (connection) -> None`` that aborts the request or the
+WebSocket handshake by ``raise`` (``ApiError``); its shape is the ``GuardFn`` type. The
+implementing function's name =
+``guard_`` + kind. Subpackage contents:
 
-- ``registry`` — ``GuardRegistry`` (``вид → GuardFn``) + тип ``GuardFn``;
-- ``universal`` — встроенная пара ядра ``guard_allow_all``/``guard_deny_all``;
-- ``enforce`` — навешивание guard'ов на маршруты: метка ``@guard`` + зон-guard
-  (исполнитель) + валидация видов на сборке.
+- ``registry`` — ``GuardRegistry`` (``kind → GuardFn``) + the ``GuardFn`` type;
+- ``universal`` — the core's built-in pair ``guard_allow_all``/``guard_deny_all``;
+- ``enforce`` — attaching guards to routes: the ``@guard`` mark + the zone guard
+  (the executor) + kind validation at build time.
 
-Реальные ``auth``/``ability`` (CASL) живут в ``core_users`` и вливаются в реестр из
-декларативного ``Module.guards``; ядро держит лишь ``allow_all``/``deny_all``.
+Real ``auth``/``ability`` (CASL) live in ``core_users`` and flow into the registry from the
+declarative ``Module.guards``; the core holds only ``allow_all``/``deny_all``.
 """
 
 from __future__ import annotations

@@ -1,15 +1,15 @@
-"""Зона ``api`` — внешний токенный API (БОЛВАНКА; пока НЕ смонтирована).
+"""The ``api`` zone — the external token API (a STUB; NOT mounted yet).
 
-Параллель ``src/core/router/internal.py`` для зоны ``/api``: сторонние интеграции
-по bearer-токену + scope. Состав — под-роутеры модулей (``Module.api_router``);
-защита — зон-guard с умолчанием ``API_DEFAULT_GUARDS``.
+The counterpart of ``src/core/router/internal.py`` for the ``/api`` zone: third-party
+integrations by bearer token + scope. Contents — the modules' sub-routers (``Module.api_router``);
+protection — a zone guard defaulting to ``API_DEFAULT_GUARDS``.
 
-Чтобы включить (TODO):
-1. Реализовать и зарегистрировать guard вида ``scope`` (``Security`` + OAuth2 scopes) —
-   так же, как это сделано для зоны ``internal`` (``src/core/router/guards/``).
-2. Дать модулям под-роутер ``api_router`` / ``api_router_prefix`` (как ``internal_router``;
-   добавить classvar в ``src/core/module.py``).
-3. Смонтировать в ``create_app`` под флагом (как зону internal):
+To enable (TODO):
+1. Implement and register a guard of kind ``scope`` (``Security`` + OAuth2 scopes) —
+   the same way it is done for the ``internal`` zone (``src/core/router/guards/``).
+2. Give modules an ``api_router`` / ``api_router_prefix`` sub-router (like ``internal_router``;
+   add the classvar to ``src/core/module.py``).
+3. Mount it in ``create_app`` behind a flag (like the internal zone):
    ``app.include_router(build_api_zone(modules), prefix=API_PREFIX,
    dependencies=[Depends(make_zone_guard(registry, default=API_DEFAULT_GUARDS))])``
    + ``validate_guard_rules(...)``.
@@ -24,14 +24,14 @@ from fastapi import APIRouter
 from src.core.module import Module
 
 API_PREFIX = "/api"
-API_DEFAULT_GUARDS = ["scope"]  # TODO: guard вида "scope" ещё не реализован/не зарегистрирован
+API_DEFAULT_GUARDS = ["scope"]  # TODO: the "scope" guard kind is not implemented/registered yet
 
 
 def build_api_zone(modules: Sequence[Module]) -> APIRouter:
-    """БОЛВАНКА: свежий агрегатор зоны api из ``api_router`` модулей.
+    """STUB: a fresh api-zone aggregator over the modules' ``api_router``.
 
-    Пока у ``Module`` нет ``api_router`` — берём через ``getattr`` (зона выйдет
-    пустой). После добавления classvar заработает как ``build_internal_zone``.
+    While ``Module`` has no ``api_router``, it is read via ``getattr`` (the zone comes out
+    empty). Once the classvar is added it will work like ``build_internal_zone``.
     """
     zone = APIRouter()
     for m in modules:

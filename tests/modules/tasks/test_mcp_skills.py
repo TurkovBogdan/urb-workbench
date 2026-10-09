@@ -1,8 +1,8 @@
-"""workbench MCP: каталог навыков и показ страницы пользователю.
+"""workbench MCP: the skills catalogue and showing a page to the user.
 
-Навыки — файлы в модуле, и тест сторожит не их текст, а то, ради чего каталог существует:
-первый уровень дёшев (имена и условия вызова, без текстов), у каждого навыка есть условие, и
-неизвестное имя отвечает списком доступных, а не пустотой.
+Skills are files in the module, and the test guards not their text but what the catalogue exists
+for: the first level is cheap (names and invocation conditions, no texts), every skill has a
+condition, and an unknown name answers with the list of available ones rather than with nothing.
 """
 
 from __future__ import annotations
@@ -10,7 +10,9 @@ from __future__ import annotations
 import pytest
 from fastmcp.exceptions import ToolError
 
+from src.modules.notes.crud import note as notes_crud
 from src.modules.tasks.constants import TYPE_EXTENDED
+from src.modules.tasks.crud import journal as journal_crud
 from src.modules.tasks.crud import note as note_crud
 from src.modules.tasks.crud import stage as stage_crud
 from src.modules.tasks.crud import task as task_crud
@@ -24,7 +26,7 @@ async def test_the_catalogue_carries_conditions_and_no_text(call, db):
 
     assert {row["name"] for row in rows} >= {"task-brief", "task-plan", "journal", "markdown"}
     for row in rows:
-        # Описание — это УСЛОВИЕ вызова, а не тема: «read before…», а не «about briefs».
+        # The description is a calling CONDITION, not a topic: "read before…", not "about briefs".
         assert row["description"].lower().startswith("read before"), row["name"]
         assert "text" not in row
 
@@ -42,18 +44,19 @@ async def test_an_unknown_skill_answers_with_what_there_is(call, db):
 
 
 def test_every_skill_file_declares_its_condition():
-    """Навык без описания невидим на первом уровне — его просто никогда не откроют."""
+    """A skill without a description is invisible at the first level — nobody will ever open it."""
     assert list_skills()
     for skill in list_skills():
         assert skill.description, skill.name
 
 
-# ── показ ─────────────────────────────────────────────────────────────────────
+# ── showing ───────────────────────────────────────────────────────────────────
 
 
 @pytest.fixture
 def no_browser(monkeypatch):
-    """Браузер не дёргаем: тест про адрес, а не про то, что на машине есть чем открыть."""
+    """Leave the browser alone: the test is about the URL, not about the machine having a way
+    to open it."""
     opened = []
     monkeypatch.setattr(
         "src.modules.tasks.mcp.interface.webbrowser.open",
@@ -72,17 +75,55 @@ async def test_a_task_opens_its_own_page(call, workspace, no_browser):
     assert no_browser == [url["result"]]
 
 
-async def test_a_stage_and_an_entry_open_the_task_they_live_on(call, workspace, no_browser):
+async def test_a_stage_and_an_entry_open_the_task_a_note_its_own_page_inside_it(
+    call, workspace, no_browser
+):
     await call("workspace_use", workspace_code=workspace.code)
     task = await task_crud.task_create(
         workspace_code=workspace.code, title="Тарифы", type=TYPE_EXTENDED
     )
     stage = await stage_crud.stage_create(task_code=task.code, title="Схема")
-    note = await note_crud.note_create(task_code=task.code, type="fact", title="tariff.py:88")
+    entry = await journal_crud.journal_create(task_code=task.code, type="fact", title="tariff.py:88")
+    note = await note_crud.task_note_add(task_code=task.code, title="Схема тарифов")
 
-    for code in (f"STAGE@{stage.code}", f"NOTE@{note.code}"):
+    for code in (f"STAGE@{stage.code}", f"JOURNAL@{entry.code}"):
         url = (await call("interface_open", code=code))["result"]
         assert url.endswith(f"/tasks/task/TASK@{task.code}")
+    url = (await call("interface_open", code=f"note@{note.code.lower()}"))["result"]
+    assert url.endswith(f"/tasks/task/TASK@{task.code}/note/NOTE@{note.code}")
+
+
+async def test_a_note_with_no_page_is_refused_and_nothing_opens(call, workspace, no_browser):
+    """A deleted note has left its task's list, and a note held by no task belongs to nothing
+    this server shows: neither has a page, and neither opens a browser on a "not found"."""
+    await call("workspace_use", workspace_code=workspace.code)
+    task = await task_crud.task_create(workspace_code=workspace.code, title="Тарифы")
+    deleted = await note_crud.task_note_add(task_code=task.code, title="Удалённая")
+    await notes_crud.note_delete(deleted.code)
+    orphan = await notes_crud.note_create(title="Ничья")
+
+    with pytest.raises(ToolError, match="is deleted"):
+        await call("interface_open", code=f"NOTE@{deleted.code}")
+    with pytest.raises(ToolError, match="does not exist"):
+        await call("interface_open", code=f"NOTE@{orphan.code}")
+
+    assert no_browser == []
+
+
+async def test_an_entry_quoted_by_the_retired_note_word_is_refused_and_nothing_opens(
+    call, workspace, no_browser
+):
+    """``NOTE@`` now names a task note; the journal's old code is refused with its current one."""
+    await call("workspace_use", workspace_code=workspace.code)
+    task = await task_crud.task_create(
+        workspace_code=workspace.code, title="Тарифы", type=TYPE_EXTENDED
+    )
+    entry = await journal_crud.journal_create(task_code=task.code, type="fact", title="tariff.py:88")
+
+    with pytest.raises(ToolError, match=f"its code is JOURNAL@{entry.code}"):
+        await call("interface_open", code=f"NOTE@{entry.code}")
+
+    assert no_browser == []
 
 
 async def test_a_workspace_and_a_group_open_the_list_they_are_a_row_in(call, workspace, no_browser):
@@ -96,7 +137,7 @@ async def test_a_workspace_and_a_group_open_the_list_they_are_a_row_in(call, wor
 async def test_showing_a_foreign_workspace_is_refused_like_everything_else(
     call, workspace, no_browser
 ):
-    """Открытие страницы — видимое действие на машине человека, и забор действует и здесь."""
+    """Opening a page is a visible action on the person's machine, so the fence applies here too."""
     from src.modules.workspace.crud.workspace import workspace_create
 
     other = await workspace_create(title="Личное")

@@ -1,12 +1,17 @@
-"""ORM-модели ``tasks``. Импорт пакета регистрирует таблицы в ``Base.metadata``.
+"""``tasks`` ORM models. Importing the package registers the tables in ``Base.metadata``.
 
-Пространство сюда не входит: оно переехало в модуль ``workspace`` (уровень 1), и таблицы модуля
-держат на него FK через ``workspaces.code``. Модель-цель нужна и в метаданных — там,
-где схема строится из моделей (``create_all`` в тестах), её импортирует ``conftest`` рядом
-с этим пакетом, иначе FK некуда указывать.
+The workspace is not here: it moved to the ``workspace`` module (level 1), and this module's
+tables hold an FK to it via ``workspaces.code``. The target model must be in the metadata too —
+where the schema is built from the models (``create_all`` in tests), the ``conftest`` next to
+this package imports it, otherwise the FK has nothing to point at.
+
+The ``notes`` table is the other FK target, and ``models/note.py`` imports its model itself: a
+task note is not a task note without its document, so every schema built from these models has
+both.
 """
 
 from src.modules.tasks.models.group import TasksGroup
+from src.modules.tasks.models.journal import TasksJournal
 from src.modules.tasks.models.link import TasksLink
 from src.modules.tasks.models.note import TasksNote
 from src.modules.tasks.models.stage import TasksStage
@@ -17,5 +22,6 @@ __all__ = [
     "TasksTask",
     "TasksLink",
     "TasksStage",
+    "TasksJournal",
     "TasksNote",
 ]

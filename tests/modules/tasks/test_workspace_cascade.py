@@ -1,11 +1,12 @@
-"""Что происходит с группами и задачами, когда пространство удаляют, — и чем их считают.
+"""What happens to groups and tasks when a workspace is deleted — and how they are counted.
 
-Оба вопроса живут здесь, а не в тестах ``workspace``: модуль уровня 1 про наши таблицы не знает
-и знать не должен, а каскад и счётчики — это поведение НАШЕЙ стороны границы. Там проверяется
-механизм (счётчик объявили — он приехал в карточку), здесь — что именно мы в этот механизм кладём.
+Both questions live here, not in the ``workspace`` tests: the level 1 module knows nothing of our
+tables and must not, while the cascade and the counters are behaviour on OUR side of the boundary.
+There the mechanism is checked (a counter is declared — it arrives in the card), here what exactly
+we put into that mechanism.
 
-Пространство заводится через CRUD соседнего модуля: своей ручки у нас нет, и обходить его прямой
-вставкой значило бы проверять не тот путь, которым ходит приложение.
+The workspace is created through the neighbouring module's CRUD: we have no endpoint of our own,
+and bypassing it with a direct insert would test a path other than the one the app takes.
 """
 
 from __future__ import annotations
@@ -20,7 +21,7 @@ pytestmark = pytest.mark.db
 
 
 async def _filled(db, title: str = "Работа"):
-    """Пространство с одной группой и одной задачей — минимум, на котором видно и каскад, и счёт."""
+    """A workspace with one group and one task — the minimum that shows both cascade and count."""
     workspace = await workspace_crud.workspace_create(title=title)
     group = await group_crud.group_create(workspace_code=workspace.code, title="Биллинг")
     task = await task_crud.task_create(
@@ -29,11 +30,11 @@ async def _filled(db, title: str = "Работа"):
     return workspace, group, task
 
 
-# ── каскад ────────────────────────────────────────────────────────────────────
+# ── cascade ───────────────────────────────────────────────────────────────────
 
 
 async def test_soft_delete_of_a_workspace_keeps_our_rows(db):
-    """Мягкое удаление обратимо без следа: зона и задача остаются на месте со своими ссылками."""
+    """A soft delete is reversible without a trace: the group and task stay put with their links."""
     workspace, group, task = await _filled(db)
 
     await workspace_crud.workspace_delete(workspace.code)
@@ -43,7 +44,7 @@ async def test_soft_delete_of_a_workspace_keeps_our_rows(db):
 
 
 async def test_purge_of_a_workspace_takes_our_rows_with_it(db):
-    """Физическое удаление уносит содержимое каскадом FK — возвращать после него нечего."""
+    """A physical delete takes the contents via the FK cascade — nothing is left to bring back."""
     workspace, group, task = await _filled(db)
 
     await workspace_crud.workspace_delete(workspace.code, hard=True)
@@ -53,7 +54,7 @@ async def test_purge_of_a_workspace_takes_our_rows_with_it(db):
 
 
 async def test_purge_leaves_the_neighbour_workspace_untouched(db):
-    """Каскад идёт по FK, а не по таблице целиком: соседнее пространство не при чём."""
+    """The cascade follows the FK, not the whole table: the neighbouring workspace is unaffected."""
     doomed, _, _ = await _filled(db, "Под снос")
     _, kept_group, kept_task = await _filled(db, "Остаётся")
 
@@ -63,11 +64,11 @@ async def test_purge_leaves_the_neighbour_workspace_untouched(db):
     assert (await task_crud.task_get(kept_task.code)) is not None
 
 
-# ── счётчики, которые модуль отдаёт пространству ──────────────────────────────
+# ── counters the module hands to the workspace ────────────────────────────────
 
 
 async def test_counters_see_only_live_rows(db):
-    """Счётчик обещает то, что человек внутри найдёт: удалённая зона в него не входит."""
+    """A counter promises what the person will find inside: a deleted group does not count."""
     workspace, _, _ = await _filled(db)
     second = await group_crud.group_create(workspace_code=workspace.code, title="Вторая")
     await group_crud.group_delete(second.code)
@@ -79,7 +80,7 @@ async def test_counters_see_only_live_rows(db):
 
 
 async def test_counters_do_not_leak_across_workspaces(db):
-    """Считаем по коду пространства: соседнее в число не подмешивается."""
+    """Counted by workspace code: a neighbouring workspace never leaks into the number."""
     mine, _, _ = await _filled(db)
     await _filled(db, "Личное")
 
@@ -89,7 +90,7 @@ async def test_counters_do_not_leak_across_workspaces(db):
 
 
 async def test_counters_skip_a_workspace_without_rows(db):
-    """Пустого пространства в ответе нет вовсе — ноль подставляет сборка на стороне карточки."""
+    """An empty workspace is absent from the answer — the card-side assembly fills in the zero."""
     empty = await workspace_crud.workspace_create(title="Пустое")
 
     groups = await group_crud.group_count_by_workspace_codes([empty.code])

@@ -1,34 +1,35 @@
 <script setup lang="ts">
-// Выбор цвета из фиксированного набора: лоток с плитками, одна плитка — один именованный цвет.
+// Color choice from a fixed set: a tray of tiles, one tile — one named color.
 //
-// Набор и резолвер приходят пропами по той же причине, что у IconPicker: компонент общий, а
-// реестров может быть несколько (сегодня — палитра полок research). Резолвер отдаёт ступени цвета
-// переменными, плитка красится ролью `--gc-swatch`, а какая ступень читаема в текущей теме,
-// решает `.color-tones` в main.scss — пикер о темах не знает (см. shared/colorTones.ts).
+// The set and the resolver come as props for the same reason as in IconPicker: the component is
+// shared, and there may be several registries (today — the research shelf palette). The resolver
+// returns color steps as variables, the tile is painted with the `--gc-swatch` role, and which step
+// is readable in the current theme is decided by `.color-tones` in main.scss — the picker knows
+// nothing about themes (see shared/colorTones.ts).
 //
-// Наружу и внутрь ходит ИМЯ (`blue`), не hex: имя — то, что уходит в базу. Печатать его на
-// плитке незачем (человек выбирает цвет, а не строку), поэтому оно живёт в подсказке и в
-// `aria-label`, а выбранное видно по кольцу и галочке.
+// What goes in and out is the NAME (`blue`), not a hex: the name is what goes to the database.
+// There's no point printing it on the tile (the person picks a color, not a string), so it lives
+// in the tooltip and `aria-label`, and the selection shows by the check alone.
 //
-// Галочка — второй признак выбора рядом с кольцом: набор целиком состоит из цветов, и состояние,
-// показанное только цветом, потерялось бы в нём.
+// A check rather than a ring: the whole set consists of colors, and a state shown by color would
+// get lost in it, while a dark ring around one tile outweighs the color it marks.
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { IconCheck } from '@tabler/icons-vue'
 import type { ColorToneVars } from '@/shared/colorTones'
 
 const props = withDefaults(defineProps<{
-  /** Выбранное имя цвета; `null` — цвет не задан. */
+  /** The selected color name; `null` — no color set. */
   modelValue?: string | null
-  /** Полный набор имён в порядке показа. */
+  /** The full set of names in display order. */
   colors: string[]
-  /** Имя → ступени цвета переменными. Неизвестное имя резолвер обязан покрыть сам. */
+  /** Name → color steps as variables. The resolver must cover an unknown name itself. */
   resolve: (name: string) => ColorToneVars
-  /** Показывать плитку «без цвета»; выбор её отдаёт `null`. */
+  /** Show a "no color" tile; choosing it emits `null`. */
   clearable?: boolean
-  /** Сторона плитки в пикселях; от неё считается число колонок. */
+  /** Tile side in pixels; the column count derives from it. */
   size?: number
-  /** Снять лоток: панель рисует тот, кто вкладывает пикер в свою (см. IconColorPicker). */
+  /** Drop the tray: the panel is drawn by whoever nests the picker in theirs (see IconColorPicker). */
   bare?: boolean
 }>(), {
   modelValue: null,
@@ -83,8 +84,8 @@ const tileSize = computed(() => `${props.size}px`)
 </template>
 
 <style scoped>
-/* Лоток тот же, что у выбора иконки: утопленная панель, плитки читаются лежащими на ней.
-   Полосы поиска здесь нет — набор в полтора десятка плиток виден целиком, искать нечего. */
+/* The same tray as the icon picker's: a sunken panel, tiles read as lying on it.
+   No search bar here — a set of fifteen-odd tiles is visible at once, there's nothing to search. */
 .color-picker {
   border-radius: 10px;
   background: var(--surface-sunken);
@@ -92,8 +93,8 @@ const tileSize = computed(() => `${props.size}px`)
   padding: 10px;
 }
 
-/* Без лотка остаётся одна сетка: панель вокруг рисует тот, кто вложил пикер, и второй фон с
-   рамкой внутри читался бы как окно в окне. */
+/* Without the tray only the grid remains: the surrounding panel is drawn by whoever nested the
+   picker, and a second background with a border inside would read as a window within a window. */
 .color-picker--bare {
   background: none;
   border: none;
@@ -109,9 +110,9 @@ const tileSize = computed(() => `${props.size}px`)
 
 .color-picker__tile {
   background: var(--gc-swatch);
-  /* Волосяная линия внутрь: в светлой теме плитка средней ступени отходит от лотка всего на
-     ~2.8:1, и без края набор читается как размытое пятно. Внутрь, а не рамкой, чтобы не менять
-     размер плитки и не спорить с кольцом выбора. */
+  /* An inset hairline: in the light theme a mid-step tile separates from the tray by only ~2.8:1,
+     and without an edge the set reads as a blurry blot. Inset rather than a border so as not to
+     change the tile size. */
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.14);
   display: flex;
   align-items: center;
@@ -120,8 +121,8 @@ const tileSize = computed(() => `${props.size}px`)
   border-radius: 8px;
   border: none;
   cursor: pointer;
-  /* Галочка кладётся на заливку, а заливка у всего набора одной светлоты (OKLCH L 0.62), поэтому
-     тёмный штрих читается на любой плитке и в любой теме — худшая пара 3.93:1 при пороге 3. */
+  /* The check sits on the fill, and the whole set's fill has one lightness (OKLCH L 0.62), so a
+     dark stroke reads on any tile in any theme — the worst pair is 3.93:1 against a threshold of 3. */
   color: rgba(0, 0, 0, 0.72);
   transition: transform 120ms ease, box-shadow 120ms ease;
 }
@@ -135,22 +136,12 @@ const tileSize = computed(() => `${props.size}px`)
   outline-offset: 2px;
 }
 
-/* Кольцо, а не рамка: рамка съела бы часть заливки, а зазор цветом лотка отделяет кольцо от
-   самой плитки, и оно одинаково видно на светлой и на тёмной плитке. */
-.color-picker__tile--active {
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.14), 0 0 0 2px var(--surface-sunken), 0 0 0 4px var(--text);
-}
-
-/* «Без цвета» — пустая плитка тона карточки: она не участвует в наборе как цвет, а показывает,
-   что цвет не задан, поэтому и галочка на ней в цвете текста, а не тёмная. */
+/* "No color" is an empty tile in the card tone: it doesn't take part in the set as a color but shows
+   that no color is set, so its check is in the text color rather than dark. */
 .color-picker__tile--none {
   background: var(--surface);
   border: 1px dashed var(--border);
   color: var(--text-muted);
   box-shadow: none;
-}
-
-.color-picker__tile--none.color-picker__tile--active {
-  box-shadow: 0 0 0 2px var(--surface-sunken), 0 0 0 4px var(--text);
 }
 </style>

@@ -1,11 +1,11 @@
-"""HTTP-API модуля ``tasks``: зоны (чтение) и задачи целиком — от списка до purge.
+"""HTTP API of the ``tasks`` module: groups (read) and tasks in full — from the list to purge.
 
-Проверяется поведение поверхности, а не CRUD под ней: что ручка сузила выборку тем
-пространством, о котором спросили; что смена статуса поставила отметку фазы; что перенос
-поменял ребро, а не карточку; что мягкое удаление обратимо, а жёсткое — нет. Правила самого
-хранилища (каскад ветки, проверки пространства) живут в ``test_task.py`` / ``test_link.py``.
+What is checked is the surface's behaviour, not the CRUD beneath it: that an endpoint narrowed the
+selection to the workspace asked about; that a status change set the phase stamp; that a move
+changed the edge, not the card; that a soft delete is reversible and a hard one is not. The rules
+of the store itself (branch cascade, workspace checks) live in ``test_task.py`` / ``test_link.py``.
 
-Приложение с роутером поднимает общая фикстура ``client`` (``conftest.py``).
+The app with the router is brought up by the shared ``client`` fixture (``conftest.py``).
 """
 
 from __future__ import annotations
@@ -39,11 +39,11 @@ async def _workspace(title: str = "Работа"):
     return await workspace_crud.workspace_create(title=title)
 
 
-# ── зоны ──────────────────────────────────────────────────────────────────────
+# ── groups ────────────────────────────────────────────────────────────────────
 
 
 async def test_groups_are_scoped_to_the_asked_workspace(client):
-    """Группа живёт внутри пространства: соседнее в ответ не подмешивается никогда."""
+    """A group lives inside a workspace: a neighbouring one never leaks into the response."""
     mine = await _workspace()
     stranger = await _workspace("Личное")
     await group_crud.group_create(workspace_code=mine.code, title="Биллинг")
@@ -55,13 +55,13 @@ async def test_groups_are_scoped_to_the_asked_workspace(client):
 
 
 async def test_groups_tag_the_code_with_its_type(client):
-    """Код группы в выдаче — ссылка с типом: по ``GROUP@`` его отличают от кода задачи."""
+    """A group code in the output is a typed reference: ``TASKGROUP@`` tells it from a task code."""
     workspace = await _workspace()
     group = await group_crud.group_create(workspace_code=workspace.code, title="Биллинг")
 
     body = (await client.get(GROUPS, params={"workspace": workspace.code})).json()
 
-    assert body[0]["code"] == f"GROUP@{group.code}"
+    assert body[0]["code"] == f"TASKGROUP@{group.code}"
     assert body[0]["workspace_code"] == f"WORKSPACE@{workspace.code}"
 
 
@@ -78,7 +78,7 @@ async def test_groups_hide_deleted_without_the_flag(client):
         )
     ).json()
 
-    assert [row["code"] for row in without] == [f"GROUP@{live.code}"]
+    assert [row["code"] for row in without] == [f"TASKGROUP@{live.code}"]
     assert len(with_flag) == 2
 
 
@@ -89,7 +89,7 @@ async def test_groups_of_a_missing_workspace_are_404(client):
     assert response.json()["code"] == "workspace.workspace.not_found"
 
 
-# ── список задач ──────────────────────────────────────────────────────────────
+# ── task list ─────────────────────────────────────────────────────────────────
 
 
 async def test_task_list_is_scoped_to_the_asked_workspace(client):
@@ -104,7 +104,7 @@ async def test_task_list_is_scoped_to_the_asked_workspace(client):
 
 
 async def test_task_list_carries_the_tree_edge_and_the_branch_mark(client):
-    """Строка списка отвечает и «где задача стоит», и «есть ли под ней ещё»."""
+    """A list row answers both "where the task sits" and "is there anything below it"."""
     workspace = await _workspace()
     group = await group_crud.group_create(workspace_code=workspace.code, title="Биллинг")
     parent = await task_crud.task_create(
@@ -119,7 +119,7 @@ async def test_task_list_carries_the_tree_edge_and_the_branch_mark(client):
 
     assert rows["Счета"]["parent_code"] is None
     assert rows["Счета"]["has_children"] is True
-    assert rows["Счета"]["group_code"] == f"GROUP@{group.code}"
+    assert rows["Счета"]["group_code"] == f"TASKGROUP@{group.code}"
     assert rows["Акт"]["parent_code"] == f"TASK@{parent.code}"
     assert rows["Акт"]["has_children"] is False
     assert rows["Акт"]["sort"] == SORT_DEFAULT
@@ -127,7 +127,7 @@ async def test_task_list_carries_the_tree_edge_and_the_branch_mark(client):
 
 
 async def test_task_list_orders_by_the_edge_sort(client):
-    """Порядок в списке — тот, который человек расставил руками, а не важность задачи."""
+    """The list order is the one the person arranged by hand, not the task's importance."""
     workspace = await _workspace()
     low = await task_crud.task_create(
         workspace_code=workspace.code, title="Ниже", priority=PRIORITY_BURNING
@@ -159,7 +159,7 @@ async def test_task_list_hides_deleted_without_the_flag(client):
 
 
 async def test_task_list_empty_group_asks_for_the_unassigned(client):
-    """Пустое значение ``group`` — секция «Без группы», а не «без фильтра»."""
+    """An empty ``group`` value means the "No group" section, not "no filter"."""
     workspace = await _workspace()
     group = await group_crud.group_create(workspace_code=workspace.code, title="Биллинг")
     await task_crud.task_create(
@@ -194,7 +194,7 @@ async def test_task_list_narrows_by_status(client):
 
 
 async def test_task_list_with_an_unknown_status_is_a_bad_request(client):
-    """Значение не из справочника — перепутанный аргумент, и отказ называет допустимые."""
+    """A value outside the dictionary is a mixed-up argument; the refusal names the allowed ones."""
     workspace = await _workspace()
 
     response = await client.get(
@@ -205,7 +205,7 @@ async def test_task_list_with_an_unknown_status_is_a_bad_request(client):
     assert response.json()["error"]
 
 
-# ── создание ──────────────────────────────────────────────────────────────────
+# ── create ────────────────────────────────────────────────────────────────────
 
 
 async def test_create_returns_201_and_the_whole_task(client):
@@ -217,7 +217,9 @@ async def test_create_returns_201_and_the_whole_task(client):
             "workspace": f"WORKSPACE@{workspace.code}",
             "title": "Счёт",
             "description": "проверить начисления",
-            "body": "# Заголовок",
+            "plan": "# Заголовок",
+            "progress": "- начато",
+            "result": "Готово",
             "type": TYPE_STANDARD,
             "priority": PRIORITY_BURNING,
             "deadline_at": "2026-09-20 18:00:00",
@@ -228,7 +230,7 @@ async def test_create_returns_201_and_the_whole_task(client):
     body = response.json()
     assert body["title"] == "Счёт"
     assert (body["type"], body["priority"]) == (TYPE_STANDARD, PRIORITY_BURNING)
-    assert body["body"] == "# Заголовок"
+    assert (body["plan"], body["progress"], body["result"]) == ("# Заголовок", "- начато", "Готово")
     assert body["deadline_at"] == "2026-09-20 18:00:00"
     assert body["children"] == []
     assert len(body["code"].removeprefix("TASK@")) == CODE_LEN
@@ -253,7 +255,7 @@ async def test_create_puts_the_task_under_its_parent(client):
 
 
 async def test_create_in_a_foreign_group_is_a_bad_request(client):
-    """Группа чужого пространства — неверный аргумент, а не пропавшая запись."""
+    """A group of another workspace is a wrong argument, not a missing record."""
     workspace = await _workspace()
     stranger = await _workspace("Личное")
     group = await group_crud.group_create(workspace_code=stranger.code, title="Дача")
@@ -287,11 +289,12 @@ async def test_create_rejects_an_overlong_title(client):
 
 
 async def test_create_rejects_an_unknown_field(client):
-    """Опечатка в имени поля — отказ, а не тишина.
+    """A typo in a field name is a refusal, not silence.
 
-    ``parent`` вместо ``parent_code`` раньше давал 201 и задачу без родителя: лишнее поле
-    молча выбрасывалось, и расхождение обнаруживалось только тем, что задача не встала в ветку.
-    Имя лишнего поля обязано приехать в ``fields`` — иначе отказ не говорит, что именно чинить.
+    ``parent`` instead of ``parent_code`` used to give 201 and a task with no parent: the extra
+    field was silently dropped, and the mismatch surfaced only as the task not landing in the
+    branch. The extra field's name must arrive in ``fields`` — otherwise the refusal does not say
+    what exactly to fix.
     """
     workspace = await _workspace()
     parent = await task_crud.task_create(workspace_code=workspace.code, title="Счета")
@@ -306,10 +309,10 @@ async def test_create_rejects_an_unknown_field(client):
 
 
 async def test_update_rejects_an_unknown_field(client):
-    """Запрет лишнего стоит на ВСЕХ телах входа, а не только на создании.
+    """Extra fields are forbidden on ALL input bodies, not only on create.
 
-    Статус в теле правки — самый вероятный случай: у него своя ручка, и раньше присланный сюда
-    статус просто исчезал, оставляя «сохранил, а не поменялось».
+    A status in the update body is the likeliest case: it has an endpoint of its own, and a status
+    sent here used to just vanish, leaving "saved, but nothing changed".
     """
     workspace = await _workspace()
     task = await task_crud.task_create(workspace_code=workspace.code, title="Счёт")
@@ -322,7 +325,7 @@ async def test_update_rejects_an_unknown_field(client):
     assert "status" in response.json()["fields"]
 
 
-# ── чтение одной ──────────────────────────────────────────────────────────────
+# ── read one ──────────────────────────────────────────────────────────────────
 
 
 async def test_get_returns_the_children(client):
@@ -350,7 +353,7 @@ async def test_get_accepts_both_code_forms(client):
 
 
 async def test_get_returns_a_deleted_task_with_its_buried_branch(client):
-    """У задачи в корзине ветка тоже в корзине — но показать её надо: по ней и решают."""
+    """A trashed task's branch is trashed too — but it must be shown: decisions are made by it."""
     workspace = await _workspace()
     parent = await task_crud.task_create(workspace_code=workspace.code, title="Счета")
     await task_crud.task_create(
@@ -376,12 +379,12 @@ async def test_a_foreign_code_prefix_is_a_bad_request(client):
     workspace = await _workspace()
     task = await task_crud.task_create(workspace_code=workspace.code, title="Счёт")
 
-    response = await client.get(f"{TASKS}/GROUP@{task.code}")
+    response = await client.get(f"{TASKS}/TASKGROUP@{task.code}")
 
     assert response.status_code == 400
 
 
-# ── правка ────────────────────────────────────────────────────────────────────
+# ── update ────────────────────────────────────────────────────────────────────
 
 
 async def test_update_replaces_the_card(client):
@@ -397,10 +400,12 @@ async def test_update_replaces_the_card(client):
             json={
                 "title": "Счёт за август",
                 "description": "новое",
-                "body": "текст",
+                "plan": "текст",
+                "progress": "ход",
+                "result": "итог",
                 "type": TYPE_STANDARD,
                 "priority": PRIORITY_BURNING,
-                "group_code": f"GROUP@{group.code}",
+                "group_code": f"TASKGROUP@{group.code}",
                 "deadline_at": "2026-09-20 18:00:00",
             },
         )
@@ -408,14 +413,14 @@ async def test_update_replaces_the_card(client):
 
     assert body["title"] == "Счёт за август"
     assert body["description"] == "новое"
-    assert body["body"] == "текст"
+    assert (body["plan"], body["progress"], body["result"]) == ("текст", "ход", "итог")
     assert (body["type"], body["priority"]) == (TYPE_STANDARD, PRIORITY_BURNING)
-    assert body["group_code"] == f"GROUP@{group.code}"
+    assert body["group_code"] == f"TASKGROUP@{group.code}"
     assert body["deadline_at"] == "2026-09-20 18:00:00"
 
 
 async def test_update_clears_what_the_body_omits(client):
-    """Полная замена: не переданные зона и даты снимаются — иначе их нечем было бы стереть."""
+    """Full replace: an omitted group and dates are cleared — otherwise nothing could erase them."""
     workspace = await _workspace()
     group = await group_crud.group_create(workspace_code=workspace.code, title="Биллинг")
     task = await task_crud.task_create(
@@ -432,10 +437,10 @@ async def test_update_clears_what_the_body_omits(client):
 
 
 async def test_update_does_not_touch_the_status(client):
-    """Полная замена карточки статус не стирает: его поля в теле правки нет вовсе.
+    """A full replace of the card does not erase the status: the update body has no such field.
 
-    Тело шлём без статуса — именно так его шлёт форма. Попытка передать статус сюда теперь
-    отказ (см. ``test_update_rejects_an_unknown_field``), а не молчаливое игнорирование.
+    The body is sent without a status — exactly how the form sends it. Trying to pass a status
+    here is now a refusal (see ``test_update_rejects_an_unknown_field``), not a silent ignore.
     """
     workspace = await _workspace()
     task = await task_crud.task_create(workspace_code=workspace.code, title="Счёт")
@@ -457,11 +462,11 @@ async def test_update_of_a_deleted_task_is_409(client):
     assert response.json()["code"] == "tasks.task.deleted"
 
 
-# ── статус ────────────────────────────────────────────────────────────────────
+# ── status ────────────────────────────────────────────────────────────────────
 
 
 async def test_status_stamps_the_phase(client):
-    """Начало, завершение и отмена — факты со своими датами, а не одно поле ``status``."""
+    """Start, completion and cancellation are facts with their own dates, not one ``status``."""
     workspace = await _workspace()
     task = await task_crud.task_create(workspace_code=workspace.code, title="Счёт")
 
@@ -481,7 +486,8 @@ async def test_status_stamps_the_phase(client):
 
 
 async def test_status_keeps_the_first_stamp(client):
-    """Возврат в работу не переписывает дату, когда за задачу сели: это факт, а не состояние."""
+    """Resuming work does not rewrite when the task was started: that is a fact, not a state. The
+    cancellation, on the other hand, is no longer true of a resumed task and is cleared."""
     workspace = await _workspace()
     task = await task_crud.task_create(workspace_code=workspace.code, title="Счёт")
     first = (
@@ -498,7 +504,7 @@ async def test_status_keeps_the_first_stamp(client):
     ).json()
 
     assert again["started_at"] == first["started_at"]
-    assert again["canceled_at"] is not None
+    assert again["canceled_at"] is None
 
 
 async def test_status_outside_the_dictionary_is_a_bad_request(client):
@@ -524,7 +530,7 @@ async def test_status_of_a_deleted_task_is_409(client):
     assert response.status_code == 409
 
 
-# ── перенос ───────────────────────────────────────────────────────────────────
+# ── move ──────────────────────────────────────────────────────────────────────
 
 
 async def test_move_changes_the_edge(client):
@@ -556,7 +562,7 @@ async def test_move_to_the_root_empties_the_parent(client):
 
 
 async def test_move_under_own_child_is_a_bad_request(client):
-    """Ветка под собственным потомком оторвалась бы от дерева в замкнутое кольцо."""
+    """A branch under its own descendant would break off the tree into a closed loop."""
     workspace = await _workspace()
     root = await task_crud.task_create(workspace_code=workspace.code, title="Счета")
     child = await task_crud.task_create(
@@ -571,7 +577,7 @@ async def test_move_under_own_child_is_a_bad_request(client):
 
 
 async def test_move_rejects_an_unknown_field(client):
-    """Тело переноса стоит на ``extra=forbid``: опечатка в имени поля — 422, а не тихий проезд."""
+    """The move body is ``extra=forbid``: a typo in a field name is a 422, not a silent pass."""
     workspace = await _workspace()
     task = await task_crud.task_create(workspace_code=workspace.code, title="Акт")
 
@@ -582,7 +588,7 @@ async def test_move_rejects_an_unknown_field(client):
     assert response.status_code == 422
 
 
-# ── удаление, восстановление, снос ────────────────────────────────────────────
+# ── delete, restore, purge ────────────────────────────────────────────────────
 
 
 async def test_delete_buries_the_whole_branch(client):
@@ -614,7 +620,7 @@ async def test_restore_raises_the_branch_that_went_down_together(client):
 
 
 async def test_restore_of_a_live_task_is_409(client):
-    """Нажали не на той строке: молчаливое «ок» скрыло бы расхождение экрана с базой."""
+    """A click on the wrong row: a silent "ok" would hide that the screen and the DB disagree."""
     workspace = await _workspace()
     task = await task_crud.task_create(workspace_code=workspace.code, title="Счёт")
 
@@ -655,7 +661,7 @@ async def test_purge_of_a_missing_task_is_404(client):
 
 
 async def test_get_names_the_group_and_the_parent(client):
-    """Группа и родитель едут строками: страница показывает их названиями, а не кодами."""
+    """The group and the parent ship as rows: the page shows them by title, not by code."""
     workspace = await _workspace()
     group = await group_crud.group_create(workspace_code=workspace.code, title="Биллинг")
     parent = await task_crud.task_create(
@@ -682,7 +688,7 @@ async def test_get_of_a_root_task_has_no_parent(client):
     assert body["group"] is None
 
 
-# ── Перетаскивание строки списка ──────────────────────────────────────────────
+# ── Dragging a list row ───────────────────────────────────────────────────────
 
 
 async def test_reorder_moves_the_task_after_the_named_neighbour(client):
@@ -706,7 +712,7 @@ async def test_reorder_moves_the_task_after_the_named_neighbour(client):
 
 
 async def test_reorder_carries_the_task_into_another_group(client):
-    """Перетаскивание в чужую карточку — смена группы и позиции одним запросом."""
+    """Dragging into another card changes the group and the position in one request."""
     workspace = await _workspace()
     billing = await group_crud.group_create(workspace_code=workspace.code, title="Биллинг")
     docs = await group_crud.group_create(workspace_code=workspace.code, title="Документы")
@@ -717,15 +723,15 @@ async def test_reorder_carries_the_task_into_another_group(client):
     body = (
         await client.post(
             f"{TASKS}/{task.code}/reorder",
-            json={"after_code": None, "group_code": f"GROUP@{docs.code}"},
+            json={"after_code": None, "group_code": f"TASKGROUP@{docs.code}"},
         )
     ).json()
 
-    assert body["group_code"] == f"GROUP@{docs.code}"
+    assert body["group_code"] == f"TASKGROUP@{docs.code}"
 
 
 async def test_reorder_can_take_the_group_off(client):
-    """`null` в теле — снять группу: строку утащили в карточку «Без группы»."""
+    """`null` in the body unsets the group: the row was dragged into the "No group" card."""
     workspace = await _workspace()
     group = await group_crud.group_create(workspace_code=workspace.code, title="Биллинг")
     task = await task_crud.task_create(
@@ -742,7 +748,7 @@ async def test_reorder_can_take_the_group_off(client):
 
 
 async def test_reorder_without_the_group_key_keeps_the_group(client):
-    """Ключа нет — группу не трогаем: перестановка внутри своей карточки про группы не знает."""
+    """No key, the group is left alone: reordering within its own card knows nothing of groups."""
     workspace = await _workspace()
     group = await group_crud.group_create(workspace_code=workspace.code, title="Биллинг")
     task = await task_crud.task_create(
@@ -753,11 +759,11 @@ async def test_reorder_without_the_group_key_keeps_the_group(client):
         await client.post(f"{TASKS}/{task.code}/reorder", json={"after_code": None})
     ).json()
 
-    assert body["group_code"] == f"GROUP@{group.code}"
+    assert body["group_code"] == f"TASKGROUP@{group.code}"
 
 
 async def test_reorder_detaches_the_subtask_in_one_request(client):
-    """Второй жест списка: подзадачу вытащили из ветки в карточку группы — и она стала корнем."""
+    """The list's second gesture: a subtask dragged from its branch into a group card is a root."""
     workspace = await _workspace()
     group = await group_crud.group_create(workspace_code=workspace.code, title="Биллинг")
     parent = await task_crud.task_create(workspace_code=workspace.code, title="Эпик")
@@ -773,24 +779,24 @@ async def test_reorder_detaches_the_subtask_in_one_request(client):
             f"{TASKS}/{child.code}/reorder",
             json={
                 "parent_code": None,
-                "group_code": f"GROUP@{group.code}",
+                "group_code": f"TASKGROUP@{group.code}",
                 "after_code": f"TASK@{neighbour.code}",
             },
         )
     ).json()
 
     assert body["parent_code"] is None
-    assert body["group_code"] == f"GROUP@{group.code}"
-    # Встала ровно под названной соседкой — то есть на место броска, а не в конец ряда.
+    assert body["group_code"] == f"TASKGROUP@{group.code}"
+    # It landed right below the named neighbour — that is, where it was dropped, not at row end.
     row = await link_crud.link_list_by_parent(None)
     codes = [item.task_code for item in row if item.task_code in {neighbour.code, child.code}]
     assert codes == [neighbour.code, child.code]
 
 
 async def test_reorder_detaches_a_subtask_of_a_filed_epic_into_another_card(client):
-    """Группа подзадачи — только родительская, поэтому вынос и смена группы — одна запись.
+    """A subtask's group is only its parent's, so detaching and regrouping are one write.
 
-    Двумя шагами (сначала группа, потом родитель) жест упёрся бы в этот запрет на первом же.
+    In two steps (group first, then parent) the gesture would hit that ban on the very first one.
     """
     workspace = await _workspace()
     billing = await group_crud.group_create(workspace_code=workspace.code, title="Биллинг")
@@ -804,17 +810,17 @@ async def test_reorder_detaches_a_subtask_of_a_filed_epic_into_another_card(clie
 
     response = await client.post(
         f"{TASKS}/{child.code}/reorder",
-        json={"parent_code": None, "group_code": f"GROUP@{interface.code}", "after_code": None},
+        json={"parent_code": None, "group_code": f"TASKGROUP@{interface.code}", "after_code": None},
     )
 
     assert response.status_code == 200
     assert response.json()["parent_code"] is None
-    assert response.json()["group_code"] == f"GROUP@{interface.code}"
+    assert response.json()["group_code"] == f"TASKGROUP@{interface.code}"
 
 
 @pytest.mark.parametrize("gesture", ["parent", "group"])
 async def test_reorder_with_a_wrong_neighbour_writes_nothing(client, gesture):
-    """Неверный сосед (устаревший экран) — 400, и перенос откатывается вместе с позицией."""
+    """A wrong neighbour (a stale screen) is a 400, and the move rolls back with the position."""
     workspace = await _workspace()
     billing = await group_crud.group_create(workspace_code=workspace.code, title="Биллинг")
     interface = await group_crud.group_create(workspace_code=workspace.code, title="Интерфейс")
@@ -831,7 +837,7 @@ async def test_reorder_with_a_wrong_neighbour_writes_nothing(client, gesture):
     tree_change = (
         {"parent_code": f"TASK@{epic.code}"}
         if gesture == "parent"
-        else {"group_code": f"GROUP@{interface.code}"}
+        else {"group_code": f"TASKGROUP@{interface.code}"}
     )
 
     response = await client.post(
@@ -861,7 +867,7 @@ async def test_move_refuses_a_parent_in_the_bin(client):
 
 
 async def test_reorder_without_the_parent_key_keeps_the_branch(client):
-    """Ключа нет — родителя не трогаем: перестановка среди сестёр про дерево не знает."""
+    """No key, the parent is left alone: reordering among siblings knows nothing of the tree."""
     workspace = await _workspace()
     parent = await task_crud.task_create(workspace_code=workspace.code, title="Эпик")
     first = await task_crud.task_create(
@@ -883,7 +889,7 @@ async def test_reorder_without_the_parent_key_keeps_the_branch(client):
 
 
 async def test_reorder_refuses_to_hang_a_task_under_its_own_child(client):
-    """Петля — это разорванное дерево, а не странная раскладка: 400, и ничего не тронуто."""
+    """A loop is a broken tree, not an odd layout: 400, and nothing is touched."""
     workspace = await _workspace()
     parent = await task_crud.task_create(workspace_code=workspace.code, title="Эпик")
     child = await task_crud.task_create(

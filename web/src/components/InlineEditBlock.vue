@@ -1,30 +1,30 @@
 <script setup lang="ts">
-// Правка АБЗАЦА на месте — многострочный родственник `InlineEdit`. Разница ровно одна: там
-// значение в одну строку и правится полем ввода, здесь текст в несколько строк и поля не видно
-// вовсе. В покое это абзац; в правке — тот же абзац, только редактируемый: та же гарнитура,
-// кегль, интерлиньяж и ширина, ни рамки, ни подложки, ни собственного размера.
+// In-place PARAGRAPH editing — the multi-line sibling of `InlineEdit`. Exactly one difference:
+// there the value is one line edited in an input, here the text spans several lines and the field
+// is not visible at all. At rest it is a paragraph; in edit mode the same paragraph, just editable:
+// same typeface, size, line height and width, no border, no fill, no size of its own.
 //
-// Обещание то же, что у `InlineEdit`: вход в правку не двигает вёрстку. У абзаца для этого нет
-// фиксированной высоты, поэтому поле меряет само себя (`scrollHeight`) на открытии и на каждый
-// ввод. Невидимая копия текста в CSS выглядела бы дешевле, но переносит строки не так, как их
-// переносит поле: замер на живом описании давал 238px против 208px у того же абзаца.
+// The promise is the same as `InlineEdit`'s: entering edit mode doesn't move the layout. A paragraph
+// has no fixed height for that, so the field measures itself (`scrollHeight`) on open and on every
+// input. An invisible CSS copy of the text would look cheaper, but it wraps lines differently from
+// the field: measured on a live description it gave 238px versus 208px for the same paragraph.
 //
-// Сохраняет не компонент: он отдаёт `save` наверх и ждёт, пока владелец закроет правку.
+// The component doesn't save: it emits `save` upward and waits for the owner to close editing.
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { IconCheck, IconLoader2, IconPencil, IconX } from '@tabler/icons-vue'
 
 const props = withDefaults(defineProps<{
-  /** Хранимое значение. Пустая строка = значения нет. */
+  /** The stored value. An empty string = no value. */
   value: string
-  /** Имя значения: подпись поля для скринридера. */
+  /** The value's name: the field label for screen readers. */
   label: string
-  /** Текст на месте пустого значения. */
+  /** Text shown in place of an empty value. */
   empty?: string
-  /** Запрос ИМЕННО этого значения в полёте: правка заперта, кнопки не отвечают. */
+  /** A request for THIS value is in flight: editing is locked, the buttons don't respond. */
   saving?: boolean
   maxlength?: number
-  /** Пустое значение допустимо и означает «стереть». */
+  /** An empty value is allowed and means "erase". */
   allowEmpty?: boolean
 }>(), {
   empty: '',
@@ -35,7 +35,7 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{ save: [string] }>()
 
-/** Наружу — правку открывает владелец (ссылка «Изменить» рядом) и он же закрывает её по ответу. */
+/** Exposed — the owner opens editing (the "Edit" link next to it) and closes it on the response. */
 const editing = defineModel<boolean>('editing', { default: false })
 
 const { t } = useI18n()
@@ -46,7 +46,7 @@ const field = ref<HTMLTextAreaElement | null>(null)
 const blank = computed(() => props.value === '')
 const draftBlank = computed(() => draft.value.trim() === '')
 
-/** Высота поля = высота его текста: `auto` сбрасывает прежнюю, иначе `scrollHeight` не уменьшается. */
+/** Field height = its text height: `auto` resets the previous one, otherwise `scrollHeight` never shrinks. */
 function fitHeight(): void {
   const input = field.value
   if (input === null) return
@@ -55,8 +55,8 @@ function fitHeight(): void {
   input.style.height = `${input.scrollHeight}px`
 }
 
-// Черновик набирается с текущего значения, а курсор ставится в начало: `focus()` сам уводит его
-// в конец, а текст чаще правят с начала.
+// The draft starts from the current value and the caret goes to the start: `focus()` moves it to
+// the end, but text is edited from the start more often.
 watch(editing, async (open) => {
   if (!open) {
     draft.value = ''
@@ -79,7 +79,7 @@ function submit(): void {
 
   const next = draft.value.trim()
 
-  // Ничего не изменилось — закрываемся молча, запрос ради того же текста не нужен.
+  // Nothing changed — close silently, no request is needed for the same text.
   if (next === props.value) cancel()
   else emit('save', next)
 }
@@ -109,10 +109,10 @@ function submit(): void {
       @dblclick="editing = true"
     >{{ blank ? empty : value }}</p>
 
-    <!-- Одна и та же строка в обоих состояниях: слева действия над текстом, справа то, что о нём
-         сообщает владелец (дата обновления). Она не появляется и не исчезает, а только меняет
-         левую половину, поэтому вход в правку не двигает карточку. Действия набраны `link-action`
-         (общий класс в main.scss): это продолжение текста, а не панель управления им. -->
+    <!-- The same row in both states: actions on the text on the left, what the owner reports about
+         it (the update date) on the right. It never appears or disappears, only its left half
+         changes, so entering edit mode doesn't move the card. The actions use `link-action`
+         (a shared class in main.scss): they continue the text rather than form a control panel for it. -->
     <div class="ieb__row">
       <div class="ieb__actions">
         <template v-if="editing">
@@ -145,16 +145,16 @@ function submit(): void {
 </template>
 
 <style scoped>
-/* Метрику текста задаёт МЕСТО, куда компонент поставлен (класс на корне): гарнитура, кегль,
-   интерлиньяж и предел строки приходят снаружи, а всё внутри их наследует — поэтому покой и
-   правка выглядят одинаково по определению, а не по совпадению настроек. */
+/* The text metrics are set by the PLACE the component is put in (a class on the root): typeface,
+   size, line height and measure come from outside and everything inside inherits them — so rest
+   and edit look the same by definition, not by coincidence of settings. */
 .ieb {
   display: block;
 }
 
-/* Метрика забирается у корня ЯВНО: правило для голого `p` в `main.scss` лежит вне слоёв, и
-   наследованием его не перебить — абзац молча уезжал на свой интерлиньяж (20.8 против 23.8),
-   то есть в покое текст стоял иначе, чем в правке. */
+/* The metrics are taken from the root EXPLICITLY: the bare `p` rule in `main.scss` sits outside
+   the layers and inheritance can't beat it — the paragraph silently drifted to its own line height
+   (20.8 versus 23.8), i.e. the text at rest sat differently than in edit mode. */
 .ieb__value {
   margin: 0;
   font: inherit;
@@ -169,8 +169,8 @@ function submit(): void {
   color: var(--text-faint);
 }
 
-/* Поля не видно: ни рамки, ни подложки, ни собственной метрики — на экране остаётся текст,
-   в который поставили курсор. Высоту ставит скрипт, поэтому своя прокрутка полю не нужна. */
+/* The field is invisible: no border, no fill, no metrics of its own — the screen shows only text
+   with a caret in it. The script sets the height, so the field needs no scrolling of its own. */
 .ieb__field {
   display: block;
   width: 100%;
@@ -182,18 +182,17 @@ function submit(): void {
   font: inherit;
   line-height: inherit;
   letter-spacing: inherit;
-  /* Форменным элементам браузер сбрасывает начертание в `auto`, а вокруг текст набран
-     `optimizeLegibility` — с лигатурами и кернингом. Без этой строки правка отличалась бы от
-     покоя формой букв: единственное расхождение, которое осталось после сверки всех
-     вычисленных свойств. */
+  /* The browser resets text rendering to `auto` on form elements, while the surrounding text is set
+     with `optimizeLegibility` — ligatures and kerning. Without this line edit mode would differ from
+     rest in letterforms: the only discrepancy left after comparing every computed property. */
   text-rendering: inherit;
   resize: none;
   overflow: hidden;
   outline: none;
 }
 
-/* Действия слева, сведения владельца справа — по краям, а не в ряд: одно тут действие над
-   текстом, другое сообщение о нём. */
+/* Actions on the left, the owner's details on the right — at opposite edges, not in one run: one is
+   an action on the text, the other a statement about it. */
 .ieb__row {
   display: flex;
   flex-wrap: wrap;

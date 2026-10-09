@@ -1,17 +1,19 @@
 import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 
-import { listGroups, restoreGroup, type GroupListRow } from '../api'
+import { listGroups, reorderGroup, restoreGroup, type GroupListRow } from '../api'
 import { useWorkspaceContextStore } from '@/features/workspace/stores/workspace-context.store'
+import { useListReorder } from '@/composables/useListReorder'
 
-// Группы ТЕКУЩЕГО пространства: раздел привязан к контексту, выбранному в боковой панели, и своего
-// переключателя пространств у него нет — второй выбор того же самого разошёлся бы с первым.
+// Groups of the CURRENT workspace: the section is bound to the context selected in the sidebar and
+// has no workspace switcher of its own — a second choice of the same thing would diverge from the
+// first.
 //
-// Смена пространства перечитывает список сама: страница про это не знает, иначе о смене пришлось
-// бы помнить каждому, кто группы показывает.
+// A workspace switch re-reads the list by itself: the page does not know about it, otherwise every
+// place that shows groups would have to remember about the switch.
 //
-// Показ удалённых — перезапрос, а не маска поверх загруженного: без флага удалённые с бэка не
-// приезжают вовсе, и фильтровать на клиенте было бы нечего.
+// Showing deleted is a re-request, not a mask over what is loaded: without the flag deleted groups
+// do not come from the backend at all, so there would be nothing to filter on the client.
 export const useGroupsStore = defineStore('tasks-groups', () => {
   const context = useWorkspaceContextStore()
 
@@ -25,8 +27,8 @@ export const useGroupsStore = defineStore('tasks-groups', () => {
   const noWorkspace = computed(() => context.loaded && !context.currentWorkspace)
   const isEmpty = computed(() => items.value.length === 0)
 
-  // Поиск — на клиенте: групп в пространстве единицы, и все они уже загружены. Ищется по названию
-  // и описанию, без регистра; `toLocaleLowerCase` сворачивает и кириллицу.
+  // Search is client-side: a workspace has only a handful of groups, all already loaded. It
+  // matches name and description case-insensitively; `toLocaleLowerCase` folds Cyrillic too.
   const visible = computed(() => {
     const needle = query.value.trim().toLocaleLowerCase()
     if (!needle) return items.value
@@ -34,12 +36,12 @@ export const useGroupsStore = defineStore('tasks-groups', () => {
       `${group.title}\n${group.description}`.toLocaleLowerCase().includes(needle),
     )
   })
-  /** Группы есть, но поиск не оставил ни одной. */
+  /** Groups exist, but the search left none. */
   const isFilteredOut = computed(() => !isEmpty.value && visible.value.length === 0)
 
   async function load() {
-    // Набор пространств может быть ещё не загружен: раздел открывают и прямой ссылкой, не только
-    // переходом из панели.
+    // The workspace set may not be loaded yet: the section is also opened via a direct link, not
+    // only by navigating from the sidebar.
     await context.ensure()
 
     const code = workspace.value
@@ -51,8 +53,8 @@ export const useGroupsStore = defineStore('tasks-groups', () => {
 
     error.value = null
     try {
-      // `report: false` — отказ чтения раздела показывает сама страница (SectionError);
-      // тост поверх него был бы вторым сообщением об одном и том же.
+      // `report: false` — a failed section read is shown by the page itself (SectionError);
+      // a toast on top would be a second message about the same thing.
       items.value = await listGroups(
         { workspace: code, include_deleted: includeDeleted.value },
         { report: false },
@@ -72,17 +74,28 @@ export const useGroupsStore = defineStore('tasks-groups', () => {
     return load()
   }
 
-  // Восстановление — единственное действие без своего окна: оно обратимо (кнопка «Удалить» стоит
-  // на той же карточке), и подтверждение было бы вопросом ни о чём. Отказ показывает тост
-  // клиента; список всё равно перечитывается — расхождение с базой и есть обычная причина отказа.
+  // Restore is the only action without its own dialog: it is reversible (the "Delete" button is on
+  // the same card), and a confirmation would be a question about nothing. A refusal is shown by the
+  // client's toast; the list is re-read anyway — drift from the database is the usual reason for a
+  // refusal.
   async function restore(code: string) {
     try {
       await restoreGroup(code)
     } catch {
-      // Об отказе уже сказал тост.
+      // The toast has already reported the refusal.
     }
     await load()
   }
+
+  // ── Reordering by dragging ──────────────────────────────────────────────────
+
+  // Only the whole live list can be reordered: on a narrowed one (search, trash shown) a drop
+  // between two visible rows does not say where the group goes among the hidden ones, and a deleted
+  // group has no place in the numbering at all. The order is the same one the task list's group
+  // cards stand in.
+  const reorderable = computed(() => !query.value.trim() && !includeDeleted.value)
+
+  const { move, moving } = useListReorder({ items, request: reorderGroup, reload: load })
 
   return {
     items,
@@ -94,8 +107,11 @@ export const useGroupsStore = defineStore('tasks-groups', () => {
     isEmpty,
     isFilteredOut,
     noWorkspace,
+    reorderable,
+    moving,
     load,
     showDeleted,
     restore,
+    move,
   }
 })

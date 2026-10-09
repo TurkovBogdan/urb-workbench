@@ -1,4 +1,4 @@
-"""Системные задачи ядра. Регистрируется ``app_factory.create_app``."""
+"""The core's system tasks. Registered by ``app_factory.create_app``."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ _TASKS = (HeartbeatTask, SqliteHealthTask)
 
 
 def register() -> None:
-    """Зарегистрировать все задачи ядра. Идемпотентно."""
+    """Register every core task. Idempotent."""
     registry = get_registry()
     for task in _TASKS:
         if registry.get(_MODULE, task.CODE) is None:

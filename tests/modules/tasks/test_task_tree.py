@@ -1,8 +1,8 @@
-"""Дерево задач: один уровень вложенности и группа подзадачи — группа её родителя.
+"""The task tree: one level of nesting, and a subtask's group is its parent's group.
 
-Правила держит CRUD, поэтому они одинаковы для MCP и для REST. Каждый отказ проверяется по
-данным, а не только по тексту: перенос и правка карточки идут одной транзакцией, и отказ
-обязан откатить обе половины.
+CRUD enforces the rules, so they are the same for MCP and REST. Every refusal is checked against
+the data, not only the text: a move and a card edit run in one transaction, and a refusal must
+roll back both halves.
 """
 
 from __future__ import annotations
@@ -12,7 +12,9 @@ from sqlalchemy import update
 
 from src.core.database import write_scope
 from src.modules.tasks.constants import SORT_STEP, STATUS_CANCELED, STATUS_DONE
-from src.modules.tasks.crud.group import group_create, group_delete
+from src.core.utils.date import utc_now
+from src.modules.tasks.crud.group import group_create
+from src.modules.tasks.models.group import TasksGroup
 from src.modules.tasks.crud.link import link_get, link_move
 from src.modules.tasks.crud.task import (
     task_create,
@@ -29,14 +31,14 @@ pytestmark = pytest.mark.db
 
 
 async def _misfile(code: str, group_code: str | None) -> None:
-    """Развести группу подзадачи с родительской — так, как данные лежали до правила."""
+    """Split a subtask's group from its parent's — the way the data lay before the rule."""
     async with write_scope() as s:
         await s.execute(
             update(TasksTask).where(TasksTask.code == code).values(group_code=group_code)
         )
 
 
-# ── заведение ─────────────────────────────────────────────────────────────────
+# ── creation ──────────────────────────────────────────────────────────────────
 
 
 async def test_a_subtask_takes_its_parents_group(db, workspace):
@@ -84,7 +86,7 @@ async def test_a_subtask_of_a_subtask_is_not_created(db, workspace):
     assert len(await task_list_by_workspace(workspace.code)) == 2
 
 
-# ── перенос: задача становится подзадачей ─────────────────────────────────────
+# ── move: a task becomes a subtask ────────────────────────────────────────────
 
 
 async def test_moving_under_a_parent_takes_its_group_and_the_end_of_its_row(db, workspace):
@@ -121,7 +123,7 @@ async def test_a_subtask_moves_to_another_parent(db, workspace):
 
 
 async def test_a_task_with_subtasks_cannot_become_one(db, workspace):
-    """Отказ называет подзадачи и говорит, что сделать сначала."""
+    """The refusal names the subtasks and says what to do first."""
     target = await task_create(workspace_code=workspace.code, title="Куда")
     epic = await task_create(workspace_code=workspace.code, title="Эпик")
     child = await task_create(
@@ -135,7 +137,7 @@ async def test_a_task_with_subtasks_cannot_become_one(db, workspace):
 
 
 async def test_a_subtask_in_the_bin_also_holds_its_parent_in_place(db, workspace):
-    """Восстановление вернуло бы её под перенесённого родителя — вторым уровнем."""
+    """Restoring it would put it back under the moved parent — as a second level."""
     target = await task_create(workspace_code=workspace.code, title="Куда")
     epic = await task_create(workspace_code=workspace.code, title="Эпик")
     child = await task_create(
@@ -179,7 +181,7 @@ async def test_a_parent_in_the_bin_or_closed_is_refused(db, workspace, state):
 
 @pytest.mark.parametrize("closed", [STATUS_DONE, STATUS_CANCELED])
 async def test_a_closed_task_may_go_under_a_closed_parent(db, workspace, closed):
-    """Разложить по эпику уже сделанное — приборка истории, а не новая работа."""
+    """Sorting finished work under an epic is tidying history, not new work."""
     parent = await task_create(workspace_code=workspace.code, title="Эпик")
     finished = await task_create(workspace_code=workspace.code, title="Сделанная")
     await task_update_status(parent.code, closed)
@@ -203,7 +205,7 @@ async def test_an_open_subtask_is_not_created_under_a_closed_parent(db, workspac
 
 
 async def test_a_closed_subtask_is_created_under_a_closed_parent(db, workspace):
-    """Человек заносит задним числом то, что уже сделано: форма ставит статус сразу."""
+    """The person records after the fact what is already done: the form sets the status at once."""
     parent = await task_create(workspace_code=workspace.code, title="Эпик")
     await task_update_status(parent.code, STATUS_DONE)
 
@@ -218,7 +220,8 @@ async def test_a_closed_subtask_is_created_under_a_closed_parent(db, workspace):
 
 
 async def test_a_refused_move_rolls_back_the_card_edit_of_the_same_call(db, workspace):
-    """Иначе агент прочтёт отказ как «ничего не произошло», а заголовок уже переписан."""
+    """Otherwise the agent reads the refusal as "nothing happened" while the title is already
+    rewritten."""
     root = await task_create(workspace_code=workspace.code, title="Эпик")
     child = await task_create(
         workspace_code=workspace.code, title="Часть", parent_code=root.code
@@ -239,7 +242,7 @@ async def test_moving_under_a_parent_with_a_foreign_group_is_refused(db, workspa
     )
     loose = await task_create(workspace_code=workspace.code, title="Отдельная")
 
-    # Задача ещё не подзадача — отказ говорит о переносе, а не о «выносе из ветки».
+    # The task is not a subtask yet — the refusal talks about a move, not "leaving the branch".
     with pytest.raises(ValueError, match=f"Moving '{loose.code}' under .*Leave group_code out"):
         await task_update(loose.code, parent_code=parent.code, group_code=interface.code)
 
@@ -248,7 +251,7 @@ async def test_moving_under_a_parent_with_a_foreign_group_is_refused(db, workspa
 
 
 async def test_naming_the_current_parent_moves_nothing(db, workspace):
-    """Повтор уже сделанного переноса не отправляет задачу в конец ряда."""
+    """Repeating a move already made does not send the task to the end of the row."""
     root = await task_create(workspace_code=workspace.code, title="Эпик")
     first = await task_create(
         workspace_code=workspace.code, title="Первая", parent_code=root.code
@@ -262,13 +265,20 @@ async def test_naming_the_current_parent_moves_nothing(db, workspace):
 
 
 async def test_a_parent_filed_under_a_deleted_group_takes_no_subtasks(db, workspace):
-    """Подзадача получила бы код удалённой группы и пропала бы из списка — отказ вместо этого."""
+    """The subtask would get a deleted group's code and vanish from the list — a refusal instead.
+
+    ``group_delete`` no longer leaves tasks in a deleted group, but data written before it did
+    still can hold that state; it is set up directly here, the way such a row exists.
+    """
     group = await group_create(workspace_code=workspace.code, title="Биллинг")
     parent = await task_create(
         workspace_code=workspace.code, title="Эпик", group_code=group.code
     )
     loose = await task_create(workspace_code=workspace.code, title="Отдельная")
-    await group_delete(group.code)
+    async with write_scope() as s:
+        await s.execute(
+            update(TasksGroup).where(TasksGroup.code == group.code).values(deleted_at=utc_now())
+        )
 
     with pytest.raises(ValueError, match="does not exist \\(or is deleted\\).*Refile"):
         await task_update(loose.code, parent_code=parent.code)
@@ -280,7 +290,7 @@ async def test_a_parent_filed_under_a_deleted_group_takes_no_subtasks(db, worksp
     assert len(await task_list_by_workspace(workspace.code)) == 2
 
 
-# ── перенос: подзадача выходит в корень ───────────────────────────────────────
+# ── move: a subtask goes up to the root ───────────────────────────────────────
 
 
 async def test_leaving_the_branch_keeps_the_group_of_the_former_parent(db, workspace):
@@ -316,7 +326,7 @@ async def test_leaving_the_branch_into_another_group_is_one_call(db, workspace):
     assert (await link_get(child.code)).parent_code is None
 
 
-# ── группа подзадачи ──────────────────────────────────────────────────────────
+# ── a subtask's group ─────────────────────────────────────────────────────────
 
 
 async def test_a_subtask_is_not_refiled_on_its_own(db, workspace):
@@ -336,7 +346,7 @@ async def test_a_subtask_is_not_refiled_on_its_own(db, workspace):
 
 
 async def test_a_misfiled_subtask_can_go_back_to_its_parents_group(db, workspace):
-    """Данные до правила: подзадача с чужой группой возвращается в родительскую."""
+    """Data from before the rule: a subtask in a foreign group goes back to its parent's."""
     billing = await group_create(workspace_code=workspace.code, title="Биллинг")
     interface = await group_create(workspace_code=workspace.code, title="Интерфейс")
     parent = await task_create(
@@ -385,7 +395,7 @@ async def test_regroup_returns_a_misfiled_subtask_to_its_parents_group(db, works
     assert (await task_get(child.code)).group_code == billing.code
 
 
-# ── закрытая задача не держит открытых частей ─────────────────────────────────
+# ── a closed task holds no open parts ─────────────────────────────────────────
 
 
 @pytest.mark.parametrize("closed", [STATUS_DONE, STATUS_CANCELED])
@@ -420,7 +430,8 @@ async def test_a_task_closes_once_every_subtask_is_closed(db, workspace):
 
 
 async def test_a_subtask_of_a_closed_task_is_not_reopened(db, workspace):
-    """Что делать с закрытым родителем, решает человек — поэтому отказ, а не каскад."""
+    """What to do with a closed parent is the person's decision — hence a refusal, not a
+    cascade."""
     epic = await task_create(workspace_code=workspace.code, title="Эпик")
     part = await task_create(
         workspace_code=workspace.code, title="Часть", parent_code=epic.code
@@ -448,11 +459,11 @@ async def test_a_subtask_reopens_after_its_parent_does(db, workspace):
     assert (await task_update_status(part.code, "in_progress")).status == "in_progress"
 
 
-# ── REST-путь переноса ────────────────────────────────────────────────────────
+# ── the REST move path ────────────────────────────────────────────────────────
 
 
 async def test_link_move_refuses_a_parent_in_the_bin(db, workspace):
-    """Раньше проверялось только существование: задача уезжала под удалённую и пропадала."""
+    """Only existence used to be checked: the task moved under a deleted one and vanished."""
     parent = await task_create(workspace_code=workspace.code, title="Эпик")
     loose = await task_create(workspace_code=workspace.code, title="Отдельная")
     await task_delete(parent.code)

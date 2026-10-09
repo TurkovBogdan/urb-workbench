@@ -1,13 +1,14 @@
-// Ряд задач и перестановка в нём — арифметика, общая для всех мест, где задачи двигают руками.
+// A row of tasks and reordering within it — arithmetic shared by every place where tasks are
+// moved by hand.
 //
-// Вынесена из стора списка потому, что тем же рядом живёт и ветка на странице задачи, и два
-// экземпляра одного правила разошлись бы на первой же правке. Правило повторяет бэк
-// (`crud/link.py::link_reorder`): числа на экране обязаны совпасть с теми, что придут после
-// сверки, иначе сверка перерисовывает строки, которые и так стоят на своих местах.
+// Pulled out of the list store because the branch on the task page lives on the same kind of row,
+// and two copies of one rule would diverge at the first edit. The rule mirrors the backend
+// (`crud/link.py::link_reorder`): the numbers on screen must match the ones that arrive after
+// reconciliation, otherwise reconciliation redraws rows that are already in place.
 import type { TaskListRow } from './api'
 import { SORT_STEP } from './labels'
 
-/** Порядок строк так, как его отдаёт бэк (`api.py::_rows`): больший `sort` выше, дальше по времени и коду. */
+/** Row order as the backend returns it (`api.py::_rows`): higher `sort` first, then time and code. */
 export function byListOrder(left: TaskListRow, right: TaskListRow): number {
   return (
     right.sort - left.sort ||
@@ -16,7 +17,7 @@ export function byListOrder(left: TaskListRow, right: TaskListRow): number {
   )
 }
 
-/** Дети каждой задачи в порядке выдачи — индекс на одну сборку дерева, а не поиск по списку. */
+/** Each task's children in output order — an index for one tree build, not a list scan. */
 export function childrenIndex(items: TaskListRow[]): Map<string, TaskListRow[]> {
   const index = new Map<string, TaskListRow[]>()
   for (const task of items) {
@@ -28,20 +29,20 @@ export function childrenIndex(items: TaskListRow[]): Map<string, TaskListRow[]> 
   return index
 }
 
-/** Куда переезжает задача: ключа нет — поле не трогаем, `null` — снять группу или родителя. */
+/** Where the task moves: key absent — field untouched, `null` — clear the group or parent. */
 export interface MovePlace {
   group?: string | null
   parent?: string | null
 }
 
 /**
- * Набор задач после перемещения — до ответа бэка.
+ * The task set after a move — before the backend answers.
  *
- * Ряд соседей — дети родителя, у корня — задачи его группы; вставка после названного соседа,
- * перенумерация ряда сверху вниз с шагом бэка.
+ * The sibling row is the parent's children, or for a root task the tasks of its group; insert
+ * after the named sibling, renumber the row top to bottom with the backend's step.
  *
- * Сосед не из этого ряда (так бывает, если список устарел) — `null`, и набор не трогают:
- * выдумывать место хуже, чем дождаться ответа.
+ * A sibling not from this row (happens when the list is stale) — `null`, and the set is left
+ * alone: inventing a position is worse than waiting for the answer.
  */
 export function moveInRow(
   items: TaskListRow[],

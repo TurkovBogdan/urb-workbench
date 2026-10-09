@@ -1,17 +1,17 @@
 <script setup lang="ts">
 /**
- * Выбор статуса: список со значками и две кнопки шага по ходу работы.
+ * Status picker: a list with icons and two buttons that step along the flow of work.
  *
- * Сделан по образцу `TaskPrioritySelect`: у статуса тоже есть порядок, и соседний берут чаще,
- * чем прыгают через весь набор — из плана в работу, из работы на проверку. Открывать список
- * ради шага на один пункт значит три движения вместо одного.
+ * Modelled on `TaskPrioritySelect`: status has an order too, and the neighbouring value is picked
+ * more often than a jump across the whole set — from plan to work, from work to review. Opening
+ * the list for a one-step move means three motions instead of one.
  *
- * Порядок — `TASK_STATUSES` как есть: очередь, план, работа, две проверки, два исхода. Он уже
- * читается слева направо ходом работы, поэтому разворачивать его, в отличие от приоритета,
- * не нужно. Края не заворачиваются: на «В очереди» гаснет левая кнопка, на «Отменено» правая.
+ * The order is `TASK_STATUSES` as is: backlog, plan, work, two checks, two outcomes. It already
+ * reads left to right as the flow of work, so unlike priority it does not need reversing. The
+ * ends do not wrap: on "Backlog" the left button is disabled, on "Canceled" the right one.
  *
- * Всё оформление места применения (`label`, `variant`, `density`, `disabled`, `loading`)
- * проходит насквозь атрибутами: своей внешности у поля нет, она у страницы, где оно стоит.
+ * All call-site styling (`label`, `variant`, `density`, `disabled`, `loading`) passes straight
+ * through as attributes: the field has no look of its own, the page it sits on owns it.
  */
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -29,8 +29,9 @@ const items = computed(() =>
 </script>
 
 <template>
-  <!-- Значок берётся из значения пункта, а не из его собственного поля: `item` приезжает в слот
-       в двух разных видах (исходный объект и обёртка Vuetify), а `value` и `title` есть у обоих. -->
+  <!-- The icon is derived from the item's value, not from a field of its own: `item` reaches the
+       slot in two different shapes (the source object and the Vuetify wrapper), and only `value`
+       and `title` exist on both. -->
   <VSelectStepper
     v-model="model"
     :items="items"
@@ -48,8 +49,8 @@ const items = computed(() =>
       </VListItem>
     </template>
 
-    <!-- `#selection` работает только без чипов — с ними Vuetify рисует `#chip` и молча
-         игнорирует этот слот. -->
+    <!-- `#selection` works only without chips — with them Vuetify renders `#chip` and silently
+         ignores this slot. -->
     <template #selection="{ item }">
       <span class="status-select__line">
         <span class="status-select__glyph" :class="`status-select__glyph--${statusColor(item.value)}`">
@@ -62,8 +63,8 @@ const items = computed(() =>
 </template>
 
 <style scoped>
-/* Зазор значка и подписи тот же, что у пункта списка (`--v-list-prepend-gap`): выбранное
-   значение — это тот же пункт, только показанный в поле, и разъехаться они не должны. */
+/* The icon-to-label gap matches the list item's (`--v-list-prepend-gap`): the selected value is
+   the same item, just shown in the field, and the two must not drift apart. */
 .status-select__line {
   display: inline-flex;
   align-items: center;
@@ -71,8 +72,8 @@ const items = computed(() =>
   min-width: 0;
 }
 
-/* Цвета те же, что у глифа в строке списка задач: один статус не может быть зелёным в таблице
-   и серым в поле, которым его меняют. */
+/* Same colors as the glyph in the task list row: one status cannot be green in the table and
+   grey in the field used to change it. */
 .status-select__glyph {
   display: inline-flex;
   align-items: center;

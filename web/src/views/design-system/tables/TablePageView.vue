@@ -1,7 +1,7 @@
 <script setup lang="ts">
-// Анатомия табличной страницы: из чего она собирается и в каком порядке. Отдельные части
-// разобраны на соседних страницах раздела (VDataTable, VTable, пагинация) — здесь показано,
-// как они складываются в одну страницу, потому что это правило живёт только в коде фич.
+// Anatomy of a table page: what it is assembled from and in what order. The individual parts are
+// covered on the neighbouring pages of this section (VDataTable, VTable, pagination) — this shows
+// how they fit into one page, because that rule lives only in feature code.
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { IconSearch } from '@tabler/icons-vue'
@@ -97,8 +97,8 @@ const gridSnippet = `<!-- Tiles: each card is its own frame, and a wrapping card
         <h6 class="mb-3">{{ t('design-system.section.table-page.assembled') }}</h6>
         <p class="ds-note">{{ t('design-system.section.table-page.assembled_note') }}</p>
 
-        <!-- Живая сборка ровно в том виде, в каком она стоит на страницах реестра, источников,
-             запросов и запусков задач. -->
+        <!-- A live assembly exactly as it appears on the registry, sources, queries and task-runs
+             pages. -->
         <VCard variant="outlined" rounded="lg">
           <div class="filter-panel">
             <VTextField
@@ -222,7 +222,7 @@ const gridSnippet = `<!-- Tiles: each card is its own frame, and a wrapping card
 
 .ds-gap { height: 12px; }
 
-/* Панель фильтров: те же 12px, что и на всех страницах со списком. */
+/* Filter panel: the same 12px as on every list page. */
 .filter-panel {
   padding: 12px;
 }

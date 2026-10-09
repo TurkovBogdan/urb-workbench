@@ -41,7 +41,8 @@
     "list": {
       "title": "Tasks",
       "description": "Tasks of the current workspace, arranged by group.",
-      "add": "New task",
+      "add": "Create task",
+      "add_to_group": "Add task",
       "no_group": "No group",
       "group_empty": "Empty — drag a task here",
       "empty": "No tasks yet",
@@ -63,12 +64,11 @@
       "status": "Status",
       "status_more": "{count} more",
       "priority": "Priority",
-      "reset": "Reset",
       "finished": "Finished",
       "deleted": "Deleted",
       "scope": {
         "brief": "Search the brief: context, constraints, criteria",
-        "plan": "Search the plan and stages",
+        "plan": "Search the agent's work: plan, progress, result and stages",
         "journal": "Search the journal"
       }
     },
@@ -82,34 +82,45 @@
       "deleted": "Deleted",
       "edit": "Edit",
       "add_child": "Subtask",
+      "add_subtask": "Add subtask",
+      "mark_done": "Done",
+      "reopen": "Back to work",
+      "mark_canceled": "Canceled",
       "detach": "Detach from task",
       "collapse_children": "Collapse subtasks",
       "expand_children": "Expand subtasks",
       "delete": "Delete",
       "restore": "Restore",
-      "purge": "Delete forever"
+      "purge": "Delete forever",
+      "cancel_confirm": {
+        "title": "Cancel the task?",
+        "text": "“{title}” will be marked Canceled: no more work goes into it. To bring it back, choose “Back to work” in its menu.",
+        "confirm": "Cancel task",
+        "keep": "Keep"
+      },
+      "delete_confirm": {
+        "title": "Delete the task?",
+        "text": "“{title}” goes to deleted tasks. To bring it back, turn on the Deleted filter and pick Restore in the task's menu.",
+        "text_children": "“{title}” goes to deleted tasks together with its subtasks. To bring them back, turn on the Deleted filter and pick Restore in the task's menu.",
+        "confirm": "Delete"
+      }
     },
     "form": {
       "create_title": "New task",
       "title": "Edit task",
       "under": "Subtask of: {title}",
       "name": "Title",
-      "description": "Goal: what becomes true when the work is done",
-      "context": "Context",
-      "context_hint": "Details, starting requirements, links to references. Markdown",
+      "description": "Brief statement",
+      "context": "Starting points",
       "constraints": "Constraints",
-      "constraints_hint": "What is allowed, what to ask about, what is off-limits — as a list",
       "criteria": "Acceptance criteria",
-      "criteria_hint": "Checkable conditions of done and handover requirements — as a list",
-      "body": "Plan",
-      "body_hint": "How you intend to do the work and which files it touches. Markdown",
+      "plan": "Implementation plan",
       "type": "Type",
       "status": "Status",
       "priority": "Priority",
       "group": "Group",
       "no_group": "No group",
-      "deadline_at": "Deadline",
-      "left": "{count} left"
+      "deadline_at": "Deadline"
     },
     "conflict": {
       "title": "The field you are editing has changed",
@@ -120,24 +131,27 @@
     },
     "detail": {
       "title": "Task",
-      "description": "Goal",
-      "context": "Context",
+      "name": "Task title",
+      "description": "Brief statement",
+      "context": "Starting points",
       "constraints": "Constraints",
       "criteria": "Acceptance criteria",
-      "body": "Plan",
+      "plan": "Implementation plan",
+      "progress": "Progress",
+      "result": "Result",
       "hint": {
-        "description": "What becomes true when the work is done",
-        "context": "Details, starting requirements, links to references",
-        "constraints": "What is allowed, what to ask about, what is off-limits — as a list",
-        "criteria": "Checkable conditions of done and handover requirements — as a list",
-        "body": "How you intend to do the work and which files it touches"
+        "description": "The gist of the task in two or three sentences: what exactly we build and what result we expect. The agent sees this field in the task list and decides by it whether to open the task in full.",
+        "context": "Where to start, which code to take as the model, and which decisions are already made and why. As links to files and examples, not retold.",
+        "constraints": "Limits on the agent's work: what not to do, what to ask about first and what is mandatory.\n\nFor example: log through the module's main logger, ask before adding a dependency, do not create new migrations.",
+        "criteria": "What has to be done for the task to be accepted. Each condition on its own line.\n\nFor example:\n— tests are written for zones X, Y and Z;\n— the interface is checked in the browser;\n— the layout is checked on mobile.",
+        "plan": "How the agent will do the task: the approach, the details, and which files it has read and will change. Written before the code changes, so the intent can later be compared with what came out.",
+        "progress": "How the work is going: the agent briefly notes what is done and what comes next. A new entry is appended at the end; decisions and findings go to the journal.\n\nFor example:\n— the migration is written, rollback checked → CRUD next;\n— API tests fail on the old field → investigating.",
+        "result": "What was done on the task. The agent writes the result when handing the task over for review: what changed, what checked it, and what is left unchecked.",
+        "children": "Parts of the task carried separately: each has its own page and its own status. One level deep — a subtask has no subtasks of its own."
       },
       "group_search": "Find a group",
       "group_empty": "No groups",
       "children": "Subtasks",
-      "no_children": "No subtasks",
-      "children_query": "Search subtasks",
-      "children_filtered": "No subtasks match these conditions",
       "no_body": "No text yet",
       "status": "Status",
       "group": "Group",
@@ -150,7 +164,7 @@
       "completed_at": "Completed",
       "canceled_at": "Canceled",
       "updated_at": "Updated",
-      "saving": "Saving…",
+      "parent": "Parent task",
       "deleted_note": "The task was deleted together with its branch. While it is in the bin, it can't be edited and its status can't be changed."
     },
     "purge": {
@@ -161,7 +175,7 @@
   },
   "stage": {
     "section": "Stages",
-    "empty": "No stages. Add the first one with the button below — the plan is broken into steps, each with its own evidence.",
+    "hint": "The plan broken into steps, each with its own state. A stage closes only with evidence — a command and its result, a file path, a diff summary.",
     "add": "Add stage",
     "new_title": "New stage",
     "title": "Stage title",
@@ -175,10 +189,9 @@
     "remove_title": "Delete stage",
     "remove_text": "The stage will be removed together with its journal entries. It can't be restored."
   },
-  "note": {
+  "journal": {
     "section": "Journal",
-    "empty": "No entries. This is where decisions made along the way, remarks, findings and things to remember go.",
-    "empty_open": "No open entries",
+    "hint": "Decisions, remarks, findings and facts that came up along the way. An entry is never edited: an open one is closed with a resolution, and a change of mind is a new entry.",
     "add": "Add entry",
     "open_only": "Open only ({count})",
     "type_label": "Entry type",
@@ -193,11 +206,35 @@
       "fact": "Fact"
     }
   },
+  "note": {
+    "section": "Notes",
+    "add": "Note",
+    "new_title": "New note",
+    "list": "Task notes",
+    "drag": "Drag the note",
+    "delete": "Delete",
+    "delete_confirm": {
+      "title": "Delete the note?",
+      "text": "“{title}” will leave the task.",
+      "confirm": "Delete"
+    },
+    "page_title": "Note",
+    "title": "Note title",
+    "description": "Description",
+    "hint": {
+      "section": "Documents the plan rests on: schemas, option breakdowns, tables. The agent writes them while working out the plan or when asked to.",
+      "description": "What the note is about and when to open it: the task's list finds it by this line — for the person and the agent alike.",
+      "body": "The note itself: a schema, a breakdown of options, a table — the material the plan rests on."
+    },
+    "body": "Text",
+    "task": "Task",
+    "task_deleted": "The task is deleted — the note can be read, not edited."
+  },
   "group": {
     "list": {
-      "title": "Groups",
-      "description": "Themes of the current workspace: the task list is arranged by them.",
-      "add": "New group",
+      "title": "Task groups",
+      "description": "Split tasks into thematic sets or functional parts",
+      "add": "Add group",
       "empty": "No groups yet",
       "empty_hint": "Create the first one — the task list will split into sections by it.",
       "nothing_found": "Nothing found",
@@ -209,9 +246,10 @@
     },
     "card": {
       "actions": "Actions",
+      "drag": "Drag group",
       "move_up": "Move up",
       "move_down": "Move down",
-      "tasks": "Tasks",
+      "tasks": "task | tasks",
       "updated_at": "Last change",
       "deleted": "Deleted",
       "edit": "Edit",
@@ -224,29 +262,50 @@
       "title": "Edit group",
       "name": "Name",
       "description": "Short description",
-      "sort": "Position in the list",
+      "sort": "Sort",
+      "sort_hint": "The higher the number, the higher in the list",
       "look": "Icon and color"
     },
     "delete": {
-      "title": "Delete group",
-      "text": "Tasks inside: {count}. They stay in place and return to the group together with it — deletion can be undone."
+      "title": "Delete task group",
+      "empty": "The group has no tasks — deleting it costs nothing.",
+      "reversible": "Deletion can be undone: the group goes to the deleted list, where it can be restored.",
+      "reversible_without_tasks": "Deletion can be undone: the group goes to the deleted list, where it can be restored. The tasks will not come back to it.",
+      "has_tasks": "The group has no tasks. | The group has {n} task — what should happen to it? | The group has {n} tasks — what should happen to them?",
+      "choice": "What to do with the group's tasks",
+      "ungroup": {
+        "title": "Take the group off the task | Take the group off the tasks",
+        "description": "The task moves to \"No group\" and is otherwise unchanged. | The tasks move to \"No group\" and are otherwise unchanged."
+      },
+      "move": {
+        "title": "Move to another group",
+        "description": "The task and its subtasks move to the chosen group, at the end of its list. | The tasks and their subtasks move to the chosen group, at the end of its list.",
+        "no_targets": "There are no other groups in this workspace — nowhere to move them.",
+        "target": "Move to"
+      },
+      "delete": {
+        "title": "Delete the task | Delete the tasks",
+        "description": "The task and its subtasks go to the trash. Restored, it returns to \"No group\". | The tasks and their subtasks go to the trash. Each can be restored and returns to \"No group\"."
+      },
+      "confirm": "Delete"
     },
     "purge": {
       "title": "Delete forever",
-      "text": "The group will be removed from the database for good. The tasks inside ({count}) outlive it and move to the “No group” section."
+      "text": "The group is empty and will be removed from the database for good. | The group will be removed from the database for good. The {n} task inside outlives it and moves to the “No group” section. | The group will be removed from the database for good. The {n} tasks inside outlive it and move to the “No group” section."
     }
   },
   "workspace": {
     "counter": {
-      "groups": "Groups",
-      "tasks": "Tasks"
+      "groups": "group | groups",
+      "tasks": "task | tasks"
     }
   },
   "error": {
     "group": {
       "not_found": "Group not found",
       "deleted": "The group is deleted — restore it first",
-      "not_deleted": "The group isn't deleted — nothing to restore"
+      "not_deleted": "The group isn't deleted — nothing to restore",
+      "has_tasks": "The group has tasks — choose what to do with them"
     },
     "task": {
       "not_found": "Task not found",
@@ -256,8 +315,11 @@
     "stage": {
       "not_found": "Stage not found"
     },
-    "note": {
+    "journal": {
       "not_found": "Journal entry not found"
+    },
+    "note": {
+      "not_found": "Note not found"
     }
   }
 }

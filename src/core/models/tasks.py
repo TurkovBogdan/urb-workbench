@@ -1,4 +1,4 @@
-"""Модели запусков фоновых задач и их логов."""
+"""Models of background job runs and their logs."""
 
 from __future__ import annotations
 

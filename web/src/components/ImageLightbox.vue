@@ -48,7 +48,7 @@ const open = computed({
      styles; the dialog's `image-lightbox` class falls through to the overlay root. -->
 <style>
 .image-lightbox.v-overlay .v-overlay__scrim {
-  background: #000 !important;
+  background: #000;
   opacity: 0.75;
 }
 </style>

@@ -1,30 +1,39 @@
 <script setup lang="ts">
-// Карточка группы: название, описание, оформление и позиция в списке. Одно окно на создание и на
-// правку — как у пространства: поля общие, различие ровно в заголовке и вызываемой ручке.
+// Group card: name, description, appearance and position in the list. One dialog for create and
+// edit — as with workspaces: the fields are shared, the only difference is the title and the
+// endpoint called.
 //
-// Пространство в форме не выбирают: группа заводится в ТЕКУЩЕМ (его код приходит пропом), а правка
-// его не принимает вовсе — перенос группы утащил бы за собой все её задачи.
+// The workspace is not picked in the form: a group is created in the CURRENT one (its code comes
+// as a prop), and editing does not accept it at all — moving a group would drag all its tasks
+// along.
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppDialog from '@/components/AppDialog.vue'
 import IconColorPicker from '@/components/IconColorPicker.vue'
+import LimitField from '@/components/LimitField.vue'
 import { errorText } from '@/api/errorText'
 
 import { colorNames, colorVarsByName } from '@/shared/colors'
 import { iconByName, iconNames } from '@/shared/icons'
 import { createGroup, updateGroup, type GroupBody, type GroupRow } from '../api'
-import { TASK_DESCRIPTION_MAX, TASK_TITLE_MAX } from '../labels'
+import { GROUP_DESCRIPTION_MAX, TASK_TITLE_MAX } from '../labels'
 
-/** Умолчание позиции повторяет `constants.py::SORT_DEFAULT` — середина шкалы. */
+/** Default position mirrors `constants.py::SORT_DEFAULT` — the middle of the scale. */
 const SORT_DEFAULT = 500
+
+/** A cleared field falls back to the default; 0 is a real position — the bottom of the list. */
+function sortOrDefault(value: unknown): number {
+  const number = Number(value)
+  return String(value ?? '').trim() !== '' && Number.isFinite(number) ? number : SORT_DEFAULT
+}
 
 const open = defineModel<boolean>({ required: true })
 
 const props = defineProps<{
-  /** Пространство, в котором заводится группа. При правке не используется. */
+  /** Workspace the group is created in. Unused when editing. */
   workspace: string
-  /** Правка существующей группы; `null` — создание. */
+  /** Editing an existing group; `null` — creating. */
   group: GroupRow | null
 }>()
 
@@ -45,9 +54,13 @@ const error = ref<string | null>(null)
 
 const creating = computed(() => props.group === null)
 
-// Пустое название не сохраняется: без имени группа неразличима в списке. Пробелы бэк срежет до
-// проверки длины — значит и здесь строка из одних пробелов считается пустой.
-const valid = computed(() => title.value.trim().length > 0)
+// An empty name is not saved: without a name the group is indistinguishable in the list. The
+// backend strips whitespace before the length check — so here too a whitespace-only string counts
+// as empty. A description stored before the limit existed may still be longer than it: the field
+// shows it in red rather than cutting it, and the save waits until the person shortens it.
+const valid = computed(() =>
+  title.value.trim().length > 0 && description.value.trim().length <= GROUP_DESCRIPTION_MAX,
+)
 
 watch(() => [open.value, props.group] as const, ([isOpen, group]) => {
   if (!isOpen) return
@@ -68,11 +81,11 @@ async function save() {
     description: description.value.trim(),
     color: color.value ?? '',
     icon: icon.value ?? '',
-    sort: Number(sort.value) || SORT_DEFAULT,
+    sort: sortOrDefault(sort.value),
   }
   try {
-    // `report: false` — отказ показываем ЗДЕСЬ, рядом с кнопкой: окно остаётся открытым с
-    // введённым текстом, а тост увёл бы сообщение из поля зрения.
+    // `report: false` — the refusal is shown HERE, next to the button: the dialog stays open with
+    // the entered text, while a toast would take the message out of sight.
     await (props.group
       ? updateGroup(props.group.code, body, { report: false })
       : createGroup(props.workspace, body, { report: false }))
@@ -105,26 +118,28 @@ async function save() {
         autofocus
       />
 
-      <VTextarea
+      <LimitField
         v-model="description"
         :label="t('tasks.group.form.description')"
-        :maxlength="TASK_DESCRIPTION_MAX"
+        :max-length="GROUP_DESCRIPTION_MAX"
+        multiline
+        auto-grow
         variant="outlined"
-        rows="2"
+        rows="1"
         hide-details
       />
 
-      <!-- Позиция — число, а не перетаскивание: групп в пространстве единицы, и ради их порядка
-           заводить сортируемый список рано. Больший `sort` стоит выше. -->
+      <!-- Position is a number, not drag and drop: a workspace has only a handful of groups, and a
+           sortable list just for their order is premature. Higher `sort` comes first. -->
       <VNumberInput
         v-model="sort"
         :label="t('tasks.group.form.sort')"
+        :hint="t('tasks.group.form.sort_hint')"
+        persistent-hint
         :min="0"
         :step="10"
         control-variant="stacked"
         variant="outlined"
-        hide-details
-        inset
       />
 
       <div class="group-form__field">
@@ -156,14 +171,17 @@ async function save() {
 </template>
 
 <style scoped>
+/* Wider than the task form on purpose: its fields carry hints and counters that add air below each
+   one, these are hide-details, and at 10px the floating label of one field nearly touched the
+   field above. The workspace form shares this rhythm. */
 .group-form {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 16px;
 }
 
-/* Подпись прижата к своему полю теснее, чем поля друг к другу, — иначе она читается как
-   заголовок всего блока, а не как метка пикера. */
+/* The label sits closer to its field than the fields sit to each other — otherwise it reads as a
+   heading for the whole block rather than the picker's label. */
 .group-form__field {
   display: flex;
   flex-direction: column;

@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import { computed, useSlots } from 'vue'
 
-// Серая плашка-переключатель: VSwitch слева, заголовок + описание справа.
-// Кликается целиком (сам VSwitch презентационный, pointer-events отключены —
-// единственный путь переключения это toggle на контейнере).
-// Текст можно задать общий (title/description) или раздельный для включённого
-// (titleOn/descriptionOn) и выключенного (titleOff/descriptionOff) состояния —
-// раздельный имеет приоритет, общий служит запасным.
-// `tone` красит фон плашки и (по умолчанию) переключатель; `switchTone` красит
-// только переключатель отдельно — например серая плашка с красным переключателем.
-// `tone="transparent"` убирает фон и обводку (плашка без оформления — для вложения
-// в собственный контейнер, например VCard).
+// A grey switch panel: VSwitch on the left, title + description on the right.
+// The whole panel is clickable (the VSwitch itself is presentational, pointer-events are off —
+// the only way to toggle is the toggle on the container).
+// Text can be shared (title/description) or separate for the on (titleOn/descriptionOn)
+// and off (titleOff/descriptionOff) states — the separate one takes priority, the shared
+// one serves as the fallback.
+// `tone` colors the panel background and (by default) the switch; `switchTone` colors
+// only the switch, separately — e.g. a grey panel with a red switch.
+// `tone="transparent"` removes the background and border (an unstyled panel — for nesting
+// in a container of its own, e.g. VCard).
 type Tone = 'default' | 'primary' | 'info' | 'success' | 'warning' | 'error'
 type PanelTone = Tone | 'transparent'
 
@@ -50,8 +50,8 @@ const currentDescription = computed(() =>
   (model.value ? props.descriptionOn : props.descriptionOff) ?? props.description,
 )
 
-// Плашка бывает и без описания — одной строкой заголовка. Тогда выравнивать по верху нечего:
-// рядом с коробкой переключателя одинокая строка читается съехавшей вверх.
+// A panel may have no description — just a title line. Then there's nothing to top-align: next to
+// the switch box a lone line reads as shifted upward.
 const slots = useSlots()
 const hasDescription = computed(() => Boolean(currentDescription.value || slots.default))
 
@@ -119,8 +119,8 @@ function toggle() {
 
 .switch-panel:hover { background: var(--sp-bg-hover); }
 
-/* Заголовок без описания встаёт по центру переключателя: по верху выравнивают многострочный текст,
-   чтобы его первая строка шла вровень с ручкой, а одна строка так просто висит выше неё. */
+/* A title without a description centers on the switch: top alignment is for multi-line text, so its
+   first line runs level with the thumb, while a single line aligned that way just hangs above it. */
 .switch-panel--single-line {
   align-items: center;
 }

@@ -1,4 +1,4 @@
-"""Реестр зарегистрированных задач — модуль-глобальный singleton."""
+"""Registry of registered tasks — a module-global singleton."""
 
 from __future__ import annotations
 
@@ -17,14 +17,14 @@ TaskHandler = Callable[["TaskContext"], Awaitable[None]]
 class TaskEntry:
     module: str
     code: str
-    name: str          # человекочитаемое название для UI
-    description: str   # описание для UI
-    schedule: str | None  # 5-польный cron; None → автозапуск отключён
+    name: str          # human-readable name for the UI
+    description: str   # description for the UI
+    schedule: str | None  # 5-field cron; None → automatic runs disabled
     handler: TaskHandler
-    ttl: int           # секунды; одновременно timeout хендлера и TTL task-лока
-    enabled: bool      # false → тикер пропускает задачу при обходе реестра
-    user_request: bool = False  # true → задача принимает запросы от пользователя
-    sort: int = 500           # порядок вывода в UI; не влияет на выполнение
+    ttl: int           # seconds; both the handler timeout and the task lock TTL
+    enabled: bool      # false → the ticker skips the task when walking the registry
+    user_request: bool = False  # true → the task accepts requests from the user
+    sort: int = 500           # display order in the UI; does not affect execution
 
 
 class TaskRegistry:

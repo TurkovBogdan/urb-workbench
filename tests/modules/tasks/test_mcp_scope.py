@@ -1,8 +1,9 @@
-"""Резолвер забора: какому пространству принадлежит код.
+"""The fence's resolver: which workspace a code belongs to.
 
-У группы и задачи пространство лежит в своей же строке, у этапа и записи журнала — через
-задачу. Ошибись здесь — и забор начнёт пропускать чужое именно на тех кодах, которые агент
-получает чаще всего: этапы и журнал он читает постранично, а задачу открывает один раз.
+A group and a task carry their workspace in their own row; a stage and a journal entry reach it
+through the task. Get this wrong and the fence starts letting foreign data through on exactly the
+codes the agent receives most often: it reads stages and the journal page by page, while it opens
+a task once.
 """
 
 from __future__ import annotations
@@ -11,14 +12,17 @@ import pytest
 
 from src.modules.tasks.constants import (
     GROUP_CODE_PREFIX,
+    JOURNAL_CODE_PREFIX,
+    JOURNAL_DECISION,
     NOTE_CODE_PREFIX,
-    NOTE_DECISION,
     STAGE_CODE_PREFIX,
     TASK_CODE_PREFIX,
     TYPE_EXTENDED,
     TYPE_STANDARD,
 )
+from src.modules.notes.crud import note as notes_crud
 from src.modules.tasks.crud import group as group_crud
+from src.modules.tasks.crud import journal as journal_crud
 from src.modules.tasks.crud import note as note_crud
 from src.modules.tasks.crud import stage as stage_crud
 from src.modules.tasks.crud import task as task_crud
@@ -48,19 +52,33 @@ async def test_stage_reaches_the_workspace_through_its_task(workspace):
     assert await workspace_of(STAGE_CODE_PREFIX, stage.code) == workspace.code
 
 
-async def test_note_reaches_the_workspace_through_its_task(workspace):
+async def test_a_journal_entry_reaches_the_workspace_through_its_task(workspace):
     task = await task_crud.task_create(
         workspace_code=workspace.code, title="Счета", type=TYPE_STANDARD
     )
-    note = await note_crud.note_create(
-        task_code=task.code, type=NOTE_DECISION, title="Берём вариант Б"
+    entry = await journal_crud.journal_create(
+        task_code=task.code, type=JOURNAL_DECISION, title="Берём вариант Б"
     )
+
+    assert await workspace_of(JOURNAL_CODE_PREFIX, entry.code) == workspace.code
+
+
+async def test_a_task_note_reaches_the_workspace_through_its_task(workspace):
+    task = await task_crud.task_create(workspace_code=workspace.code, title="Счета")
+    note = await note_crud.task_note_add(task_code=task.code, title="Схема")
 
     assert await workspace_of(NOTE_CODE_PREFIX, note.code) == workspace.code
 
 
+async def test_a_note_no_task_holds_has_no_workspace(workspace):
+    """A document of the ``notes`` module with no task is not a task note — not found here."""
+    orphan = await notes_crud.note_create(title="Ничей")
+
+    assert await workspace_of(NOTE_CODE_PREFIX, orphan.code) is None
+
+
 async def test_a_code_with_no_row_behind_it_is_not_the_fence_s_business(workspace):
-    """«Не найдено» скажет сам инструмент — его формулировка точнее общей."""
+    """The tool itself says "not found" — its wording is more precise than a generic one."""
     assert await workspace_of(TASK_CODE_PREFIX, "0" * 10) is None
 
 

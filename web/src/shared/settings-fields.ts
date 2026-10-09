@@ -1,10 +1,10 @@
 /**
- * Контракт поля настроек: как бэк (`core._settings`) описывает настраиваемое поле.
+ * The settings field contract: how the backend (`core._settings`) describes a configurable field.
  *
- * Поля приходят union-типом по `kind`. Контракт лежит в `shared/`, а не в модуле settings,
- * потому что рисуют его компоненты оболочки (`components/settings/`), а читателей у него больше
- * одного: сейчас это экран настроек, а раньше был и экран «Интеграции» — он описывал креды теми
- * же дескрипторами.
+ * Fields arrive as a union type discriminated by `kind`. The contract lives in `shared/`, not in
+ * the settings module, because shell components render it (`components/settings/`), and it has
+ * more than one reader: today it is the settings screen, and there used to be the "Integrations"
+ * screen too — it described credentials with the same descriptors.
  */
 
 export type FieldKind =
@@ -18,7 +18,7 @@ export type FieldKind =
   | 'multichoice'
   | 'list'
 
-/** Поле видно, пока значение `key` в форме равно `equals`; считается на фронте, не на бэке. */
+/** Visible while the form value of `key` equals `equals`; evaluated on the frontend, not backend. */
 export interface VisibleWhen {
   key: string
   equals: unknown
@@ -30,7 +30,7 @@ interface FieldBase {
   label: string
   description: string
   default: unknown
-  /** Заголовок блока, в который поле собирается на экране. Пусто — поле само по себе. */
+  /** Title of the block the field is grouped into on screen. Empty — the field stands alone. */
   group: string
   visible_when: VisibleWhen | null
 }
@@ -60,7 +60,7 @@ export interface StrFieldDescriptor extends FieldBase {
   pattern: string | null
   lines: number
   secret: boolean
-  // Только для secret-полей: задан ли токен (сам он наружу не отдаётся).
+  // Secret fields only: whether the token is set (the token itself is never sent out).
   is_set?: boolean
 }
 
@@ -93,8 +93,8 @@ export interface MultiChoiceFieldDescriptor extends FieldBase {
   max_items: number | null
 }
 
-// Item-дескриптор внутри ListField — элемент списка это тип значения, а не отдельная
-// настройка: перечисленное ниже бэк стрипает в `ui_descriptor`.
+// The item descriptor inside a ListField — a list item is a value type, not a separate
+// setting: the backend strips the keys listed below in `ui_descriptor`.
 type SettingOwnKeys = 'key' | 'label' | 'description' | 'default' | 'group' | 'visible_when'
 
 export type ListItemDescriptor =

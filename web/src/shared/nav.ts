@@ -9,7 +9,7 @@ export type NavPlacement = {
 
 export type NavLink = {
   path: string
-  /** Другие префиксы адреса, на которых пункт тоже подсвечен (страницы раздела вне `path`). */
+  /** Other address prefixes on which the item is also highlighted (section pages outside `path`). */
   activeOn?: string[]
   label: string
   labelKey?: string
@@ -30,6 +30,8 @@ export type NavSection = {
   code: string
   labelKey: string
   order: number
+  /** Shown only with developer mode on (`APP_DEV_MODE`). */
+  devOnly?: boolean
 }
 
 export type NavSectionEntry = NavSectionLink | NavGroup

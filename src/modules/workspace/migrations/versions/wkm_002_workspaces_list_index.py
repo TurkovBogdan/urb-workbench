@@ -1,15 +1,16 @@
 """workspace: ix_workspaces_deleted_title
 
-Индекс под единственную выборку модуля (``crud/workspace.py::workspace_list``): отсев удалённых,
-затем порядок по названию с кодом как тайбрейком. Колонки идут в порядке запроса —
-``deleted_at`` (фильтр), ``title``, ``code`` (сортировка).
+An index for the module's only query (``crud/workspace.py::workspace_list``): filter out deleted
+rows, then order by title with the code as a tiebreaker. The columns follow the query —
+``deleted_at`` (filter), ``title``, ``code`` (sort).
 
-**Отдельной ревизией, а не внутри ``wkm_001``, намеренно.** Таблица ``workspaces`` — цель
-кросс-модульного FK из ``tasks``, а ссылаться ``depends_on`` можно только на НЕ-голову: голова,
-оказавшаяся предком чужой головы, роняет проверку пересечения ещё на чтении состояния, и база
-встаёт колом. Эта ревизия хоронит создающую под собой, и ``tsm_001_group`` безопасно зависит от
-``wkm_001_workspaces``. Приём описан в ``conventions/db-migrations.md`` — «split the producing
-migration so the part that creates the referenced object becomes a non-head».
+**A separate revision rather than part of ``wkm_001``, on purpose.** The ``workspaces`` table is
+the target of a cross-module FK from ``tasks``, and ``depends_on`` may point only at a NON-head: a
+head that turns out to be an ancestor of another chain's head breaks the overlap check while the
+state is still being read, and the database gets stuck. This revision buries the creating one
+under itself, so ``tsm_001_group`` safely depends on ``wkm_001_workspaces``. The technique is
+described in ``conventions/db-migrations.md`` — "split the producing migration so the part that
+creates the referenced object becomes a non-head".
 
 Revision ID: wkm_002_workspaces_list_index
 Revises: wkm_001_workspaces

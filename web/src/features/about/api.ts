@@ -1,41 +1,43 @@
 /**
- * Клиент раздела «О приложении» (бэк: /internal/core/update).
+ * Client for the "About" section (backend: /internal/core/update).
  *
- * Три вызова с разной ценой: `installation` читает локальные факты и отвечает мгновенно, `check`
- * ходит к remote (POST, потому что меняет tracking-ссылки чекаута, и может занять секунды),
- * `start` передаёт установку скрипту обновления и отвечает ДО того, как бэкенд погаснет.
+ * Three calls with different costs: `installation` reads local facts and answers instantly, `check`
+ * goes to the remote (POST, because it changes the checkout's tracking refs, and may take seconds),
+ * `start` hands the installation over to the update script and answers BEFORE the backend goes
+ * down.
  *
- * Всё неизвестное приходит как `null`: без каталога `.git` установка не знает ни коммита, ни
- * чистоты дерева, а ветка без манифеста не имеет версии. Ноль на этом месте был бы утверждением.
+ * Everything unknown arrives as `null`: without a `.git` directory the installation knows neither
+ * the commit nor whether the tree is clean, and a branch without a manifest has no version. A zero
+ * in that place would be a claim.
  */
 
 import { internalApi } from '@/api/client/internal'
 
 const BASE = '/core/update'
 
-/** Что стоит здесь: выпуск, сборка под ним и причина, по которой обновление откажется идти. */
+/** What is installed here: the release, the build on top of it, and why an update would refuse. */
 export interface Installation {
   version: string | null
   release_date: string | null
-  /** Ветка, за которой следует установка (`UPDATE_BRANCH`). */
+  /** The branch the installation follows (`UPDATE_BRANCH`). */
   followed_branch: string
   checked_out_branch: string | null
   branch_matches: boolean
   commit: string | null
-  /** `git describe`: выпуск, расстояние до него и сборка одной строкой. */
+  /** `git describe`: the release, the distance from it and the build in one line. */
   describes_as: string | null
   dirty: boolean | null
-  /** Код причины, по которой обновление откажется идти (`about.refusal.*`), или `null`. */
+  /** Code of the reason an update would refuse to run (`about.refusal.*`), or `null`. */
   refusal: 'dirty_tree' | 'branch_mismatch' | 'platform_unsupported' | null
 }
 
-/** Что предлагает ветка и как мы стоим относительно неё. */
+/** What the branch offers and where we stand relative to it. */
 export interface UpstreamHead {
   branch: string
   version: string | null
   commit: string
   behind: number | null
-  /** Локальные коммиты, которых нет на remote: fast-forward на них сломается. */
+  /** Local commits missing from the remote: a fast-forward will break on them. */
   ahead: number | null
 }
 

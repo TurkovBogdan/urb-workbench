@@ -1,27 +1,28 @@
-// Экранирование — то место, где сериализатор незаметно переписывает текст пользователя.
+// Escaping is where a serializer silently rewrites the user's text.
 //
-// Отдельным файлом, потому что это не деталь печати, а самостоятельное знание: каждое правило
-// ниже узкое намеренно и срабатывает только там, где символ иначе открыл бы разметку. Именно
-// на безусловном экранировании ломаются готовые сериализаторы markdown — они ставят косую
-// черту перед каждым служебным символом, и текст возвращается не тем, что написали.
+// A file of its own because this is not a printing detail but knowledge in its own right: every
+// rule below is narrow on purpose and fires only where the character would otherwise open markup.
+// Unconditional escaping is exactly where off-the-shelf markdown serializers break — they put a
+// backslash before every special character, and the text comes back different from what was
+// written.
 
 export function escapeText(value: string): string {
   return value
     .replace(/\\/g, '\\\\')
     .replace(/([`*])/g, '\\$1')
-    // CommonMark не видит подчёркивание внутри слова, так что экранировать его там — чистый
-    // шум: `snake_case` не должен возвращаться как `snake\_case`. Выделение открывает только
-    // подчёркивание на границе.
+    // CommonMark ignores an underscore inside a word, so escaping it there is pure noise:
+    // `snake_case` must not come back as `snake\_case`. Only an underscore at a word boundary
+    // opens emphasis.
     .replace(/(?<!\w)_|_(?!\w)/g, '\\_')
-    // `~~` — зачёркивание; одиночная тильда остаётся тильдой.
+    // `~~` is strikethrough; a single tilde stays a tilde.
     .replace(/~~/g, '\\~\\~')
-    // Скобка начинает ссылку, только если череда закрывается `](`. Экранируя каждую, мы бы
-    // превращали написанный `[x]` в `\[x\]`.
+    // A bracket starts a link only if the run closes with `](`. Escaping every bracket would turn
+    // a written `[x]` into `\[x\]`.
     .replace(/\[(?=[^\]\n]*\]\()/g, '\\[')
 }
 
-// Символ становится маркером блока только в начале своей строки, поэтому правило работает на
-// собранной строке, а не на текстовом узле: `#` посреди фразы — просто решётка.
+// A character becomes a block marker only at the start of its line, so the rule runs on the
+// assembled line rather than on a text node: `#` mid-sentence is just a hash.
 export function escapeLineStarts(value: string): string {
   return value
     .split('\n')

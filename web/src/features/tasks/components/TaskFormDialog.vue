@@ -1,17 +1,19 @@
 <script setup lang="ts">
-// Карточка задачи: одно окно на создание и на правку — поля и проверки у них общие, а различие
-// ровно в вызываемых ручках. Режим задаёт проп: `task === null` — создание.
+// Task card: one dialog for create and edit — the fields and checks are shared, the only
+// difference is the endpoints called. The mode comes from a prop: `task === null` — create.
 //
-// Форма ведёт СВОЮ копию значений и синхронизируется при открытии: правка не должна менять
-// карточку в списке до сохранения, а отмена обязана оставлять список нетронутым.
+// The form keeps ITS OWN copy of the values and syncs on open: editing must not change the card
+// in the list before saving, and cancel must leave the list untouched.
 //
-// Статус в форме есть, но уезжает он ОТДЕЛЬНЫМ запросом (`setTaskStatus`): общая правка статус
-// не принимает — только своя ручка ставит отметки времени начала, завершения и отмены. При
-// создании он едет вместе с карточкой: отметку там ставить ещё не по чему.
+// Status is in the form, but it is sent as a SEPARATE request (`setTaskStatus`): the general
+// update does not accept status — only its own endpoint stamps the start, completion and cancel
+// timestamps. On create it travels with the card: there is nothing to stamp yet.
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppDialog from '@/components/AppDialog.vue'
+import HelpHint from '@/components/HelpHint.vue'
+import LimitField from '@/components/LimitField.vue'
 import { errorText } from '@/api/errorText'
 
 import {
@@ -26,11 +28,11 @@ import {
 } from '../api'
 import { formatDeadline, parseDay } from '../dates'
 import {
-  BODY_MAX,
   TASK_CONSTRAINTS_MAX,
   TASK_CONTEXT_MAX,
   TASK_CRITERIA_MAX,
   TASK_DESCRIPTION_MAX,
+  TASK_PLAN_MAX,
   TASK_STATUSES,
   TASK_TITLE_MAX,
   TASK_TYPES,
@@ -41,12 +43,17 @@ import TaskPrioritySelect from './TaskPrioritySelect.vue'
 const open = defineModel<boolean>({ required: true })
 
 const props = defineProps<{
-  /** Пространство, в котором заводится задача: от него же зависит список групп. */
+  /** Workspace the task is created in; the group list depends on it too. */
   workspace: string
-  /** Правка существующей задачи; `null` — создание. */
+  /** Editing an existing task; `null` — creating. */
   task: TaskDetail | TaskListRow | null
-  /** Родитель создаваемой подзадачи; при правке не используется — перенос это другая операция. */
+  /** Parent of the subtask being created; unused when editing — moving is a separate operation. */
   parent?: TaskListRow | TaskDetail | null
+  /**
+   * The group is already decided: the task is created from that group's card, `null` — from the
+   * "No group" card. The form then does not ask for it. Absent — the person picks.
+   */
+  group?: string | null
 }>()
 
 const emit = defineEmits<{ saved: [code: string] }>()
@@ -58,7 +65,9 @@ const description = ref('')
 const context = ref('')
 const constraints = ref('')
 const criteria = ref('')
-const body = ref('')
+const plan = ref('')
+const progress = ref('')
+const result = ref('')
 const type = ref<string>(TASK_TYPES[0])
 const status = ref<string>(TASK_STATUSES[0])
 const priority = ref<string>('normal')
@@ -66,9 +75,10 @@ const groupCode = ref<string | null>(null)
 const deadlineAt = ref<Date | null>(null)
 
 const saving = ref(false)
-// Тело задачи ещё едет: из списка карточка приходит БЕЗ него (строка списка тела не несёт), а
-// правка — полная замена карточки. Сохрани форма пустое тело, которого она не загружала, — текст
-// задачи стёрся бы молча. Поэтому на время догрузки кнопка сохранения заперта.
+// The task texts are still loading: from the list the card arrives WITHOUT them (a list row carries
+// neither the brief nor the agent's work), and an update is a full replacement of the card. Were
+// the form to save empty texts it never loaded, they would be erased silently. So the save button
+// is locked while they load.
 const loadingBody = ref(false)
 const error = ref<string | null>(null)
 
@@ -76,12 +86,9 @@ const groups = ref<GroupRow[]>([])
 
 const creating = computed(() => props.task === null)
 
-// Счётчик показывает ОСТАТОК, а не набранное: вопрос у человека всегда «сколько ещё влезет».
-const titleLeft = computed(() => TASK_TITLE_MAX - title.value.length)
-const descriptionLeft = computed(() => TASK_DESCRIPTION_MAX - description.value.length)
-
-// Пустой заголовок не сохраняется: без него строка неразличима в списке. Пробелы бэк срежет до
-// проверки длины — значит и здесь строка из одних пробелов считается пустой.
+// An empty title is not saved: without it the row is indistinguishable in the list. The backend
+// strips whitespace before the length check — so here too a whitespace-only string counts as
+// empty.
 const valid = computed(() => title.value.trim().length > 0 && !loadingBody.value)
 
 const typeItems = computed(() =>
@@ -94,8 +101,8 @@ const groupItems = computed(() =>
   groups.value.map((group) => ({ value: group.code, title: group.title })),
 )
 
-// Что показывает форма при выбранном типе. Скрытое поле продолжает ехать на бэк со своим прежним
-// значением: переключение типа прячет, но не стирает — то же правило, что и на странице задачи.
+// What the form shows for the selected type. A hidden field keeps going to the backend with its
+// previous value: switching the type hides but does not erase — the same rule as on the task page.
 const layout = computed(() => typeLayout(type.value))
 
 async function loadGroups() {
@@ -104,32 +111,38 @@ async function loadGroups() {
     return
   }
   try {
-    // `report: false` — справочник едет фоном под полем; тост о нём человек не связал бы с тем,
-    // что делает. Пустой список групп честнее: задача проживёт и без группы.
+    // `report: false` — the lookup loads in the background under the field; the person would not
+    // connect a toast about it with what they are doing. An empty group list is more honest: the
+    // task will do fine without a group.
     groups.value = await listGroups({ workspace: props.workspace }, { report: false })
   } catch {
     groups.value = []
   }
 }
 
-/** Разложить карточку по полям формы. Тексты берутся только у полной задачи — см. `loadingBody`. */
+/** Spread the card over the form fields. Texts are taken only from a full task — see `loadingBody`. */
 function apply(task: TaskDetail | TaskListRow | null) {
   title.value = task?.title ?? ''
   description.value = task?.description ?? ''
   type.value = task?.type ?? TASK_TYPES[0]
   status.value = task?.status ?? TASK_STATUSES[0]
   priority.value = task?.priority ?? 'normal'
-  groupCode.value = task?.group_code ?? null
+  groupCode.value = task ? task.group_code : (props.group ?? null)
   deadlineAt.value = parseDay(task?.deadline_at ?? null)
-  if (task && 'body' in task) applyTexts(task)
+  if (task && 'plan' in task) applyTexts(task)
 }
 
-/** Длинные тексты карточки: постановка и план. Форма их не показывает, но обязана сохранить. */
+/**
+ * The card's long texts: the brief and the agent's work. The form shows the brief and the plan;
+ * progress and result it does not show but must preserve — the agent writes those.
+ */
 function applyTexts(task: TaskDetail) {
   context.value = task.context
   constraints.value = task.constraints
   criteria.value = task.criteria
-  body.value = task.body
+  plan.value = task.plan
+  progress.value = task.progress
+  result.value = task.result
 }
 
 watch(() => [open.value, props.task] as const, async ([isOpen, task]) => {
@@ -138,14 +151,16 @@ watch(() => [open.value, props.task] as const, async ([isOpen, task]) => {
   context.value = ''
   constraints.value = ''
   criteria.value = ''
-  body.value = ''
+  plan.value = ''
+  progress.value = ''
+  result.value = ''
   apply(task)
   void loadGroups()
-  // Из списка приходит строка без длинных текстов — дочитываем задачу целиком, иначе полная
-  // замена карточки отправила бы пустую постановку вместо написанной. Из ответа берём ТОЛЬКО
-  // тексты: остальные поля человек за это время мог уже начать править, и перезаписать их значило
-  // бы стереть набранное.
-  if (!task || 'body' in task) return
+  // From the list comes a row without the long texts — fetch the full task, otherwise the full
+  // card replacement would send an empty brief instead of the written one. Take ONLY the texts
+  // from the response: the person may have started editing the other fields meanwhile, and
+  // overwriting them would erase what was typed.
+  if (!task || 'plan' in task) return
   loadingBody.value = true
   try {
     applyTexts(await getTask(task.code, { report: false }))
@@ -161,8 +176,8 @@ async function save() {
   saving.value = true
   error.value = null
   try {
-    // `report: false` — отказ операции показываем ЗДЕСЬ, рядом с кнопкой: окно остаётся открытым
-    // с введённым текстом, а тост увёл бы сообщение из поля зрения.
+    // `report: false` — the operation's refusal is shown HERE, next to the button: the dialog stays
+    // open with the entered text, while a toast would take the message out of sight.
     if (props.task) {
       let saved = await updateTask(
         props.task.code,
@@ -172,7 +187,9 @@ async function save() {
           context: context.value,
           constraints: constraints.value,
           criteria: criteria.value,
-          body: body.value,
+          plan: plan.value,
+          progress: progress.value,
+          result: result.value,
           type: type.value,
           priority: priority.value,
           group_code: groupCode.value,
@@ -180,8 +197,8 @@ async function save() {
         },
         { report: false },
       )
-      // Вторым запросом и только при смене: статус меняет ручка, которая ставит отметку фазы, и
-      // звать её на каждом сохранении значило бы отмечать начало работы на правке опечатки.
+      // A second request, and only on change: status is changed by the endpoint that stamps the
+      // phase, and calling it on every save would mark work as started on a typo fix.
       if (status.value !== props.task.status) {
         saved = await setTaskStatus(props.task.code, status.value, { report: false })
       }
@@ -196,7 +213,7 @@ async function save() {
           context: context.value,
           constraints: constraints.value,
           criteria: criteria.value,
-          body: body.value,
+          plan: plan.value,
           type: type.value,
           status: status.value,
           priority: priority.value,
@@ -227,33 +244,40 @@ async function save() {
     :persistent="saving"
     :close-disabled="saving"
   >
-    <!-- Порядок полей — от «что это» к «когда»: заголовок и описание, затем разметка (тип,
-         статус, приоритет, группа), затем сроки, и последним длинное тело. -->
+    <!-- Field order goes from "what is it" to "when": title and description, then the
+         classification (type, status, priority, group), then dates, and the long body last. -->
     <div class="task-form">
-      <VTextField
+      <!-- The same limit counter as the task page's editors and the group form: input stops at
+           the limit, and the counter warns in advance. -->
+      <LimitField
         v-model="title"
         :label="t('tasks.task.form.name')"
-        :maxlength="TASK_TITLE_MAX"
-        :hint="t('tasks.task.form.left', { count: titleLeft })"
+        :max-length="TASK_TITLE_MAX"
         variant="outlined"
-        persistent-hint
+        hide-details
         autofocus
       />
 
-      <VTextarea
+      <LimitField
         v-model="description"
         :label="t('tasks.task.form.description')"
-        :maxlength="TASK_DESCRIPTION_MAX"
-        :hint="t('tasks.task.form.left', { count: descriptionLeft })"
+        :max-length="TASK_DESCRIPTION_MAX"
+        multiline
+        auto-grow
         variant="outlined"
         rows="2"
-        auto-grow
-        persistent-hint
-      />
+        hide-details
+      >
+        <!-- Inside the field, not in the label: a floating label ignores the pointer, and the
+             explanation would never open. -->
+        <template #append-inner>
+          <HelpHint :text="t('tasks.task.detail.hint.description')" />
+        </template>
+      </LimitField>
 
-      <!-- Тип стоит ДО длинных полей: он решает, какие из них вообще показаны, и выбирать его
-           после того, как форма развернулась во весь экран, значило бы переставлять поля под
-           курсором. Написанное при переключении остаётся — прячется только показ. -->
+      <!-- Type comes BEFORE the long fields: it decides which of them are shown at all, and
+           picking it after the form has expanded to full screen would rearrange fields under the
+           cursor. What was written stays on switching — only the display is hidden. -->
       <div class="task-form__field">
         <span class="task-form__label">{{ t('tasks.task.form.type') }}</span>
         <VBtnToggle v-model="type" mandatory density="default" variant="tonal" class="task-form__toggle">
@@ -280,8 +304,9 @@ async function save() {
         />
       </div>
 
-      <!-- Группа необязательна: задача без неё попадает в секцию «Без группы», а не теряется. -->
+      <!-- The group is optional: a task without one lands in the "No group" section, not lost. -->
       <VSelect
+        v-if="props.group === undefined"
         v-model="groupCode"
         :items="groupItems"
         :label="t('tasks.task.form.group')"
@@ -292,8 +317,8 @@ async function save() {
         hide-details
       />
 
-      <!-- Срок — единственная назначаемая дата: до какого числа успеть. Выбранный день уезжает
-           последней секундой суток (`formatDeadline`). -->
+      <!-- The deadline is the only assignable date: the day to finish by. The picked day is sent
+           as the last second of that day (`formatDeadline`). -->
       <VDateInput
         v-model="deadlineAt"
         :label="t('tasks.task.form.deadline_at')"
@@ -301,62 +326,74 @@ async function save() {
         clearable
       />
 
-      <!-- Пока длинные тексты не дочитаны, поля заперты: пустая рамка, в которую можно писать,
-           выглядела бы как «текста нет», хотя он есть и сейчас приедет. -->
+      <!-- Until the long texts are loaded the fields are locked: an empty, writable box would look
+           like "there is no text", although there is and it is about to arrive. -->
       <VTextarea
         v-model="context"
         :label="t('tasks.task.form.context')"
-        :hint="t('tasks.task.form.context_hint')"
         :maxlength="TASK_CONTEXT_MAX"
         :disabled="loadingBody"
         :loading="loadingBody"
         variant="outlined"
         rows="4"
         auto-grow
-        persistent-hint
-      />
+        hide-details
+      >
+        <template #append-inner>
+          <HelpHint :text="t('tasks.task.detail.hint.context')" />
+        </template>
+      </VTextarea>
 
-      <!-- Границы, критерии и план показываются с типа `standard`: у простой задачи их нет, и
-           пустые поля растянули бы форму на экран, ничего не спросив. -->
+      <!-- Constraints, criteria and plan are shown from type `standard` up: a simple task has none,
+           and empty fields would stretch the form to full screen without asking anything. -->
       <template v-if="layout.brief">
         <VTextarea
           v-model="constraints"
           :label="t('tasks.task.form.constraints')"
-          :hint="t('tasks.task.form.constraints_hint')"
           :maxlength="TASK_CONSTRAINTS_MAX"
           :disabled="loadingBody"
           variant="outlined"
           rows="3"
           auto-grow
-          persistent-hint
-        />
+          hide-details
+        >
+          <template #append-inner>
+            <HelpHint :text="t('tasks.task.detail.hint.constraints')" />
+          </template>
+        </VTextarea>
 
         <VTextarea
           v-model="criteria"
           :label="t('tasks.task.form.criteria')"
-          :hint="t('tasks.task.form.criteria_hint')"
           :maxlength="TASK_CRITERIA_MAX"
           :disabled="loadingBody"
           variant="outlined"
           rows="3"
           auto-grow
-          persistent-hint
-        />
+          hide-details
+        >
+          <template #append-inner>
+            <HelpHint :text="t('tasks.task.detail.hint.criteria')" />
+          </template>
+        </VTextarea>
       </template>
 
       <VTextarea
         v-if="layout.plan"
-        v-model="body"
-        :label="t('tasks.task.form.body')"
-        :hint="t('tasks.task.form.body_hint')"
-        :maxlength="BODY_MAX"
+        v-model="plan"
+        :label="t('tasks.task.form.plan')"
+        :maxlength="TASK_PLAN_MAX"
         :disabled="loadingBody"
         :loading="loadingBody"
         variant="outlined"
         rows="5"
         auto-grow
-        persistent-hint
-      />
+        hide-details
+      >
+        <template #append-inner>
+          <HelpHint :text="t('tasks.task.detail.hint.plan')" />
+        </template>
+      </VTextarea>
 
       <VAlert v-if="error" type="error" variant="tonal" density="compact">{{ error }}</VAlert>
     </div>
@@ -373,16 +410,17 @@ async function save() {
 </template>
 
 <style scoped>
-/* У части полей висит постоянная подсказка со счётчиком, поэтому шаг между ними меньше
-   обычного: собственный отступ подсказки уже разделяет их. */
+/* Some fields carry a persistent hint with a counter, so the gap between fields is smaller than
+   usual: the hint's own spacing already separates them. */
 .task-form {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 
-/* Два поля в ряд: они про одно и то же (разметка задачи, сроки) и порознь растянули бы окно
-   вдвое. Ниже 520px ряд распадается — на узком экране половинка поля нечитаема. */
+/* Two fields in a row: they are about the same thing (task classification, dates) and apart would
+   double the dialog's height. Below 520px the row breaks up — on a narrow screen a half-width
+   field is unreadable. */
 .task-form__row {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -393,8 +431,8 @@ async function save() {
   .task-form__row { grid-template-columns: 1fr; }
 }
 
-/* Подпись прижата к своему полю теснее, чем поля друг к другу, — иначе она читается как
-   заголовок всего блока, а не как метка переключателя. */
+/* The label sits closer to its field than the fields sit to each other — otherwise it reads as a
+   heading for the whole block rather than the toggle's label. */
 .task-form__field {
   display: flex;
   flex-direction: column;
@@ -406,8 +444,9 @@ async function save() {
   color: var(--text-muted);
 }
 
-/* Размер у группы кнопок не наследуется детьми (docs/conventions/frontend.md), а высота 40px
-   уравнивает переключатель с соседними полями в рамке. */
+/* A button group's size is not inherited by its children (docs/conventions/frontend.md): 34px plus
+   the toggle's 1px outline top and bottom levels it with the neighbouring 36px fields. Set through the
+   variable: the global `.v-btn-group .v-btn` rule reads it to beat the group's inline `height: auto`. */
 .task-form__toggle { width: 100%; }
-.task-form__toggle :deep(.v-btn) { flex: 1; height: 40px; font-size: 0.875rem; }
+.task-form__toggle :deep(.v-btn) { flex: 1; --v-btn-height: 34px; font-size: 0.875rem; }
 </style>

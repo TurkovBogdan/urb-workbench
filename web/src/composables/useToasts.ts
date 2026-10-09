@@ -1,28 +1,39 @@
 import { readonly, ref } from 'vue'
 
-// Всплывающие сообщения. Заведено под одно правило: отказ, который экран не показал сам,
-// обязан всплыть здесь. Молчание должно требовать явного действия, а не получаться само.
+// Toasts. Built around one rule: a failure the screen did not show itself must pop up here.
+// Silence must take an explicit action, not happen by itself.
 //
-// Модуль, а не Pinia: сюда пишет клиент API, то есть код вне компонентов.
+// A module, not Pinia: the API client writes here, i.e. code outside components.
 
-/** Уровень = тон палитры. Имена совпадают со словарём токенов, включая `warn`. */
+/** Level = palette tone. Names match the token dictionary, including `warn`. */
 export type ToastLevel = 'success' | 'info' | 'warn' | 'error'
+
+/**
+ * One button that undoes or follows up on the news — "Restore" after a delete. Pressing it closes
+ * the toast first: the action is the person's answer to the message, and the message must not
+ * hang on screen while its own answer is being carried out.
+ */
+export interface ToastAction {
+  label: string
+  run: () => unknown
+}
 
 export interface Toast {
   id: number
   text: string
   level: ToastLevel
-  /** Через сколько миллисекунд снять; 0 — держать до закрытия человеком. */
+  /** After how many milliseconds to dismiss; 0 — keep until the person closes it. */
   timeout: number
+  action?: ToastAction
 }
 
-/** Сколько живёт сообщение. Один срок на все уровни: его же отсчитывает кольцо у крестика. */
+/** How long a toast lives. One duration for all levels: the ring at the close button counts it. */
 const DEFAULT_TIMEOUT = 5000
 
 /**
- * Потолок очереди. Показ идёт по одному, и без потолка десятый отказ дождался бы своей очереди
- * через сорок пять секунд — когда он уже никому не нужен. Вытесняем САМЫЕ СТАРЫЕ: свежий отказ
- * ближе к тому, что человек делает сейчас.
+ * Queue cap. Toasts are shown one at a time, and without a cap the tenth failure would get its turn
+ * forty-five seconds later — when nobody needs it anymore. We evict THE OLDEST: a fresh failure is
+ * closer to what the person is doing now.
  */
 const MAX_QUEUED = 3
 
@@ -32,11 +43,16 @@ let lastId = 0
 export const toasts = readonly(items)
 
 /**
- * Показать сообщение. Повтор той же пары «текст + уровень» игнорируется, пока прежний висит:
- * пять параллельных запросов, упавших одинаково, — это одна новость, а не пять. Уровень входит
- * в ключ намеренно: один и тот же текст успехом и ошибкой — разные новости.
+ * Show a toast. A repeat of the same "text + level" pair is ignored while the previous one is up:
+ * five parallel requests that failed the same way are one piece of news, not five. The level is
+ * part of the key on purpose: the same text as a success and as an error is different news.
  */
-export function pushToast(text: string, level: ToastLevel = 'error', timeout = DEFAULT_TIMEOUT): void {
+export function pushToast(
+  text: string,
+  level: ToastLevel = 'error',
+  timeout = DEFAULT_TIMEOUT,
+  action?: ToastAction,
+): void {
   const message = text.trim()
   if (message === '') {
     return
@@ -50,7 +66,7 @@ export function pushToast(text: string, level: ToastLevel = 'error', timeout = D
 
   lastId += 1
 
-  const next = [...items.value, { id: lastId, text: message, level, timeout }]
+  const next = [...items.value, { id: lastId, text: message, level, timeout, action }]
   items.value = next.length > MAX_QUEUED ? next.slice(next.length - MAX_QUEUED) : next
 }
 

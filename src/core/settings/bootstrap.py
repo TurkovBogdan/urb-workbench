@@ -1,7 +1,7 @@
-"""Двухфазная инициализация подсистемы settings.
+"""Two-phase initialisation of the settings subsystem.
 
-- ``register_settings_schemas`` (sync) — в ``create_app`` ДО ``Module.configure``.
-- ``load_initial_stores`` (async) — в lifespan ПОСЛЕ ``AlembicRunner.upgrade_head``.
+- ``register_settings_schemas`` (sync) — in ``create_app`` BEFORE ``Module.configure``.
+- ``load_initial_stores`` (async) — in the lifespan AFTER ``AlembicRunner.upgrade_head``.
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ from src.core.module import Module
 
 
 def register_settings_schemas(modules: Sequence[Module]) -> None:
-    """Build phase: зарегистрировать схемы и инстансы модулей в реестре."""
+    """Build phase: register the modules' schemas and instances in the registry."""
     reg = get_registry()
     for m in modules:
         if m.settings_schema is None:

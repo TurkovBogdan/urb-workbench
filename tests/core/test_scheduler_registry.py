@@ -1,4 +1,4 @@
-"""Тесты TaskRegistry: регистрация, дубль, get/all (чистая логика, без БД)."""
+"""Tests for TaskRegistry: registration, duplicate, get/all (pure logic, no DB)."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import pytest
 from src.core.scheduler.registry import TaskRegistry
 
 
-async def _noop(ctx):  # pragma: no cover - заглушка
+async def _noop(ctx):  # pragma: no cover - stub
     pass
 
 

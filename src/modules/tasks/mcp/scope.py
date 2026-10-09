@@ -1,18 +1,19 @@
-"""Забор пространства: активное пространство сессии и проверка, что код указывает в него.
+"""The workspace fence: the session's active workspace and a check that a code points into it.
 
-Правило одно на всю поверхность: **пространство — жёсткая граница**. Код из чужого пространства
-не отрабатывается молча, а отвергается с названиями обоих. Причина не в безопасности — доступ
-здесь у всех один, — а в том, что ошибка контура иначе невидима: чужая задача выглядит как
-задача, а чужой пустой список как «работы нет».
+One rule for the whole surface: **the workspace is a hard boundary**. A code from another
+workspace is not silently processed but refused, naming both workspaces. The reason is not
+security — everyone here has the same access — but that a boundary error is otherwise
+invisible: another workspace's task looks like a task, and another workspace's empty list looks
+like "no work".
 
-Тип кода забор не угадывает: его называет вызывающий тем же префиксом, которым снимал
-презентационную форму. Угадывание по префиксу сломалось бы на голом коде, а голый код мы
-принимаем наравне с ``TASK@…`` — это внутренняя форма, и запрещать её значит запрещать
-передавать обратно то, что модуль вернул сам.
+The fence does not guess the code's type: the caller names it with the same prefix it used to
+strip the presentation form. Guessing from the prefix would break on a bare code, and we accept
+a bare code on a par with ``TASK@…`` — it is the internal form, and forbidding it would mean
+forbidding passing back what the module itself returned.
 
-Владельца ищем через CRUD соседних сущностей, а не своим запросом: у ``STAGE@``/``NOTE@``
-пространство лежит через задачу, и «сколько это стоит» здесь не вопрос — забор срабатывает на
-вызов, а не на строку выдачи.
+The owner is looked up through the CRUD of the neighbouring entities, not with a query of our
+own: for ``STAGE@``/``JOURNAL@``/``NOTE@`` the workspace is reached via the task, and "what does it cost" is
+not a concern here — the fence fires once per call, not once per output row.
 """
 
 from __future__ import annotations
@@ -22,11 +23,13 @@ from collections.abc import Awaitable, Callable
 from src.modules.tasks.codes import tagged
 from src.modules.tasks.constants import (
     GROUP_CODE_PREFIX,
+    JOURNAL_CODE_PREFIX,
     NOTE_CODE_PREFIX,
     STAGE_CODE_PREFIX,
     TASK_CODE_PREFIX,
 )
 from src.modules.tasks.crud import group as group_crud
+from src.modules.tasks.crud import journal as journal_crud
 from src.modules.tasks.crud import note as note_crud
 from src.modules.tasks.crud import stage as stage_crud
 from src.modules.tasks.crud import task as task_crud
@@ -53,13 +56,25 @@ async def _stage_workspace(code: str) -> str | None:
     return await _task_workspace(row.task_code) if row else None
 
 
-async def _note_workspace(code: str) -> str | None:
-    row = await note_crud.note_get(code)
+async def _journal_workspace(code: str) -> str | None:
+    row = await journal_crud.journal_get(code)
     return await _task_workspace(row.task_code) if row else None
 
 
+async def _note_workspace(code: str) -> str | None:
+    """A task note's workspace is its task's. A ``NOTE@`` that is an old journal code is refused
+    here, with the code it has now — every tool taking a ``NOTE@`` passes this fence first."""
+    task_code = await note_crud.task_note_task(code)
+    if task_code is not None:
+        return await _task_workspace(task_code)
+    refusal = await journal_crud.retired_note_refusal(code)
+    if refusal is not None:
+        raise ValueError(refusal)
+    return None
+
+
 async def _itself(code: str) -> str:
-    """Пространство само себе владелец: код сравнивается с активным напрямую."""
+    """A workspace owns itself: its code is compared with the active one directly."""
     return code
 
 
@@ -68,15 +83,16 @@ _OWNER: dict[str, Callable[[str], Awaitable[str | None]]] = {
     GROUP_CODE_PREFIX: _group_workspace,
     TASK_CODE_PREFIX: _task_workspace,
     STAGE_CODE_PREFIX: _stage_workspace,
+    JOURNAL_CODE_PREFIX: _journal_workspace,
     NOTE_CODE_PREFIX: _note_workspace,
 }
 
 
 async def workspace_of(prefix: str, bare: str) -> str | None:
-    """Голый код пространства, которому принадлежит сущность; ``None`` — сущности нет.
+    """The bare code of the workspace that owns the entity; ``None`` — there is no such entity.
 
-    Отсутствие строки забор не трогает: «не найдено» скажет сам инструмент, и своей формулировкой
-    — она у него точнее, чем общая.
+    The fence leaves a missing row alone: the tool itself will say "not found", in its own
+    wording — which is more precise than a generic one.
     """
     owner = _OWNER.get(prefix)
     if owner is None:
@@ -88,15 +104,16 @@ async def workspace_of(prefix: str, bare: str) -> str | None:
 
 
 async def require_active() -> Workspace:
-    """Активное пространство сессии или обучающий отказ. Ничего не проверяет сверх этого."""
+    """The session's active workspace or a teaching refusal. Checks nothing beyond that."""
     return await session.require_active()
 
 
 async def require_scope(prefix: str, bare: str) -> Workspace:
-    """Активное пространство + проверка, что названная сущность лежит именно в нём.
+    """The active workspace + a check that the named entity lies in exactly that workspace.
 
-    Отдаёт пространство, а не ``None``: оно нужно вызывающему следующей же строкой — собрать
-    конверт ответа, — и второй запрос за тем, что забор только что прочитал, был бы лишним.
+    Returns the workspace rather than ``None``: the caller needs it on the very next line — to
+    build the reply envelope — and a second query for what the fence has just read would be
+    wasted.
     """
     active = await require_active()
     owner = await workspace_of(prefix, bare)

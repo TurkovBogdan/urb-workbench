@@ -1,42 +1,50 @@
-"""Отказы правил модуля, у которых есть имя.
+"""Module rule refusals that have a name.
 
-Обычный ``ValueError`` из CRUD едет наружу текстом — этого хватает, пока текст читает агент: он
-написан по-английски, называет причину и сам чинит вызов. Но два отказа читает ЧЕЛОВЕК в
-интерфейсе, и английская фраза из недр слоя данных там неуместна.
+A plain ``ValueError`` from CRUD travels out as text — enough while the reader is the agent: the
+text is in English, names the cause, and the agent fixes the call itself. But two refusals are
+read by a PERSON in the interface, and an English phrase from deep inside the data layer is out
+of place there.
 
-Поэтому у них есть код: CRUD поднимает ``TaskRuleError`` с именем правила, API кладёт это имя в
-поле ``code`` ответа, а интерфейс показывает свою формулировку на своём языке. Текст исключения
-при этом остаётся прежним — он нужен в логах и в ответах агенту, который кода не читает.
+So they carry a code: CRUD raises ``TaskRuleError`` with the rule's name, the API puts that name
+into the response's ``code`` field, and the interface shows its own wording in its own language.
+The exception text stays as it was — it is needed in logs and in replies to the agent, which does
+not read the code.
 
-Новый код заводится вместе с правилом, которое он называет, и попадает в словарь интерфейса
-(``tasks.error.*``). Код без перевода не ломает показ: интерфейс падает обратно на текст ответа.
+A new code is introduced together with the rule it names, and goes into the interface dictionary
+(``tasks.error.*``). A code without a translation does not break display: the interface falls
+back to the response text.
 """
 
 from __future__ import annotations
 
 STAGE_EVIDENCE_REQUIRED = "stage_evidence_required"
-"""Закрыть этап нельзя: доказательство выполнения пустое."""
+"""The stage cannot be closed: its evidence of completion is empty."""
 
-NOTE_ALREADY_RESOLVED = "note_already_resolved"
-"""Запись журнала уже закрыта: переписать разрешение нельзя, журнал дописываемый."""
+JOURNAL_ALREADY_RESOLVED = "journal_already_resolved"
+"""The journal entry is already resolved: a resolution is written once."""
 
-# Отказы HTTP-слоя: их тоже читает человек. Код ``tasks.<сущность>.<причина>`` интерфейс ищет в
-# ``tasks.error.<сущность>.<причина>``; текст ответа — английский запасной.
+# HTTP-layer refusals: a person reads these too. The interface looks code
+# ``tasks.<entity>.<reason>`` up as ``tasks.error.<entity>.<reason>``; the response text is the
+# English fallback.
 GROUP_NOT_FOUND = "tasks.group.not_found"
 GROUP_DELETED = "tasks.group.deleted"
 GROUP_NOT_DELETED = "tasks.group.not_deleted"
+GROUP_HAS_TASKS = "tasks.group.has_tasks"
+"""The group still holds live tasks, and the deletion did not say what becomes of them."""
 TASK_NOT_FOUND = "tasks.task.not_found"
 TASK_DELETED = "tasks.task.deleted"
 TASK_NOT_DELETED = "tasks.task.not_deleted"
 STAGE_NOT_FOUND = "tasks.stage.not_found"
+JOURNAL_NOT_FOUND = "tasks.journal.not_found"
 NOTE_NOT_FOUND = "tasks.note.not_found"
 
 
 class TaskRuleError(ValueError):
-    """Отказ правила модуля с машинным именем.
+    """A module rule refusal with a machine-readable name.
 
-    Наследник ``ValueError`` намеренно: весь CRUD уже отвечает им, и обработчики в API ловят
-    его одним ``except`` — добавление кода не должно требовать второй ветки в каждой ручке.
+    It subclasses ``ValueError`` on purpose: all of CRUD already raises that, and the API
+    handlers catch it with a single ``except`` — adding a code must not require a second branch
+    in every endpoint.
     """
 
     def __init__(self, code: str, message: str) -> None:
@@ -46,9 +54,11 @@ class TaskRuleError(ValueError):
 
 __all__ = [
     "GROUP_DELETED",
+    "GROUP_HAS_TASKS",
     "GROUP_NOT_DELETED",
     "GROUP_NOT_FOUND",
-    "NOTE_ALREADY_RESOLVED",
+    "JOURNAL_ALREADY_RESOLVED",
+    "JOURNAL_NOT_FOUND",
     "NOTE_NOT_FOUND",
     "STAGE_EVIDENCE_REQUIRED",
     "STAGE_NOT_FOUND",

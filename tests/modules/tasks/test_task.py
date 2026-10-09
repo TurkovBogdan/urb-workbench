@@ -1,14 +1,20 @@
-"""CRUD задач: рождение вместе с ребром дерева, проверки пространства, статусы и усечение."""
+"""Task CRUD: born together with its tree edge, workspace checks, statuses and clipping."""
 
 from __future__ import annotations
 
 import pytest
 
 from src.modules.tasks.constants import (
-    BODY_MAX,
     CODE_LEN,
+    CONSTRAINTS_MAX,
+    CRITERIA_MAX,
+    PLAN_MAX,
     PRIORITY_BURNING,
+    PROGRESS_MAX,
+    RESULT_MAX,
     SORT_DEFAULT,
+    STATUS_BACKLOG,
+    STATUS_CANCELED,
     STATUS_DONE,
     STATUS_IN_PROGRESS,
     TASK_PRIORITY_DEFAULT,
@@ -49,7 +55,7 @@ async def test_create_fills_defaults(db, workspace):
 
 
 async def test_create_writes_the_tree_row_for_a_root_task(db, workspace):
-    """Без строки связи задача дереву не принадлежит — значит она создаётся вместе с задачей."""
+    """Without a link row a task is not part of the tree — so the row is created with the task."""
     row = await task_create(workspace_code=workspace.code, title="Корень")
 
     link = await link_get(row.code)
@@ -114,7 +120,8 @@ async def test_moving_a_task_into_a_foreign_group_is_refused(db, workspace):
 
 
 async def test_unknown_dictionary_value_is_refused_by_name(db, workspace):
-    """Отказ приходит из CRUD со списком допустимых, а не ``IntegrityError`` из драйвера."""
+    """The refusal comes from CRUD with the allowed values listed, not as an ``IntegrityError``
+    from the driver."""
     with pytest.raises(ValueError, match="Unknown task status"):
         await task_create(workspace_code=workspace.code, title="Задача", status="later")
 
@@ -128,6 +135,21 @@ async def test_update_detaches_the_group_with_an_empty_string(db, workspace):
     assert (await task_update(task.code, group_code="")).group_code is None
 
 
+async def test_brief_lists_hold_2048_characters(db, workspace):
+    """Constraints and criteria are lists with a proof per line; 2048 fit whole, not cut."""
+    assert CONSTRAINTS_MAX == CRITERIA_MAX == 2048
+    constraints = "о" * CONSTRAINTS_MAX
+    criteria = "к" * CRITERIA_MAX
+
+    task = await task_create(
+        workspace_code=workspace.code, title="Задача", constraints=constraints, criteria=criteria
+    )
+    stored = await task_get(task.code)
+
+    assert stored.constraints == constraints
+    assert stored.criteria == criteria
+
+
 async def test_status_change_stamps_the_phase_once(db, workspace):
     task = await task_create(workspace_code=workspace.code, title="Задача")
 
@@ -139,6 +161,84 @@ async def test_status_change_stamps_the_phase_once(db, workspace):
 
     reopened = await task_update_status(task.code, STATUS_IN_PROGRESS)
     assert reopened.started_at == started.started_at
+
+
+async def test_reopening_clears_the_closing_marks(db, workspace):
+    """An open task carries no end date: neither completion nor cancellation survives a reopen."""
+    task = await task_create(workspace_code=workspace.code, title="Задача")
+    await task_update_status(task.code, STATUS_DONE)
+    await task_update_status(task.code, STATUS_IN_PROGRESS)
+    await task_update_status(task.code, STATUS_CANCELED)
+
+    reopened = await task_update_status(task.code, STATUS_BACKLOG)
+
+    assert reopened.completed_at is None and reopened.canceled_at is None
+
+
+async def test_closing_again_stamps_a_fresh_date(db, workspace):
+    task = await task_create(workspace_code=workspace.code, title="Задача")
+    first = (await task_update_status(task.code, STATUS_DONE)).completed_at
+    await task_update_status(task.code, STATUS_IN_PROGRESS)
+
+    again = await task_update_status(task.code, STATUS_DONE)
+
+    assert again.completed_at is not None and again.completed_at >= first
+
+
+@pytest.mark.parametrize(
+    ("first", "then", "kept", "cleared"),
+    [
+        (STATUS_DONE, STATUS_CANCELED, "canceled_at", "completed_at"),
+        (STATUS_CANCELED, STATUS_DONE, "completed_at", "canceled_at"),
+    ],
+)
+async def test_moving_between_closed_statuses_keeps_only_the_current_mark(
+    db, workspace, first, then, kept, cleared
+):
+    """A task is either done or canceled, never both: going straight from one end to the other
+    takes the old mark away — otherwise the list shows a canceled task with a completion date."""
+    task = await task_create(workspace_code=workspace.code, title="Задача")
+    await task_update_status(task.code, first)
+
+    moved = await task_update_status(task.code, then)
+
+    assert getattr(moved, kept) is not None
+    assert getattr(moved, cleared) is None
+
+
+@pytest.mark.parametrize(
+    ("status", "mark"),
+    [
+        (STATUS_IN_PROGRESS, "started_at"),
+        (STATUS_DONE, "completed_at"),
+        (STATUS_CANCELED, "canceled_at"),
+    ],
+)
+async def test_a_task_created_in_a_phase_carries_its_mark(db, workspace, status, mark):
+    """The creation form offers a status; a task born done must say when, like one moved there."""
+    task = await task_create(workspace_code=workspace.code, title="Задача", status=status)
+
+    stored = await task_get(task.code)
+
+    assert getattr(stored, mark) is not None
+    others = {"started_at", "completed_at", "canceled_at"} - {mark}
+    assert all(getattr(stored, field) is None for field in others)
+
+
+async def test_refused_reopen_keeps_the_closing_marks(db, workspace):
+    """A subtask of a closed task is not reopened — and its dates are not cleared on the way."""
+    parent = await task_create(workspace_code=workspace.code, title="Эпик")
+    child = await task_create(
+        workspace_code=workspace.code, title="Часть", parent_code=parent.code
+    )
+    await task_update_status(child.code, STATUS_DONE)
+    await task_update_status(parent.code, STATUS_DONE)
+
+    with pytest.raises(ValueError):
+        await task_update_status(child.code, STATUS_IN_PROGRESS)
+
+    stored = await task_get(child.code)
+    assert stored.status == STATUS_DONE and stored.completed_at is not None
 
 
 async def test_workspace_listing_filters_by_status_and_group(db, workspace):
@@ -157,12 +257,12 @@ async def test_workspace_listing_filters_by_status_and_group(db, workspace):
 
 
 async def test_workspace_listing_follows_the_manual_order_not_priority(db, workspace):
-    """Порядок списка задаёт расстановка (`sort`), а не важность.
+    """The list order is set by manual placement (`sort`), not by priority.
 
-    Важность из порядка ушла намеренно: список переставляют мышью, и строка, поднятая наверх,
-    возвращалась бы вниз следующим же запросом, если бы сортировал приоритет. Свежая задача
-    встаёт ПОД рядом (`bottom_sort`), поэтому горящая, заведённая второй, стоит второй — важность
-    на её место больше не влияет.
+    Priority was dropped from ordering on purpose: the list is rearranged with the mouse, and a
+    row dragged to the top would drop back down on the very next request if priority sorted it.
+    A fresh task lands BELOW the row (`bottom_sort`), so a burning one created second stands
+    second — priority no longer affects its place.
     """
     await task_create(workspace_code=workspace.code, title="Обычная")
     await task_create(
@@ -186,7 +286,7 @@ async def test_long_title_is_clipped_by_code_points(db, workspace):
 
 
 async def test_the_whole_brief_is_kept_apart(db, workspace):
-    """Постановка живёт в четырёх разных полях, и слой их не сливает в одно."""
+    """The brief lives in four separate fields, and the layer does not merge them into one."""
     row = await task_create(
         workspace_code=workspace.code,
         title="Перевести модуль на группы",
@@ -194,7 +294,9 @@ async def test_the_whole_brief_is_kept_apart(db, workspace):
         context="Смотреть src/modules/tasks",
         constraints="Не трогать модуль workspace",
         criteria="Тесты зелёные, схема без дрейфа",
-        body="План: сначала модели, потом миграции",
+        plan="План: сначала модели, потом миграции",
+        progress="- модели готовы → миграции",
+        result="Модуль на группах",
         type=TYPE_STANDARD,
     )
 
@@ -202,21 +304,57 @@ async def test_the_whole_brief_is_kept_apart(db, workspace):
     assert row.context == "Смотреть src/modules/tasks"
     assert row.constraints == "Не трогать модуль workspace"
     assert row.criteria == "Тесты зелёные, схема без дрейфа"
-    assert row.body.startswith("План:")
+    assert row.plan.startswith("План:")
+    assert row.progress == "- модели готовы → миграции"
+    assert row.result == "Модуль на группах"
 
 
-async def test_overlong_plan_is_refused_not_clipped(db, workspace):
-    """План отказывает, в отличие от заголовка: молча срезался бы хвост с последними шагами."""
-    with pytest.raises(ValueError, match="shorten it by"):
+@pytest.mark.parametrize(
+    ("field", "limit"),
+    [("plan", PLAN_MAX), ("progress", PROGRESS_MAX), ("result", RESULT_MAX)],
+)
+async def test_overlong_work_field_is_refused_not_clipped(db, workspace, field, limit):
+    """Unlike the title, the agent's work is refused: clipping would silently cut off the tail —
+    the file list of a plan, the newest entry of a diary."""
+    with pytest.raises(ValueError, match="shorten it by 1 "):
         await task_create(
-            workspace_code=workspace.code,
-            title="Слишком длинный план",
-            body="x" * (BODY_MAX + 1),
+            workspace_code=workspace.code, title="Слишком длинно", **{field: "x" * (limit + 1)}
         )
 
 
+@pytest.mark.parametrize(
+    ("field", "limit"),
+    [("plan", PLAN_MAX), ("progress", PROGRESS_MAX), ("result", RESULT_MAX)],
+)
+async def test_overlong_work_field_update_leaves_the_task_as_it_was(db, workspace, field, limit):
+    task = await task_create(workspace_code=workspace.code, title="Задача", **{field: "было"})
+
+    with pytest.raises(ValueError, match="shorten it by 1 "):
+        await task_update(task.code, title="Новое", **{field: "x" * (limit + 1)})
+
+    stored = await task_get(task.code)
+    assert (stored.title, getattr(stored, field)) == ("Задача", "было")
+
+
+async def test_work_fields_hold_their_whole_limit(db, workspace):
+    task = await task_create(
+        workspace_code=workspace.code,
+        title="Задача",
+        plan="п" * PLAN_MAX,
+        progress="х" * PROGRESS_MAX,
+        result="и" * RESULT_MAX,
+    )
+    stored = await task_get(task.code)
+
+    assert (len(stored.plan), len(stored.progress), len(stored.result)) == (
+        PLAN_MAX,
+        PROGRESS_MAX,
+        RESULT_MAX,
+    )
+
+
 async def test_workspace_by_codes_skips_what_is_not_live(db, workspace):
-    """Пропавшая и удалённая отвечают одинаково: перед записью разницы между ними нет."""
+    """A missing task and a deleted one answer the same: before a write there is no difference."""
     alive = await task_create(workspace_code=workspace.code, title="Счета")
     gone = await task_create(workspace_code=workspace.code, title="Отчёты")
     await task_delete(gone.code)
@@ -249,7 +387,7 @@ async def test_regroup_with_no_group_unfiles(db, workspace):
 
 
 async def test_regroup_writes_nothing_when_one_code_is_missing(db, workspace):
-    """Смысл пачки — атомарность: половина переложенного выглядит как переложенное целиком."""
+    """The point of a batch is atomicity: a half-refiled batch looks like a fully refiled one."""
     group = await group_create(workspace_code=workspace.code, title="Биллинг")
     row = await task_create(workspace_code=workspace.code, title="Счета")
 

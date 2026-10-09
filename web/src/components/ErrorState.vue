@@ -5,17 +5,17 @@ import { useI18n } from 'vue-i18n'
 import { IconArrowLeft, IconHome, IconRefresh, type Icon } from '@tabler/icons-vue'
 import type { ErrorAction } from '@/constants/errors'
 
-// Экран отказа: показывается ВМЕСТО содержимого, на том же адресе. Доступность —
-// заголовок забирает фокус (иначе виртуальный курсор остаётся на ссылке, по которой кликнули,
-// и «ничего не произошло» становится буквальным) и живой регион объявляет смену содержимого;
-// `document.title` меняет вызывающий (гвард роутера).
+// Failure screen: shown INSTEAD of the content, at the same address. Accessibility — the
+// heading takes focus (otherwise the virtual cursor stays on the link that was clicked, and
+// "nothing happened" becomes literal) and a live region announces the content change;
+// `document.title` is changed by the caller (the router guard).
 
 const props = withDefaults(defineProps<{
   code?: string | null
   icon: Icon
   title: string
   description: string
-  /** Выходы с экрана; последний рисуется главным действием. */
+  /** Exits from the screen; the last one is drawn as the primary action. */
   actions?: ErrorAction[]
 }>(), {
   code: null,
@@ -34,8 +34,8 @@ const glyphs: Record<ErrorAction, Icon> = {
   retry: IconRefresh,
 }
 
-// Повтор — перезагрузка текущего адреса: сбой рендера или упавший бэкенд лечится свежим
-// стартом, а не повторной навигацией внутри уже сломанного приложения.
+// Retry reloads the current address: a render failure or a crashed backend is cured by a fresh
+// start, not by navigating again inside an already broken app.
 const handlers: Record<ErrorAction, () => void> = {
   back: () => router.back(),
   home: () => router.push('/home'),
@@ -103,8 +103,8 @@ function isPrimary(action: ErrorAction): boolean {
   color: var(--text);
 }
 
-/* Заголовок получает фокус программно, поэтому кольца ему не рисуем: человек с мышью его не
-   вызывал, а для клавиатуры сразу следом идут настоящие кнопки. */
+/* The heading receives focus programmatically, so it gets no ring: a mouse user didn't invoke it,
+   and for the keyboard the real buttons follow right after. */
 .error-state__title:focus {
   outline: none;
 }

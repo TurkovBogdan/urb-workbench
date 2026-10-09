@@ -1,103 +1,108 @@
 # workspace
 
-Модуль заводит рабочие пространства и раздаёт их остальным: каждый модуль поверх сужает свои
-выборки до того пространства, в котором человек сейчас работает.
+The module creates workspaces and hands them to the rest: every module above narrows its queries
+to the workspace the human is working in right now.
 
-Пространство отвечает на один вопрос — «в чём я сейчас работаю» — и разводит несмешиваемое:
-работу и личное, одного клиента и другого. Прав доступа здесь нет: пользователь один, и
-пространство делит контексты, а не доступ.
+A workspace answers one question — "what am I working in right now" — and separates what must not
+mix: work and personal, one client and another. There are no access rights here: there is one
+user, and a workspace divides contexts, not access.
 
-## Зона ответственности
+## Responsibility
 
-Модуль держит одну сущность — карточку пространства — и одну точку расширения к ней.
+The module holds one entity — the workspace card — and one extension point for it.
 
-За ним: завести пространство, прочитать, переименовать, удалить, вернуть из удалённых и собрать
-список со счётчиками содержимого. Правит всё это человек, поэтому набор ручек полный:
-пространство — его раскладка, а не результат работы агента.
+Its job: create a workspace, read it, rename it, delete it, bring it back from the deleted, and
+build the list with content counters. A human edits all of this, so the set of endpoints is
+complete: a workspace is the human's layout, not the product of the agent's work.
 
-## Границы: чего здесь нет
+## Boundaries: what is not here
 
-Что лежит внутри пространства, модуль не знает и знать не должен. Зоны и задачи — дело `tasks`,
-документы будут делом того модуля, который заведёт документы.
+What lives inside a workspace the module does not know and must not know. Zones and tasks are
+the business of `tasks`; documents will be the business of whichever module introduces documents.
 
-Границу перешли, если в коде модуля появилось имя чужой сущности: импорт из `src.modules.tasks`,
-колонка `area_code`, слово «задача» в ответе API. Хватит любого.
+The boundary has been crossed if the module's code mentions another module's entity: an import
+from `src.modules.tasks`, an `area_code` column, the word "task" in an API response. Any one is
+enough.
 
-## Куда направлена зависимость
+## Which way the dependency points
 
-Модуль стоит на **уровне 1**: зависит от ядра и ни от одного прикладного модуля. Прикладные —
-уровень 2 и выше — держат `workspace_code` у своих строк.
+The module sits at **level 1**: it depends on the core and on no application module.
+Application modules — level 2 and above — keep `workspace_code` on their rows.
 
-Зависимость идёт снизу вверх и только в одну сторону: те, кто выше, знают про пространство, оно
-про них — нет. Разверни её — и уровень 1 станет зависеть от уровня 2, а приложение перестанет
-собираться в объявленном порядке (`src/apps/app/modules.py`).
+The dependency runs bottom-up and one way only: those above know about the workspace, it does
+not know about them. Reverse it, and level 1 would depend on level 2, and the application would
+no longer assemble in the declared order (`src/apps/app/modules.py`).
 
-## Счётчики: как на карточку попадают чужие числа
+## Counters: how other modules' numbers get onto the card
 
-На карточке пространства стоят числа: «зон 2, задач 12». Они же собираются в строку в окне
-удаления — «в пространстве зон: 2, задач: 12. Удалить?». Ради этого вопроса счётчики и сделаны:
-`purge` сносит содержимое безвозвратно, и подтверждать исчезновение неизвестно чего человек не
-должен.
+The workspace card shows numbers: "2 zones, 12 tasks". The same numbers are assembled into a line
+in the delete dialog — "the workspace holds zones: 2, tasks: 12. Delete?". That question is why
+counters exist: `purge` removes the contents irreversibly, and a human should not have to confirm
+the disappearance of who knows what.
 
-Сам модуль эти числа получить не может. Зоны и задачи принадлежат `tasks`, а запрос к его
-таблицам развернул бы зависимость — см. раздел выше. Поэтому считает владелец сущности и сам
-приносит результат:
+The module cannot get these numbers itself. Zones and tasks belong to `tasks`, and querying its
+tables would reverse the dependency — see the section above. So the entity's owner does the
+counting and brings the result itself:
 
 ```python
-# tasks/module.py, configure() — один раз при сборке приложения
+# tasks/module.py, configure() — once per application build
 register_counter(WorkspaceCounter(
-    key="areas",                                  # под этим ключом число уедет в ответ
-    label_key="tasks.workspace.counter.areas",    # подпись из СВОЕГО словаря
+    key="areas",                                  # the number goes into the response under this key
+    label_key="tasks.workspace.counter.areas",    # the label from its OWN dictionary
     count_by_codes=area_crud.area_count_by_workspace_codes,
-    sort=600,                                     # больший — раньше в карточке
+    sort=600,                                     # higher — earlier on the card
 ))
 ```
 
-Пространство вызывает то, что ему оставили, и не знает, что посчиталось. Отсюда главное свойство:
-набор чисел в ответе зависит от состава приложения. Уберите `tasks` из сборки — счётчиков не
-станет, и карточка будет права, а не сломана.
+The workspace calls whatever was left for it and does not know what was counted. Hence the key
+property: the set of numbers in the response depends on the application's composition. Remove
+`tasks` from the build and the counters disappear — and the card is right, not broken.
 
-Две детали, которые легко сделать неправильно:
+Two details that are easy to get wrong:
 
-- **Считаем пачкой.** Функция принимает список кодов и возвращает `{код: сколько}`. Запрос на
-  каждую карточку дал бы N+1 там, где хватает одной группировки.
-- **Подпись едет ключом, а не текстом.** Владеет ею тот, кто владеет сущностью: переименование
-  «зоны» правится в `tasks`, а не в модуле, который про зоны ничего не знает.
+- **Count in a batch.** The function takes a list of codes and returns `{code: how many}`. A
+  query per card would make N+1 where a single grouping is enough.
+- **The label travels as a key, not text.** It is owned by whoever owns the entity: renaming
+  "zones" is done in `tasks`, not in a module that knows nothing about zones.
 
-## Хранилище и коды
+## Storage and codes
 
-| Таблица | Колонки | Индексы | Ревизии |
+| Table | Columns | Indexes | Revisions |
 | --- | --- | --- | --- |
-| `workspaces` | `code` (PK, hex длиной `CODE_LEN`), `title`, `description`, `color`, `icon`, `deleted_at`, `created_at`, `updated_at` | `ix_workspaces_deleted_title` (`deleted_at`, `title`, `code`) — повторяет запрос списка | `wkm_001_workspaces` — таблица, `wkm_002_workspaces_list_index` — индекс |
+| `workspaces` | `code` (PK, hex of length `CODE_LEN`), `title`, `description`, `color`, `icon`, `sort`, `deleted_at`, `created_at`, `updated_at` | `ix_workspaces_deleted_sort` (`deleted_at`, `sort`, `title`, `code`) — mirrors the list query | `wkm_001_workspaces` — the table, `wkm_002_workspaces_list_index` — the index, `wkm_003_description_sort` — `description` narrowed to 128, the position and the index rebuilt for it |
 
-Одна таблица — `workspaces`, без приставки имени модуля: модуль и сущность здесь одно и то же, а
-`workspace_workspace` было бы заиканием. Приставка отвечает на вопрос «чьё это» там, где
-сущностей больше одной (`tasks_area`, `tasks_task`); здесь на него отвечает само имя.
+The list order is a task group's: higher `sort` on top, then title, then code. A workspace
+created without a number lands at the end of the list; the form sets the number directly.
 
-Ревизий в цепочке две, и делит их не вкус. Таблица — цель кросс-модульного FK, а `depends_on`
-разрешено ставить только на не-голову, поэтому создающую ревизию хоронит под собой следующая:
-`wkm_001_workspaces` создаёт таблицу, `wkm_002_workspaces_list_index` добавляет индекс списка.
-Разбор приёма — в `conventions/db-migrations.md`.
+One table — `workspaces`, without the module-name prefix: the module and the entity are one and
+the same here, and `workspace_workspace` would be a stutter. The prefix answers "whose is this"
+where there is more than one entity (`tasks_area`, `tasks_task`); here the name itself answers it.
 
-В базе лежит голый hex-код. Тип-слово `WORKSPACE@` надевается на границе и снимается на входе
-(`codes.py`); код с чужим префиксом — перепутанный аргумент, а не пропавшая строка, и API
-отвечает на него 400, а не 404.
+The first two revisions are split apart, and the split is not a matter of taste. The table is the
+target of a cross-module FK, and `depends_on` may only point at a non-head, so the creating
+revision is buried under the next one: `wkm_001_workspaces` creates the table,
+`wkm_002_workspaces_list_index` adds the list index. The technique is explained in
+`conventions/db-migrations.md`.
 
-Удаления два, и у каждого свой адрес. Мягкое ставит отметку и оставляет содержимое на месте.
-`purge` сносит строку, а каскад FK уносит за ней всё, что модули поверх держали в этом
-пространстве. Спрятать необратимое под флагом обратимого значило бы развести их одним символом в
-адресе.
+The database holds the bare hex code. The `WORKSPACE@` type word is added at the boundary and
+stripped on input (`codes.py`); a code with a foreign prefix is a mixed-up argument, not a
+missing row, and the API answers it with 400, not 404.
 
-## Состав
+There are two deletions, each with its own URL. The soft one sets a mark and leaves the contents
+in place. `purge` removes the row, and the FK cascade takes with it everything the modules above
+kept in this workspace. Hiding the irreversible behind a flag on the reversible would separate
+them by one character in the URL.
 
-| Файл | Что держит |
+## Contents
+
+| File | What it holds |
 | --- | --- |
-| `module.py` | Объявление модуля: имя, каталог миграций, роутер зоны `internal` на `/workspace` |
-| `api.py` | HTTP: список, создание, чтение, правка, мягкое удаление, `restore`, `purge` |
-| `stats.py` | Реестр счётчиков — точка, которой цепляются модули сверху |
-| `models/workspace.py` | ORM-строка таблицы `workspaces` |
-| `crud/workspace.py` | Доступ к хранилищу; длинный текст усекает, а не отвергает |
-| `dto.py` | Контракты ответов: `WorkspaceRow`, `WorkspaceListRow`, `WorkspaceCounterRow` |
-| `codes.py` | Генерация кода и граничный префикс `WORKSPACE@` |
-| `constants.py` | Длина кода и ширина колонок — один источник для модели, миграции и CRUD |
-| `text.py` | `clip` — мягкая граница длины на входе в хранилище |
+| `module.py` | The module declaration: name, migrations directory, the `internal` zone router at `/workspace` |
+| `api.py` | HTTP: list, create, read, update, soft delete, `restore`, `purge` |
+| `stats.py` | The counter registry — the hook the modules above attach to |
+| `models/workspace.py` | The ORM row of the `workspaces` table |
+| `crud/workspace.py` | Store access; truncates long text rather than rejecting it — except the description, which is refused over 128 |
+| `dto.py` | Response contracts: `WorkspaceRow`, `WorkspaceListRow`, `WorkspaceCounterRow` |
+| `codes.py` | Code generation and the `WORKSPACE@` boundary prefix |
+| `constants.py` | Code length and column widths — one source for the model, the migration and the CRUD |
+| `text.py` | `clip` — the soft length limit at the entrance to the store; `fit` — the hard one, for the description |

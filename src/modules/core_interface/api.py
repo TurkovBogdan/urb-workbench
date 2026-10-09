@@ -1,10 +1,10 @@
-"""``/settings`` — значения настроек интерфейса, их схема, обновление и сброс.
+"""``/settings`` — interface setting values, their schema, update and reset.
 
-Четыре маршрута под четыре сценария; ручки удаления нет — убрать настройку не
-пользовательский сценарий, человек сбрасывает её к умолчанию.
+Four routes for four scenarios; there is no delete endpoint — removing a setting is not a user
+scenario, a human resets it to its default.
 
-Тело обновления проверяется **целиком** до первой записи: отказ несёт все виноватые ключи
-разом, а полуприменённой пачки не бывает.
+An update body is checked **as a whole** before the first write: a refusal carries all the
+offending keys at once, and a half-applied batch never happens.
 """
 
 from __future__ import annotations
@@ -26,13 +26,13 @@ internal_router = APIRouter(tags=["interface"])
 
 @internal_router.get("/settings", response_model=InterfaceSettingsOut)
 async def get_settings(include_schema: bool = False) -> InterfaceSettingsOut:
-    """Действующие значения всех полей; ``include_schema`` добавляет схему — запрос старта."""
+    """Effective values of all fields; ``include_schema`` adds the schema — the startup request."""
     return await _settings_out(include_schema=include_schema)
 
 
 @internal_router.get("/settings/schema", response_model=InterfaceSchemaOut)
 async def get_schema() -> InterfaceSchemaOut:
-    """Схема отдельно: она меняется только при выкладке, и клиент кеширует её у себя."""
+    """The schema on its own: it changes only on deploy, and the client caches it locally."""
     return InterfaceSchemaOut(fields=_schema())
 
 
@@ -51,11 +51,11 @@ async def patch_settings(body: InterfaceSettingsPatch) -> InterfaceSettingsOut:
 
 @internal_router.post("/settings/reset", response_model=InterfaceSettingsOut)
 async def reset_settings(body: InterfaceSettingsReset) -> InterfaceSettingsOut:
-    """Снять переопределения перечисленных ключей — снова действует умолчание.
+    """Drop the overrides of the listed keys — the default applies again.
 
-    Список обязателен: «сбросить всё» клиент выражает перечнем всех ключей, который знает
-    из схемы. Молчаливое «пустой список = стереть всё» было бы слишком лёгким способом
-    снести настройки целиком.
+    The list is mandatory: the client expresses "reset everything" as the list of all keys it
+    knows from the schema. A silent "empty list = wipe everything" would be far too easy a way
+    to blow away all settings.
     """
     unknown = registry.unknown_keys(body.keys)
     if unknown:

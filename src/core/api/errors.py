@@ -1,16 +1,16 @@
-"""Стандартные ошибки API.
+"""Standard API errors.
 
-Единый формат тела ошибки для любого не-2xx ответа: ``{error, code?, params?, fields?}``.
-Успех остаётся «телом как есть» — стандартизируем только ошибки (статус-код —
-источник истины об успехе/неуспехе).
+A single error body format for any non-2xx response: ``{error, code?, params?, fields?}``.
+Success stays "the body as is" — only errors are standardised (the status code is the
+source of truth on success/failure).
 
-Модули кидают ``ApiError`` (через удобные конструкторы), общий handler
-(``register_exception_handlers``) превращает её в ``ErrorBody`` + HTTP-статус.
+Modules raise ``ApiError`` (through the convenience constructors); the shared handler
+(``register_exception_handlers``) turns it into ``ErrorBody`` + an HTTP status.
 
-Язык ответа — не забота бэкенда: причину, которую он понимает, он называет кодом
-(``<модуль>.<сущность>.<причина>`` или общим, без модуля), а текст на языке интерфейса даёт
-словарь фронта, подставляя ``params``. ``error`` — английский запасной текст для кода, которого
-фронт не знает, и для отказов без кода.
+The response language is not the backend's concern: a reason it understands it names by a code
+(``<module>.<entity>.<reason>`` or a general one, without a module), and the text in the interface
+language comes from the frontend's dictionary, filling in ``params``. ``error`` is an English
+fallback text for a code the frontend doesn't know, and for refusals without a code.
 """
 
 from __future__ import annotations
@@ -21,19 +21,19 @@ ErrorParams = dict[str, str | int]
 
 
 class ErrorBody(BaseModel):
-    """Тело любого не-2xx ответа API."""
+    """The body of any non-2xx API response."""
 
-    error: str                                # английский запасной текст
-    code: str | None = None                   # машинный код — по нему фронт берёт текст из словаря
-    params: ErrorParams | None = None         # значения для подстановки в текст кода
-    fields: dict[str, str] | None = None      # ошибки по полям (валидация форм)
+    error: str                                # English fallback text
+    code: str | None = None                   # machine code — the frontend looks up its text by it
+    params: ErrorParams | None = None         # values to substitute into the code's text
+    fields: dict[str, str] | None = None      # per-field errors (form validation)
 
 
 class ApiError(Exception):
-    """Бизнес-ошибка API. Перехватывается общим handler'ом → ErrorBody + status_code.
+    """An API business error. Caught by the shared handler → ErrorBody + status_code.
 
-    Использовать конструкторы по статусам (``ApiError.not_found(...)`` и т.п.),
-    а не собирать вручную — так статус и семантика не разъезжаются.
+    Use the per-status constructors (``ApiError.not_found(...)`` etc.) rather than
+    assembling it by hand — that way the status and the semantics don't drift apart.
     """
 
     def __init__(
@@ -55,7 +55,7 @@ class ApiError(Exception):
     def body(self) -> ErrorBody:
         return ErrorBody(error=self.message, code=self.code, params=self.params, fields=self.fields)
 
-    # ── конструкторы по статусам ─────────────────────────────────────────
+    # ── per-status constructors ──────────────────────────────────────────
     @classmethod
     def bad_request(cls, message: str = "Bad request", *, code: str | None = None,
                     params: ErrorParams | None = None,

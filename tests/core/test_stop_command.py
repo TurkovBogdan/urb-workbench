@@ -1,8 +1,8 @@
-"""`app.py stop`: план печатается до сигналов, отказы становятся кодами выхода.
+"""`app.py stop`: the plan is printed before any signal, refusals become exit codes.
 
-Команда — тонкая обёртка над тем же слоем, что гасит установку внутри обновления, поэтому
-проверяется её собственная половина: что план показан, что сухой прогон ничего не подаёт, что
-каждый отказ доезжает до кода выхода, а не превращается в трейсбек у того, кто звал `./run.sh stop`.
+The command is a thin wrapper over the same layer that stops the install during an update, so
+only its own half is tested: that the plan is shown, that a dry run sends nothing, that every
+refusal reaches an exit code instead of turning into a traceback for whoever ran `./run.sh stop`.
 """
 
 from __future__ import annotations
@@ -50,7 +50,7 @@ def _plan() -> StopPlan:
 
 @pytest.fixture
 def planned(monkeypatch):
-    """Подменить планирование живой машины; вернуть журнал переданных в него параметров."""
+    """Replace planning against the live machine; return a log of the arguments passed to it."""
     asked: list[dict] = []
 
     def fake_plan_live_stop(checkout, *, stop_unregistered=False):
@@ -63,7 +63,7 @@ def planned(monkeypatch):
 
 @pytest.fixture
 def signalled(monkeypatch):
-    """Подменить подачу сигналов; вернуть журнал планов, которые до неё дошли."""
+    """Replace signal delivery; return a log of the plans that reached it."""
     signalled_plans: list[StopPlan] = []
 
     def fake_execute_stop(plan, **kwargs):
@@ -82,10 +82,10 @@ def _refuse_with(monkeypatch, refusal: Exception) -> None:
 
 
 def _forbid_signals(monkeypatch) -> None:
-    """Подача сигналов в этом тесте — провал, а не один из путей."""
+    """Sending a signal in this test is a failure, not one of the paths."""
 
     def forbidden(plan, **kwargs):
-        raise AssertionError("сигнал подан там, где его быть не должно")
+        raise AssertionError("a signal was sent where there must be none")
 
     monkeypatch.setattr(sequence, "execute_stop", forbidden)
 
@@ -102,7 +102,7 @@ def test_the_plan_is_printed_and_then_signalled(planned, signalled, capsys):
 
 @pytest.mark.pure
 def test_a_dry_run_prints_the_plan_and_signals_nothing(planned, monkeypatch, capsys):
-    """Сухой прогон обязан быть безопасным ответом на вопрос «а что ты погасишь»."""
+    """A dry run must be a safe answer to "what would you stop?"."""
     _forbid_signals(monkeypatch)
 
     assert stop_command(dry_run=True) == EXIT_OK
@@ -111,8 +111,8 @@ def test_a_dry_run_prints_the_plan_and_signals_nothing(planned, monkeypatch, cap
 
 @pytest.mark.pure
 def test_stop_unregistered_reaches_the_planner(planned, signalled):
-    """Флаг меняет именно план, а не поведение сигналов: гасить без записи или отказаться —
-    решение принимается при планировании."""
+    """The flag changes the plan, not signal behaviour: whether to stop without a record or
+    refuse is decided at planning time."""
     stop_command(stop_unregistered=True)
 
     assert planned[-1]["stop_unregistered"] is True
@@ -120,8 +120,8 @@ def test_stop_unregistered_reaches_the_planner(planned, signalled):
 
 @pytest.mark.pure
 def test_processes_without_a_record_end_as_exit_10(planned, monkeypatch, capsys):
-    """Тот же код, что и у обновления: незарегистрированные процессы — отказ, а не тихое гашение
-    по косвенным уликам."""
+    """The same code as the update's: unregistered processes are a refusal, not a silent stop
+    on circumstantial evidence."""
     _refuse_with(monkeypatch, UnregisteredProcesses("pid 4242 looks like this install"))
 
     assert stop_command() == EXIT_UNREGISTERED
@@ -149,8 +149,8 @@ def test_an_install_that_did_not_stop_is_never_reported_as_stopped(
 
 @pytest.mark.pure
 def test_windows_is_refused_with_a_message_not_a_traceback(planned, monkeypatch, capsys):
-    """Гашение построено на группах процессов POSIX; на Windows команда обязана сказать это
-    словами — трейсбек из глубины не подскажет, что делать."""
+    """Stopping is built on POSIX process groups; on Windows the command must say so in
+    words — a traceback from deep inside won't tell anyone what to do."""
     monkeypatch.setattr(sequence.sys, "platform", "win32")
 
     assert stop_command() == EXIT_UNSUPPORTED_PLATFORM

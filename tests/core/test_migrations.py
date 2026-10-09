@@ -1,4 +1,4 @@
-"""AlembicRunner: version_locations всегда содержат core, плюс модули."""
+"""AlembicRunner: version_locations always contain core, plus the modules."""
 
 from __future__ import annotations
 
@@ -90,9 +90,9 @@ def downgrade() -> None:
 async def test_status_detects_new_independent_root_on_populated_db(
     config: Config, tmp_path: Path
 ):
-    """Новый модуль = независимый корень (down_revision=None), добавленный к уже
-    наполненной БД, обязан попасть в pending. Регресс на баг, где
-    iterate_revisions(heads, current) отдавал лишь потомков current и терял его."""
+    """A new module = an independent root (down_revision=None) added to an already
+    populated DB must show up in pending. Regression for a bug where
+    iterate_revisions(heads, current) returned only current's descendants and lost it."""
     dir_a = tmp_path / "a"
     dir_b = tmp_path / "b"
     dir_a.mkdir()
@@ -104,22 +104,22 @@ async def test_status_detects_new_independent_root_on_populated_db(
 
     engine = create_async_engine(config.database_url)
     try:
-        # БД наполнена: core + независимый корень A.
+        # The DB is populated: core + independent root A.
         await AlembicRunner(modules=[mod_a]).upgrade_head(engine)
-        # Теперь добавляем второй независимый корень B — он должен быть pending.
+        # Now add a second independent root B — it must be pending.
         status = await AlembicRunner(modules=[mod_a, mod_b]).status(engine)
     finally:
         await engine.dispose()
 
     revs = [p.revision for p in status.pending]
     assert not status.up_to_date
-    assert "zz02_bbbb" in revs          # новый корень виден
-    assert "zz01_aaaa" not in revs      # уже применённый не дублируется
+    assert "zz02_bbbb" in revs          # the new root is visible
+    assert "zz01_aaaa" not in revs      # an already applied one is not duplicated
 
 
 @pytest.mark.heavy
 async def test_upgrade_head_applies_core_migrations(config: Config):
-    """Без модулей всё равно накатываются core-миграции."""
+    """Without modules the core migrations are still applied."""
     runner = AlembicRunner(modules=[])
     engine = create_async_engine(config.database_url)
     try:
@@ -241,7 +241,7 @@ async def test_full_tree_upgrade_builds_model_schema_with_seeds(config: Config):
     the model tables with no structural drift, and lands the data seeds."""
     from sqlalchemy import inspect
 
-    import src.core.models  # noqa: F401  — наполнить Base.metadata (иначе пусто вне полного прогона)
+    import src.core.models  # noqa: F401  — populate Base.metadata (empty outside a full run otherwise)
     from src.apps.app.modules import build_modules
     from src.core.database.runtime import Base
 

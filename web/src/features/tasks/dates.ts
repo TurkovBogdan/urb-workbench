@@ -1,17 +1,19 @@
-// Срок задачи между полем ввода и бэком. `VDateInput` работает с `Date`, бэк — со строкой, и
-// перевод между ними в двух местах (форма задачи и её страница) обязан быть одним и тем же:
-// разойдись они, срок, выставленный в одном окне, читался бы другим на сутки раньше.
+// The task deadline between the input field and the backend. `VDateInput` works with `Date`, the
+// backend with a string, and the conversion in the two places (the task form and the task page)
+// must be one and the same: if they diverged, a deadline set in one window would read a day
+// earlier in the other.
 //
-// Перевод идёт через ПОЯС ПОКАЗА (`displayZone`), а не через UTC напрямую. Срок в базе — момент
-// времени, в интерфейсе — календарное число, и связывает их пояс, в котором человек смотрит:
-// «до 30 сентября» значит «до конца 30 сентября по моим часам». Считай мы конец суток в UTC, в
-// любом поясе восточнее Гринвича список показывал бы первое октября — на странице задачи при этом
-// стояло бы тридцатое, потому что поле берёт число из строки как есть.
+// Conversion goes through the DISPLAY ZONE (`displayZone`), not straight through UTC. In the
+// database a deadline is a moment in time, in the UI a calendar date, and what links them is the
+// zone the person is looking from: "by September 30" means "by the end of September 30 on my
+// clock". If we computed end of day in UTC, any zone east of Greenwich would show October 1 in
+// the list — while the task page would show the 30th, since the field takes the date from the
+// string as is.
 import { DateTime } from 'luxon'
 
 import { displayZone } from '@/shared/utils/date'
 
-/** Строка бэка (SQL, UTC) → календарный день в поясе показа. */
+/** Backend string (SQL, UTC) → calendar day in the display zone. */
 function zoned(value: string | null): DateTime | null {
   if (!value) return null
   const dt = DateTime.fromSQL(value, { zone: 'utc' }).setZone(displayZone())
@@ -19,8 +21,8 @@ function zoned(value: string | null): DateTime | null {
 }
 
 /**
- * Строка бэка → `Date` для поля. Полдень в конструкторе не украшение: без него перевод в UTC на
- * западных смещениях откатывает дату на сутки назад.
+ * Backend string → `Date` for the field. The noon in the constructor is not decoration: without
+ * it, conversion to UTC at western offsets rolls the date back by a day.
  */
 export function parseDay(value: string | null): Date | null {
   const dt = zoned(value)
@@ -28,12 +30,12 @@ export function parseDay(value: string | null): Date | null {
   return new Date(dt.year, dt.month - 1, dt.day, 12)
 }
 
-/** Календарный день значения из базы (`yyyy-MM-dd`) в поясе показа — для сравнения с черновиком. */
+/** Calendar day of a stored value (`yyyy-MM-dd`) in the display zone — to compare with a draft. */
 export function deadlineDay(value: string | null): string | null {
   return zoned(value)?.toFormat('yyyy-MM-dd') ?? null
 }
 
-/** День, выбранный в поле (`yyyy-MM-dd`): у `Date` из пикера значим только календарь, не время. */
+/** Day picked in the field (`yyyy-MM-dd`): only the calendar part of the picker's `Date` matters. */
 export function formatDay(value: Date | null): string | null {
   if (value === null) return null
   return [
@@ -44,10 +46,11 @@ export function formatDay(value: Date | null): string | null {
 }
 
 /**
- * Срок в интерфейсе — день, а в базе момент времени. «Успеть к такому-то числу» означает конец
- * этого дня, поэтому выбранная дата уезжает с последней секундой суток, а не с полуночью: иначе
- * срок, назначенный на сегодня, оказывался бы просроченным с самого утра. Последняя секунда
- * считается в поясе показа и уже оттуда переводится в UTC — в нём живёт колонка.
+ * A deadline is a day in the UI and a moment in time in the database. "Done by such-and-such a
+ * date" means the end of that day, so the picked date is sent with the last second of the day,
+ * not midnight: otherwise a deadline set for today would be overdue from the very morning. The
+ * last second is computed in the display zone and only then converted to UTC — the column lives
+ * in UTC.
  */
 export function formatDeadline(value: Date | null): string | null {
   if (value === null) return null

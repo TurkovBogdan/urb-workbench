@@ -1,40 +1,42 @@
-"""Модуль ``tasks`` — хранилище задач одного разработчика и его агента-исполнителя.
+"""The ``tasks`` module — task storage for one developer and their executing agent.
 
-**Уровень 2**: поверх ядра и поверх ``workspace``. Пространство здесь не своё — группа и задача
-держат на него ``workspace_code``, и ни одна выборка не ходит поперёк пространств. Обратной
-зависимости нет и быть не может: модуль уровнем ниже про задачи ничего не знает.
+**Level 2**: on top of the core and on top of ``workspace``. The workspace is not ours — groups
+and tasks hold a ``workspace_code`` pointing at it, and no query crosses workspaces. There is no
+reverse dependency and cannot be: the lower-level module knows nothing about tasks.
 
-Пять таблиц: ``tasks_group`` → ``tasks`` (сама задача, названа по модулю — ``tasks_task`` было бы
-заиканием), место задачи в дереве вынесено в ``tasks_link`` (ребро: родитель + позиция), а план
-работы — в ``tasks_stage`` (этапы) и ``tasks_note`` (журнал). Схема строится миграциями ``tsm_*``
-на портируемых типах — цепочка катится и на SQLite (dev), и на PostgreSQL. Начинается она с
-``tsm_001_group``: таблицу пространства модуль не создаёт — она принадлежит ``workspace``, и
-первая наша ревизия лишь объявляет на неё ``depends_on``, потому что цель FK обязана существовать
-раньше ссылки.
+Five tables: ``tasks_group`` → ``tasks`` (the task itself, named after the module — ``tasks_task``
+would be a stutter), the task's place in the tree is split out into ``tasks_link`` (an edge:
+parent + position), and the work plan into ``tasks_stage`` (stages) and ``tasks_journal``
+(journal). The schema is built by ``tsm_*`` migrations on portable types — the chain runs on both
+SQLite (dev) and PostgreSQL. It starts at ``tsm_001_group``: the module does not create the
+workspace table — it belongs to ``workspace``, and our first revision only declares
+``depends_on`` on it, because an FK target must exist before the reference.
 
-Поверх слоя данных две поверхности. HTTP зоны ``internal`` (``api.py``, подпрефикс
-``/workbench``) — её зовёт интерфейс, и она принимает пространство параметром. MCP-сервер
-``workbench`` (``mcp/``) — его зовёт агент, и пространство он выбирает один раз на подключение,
-после чего ни один инструмент его не принимает. Сервер собирает этот модуль, но тулы самого
-пространства приходят из ``workspace/mcp/``: сервер один на стенд, а владение сущностью не
-переезжает.
+Two surfaces sit on top of the data layer. HTTP in the ``internal`` zone (``api.py``, subprefix
+``/workbench``) — called by the UI, it takes the workspace as a parameter. The ``workbench`` MCP
+server (``mcp/``) — called by the agent, which picks the workspace once per connection, after
+which no tool accepts it. This module assembles the server, but the workspace's own tools come
+from ``workspace/mcp/``: there is one server per installation, and ownership of an entity does
+not move.
 
-**Счётчики для карточки пространства регистрируются здесь.** Сколько в пространстве групп и задач —
-знание этого модуля, а показать его должна страница пространств; поэтому мы кладём в реестр
-``workspace.stats`` две считающие функции и ключи подписей, а модуль уровнем ниже собирает из
-объявленного свою строку списка. Регистрация идёт в ``configure()`` — он зовётся один раз на
-сборку приложения, до первого запроса, и повторная сборка (тесты) перезаписывает запись по ключу.
+**Counters for the workspace card are registered here.** How many groups and tasks a workspace
+holds is this module's knowledge, but the workspaces page is what must show it; so we put two
+counting functions and label keys into the ``workspace.stats`` registry, and the lower-level
+module builds its list row from what was declared. Registration happens in ``configure()`` — it
+is called once per app build, before the first request, and a rebuild (tests) overwrites the
+entry by key.
 
-Подпрефикс задан явно, а не выведен из ``name``: имя модуля — Python-идентификатор с
-подчёркиваниями, а сегмент URL по конвенции проекта пишется через дефис, и вывод одного из
-другого сломался бы на первом же двусловном модуле.
+The subprefix is set explicitly rather than derived from ``name``: a module name is a Python
+identifier with underscores, while a URL segment is hyphenated by project convention, and deriving
+one from the other would break on the first two-word module.
 
-**Почему ``/workbench``, а не ``/tasks``.** Ядровой модуль ``core_monitoring`` смонтирован без
-префикса (``internal_router_prefix = ""``) и держит в корне зоны собственные ``/tasks`` и
-``/tasks/{module}/{code}`` — расписание планировщика. С нашим подпрефиксом ``/tasks`` адрес
-задачи (``/internal/tasks/tasks/{code}``) попадал в его маршрут с двумя сегментами и отвечал
-``{"error": "task not registered"}``: деталка не работала вовсе. Ядро не наше, поэтому съехал
-наш модуль. Переименован только внешний префикс HTTP — имя модуля, таблицы и коды прежние.
+**Why ``/workbench`` and not ``/tasks``.** The core module ``core_monitoring`` is mounted without
+a prefix (``internal_router_prefix = ""``) and owns ``/tasks`` and ``/tasks/{module}/{code}`` at
+the zone root — the scheduler's schedule. With our ``/tasks`` subprefix, a task address
+(``/internal/tasks/tasks/{code}``) fell into its two-segment route and answered
+``{"error": "task not registered"}``: the detail view did not work at all. The core is not ours,
+so our module moved. Only the external HTTP prefix was renamed — the module name, tables and codes
+are unchanged.
 """
 
 from __future__ import annotations
@@ -47,13 +49,14 @@ from fastapi import FastAPI
 from src.core.config import Config
 from src.core.module import Module
 from src.modules.core_changes import ChangeEntity, Code, register_entity
-from src.modules.tasks import models  # noqa: F401 — регистрирует модели в Base.metadata
+from src.modules.tasks import models  # noqa: F401 — registers the models in Base.metadata
 from src.modules.tasks.api import router
 from src.modules.tasks.mcp import mcp_server
 from src.modules.tasks.crud import group as group_crud
 from src.modules.tasks.crud import task as task_crud
 from src.modules.tasks.constants import (
     GROUP_CODE_PREFIX,
+    JOURNAL_CODE_PREFIX,
     NOTE_CODE_PREFIX,
     STAGE_CODE_PREFIX,
     TASK_CODE_PREFIX,
@@ -61,10 +64,10 @@ from src.modules.tasks.constants import (
 from src.modules.workspace.constants import WORKSPACE_CODE_PREFIX
 from src.modules.workspace.stats import WorkspaceCounter, register_counter
 
-# Что из модуля видно ленте изменений (``core_changes``). Имена — публичный контракт с фронтом
-# (``web/src/features/tasks``): переименование здесь — смена адреса, а не внутренняя правка.
-# Ссылки — ровно те, по которым экран узнаёт «это про меня»: список — по пространству и группе,
-# страница задачи — по своей задаче, у записи журнала — ещё и по этапу.
+# What the change feed (``core_changes``) sees of this module. The names are a public contract
+# with the frontend (``web/src/features/tasks``): renaming here changes an address, not an internal
+# detail. The refs are exactly those by which a screen recognises "this is about me": the list by
+# workspace and group, the task page by its own task, and a journal entry also by stage.
 CHANGE_ENTITIES = (
     ChangeEntity(
         "tasks.task",
@@ -72,8 +75,8 @@ CHANGE_ENTITIES = (
         id=Code("code", TASK_CODE_PREFIX),
         refs=(Code("workspace_code", WORKSPACE_CODE_PREFIX), Code("group_code", GROUP_CODE_PREFIX)),
     ),
-    # Ребро дерева: место задачи среди соседей и её родитель. Кода своего у ребра нет — оно
-    # названо задачей, чьё место описывает.
+    # A tree edge: the task's place among its siblings and its parent. The edge has no code of its
+    # own — it is named by the task whose place it describes.
     ChangeEntity(
         "tasks.link",
         models.TasksLink,
@@ -93,10 +96,18 @@ CHANGE_ENTITIES = (
         refs=(Code("task_code", TASK_CODE_PREFIX),),
     ),
     ChangeEntity(
+        "tasks.journal",
+        models.TasksJournal,
+        id=Code("code", JOURNAL_CODE_PREFIX),
+        refs=(Code("task_code", TASK_CODE_PREFIX), Code("stage_code", STAGE_CODE_PREFIX)),
+    ),
+    # A task note's link: which task holds the document. Edits of the document itself come as
+    # ``notes.note`` from its own module; this says the task's list changed.
+    ChangeEntity(
         "tasks.note",
         models.TasksNote,
-        id=Code("code", NOTE_CODE_PREFIX),
-        refs=(Code("task_code", TASK_CODE_PREFIX), Code("stage_code", STAGE_CODE_PREFIX)),
+        id=Code("note_code", NOTE_CODE_PREFIX),
+        refs=(Code("task_code", TASK_CODE_PREFIX),),
     ),
 )
 
@@ -111,18 +122,18 @@ class TasksModule(Module):
     migrations_dir = _HERE / "migrations" / "versions"
     internal_router = router
     internal_router_prefix = "/workbench"
-    # Значение — ФУНКЦИЯ, а не собранный сервер: словарь объявляется при импорте модуля, и
-    # инстанс здесь затянул бы ``fastmcp`` в каждый процесс, включая воркер.
-    # ``mcp_token_resolver`` мы намеренно НЕ ставим — почему, см. докстринг ``mcp/__init__``.
+    # The value is a FUNCTION, not a built server: the dict is declared at module import, and an
+    # instance here would drag ``fastmcp`` into every process, the worker included.
+    # ``mcp_token_resolver`` is deliberately NOT set — the ``mcp/__init__`` docstring says why.
     mcp_servers = {"workbench": mcp_server}
 
     def configure(self, app: FastAPI, config: Config) -> None:
-        """Объявить пространству, что мы в нём держим, — и чем это считать; ленте изменений — что
-        из этого видно фронту (``CHANGE_ENTITIES``).
+        """Tell the workspace what we keep in it — and how to count it; tell the change feed what
+        of it the frontend sees (``CHANGE_ENTITIES``).
 
-        Группы идут раньше задач (``sort``): в карточке сначала читается раскладка, потом её
-        наполнение. Ключи подписей наши — переименование «группы» правится там же, где живёт
-        сущность, а не в модуле, который про неё ничего не знает.
+        Groups come before tasks (``sort``): on the card the layout reads first, then what fills
+        it. The label keys are ours — renaming "group" is edited where the entity lives, not in a
+        module that knows nothing about it.
         """
         register_counter(
             WorkspaceCounter(

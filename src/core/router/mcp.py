@@ -1,18 +1,18 @@
-"""Зона ``mcp`` — модули как MCP-серверы под ``/mcp/<code>``.
+"""The ``mcp`` zone — modules as MCP servers under ``/mcp/<code>``.
 
-Не APIRouter-зона: каждый MCP-сервер — отдельное ASGI-подприложение (форк
-``fastmcp``, Streamable HTTP), смонтированное на ``app.mount``. Граница монтажа
-обходит FastAPI ``dependencies=[...]``, поэтому auth живёт ВНУТРИ сервера
-(``McpServerTokenVerifier``), а не зон-guard'ом.
+Not an APIRouter zone: each MCP server is a separate ASGI sub-app (the ``fastmcp``
+fork, Streamable HTTP) mounted via ``app.mount``. The mount boundary bypasses
+FastAPI ``dependencies=[...]``, so auth lives INSIDE the server
+(``McpServerTokenVerifier``) rather than in a zone guard.
 
-``mount_mcp_servers`` — зон-клей: собирает один ``McpServerContext`` (общий
-verifier + audit + allowed_hosts), монтирует ``(code, mcp_server)`` всех модулей
-и возвращает их lifespan-ы наверх в ``create_app`` (там они композируются —
-без этого session manager форка не инициализируется → 500).
+``mount_mcp_servers`` is the zone glue: it builds one ``McpServerContext`` (shared
+verifier + audit + allowed_hosts), mounts every module's ``(code, mcp_server)``
+and returns their lifespans up to ``create_app`` (they are composed there —
+without that the fork's session manager is never initialised → 500).
 
-Импорт ``src.core.mcp`` (→ ``fastmcp``, +13 МБ) держим ВНУТРИ функции: модуль
-тянет ``app_factory`` → ``mounting`` в любом процессе, а сам монтаж зовётся лишь
-под ``server_enabled`` — так форк не попадает в воркер.
+The ``src.core.mcp`` import (→ ``fastmcp``, +13 MB) is kept INSIDE the function: this module
+is pulled in by ``app_factory`` → ``mounting`` in every process, while the mount itself runs only
+under ``server_enabled`` — that way the fork never lands in the worker.
 """
 
 from __future__ import annotations
@@ -30,26 +30,26 @@ if TYPE_CHECKING:
 
 _LOG = get_logger()
 
-# Префикс монтажа зоны: ``/mcp/<code>`` на сервер.
+# The zone's mount prefix: ``/mcp/<code>`` per server.
 MCP_PREFIX = "/mcp"
 
 
 def _collect_resolver(modules: Sequence[Module]) -> "TokenResolver":
-    """Единственный ``mcp_token_resolver`` с модулей (как ``build_guard_registry``).
+    """The single ``mcp_token_resolver`` across the modules (like ``build_guard_registry``).
 
-    Его поставляет auth-модуль; несколько поставщиков → ошибка конфигурации.
-    Вызывается только когда есть хотя бы один MCP-сервер (иначе зона пуста).
+    The auth module supplies it; several suppliers → a configuration error.
+    Called only when there is at least one MCP server (otherwise the zone is empty).
     """
     resolvers = [m.mcp_token_resolver for m in modules if m.mcp_token_resolver is not None]
     if not resolvers:
         raise RuntimeError(
-            "mount_mcp_servers: ни один модуль не поставил mcp_token_resolver "
-            "(ожидался auth-модуль) — MCP-серверы остались бы без auth"
+            "mount_mcp_servers: no module supplied an mcp_token_resolver "
+            "(an auth module was expected) — the MCP servers would be left without auth"
         )
     if len(resolvers) > 1:
         raise RuntimeError(
-            f"mount_mcp_servers: несколько mcp_token_resolver ({len(resolvers)}) — "
-            "ожидался ровно один (auth-модуль)"
+            f"mount_mcp_servers: several mcp_token_resolver ({len(resolvers)}) — "
+            "exactly one was expected (the auth module)"
         )
     return resolvers[0]
 
@@ -57,13 +57,13 @@ def _collect_resolver(modules: Sequence[Module]) -> "TokenResolver":
 def mount_mcp_servers(
     app, modules: Sequence[Module], config: Config
 ) -> list[AbstractAsyncContextManager[None]]:
-    """Смонтировать MCP-серверы всех модулей под ``/mcp/<code>``.
+    """Mount every module's MCP servers under ``/mcp/<code>``.
 
-    Возвращает lifespan-CM каждого подприложения — ``create_app`` входит в них
-    через ``AsyncExitStack`` (инициализация session-manager форка). Дубль ``code``
-    между модулями → ``RuntimeError`` (громкий отказ, не тихий перезатёр).
+    Returns each sub-app's lifespan CM — ``create_app`` enters them
+    via ``AsyncExitStack`` (initialising the fork's session manager). A duplicate ``code``
+    across modules → ``RuntimeError`` (a loud refusal, not a silent overwrite).
     """
-    # Импорт fastmcp-кода — здесь, не на верхнем уровне (backend-only граница).
+    # The fastmcp code is imported here, not at the top level (the backend-only boundary).
     from starlette.middleware import Middleware as ASGIMiddleware
     from starlette.middleware.trustedhost import TrustedHostMiddleware
 
@@ -79,14 +79,14 @@ def mount_mcp_servers(
         for code, builder in m.mcp_servers.items()
     ]
     if not pairs:
-        return []  # ни один модуль не объявил MCP-сервер — зона пуста
+        return []  # no module declared an MCP server — the zone is empty
 
     ctx = McpServerContext(
         auth=McpServerTokenVerifier(_collect_resolver(modules)),
         audit=McpServerAuditMiddleware(),
         allowed_hosts=config.mcp_allowed_hosts_list,
     )
-    # DNS-rebinding защита на ASGI-слое (форк не имеет TransportSecuritySettings).
+    # DNS-rebinding protection at the ASGI layer (the fork has no TransportSecuritySettings).
     asgi_mw = (
         [ASGIMiddleware(TrustedHostMiddleware, allowed_hosts=ctx.allowed_hosts)]
         if ctx.allowed_hosts
@@ -99,10 +99,10 @@ def mount_mcp_servers(
         if code in built:
             raise RuntimeError(f"mount_mcp_servers: duplicate mcp server code: {code!r}")
         mcp = builder(ctx)
-        # path="/" — иначе сабап слушает свой дефолт streamable_http_path="/mcp", и
-        # под mount /mcp/<code> реальный эндпоинт уезжает в /mcp/<code>/mcp (307→404).
-        # С "/" эндпоинт встаёт ровно на /mcp/<code> (точнее /mcp/<code>/ — Starlette
-        # редиректит корень mount на trailing slash; MCP-клиент 307 отрабатывает).
+        # path="/" — otherwise the sub-app listens on its default streamable_http_path="/mcp", and
+        # under the /mcp/<code> mount the real endpoint drifts to /mcp/<code>/mcp (307→404).
+        # With "/" the endpoint lands exactly on /mcp/<code> (strictly /mcp/<code>/ — Starlette
+        # redirects the mount root to a trailing slash; the MCP client follows the 307).
         sub = mcp.http_app(
             path="/",
             transport="streamable-http",
@@ -114,8 +114,8 @@ def mount_mcp_servers(
         lifespans.append(sub.lifespan(sub))
         _LOG.info("mount_mcp_servers: mounted MCP server %r at %s/%s", code, MCP_PREFIX, code)
 
-    # Живые FastMCP-инстансы на app.state — для интроспекции (info-страница, если
-    # её добавит модуль, читает их без повторной сборки и без импорта fastmcp).
+    # Live FastMCP instances on app.state — for introspection (an info page, if a
+    # module adds one, reads them without rebuilding and without importing fastmcp).
     app.state.mcp_servers = built
     return lifespans
 

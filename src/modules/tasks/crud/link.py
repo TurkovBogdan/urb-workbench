@@ -1,11 +1,12 @@
-"""CRUD ``TasksLink`` — рёбра дерева задач. Каждая функция владеет своей сессией.
+"""CRUD for ``TasksLink`` — the edges of the task tree. Each function owns its session.
 
-Строку связи создаёт ``task_create`` (вместе с задачей), удаляет её каскад FK — поэтому здесь
-нет ни ``link_create``, ни ``link_delete``: ребро не живёт отдельно от задачи. Остаются операции
-над формой дерева — перенос ветки и её расстановка среди соседей.
+A link row is created by ``task_create`` (together with the task) and deleted by the FK cascade —
+which is why there is neither ``link_create`` nor ``link_delete`` here: an edge does not live apart
+from its task. What remains are operations on the shape of the tree — moving a branch and placing
+it among its siblings.
 
-Логического удаления у ребра нет: «удалена» бывает задача, а её ребро просто едет следом
-(``include_deleted`` тут поэтому не параметр — фильтровать нечего).
+An edge has no soft delete: it is the task that gets "deleted", and its edge simply follows along
+(which is why ``include_deleted`` is not a parameter here — there is nothing to filter).
 """
 
 from __future__ import annotations
@@ -20,32 +21,33 @@ from src.modules.tasks.models.task import TasksTask
 
 
 async def _workspace_of(s, task_code: str) -> str | None:
-    """Пространство задачи (``None`` — задачи нет)."""
+    """The task's workspace (``None`` — no such task)."""
     stmt = select(TasksTask.workspace_code).where(TasksTask.code == task_code)
     return (await s.execute(stmt)).scalar_one_or_none()
 
 
 async def _group_of(s, task_code: str) -> str | None:
-    """Группа задачи; ``None`` — задача не разложена (или её нет — зовут после проверки)."""
+    """The task's group; ``None`` — the task is ungrouped (or missing — call it after the check)."""
     stmt = select(TasksTask.group_code).where(TasksTask.code == task_code)
     return (await s.execute(stmt)).scalar_one_or_none()
 
 
 def _siblings(stmt, parent_code: str | None, workspace_code: str, group_code: str | None):
-    """Сузить запрос до РЯДА СОСЕДЕЙ — единственное место, где это правило записано.
+    """Narrow a query to the SIBLING ROW — the only place this rule is written down.
 
-    У подзадачи соседи — дети того же родителя, и группа тут ни при чём: место в дереве задаёт
-    родитель, а собственная группа подзадачи на него не влияет (в секциях списка показываются
-    только корни).
+    A subtask's siblings are the children of the same parent, and the group plays no part: the
+    parent sets the place in the tree, and the subtask's own group does not affect it (list
+    sections show only roots).
 
-    У КОРНЯ родителя нет, и рядом ему служит группа: на экране задачи разложены карточками по
-    группам, человек переставляет строку внутри своей карточки — и ряд обязан совпадать с тем,
-    что он двигает. Пока ряд был общим на пространство, бросок на верх карточки означал «в начало
-    всего пространства»: внутри группы выглядело верно, а в базе задача перепрыгивала через
-    соседние группы. «Без группы» — такой же ряд (``group_code IS NULL``), а не отсутствие ряда.
+    A ROOT has no parent, so its group serves as its row: on screen tasks are laid out in cards by
+    group, the person reorders a row inside their card — and the row must match what they are
+    moving. While the row was shared across the workspace, a drop at the top of a card meant "to
+    the start of the whole workspace": it looked right inside the group, but in the database the
+    task leapt over neighbouring groups. "Ungrouped" is a row like any other
+    (``group_code IS NULL``), not the absence of one.
 
-    Пространство в условии остаётся и при группе: у неразложенных задач общего кода группы нет, и
-    без него в ряд попали бы чужие.
+    The workspace stays in the condition even with a group: ungrouped tasks share no group code,
+    and without it other workspaces' tasks would join the row.
     """
     stmt = stmt.where(TasksTask.workspace_code == workspace_code)
     if parent_code is not None:
@@ -64,10 +66,10 @@ async def _next_sort(
     *,
     moved_code: str,
 ) -> int:
-    """Позиция в конце ряда соседей: ``max(sort) + SORT_STEP``, а на пустом месте — ``SORT_DEFAULT``.
+    """End of the sibling row: ``max(sort) + SORT_STEP``; in an empty row — ``SORT_DEFAULT``.
 
-    Сама переезжающая задача из ряда исключена — иначе перестановка внутри того же списка всё
-    время двигала бы её относительно собственной прежней позиции.
+    The moving task itself is excluded from the row — otherwise a reorder within the same list
+    would keep shifting it relative to its own former position.
     """
     stmt = _siblings(
         select(func.max(TasksLink.sort))
@@ -89,19 +91,19 @@ async def bottom_sort(
     *,
     moved_code: str | None = None,
 ) -> int:
-    """Позиция под всем рядом: ``min(sort) - SORT_STEP``, а на пустом месте — ``SORT_DEFAULT``.
+    """A position below the whole row: ``min(sort) - SORT_STEP``; in an empty row — ``SORT_DEFAULT``.
 
-    Сюда встаёт СВЕЖАЯ задача (``task_create``) и та, что сменила группу: в новом ряду у неё нет
-    заслуженного места, и приписывать ей чужое по старому числу — значит ставить её в середину
-    наугад. Значение считается, а не берётся постоянным: ряд, однажды переставленный мышью,
-    перенумерован с шагом ``SORT_STEP`` от своей длины, и задача с постоянным ``SORT_DEFAULT``
-    вклинилась бы в его середину — тем выше, чем короче ряд.
+    This is where a FRESH task lands (``task_create``), and one that changed group: in the new row
+    it has no earned place, and assigning it someone else's by its old number would drop it into
+    the middle at random. The value is computed, not a constant: a row once reordered with the
+    mouse is renumbered in ``SORT_STEP`` steps from its length, and a task with a constant
+    ``SORT_DEFAULT`` would wedge into its middle — the higher, the shorter the row.
 
-    Вниз, а не наверх: расстановка наверху — работа рук, и свежая строка не должна прыгать через
-    неё только потому, что она свежая.
+    Bottom, not top: the arrangement at the top is handwork, and a fresh row must not jump over it
+    just because it is fresh.
 
-    ``moved_code`` исключает из ряда саму переезжающую задачу — её прежнее число к новому ряду
-    отношения не имеет, а попав в ``min``, оно утянуло бы расчёт за собой.
+    ``moved_code`` excludes the moving task itself from the row — its former number has nothing to
+    do with the new row, and once inside ``min`` it would drag the result along with it.
     """
     stmt = _siblings(
         select(func.min(TasksLink.sort)).join(
@@ -118,13 +120,13 @@ async def bottom_sort(
 
 
 async def link_get(task_code: str) -> TasksLink | None:
-    """Ребро задачи — её место в дереве (родитель, группа, позиция)."""
+    """The task's edge — its place in the tree (parent, group, position)."""
     async with session_scope() as s:
         return await s.get(TasksLink, task_code)
 
 
 async def link_list_by_parent(parent_code: str | None) -> list[TasksLink]:
-    """Рёбра детей узла по порядку; ``parent_code=None`` — корни (всех пространств)."""
+    """Edges of a node's children, in order; ``parent_code=None`` — the roots (of all workspaces)."""
     stmt = select(TasksLink).order_by(TasksLink.sort.desc(), TasksLink.task_code.asc())
     if parent_code is None:
         stmt = stmt.where(TasksLink.parent_code.is_(None))
@@ -135,11 +137,11 @@ async def link_list_by_parent(parent_code: str | None) -> list[TasksLink]:
 
 
 async def link_map_by_task_codes(task_codes: list[str]) -> dict[str, TasksLink]:
-    """``task_code → его ребро`` одним запросом на весь список.
+    """``task_code → its edge`` in one query for the whole list.
 
-    Место в дереве лежит в отдельной таблице, но читателю (строке списка) оно нужно в той же
-    строке, что и поля задачи: без этой карты каждая карточка тянула бы своё ребро отдельным
-    запросом — ровно тот N+1, от которого счётчики пространств уже уходят группировкой.
+    The place in the tree lives in a separate table, but the reader (a list row) needs it on the
+    same row as the task's fields: without this map every card would fetch its edge in a separate
+    query — exactly the N+1 that the workspace counters already avoid by grouping.
     """
     if not task_codes:
         return {}
@@ -151,11 +153,11 @@ async def link_map_by_task_codes(task_codes: list[str]) -> dict[str, TasksLink]:
 async def link_child_count_by_parent_codes(
     parent_codes: list[str], *, include_deleted: bool = False
 ) -> dict[str, int]:
-    """``parent_code → сколько под ним детей`` одним ``GROUP BY``; узлов без детей в ответе нет.
+    """``parent_code → number of its children`` in one ``GROUP BY``; childless nodes are absent.
 
-    Считает живых детей, поэтому таблица связей соединяется с задачами: у ребра отметки
-    удаления нет вовсе (она у задачи), и без join в «внутри есть ещё» попала бы ветка, целиком
-    лежащая в корзине.
+    Counts live children, which is why the link table is joined with tasks: an edge carries no
+    deletion mark at all (the task does), and without the join "there is more inside" would count
+    a branch lying entirely in the bin.
     """
     if not parent_codes:
         return {}
@@ -172,10 +174,10 @@ async def link_child_count_by_parent_codes(
 
 
 async def require_root_parent(s, parent_code: str) -> None:
-    """Отказ, если названный родитель сам подзадача: дерево здесь в один уровень.
+    """Refuse if the named parent is itself a subtask: the tree here is one level deep.
 
-    Второй уровень не запрещён схемой — ребро ссылается на любую задачу, — поэтому держит его
-    только этот слой, на каждом пути, который ставит родителя: заведение и перенос.
+    The schema does not forbid a second level — an edge may point at any task — so only this
+    layer holds the line, on every path that sets a parent: creation and move.
     """
     parent_link = await s.get(TasksLink, parent_code)
     if parent_link is not None and parent_link.parent_code is not None:
@@ -187,10 +189,10 @@ async def require_root_parent(s, parent_code: str) -> None:
 
 
 async def require_parent_group_alive(s, parent_code: str, group_code: str | None) -> None:
-    """Отказ, если группа родителя удалена: подзадача получила бы её и пропала из списка.
+    """Refuse if the parent's group is deleted: the subtask would inherit it and leave the list.
 
-    Экран раскладывает задачи по живым группам, и подзадача с кодом удалённой группы не видна
-    нигде, хотя живёт и считается.
+    The screen lays tasks out by live groups, and a subtask carrying a deleted group's code shows
+    up nowhere, even though it is alive and counted.
     """
     if group_code is None:
         return
@@ -204,11 +206,11 @@ async def require_parent_group_alive(s, parent_code: str, group_code: str | None
 
 
 def require_open_parent(parent_code: str, parent_status: str, child_status: str) -> None:
-    """Отказ, если под закрытую задачу кладут незакрытую.
+    """Refuse if an open task is being put under a closed one.
 
-    Принятая или отменённая работа новых частей не получает: открытая подзадача под ней — это
-    работа, которую никто не увидит в очереди. Закрытую же можно: разложить по эпику то, что уже
-    сделано, — это приборка истории, а не новая работа.
+    Accepted or canceled work gets no new parts: an open subtask under it is work nobody will see
+    in the queue. A closed one is fine, though: filing already-done work under an epic is tidying
+    up history, not new work.
     """
     if parent_status in TASK_STATUSES_TERMINAL and child_status not in TASK_STATUSES_TERMINAL:
         raise ValueError(
@@ -219,7 +221,7 @@ def require_open_parent(parent_code: str, parent_status: str, child_status: str)
 
 
 async def _require_parent_for(s, task: TasksTask, parent_code: str) -> TasksTask:
-    """Родитель, под которого задачу можно положить, или отказ, называющий причину."""
+    """A parent the task may be put under, or a refusal naming the reason."""
     if parent_code == task.code:
         raise ValueError(f"Task {task.code!r} cannot be its own parent.")
     parent = await s.get(TasksTask, parent_code)
@@ -233,8 +235,8 @@ async def _require_parent_for(s, task: TasksTask, parent_code: str) -> TasksTask
     require_open_parent(parent_code, parent.status, task.status)
     await require_parent_group_alive(s, parent_code, parent.group_code)
     await require_root_parent(s, parent_code)
-    # Подзадачи из корзины тоже считаются: восстановление вернёт их на прежнее место в дереве, и
-    # под перенесённой задачей они стали бы вторым уровнем, которого никто не собирал.
+    # Subtasks in the bin count too: a restore puts them back in their old place in the tree, and
+    # under the moved task they would become a second level nobody built.
     children_query = (
         select(TasksLink.task_code, TasksTask.deleted_at.is_not(None))
         .join(TasksTask, TasksTask.code == TasksLink.task_code)
@@ -261,15 +263,16 @@ async def _require_parent_for(s, task: TasksTask, parent_code: str) -> TasksTask
 async def link_move_in(
     s, task: TasksTask, parent_code: str | None, *, sort: int | None = None
 ) -> TasksLink:
-    """Перенести задачу внутри чужой транзакции: ``parent_code`` — под него, ``""``/``None`` — в
-    корень. ``sort=None`` — под всем новым рядом, как встаёт переложенная в другую группу.
+    """Move a task inside the caller's transaction: ``parent_code`` — under it, ``""``/``None`` — to
+    the root. ``sort=None`` — below the whole new row, the way a task refiled to another group lands.
 
-    Своей сессии нет намеренно: ``task_update`` переносит задачу и правит её карточку одним
-    вызовом, и отказ переноса обязан откатить правку вместе с ним — иначе агент прочтёт ошибку
-    как «ничего не произошло», хотя заголовок уже переписан.
+    It has no session of its own on purpose: ``task_update`` moves a task and edits its card in a
+    single call, and a refused move must roll the edit back with it — otherwise the agent would
+    read the error as "nothing happened" while the title has already been rewritten.
 
-    Подзадача получает группу родителя: группа говорит, о чём работа, а часть работы — о том
-    же, о чём целое. Вынесенная в корень свою группу сохраняет — это группа бывшего родителя.
+    A subtask takes its parent's group: the group says what the work is about, and a part of the
+    work is about the same thing as the whole. A task moved out to the root keeps its group — the
+    group of its former parent.
     """
     link = await s.get(TasksLink, task.code)
     parent = await _require_parent_for(s, task, parent_code) if parent_code else None
@@ -293,14 +296,14 @@ async def link_move(
     parent_code: str | None = None,
     sort: int | None = None,
 ) -> TasksLink | None:
-    """Перенести задачу под другого родителя (``None`` — сделать корнем). ``None`` — задачи нет.
+    """Move a task under another parent (``None`` — make it a root). Returns ``None`` — no such task.
 
-    Правила переноса — в ``link_move_in``. Здесь только позиция по умолчанию: наверх нового
-    ряда, ``max(sort) + SORT_STEP``.
+    The move rules live in ``link_move_in``. Only the default position is set here: the top of the
+    new row, ``max(sort) + SORT_STEP``.
 
-    Позицию можно назначить явно — тогда перенос и расстановка делаются одним движением, а не
-    переносом с последующей правкой: между ними задача успела бы показаться в конце чужого ряда,
-    и человек увидел бы промежуточное состояние, которого не просил.
+    The position can be given explicitly — then move and placement happen in one motion rather
+    than a move followed by an edit: in between, the task would briefly show up at the end of
+    someone else's row, and the person would see an intermediate state they never asked for.
     """
     async with write_scope() as s:
         task = await s.get(TasksTask, task_code)
@@ -324,24 +327,23 @@ async def link_move(
 
 
 async def link_reorder(task_code: str, *, after_code: str | None) -> list[TasksLink] | None:
-    """Поставить задачу следом за ``after_code`` среди её соседей и перенумеровать весь ряд.
+    """Place a task right after ``after_code`` among its siblings and renumber the whole row.
 
-    ``after_code=None`` — в начало ряда (перетащили выше первой строки). ``None`` в ответе —
-    задачи нет; ``ValueError`` — названный сосед из другого ряда, то есть цель перетаскивания
-    выбрана неверно.
+    ``after_code=None`` — to the start of the row (dragged above the first row). ``None`` in the
+    result — no such task; ``ValueError`` — the named sibling is from another row, i.e. the drag
+    target was chosen wrong.
 
-    **Почему пересчитываются все соседи, а не только переехавшая строка.** Ряд задаёт порядок
-    целиком, и держать его на «где-то посередине между соседями» значит рано или поздно упереться
-    в место, где середины больше нет: ``sort`` целый, и после десятка перестановок между двумя
-    соседними числами вставить нечего. Пересчёт ряда с шагом ``SORT_STEP`` держит промежутки
-    ровными всегда, а стоит он одного ``UPDATE`` на строку ряда — рядов длиной в тысячи у одного
-    родителя не бывает.
+    **Why all siblings are renumbered, not just the moved row.** The row defines the order as a
+    whole, and keeping it on "somewhere midway between neighbours" means sooner or later hitting a
+    spot with no midpoint left: ``sort`` is an integer, and after a dozen reorders there is nothing
+    to insert between two adjacent numbers. Renumbering the row in ``SORT_STEP`` steps keeps the
+    gaps even at all times, and costs one ``UPDATE`` per row — no parent has rows thousands long.
 
-    Кто соседи — ``_siblings``: у подзадачи это дети её родителя, у корня — задачи его группы.
+    Who the siblings are is ``_siblings``: for a subtask, its parent's children; for a root, the
+    tasks of its group.
 
-    Порядок ряда до перестановки берётся тот же, в котором его видит список (``sort`` по
-    убыванию, дальше по коду): переставляя строку, человек двигает её относительно ТОГО ряда,
-    который у него на экране.
+    The pre-reorder order is the same one the list shows (``sort`` descending, then by code): when
+    moving a row, the person moves it relative to THE row on their screen.
     """
     async with write_scope() as s:
         order = await link_reorder_in(s, task_code, after_code=after_code)
@@ -356,11 +358,12 @@ async def link_reorder(task_code: str, *, after_code: str | None) -> list[TasksL
 async def link_reorder_in(
     s, task_code: str, *, after_code: str | None
 ) -> list[TasksLink] | None:
-    """``link_reorder`` внутри чужой транзакции — для перетаскивания, которое заодно переносит.
+    """``link_reorder`` inside the caller's transaction — for a drag that also moves the task.
 
-    Ряд читается из той же сессии и обязан видеть уже сделанный в ней перенос: соседи — это ряд,
-    куда строку бросили, а не тот, откуда её взяли. Сессии фабрики не сбрасывают правки сами
-    (``autoflush=False``), поэтому перенос сбрасывается в базу явно, до чтения ряда.
+    The row is read from the same session and must see the move already made in it: the siblings
+    are the row the task was dropped into, not the one it was taken from. The factory's sessions
+    do not flush on their own (``autoflush=False``), so the move is flushed explicitly before the
+    row is read.
     """
     await s.flush()
     link = await s.get(TasksLink, task_code)
@@ -393,9 +396,8 @@ async def link_reorder_in(
     )
     order.insert(at, link)
 
-    # Нумеруем сверху вниз: первая строка получает наибольший ``sort``. Нижняя граница —
-    # ``SORT_STEP``, чтобы ряд не упирался в ноль и место под будущую строку в самом низу
-    # оставалось всегда.
+    # Number top to bottom: the first row gets the largest ``sort``. The floor is ``SORT_STEP``,
+    # so the row never hits zero and there is always room for a future row at the very bottom.
     top = len(order) * SORT_STEP
     for index, item in enumerate(order):
         item.sort = top - index * SORT_STEP

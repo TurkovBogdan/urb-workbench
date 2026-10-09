@@ -1,14 +1,14 @@
 <script setup lang="ts">
-// Выбор иконки и цвета одной панелью: рисунок и тон — не два независимых поля, а одна плашка,
-// и оценивают её целиком. Поэтому вверху предпросмотр — та самая плашка, что окажется на
-// карточке, — рядом с ним палитра, а под линейкой набор иконок с поиском.
+// Icon and color choice in one panel: the glyph and the tone aren't two independent fields but one
+// badge, judged as a whole. So at the top is a preview — the very badge that will end up on the
+// card — with the palette beside it, and below the rule the icon set with search.
 //
-// Собран из двух примитивов в режиме `bare`: лоток здесь один, общий на оба выбора; каждый со
-// своим лотком читался бы как два окна, поставленных рядом.
+// Built from two primitives in `bare` mode: there is one tray here, shared by both choices; each
+// with its own tray would read as two windows placed side by side.
 //
-// Цвет доходит до иконок сам: роли `--gc-ink` / `--gc-fill` объявлены на корне (`.color-tones`)
-// и наследуются, поэтому выбранная плитка иконки красится выбранным цветом — связь между двумя
-// половинами панели видна без единого пропа между ними.
+// The color reaches the icons by itself: the `--gc-ink` / `--gc-fill` roles are declared on the
+// root (`.color-tones`) and inherited, so the selected icon tile takes the selected color — the link
+// between the two halves of the panel shows without a single prop between them.
 import { computed } from 'vue'
 
 import ColorPicker from '@/components/ColorPicker.vue'
@@ -20,17 +20,17 @@ const icon = defineModel<string | null>('icon', { default: null })
 const color = defineModel<string | null>('color', { default: null })
 
 const props = withDefaults(defineProps<{
-  /** Полный набор кодов иконок в порядке показа. */
+  /** The full set of icon codes in display order. */
   icons: string[]
-  /** Полный набор имён цветов в порядке показа. */
+  /** The full set of color names in display order. */
   colors: string[]
-  /** Код → компонент иконки; `null` — иконка не выбрана (резолвер отдаёт запасную). */
+  /** Code → icon component; `null` — no icon selected (the resolver returns a fallback). */
   resolveIcon: (name: string | null) => TablerIcon
-  /** Имя → ступени цвета переменными; `null` — цвет не выбран (резолвер отдаёт запасной тон). */
+  /** Name → color steps as variables; `null` — no color selected (the resolver returns a fallback tone). */
   resolveColor: (name: string | null) => ColorToneVars
-  /** Высота области иконок; за ней она прокручивается. */
+  /** Height of the icon area; beyond it the area scrolls. */
   height?: number | string
-  /** Разрешить «без цвета» — плитка сброса в палитре. */
+  /** Allow "no color" — a reset tile in the palette. */
   clearable?: boolean
 }>(), {
   height: 200,
@@ -69,7 +69,7 @@ const tones = computed(() => props.resolveColor(color.value))
 </template>
 
 <style scoped>
-/* Лоток тот же, что у одиночных пикеров, — панель утоплена, содержимое лежит на ней. */
+/* The same tray as the single pickers' — a sunken panel, with the content lying on it. */
 .icon-color-picker {
   display: flex;
   flex-direction: column;
@@ -79,7 +79,7 @@ const tones = computed(() => props.resolveColor(color.value))
   overflow: hidden;
 }
 
-/* Предпросмотр и палитра в одной полосе: цвет выбирают, глядя на плашку, а не на плитку. */
+/* Preview and palette in one band: a color is chosen by looking at the badge, not at the tile. */
 .icon-color-picker__head {
   display: flex;
   align-items: center;
@@ -87,7 +87,7 @@ const tones = computed(() => props.resolveColor(color.value))
   padding: 10px;
 }
 
-/* Та же плашка, что на карточке: результат обоих выборов, а не образец цвета. */
+/* The same badge as on the card: the result of both choices, not a color sample. */
 .icon-color-picker__preview {
   flex: none;
   display: inline-flex;
@@ -100,14 +100,14 @@ const tones = computed(() => props.resolveColor(color.value))
   background: var(--gc-fill);
 }
 
-/* Палитра занимает остаток полосы: плитки тянутся, и десять помещаются в один ряд. */
+/* The palette takes the rest of the band: the tiles stretch, and ten fit in one row. */
 .icon-color-picker__head :deep(.color-picker) {
   flex: 1;
   min-width: 0;
 }
 
-/* Линейка во всю ширину лотка — та же роль, что у линии под шапкой окна: отделяет полосу
-   выбора цвета от набора иконок. Отступы живут в полосах, а не на панели. */
+/* A rule across the full tray width — the same role as the rule under a window header: it separates
+   the color band from the icon set. The paddings live in the bands, not on the panel. */
 .icon-color-picker__rule {
   height: 1px;
   background: var(--border);

@@ -1,14 +1,14 @@
-"""MCP-поверхность модуля ``workspace`` — инструменты и механика активного пространства.
+"""The MCP surface of the ``workspace`` module — tools and the active-workspace mechanics.
 
-Своего MCP-сервера модуль не объявляет: сервер один на весь стенд (``workbench``), и собирает
-его модуль уровнем выше — ``tasks``, который на ``workspace`` и так опирается. Отсюда правило
-пакета: здесь лежат ТУЛЫ и состояние сессии, а сборка и инструкции сервера — не здесь.
-Зависимость так и остаётся однонаправленной: ``tasks`` знает про пространство, пространство про
-задачи — нет.
+The module declares no MCP server of its own: there is one server for the whole installation
+(``workbench``), and it is assembled by the module a level above — ``tasks``, which relies on
+``workspace`` anyway. Hence the package rule: the TOOLS and the session state live here, while
+the server's assembly and instructions do not. The dependency thus stays one-way: ``tasks`` knows
+about the workspace, the workspace does not know about tasks.
 
-``fastmcp`` на верхнем уровне не импортируется ни одним файлом пакета (``FastMCP`` — только под
-``TYPE_CHECKING``, ``get_http_headers`` — в теле функции): пакет обязан оставаться безопасным для
-воркера, как и всё остальное вне ``src/core/mcp``.
+No file in the package imports ``fastmcp`` at the top level (``FastMCP`` only under
+``TYPE_CHECKING``, ``get_http_headers`` inside a function body): the package must stay safe for
+the worker, like everything else outside ``src/core/mcp``.
 """
 
 from __future__ import annotations

@@ -1,18 +1,18 @@
 <script setup lang="ts">
 /**
- * VSelect с кнопками «предыдущий» / «следующий» по бокам.
+ * A VSelect with "previous" / "next" buttons on either side.
  *
- * Нужен там, где варианты стоят в осмысленном порядке (кегль, вес, высота, шаг страниц) и
- * соседний перебирают подряд, сравнивая результат: открывать список ради шага на один пункт —
- * три движения вместо одного. Список при этом остаётся: прыжок к далёкому варианту кнопками
- * был бы долгим.
+ * For where the options stand in a meaningful order (size, weight, height, page step) and
+ * neighbours are tried one after another while comparing the result: opening the list for a
+ * one-item step is three moves instead of one. The list still stays: jumping to a distant option
+ * with the buttons would take long.
  *
- * Края не заворачиваются: за последним пунктом идёт не первый, а погашенная кнопка — иначе
- * человек, жмущий на шаг, проскакивает границу набора и не замечает этого. Когда не выбрано
- * ничего, шаг вперёд берёт первый пункт, назад — последний.
+ * The ends don't wrap: after the last item comes not the first but a disabled button — otherwise a
+ * person clicking the step overshoots the set boundary without noticing. When nothing is
+ * selected, stepping forward takes the first item, back — the last.
  *
- * Всё остальное — проходной VSelect: `$attrs` и слоты уезжают в него, поэтому замена
- * VSelect → VSelectStepper ничего больше не требует.
+ * Everything else is a pass-through VSelect: `$attrs` and slots go into it, so replacing
+ * VSelect → VSelectStepper requires nothing more.
  */
 import { computed, useAttrs, useSlots } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -22,9 +22,9 @@ const model = defineModel<unknown>()
 
 const props = withDefaults(defineProps<{
   items: unknown[]
-  /** Поле объекта, которое уезжает в модель (зеркало `item-value` у VSelect). */
+  /** The object field that goes into the model (mirrors VSelect's `item-value`). */
   itemValue?: string
-  /** Плотность задаётся здесь, а не атрибутом: её держат и поле, и обе кнопки. */
+  /** Density is set here rather than as an attribute: the field and both buttons all hold it. */
   density?: 'default' | 'comfortable' | 'compact'
   prevLabel?: string
   nextLabel?: string
@@ -67,14 +67,14 @@ const iconSize = computed(() => (props.density === 'default' ? 18 : 16))
 const slots = useSlots()
 const forwardedSlots = computed(() => Object.keys(slots))
 
-// Оформление места применения принадлежит тройке целиком (ширина, отступы), а остальные
-// атрибуты — полю: без этого деления класс с шириной уехал бы на поле внутри и кнопки встали
-// бы за его границами.
+// The call site's styling belongs to the trio as a whole (width, margins), the remaining
+// attributes to the field: without this split a width class would land on the inner field and the
+// buttons would end up outside its bounds.
 const attrs = useAttrs()
 
-// Выключают поле атрибутом, и он уезжает в VSelect вместе с остальными — кнопкам не достаётся
-// ничего, а шаг по лестнице менял бы модель у выключенного поля. Пустая строка — это форма
-// записи без значения (`disabled`), и она значит «да».
+// The field is disabled via an attribute, which goes into VSelect with the rest — the buttons get
+// nothing, and stepping would change the model of a disabled field. An empty string is the
+// valueless form of the attribute (`disabled`), and it means "yes".
 const disabled = computed(() => attrs.disabled === '' || attrs.disabled === true)
 
 const groupClass = computed(() => attrs.class)
@@ -126,9 +126,9 @@ const selectAttrs = computed(() => {
 </template>
 
 <style scoped>
-/* Ширину тройке задаёт место применения — целиком, а не полю внутри: кнопки по краям занимают
-   свою коробку, поле забирает остаток. `min-width: 0` обязателен, иначе поле упирается в
-   собственную минимальную ширину и выталкивает кнопку за край. */
+/* The call site sets the width of the trio as a whole, not of the inner field: the side buttons take
+   their own box, the field takes the rest. `min-width: 0` is required, otherwise the field hits its
+   own minimum width and pushes a button past the edge. */
 .v-select {
   flex: 1 1 auto;
   min-width: 0;

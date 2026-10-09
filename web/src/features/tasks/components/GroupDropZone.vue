@@ -1,33 +1,33 @@
 <script setup lang="ts">
-// Шапка карточки группы как цель броска.
+// The group card header as a drop target.
 //
-// Нужна потому, что свёрнутая карточка — а пустые приходят свёрнутыми — не рисует ряд строк вовсе,
-// и бросить задачу было не во что, хотя пустая карточка стоит на экране именно как цель переноса.
-// Шапка есть у каждой карточки всегда, поэтому принимает бросок она.
+// Needed because a collapsed card — and empty ones arrive collapsed — renders no row of tasks at
+// all, so there was nothing to drop a task into, even though an empty card is on screen precisely
+// as a move target. Every card always has a header, so the header takes the drop.
 //
-// Своим sortable'ом, а не частью ряда строк: шапка ПРИНИМАЕТ, но не отдаёт (`pull: false`), и
-// порядка внутри неё нет (`sort: false`). Куда ставить задачу, решает не место броска, а
-// разметка: `data-drop="end"` и `data-after` — код последней задачи ряда группы, после которой
-// брошенная встанет. Разбирает бросок источник жеста (`drag.ts::anchorAfterDrop`), как и любой
-// другой.
+// Its own sortable rather than part of the task row: the header ACCEPTS but does not give
+// (`pull: false`), and has no order inside (`sort: false`). Where the task goes is decided not by
+// the drop point but by markup: `data-drop="end"` and `data-after` — the code of the last task in
+// the group's row, after which the dropped one lands. The drop is resolved by the gesture's source
+// (`drag.ts::anchorAfterDrop`), like any other.
 //
-// Библиотека на броске кладёт перетащенную строку ВНУТРЬ шапки, а потом сама вынимает её обратно
-// (`onAdd` приёмника и `onRemove` источника). Пока строка там, она спрятана стилем, а шапка
-// подсвечена — это и есть отклик «отпустишь — уйдёт сюда».
+// On drop the library puts the dragged row INSIDE the header and then takes it back out itself
+// (the receiver's `onAdd` and the source's `onRemove`). While the row is in there it is hidden by
+// style and the header is highlighted — that is the "let go and it goes here" feedback.
 import { ref } from 'vue'
 import { useDraggable } from 'vue-draggable-plus'
 
 const props = defineProps<{
-  /** Код группы; пустая строка — «Без группы». */
+  /** Group code; empty string — "No group". */
   group: string
-  /** Код последней задачи верхнего уровня этой группы; `null` — группа пуста. */
+  /** Code of the last top-level task of this group; `null` — the group is empty. */
   after: string | null
 }>()
 
 const zone = ref<HTMLElement | null>(null)
 
-// Массив для библиотеки: приёмнику она обязана его передать, чтобы на броске убрать строку из
-// своей разметки. Сам он никому не нужен — после каждого приёма обнуляется.
+// An array for the library: a receiver must be given one so that on drop the row can be removed
+// from its markup. Nobody needs the array itself — it is reset after every drop.
 const sink = ref<string[]>([])
 
 useDraggable(zone, sink, {
@@ -50,16 +50,17 @@ useDraggable(zone, sink, {
   </div>
 </template>
 
-<!-- Без `scoped`: оба правила говорят о строке ЧУЖОГО компонента (`.task-drag` из ряда задач), и
-     атрибут области видимости на ней не совпал бы — а `:has` через `:deep` не выражается. Имя
-     `group-drop` в приложении одно, поэтому утечки нет. -->
+<!-- Not `scoped`: both rules target a row of ANOTHER component (`.task-drag` from the task row),
+     and the scope attribute on it would not match — while `:has` cannot be expressed through
+     `:deep`. The name `group-drop` is unique in the app, so nothing leaks. -->
 <style>
-/* Строка, заехавшая в шапку на время жеста, не показывается и места не занимает: иначе шапка
-   выросла бы на её высоту прямо под курсором, и цель уехала бы из-под руки.
-   Прячется она именно так — вынута из потока и невидима, — а НЕ `display: none`: у скрытого так
-   элемента нулевой прямоугольник, SortableJS считает по нему, куда ставить строку в следующем
-   ряду, и получает ноль — строка застревала в первой же шапке, над которой прошёл курсор, и в
-   ряд ниже её было уже не опустить. */
+/* A row that slid into the header during the gesture is not shown and takes no space: otherwise
+   the header would grow by its height right under the cursor, and the target would move out from
+   under the hand.
+   It is hidden exactly this way — taken out of flow and invisible — and NOT with `display: none`:
+   an element hidden like that has a zero rectangle, SortableJS uses it to compute where to place
+   the row in the next row container and gets zero — the row got stuck in the first header the
+   cursor passed over and could no longer be dropped into a row below it. */
 .group-drop {
   position: relative;
 }
@@ -71,7 +72,7 @@ useDraggable(zone, sink, {
   pointer-events: none;
 }
 
-/* Вместо неё подсвечена сама шапка: цвет — из токенов темы, как у остальных состояний жеста. */
+/* Instead, the header itself is highlighted: color from theme tokens, like other gesture states. */
 .group-drop:has(> .task-drag) {
   background: var(--accent-soft);
   box-shadow: inset 0 0 0 1px var(--accent);

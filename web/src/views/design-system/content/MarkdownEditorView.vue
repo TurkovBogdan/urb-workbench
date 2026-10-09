@@ -1,8 +1,8 @@
 <script setup lang="ts">
-// Витрина редактора markdown. Помимо самой зоны правки страница показывает то, ради чего
-// прототип и собран: круговой проход. Источник → документ → markdown обратно, и рядом —
-// вердикт, совпало ли. Структурный редактор всегда нормализует текст; вопрос не в том,
-// нормализует ли он, а в том, видим ли мы это до того, как оно доедет до настоящего тела.
+// Markdown editor showcase. Besides the editing zone itself, the page shows what the prototype
+// was built for: the round trip. Source → document → markdown back, with a verdict beside it on
+// whether they match. A structural editor always normalizes text; the question isn't whether it
+// normalizes, but whether we see it before it reaches a real body.
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { IconCheck, IconAlertTriangle } from '@tabler/icons-vue'
@@ -10,10 +10,11 @@ import PageLayout from '@/layout/templates/PageLayout.vue'
 import PageHeader from '@/layout/components/PageHeader.vue'
 import MarkdownRenderer from '@/components/markdown/renderer/MarkdownRenderer.vue'
 import { MarkdownEditor, UNSUPPORTED, docToMarkdown, markdownToDoc } from '@/components/markdown/editor'
-// Настоящее тело заметки из стабильного ресёча, а не сочинённый пример: в нём таблицы, фенсы,
-// коды сущностей в бэктиках и длинные абзацы с мягкими переносами — то есть ровно тот материал,
-// на котором мост обязан работать. Подключено как файл, потому что бэктиков внутри 344 штуки и
-// в шаблонной строке их пришлось бы экранировать.
+import type { Feature } from '@/components/markdown/editor/modes'
+// A real note body from the stable research, not a made-up example: it has tables, fences,
+// entity codes in backticks and long paragraphs with soft wraps — exactly the material the bridge
+// must work on. Imported as a file because it contains 344 backticks, which would all need
+// escaping in a template string.
 import SAMPLE from './markdown-editor-sample.md?raw'
 
 const { t } = useI18n()
@@ -21,10 +22,10 @@ const { t } = useI18n()
 const source = ref(SAMPLE)
 const body = ref(SAMPLE)
 
-// Отдельный маленький документ под таблицу. В большом образце таблицы тоже есть — и именно они
-// гоняются круговым проходом ниже, — но сесть в ячейку и потрогать колонки посреди тела на две
-// сотни строк неудобно. Здесь всё на экране разом: выравнивание по трём колонкам, пустая
-// ячейка, `|` внутри кода и код сущности в ячейке.
+// A separate small document for the table. The big sample has tables too — and those are exactly
+// what the round trip below exercises — but stepping into a cell and poking at columns in the
+// middle of a two-hundred-line body is awkward. Here everything is on screen at once: alignment
+// across three columns, an empty cell, a `|` inside code and an entity code in a cell.
 const TABLE_SAMPLE = `| Construct | Editable | Printed back |
 | --- | :---: | ---: |
 | Heading | yes | single line |
@@ -35,15 +36,28 @@ const TABLE_SAMPLE = `| Construct | Editable | Printed back |
 
 const tableBody = ref(TABLE_SAMPLE)
 
-// Простой режим: то, чем правят короткое поле — название этапа, подпись, однострочную заметку.
-// Предел взят маленьким нарочно, чтобы до красного счётчика доходило за пару фраз.
+// A diagram block, and the same fence in a field that has code blocks but no diagrams: there it
+// stays the fence it was, shown as code.
+const DIAGRAM_SAMPLE = `Editor and renderer share the parser:
+
+\`\`\`mermaid
+flowchart LR
+  body[(Body)] --> parse[markdownToDoc] --> doc[Document] --> print[docToMarkdown] --> body
+\`\`\``
+
+const diagramBody = ref(DIAGRAM_SAMPLE)
+const codeOnlyBody = ref(DIAGRAM_SAMPLE)
+const CODE_ONLY: readonly Feature[] = ['codeBlock', 'bold', 'italic', 'code', 'slash']
+
+// Simple mode: what a short field is edited with — a stage title, a caption, a one-line note.
+// The limit is deliberately small so the counter turns red within a couple of phrases.
 const SIMPLE_SAMPLE = 'Short field: **bold** and *italic* are supported, nothing else is.'
 
 const simpleBody = ref(SIMPLE_SAMPLE)
 const SIMPLE_LIMIT = 120
 
-// Правка исходника перезаряжает редактор; правка в редакторе меняет только `body`. Вердикт
-// ниже считается от исходника и потому не зависит от того, что пользователь успел натыкать.
+// Editing the source reloads the editor; editing in the editor changes only `body`. The verdict
+// below is computed from the source and so doesn't depend on whatever the user has clicked in.
 watch(source, (value) => { body.value = value })
 
 const roundtrip = computed(() => docToMarkdown(markdownToDoc(source.value)))
@@ -54,10 +68,10 @@ const stable = computed(() => roundtrip.value === second.value)
 
 interface DiffRow { line: number; before: string; after: string }
 
-// Сравнение по наибольшей общей подпоследовательности, а не по номеру строки. Разница не
-// косметическая: одна склеенная строка сдвигает весь остаток документа, и позиционный диф
-// показал бы двадцать шесть расхождений там, где их два. Панель, которая преувеличивает
-// потери, бесполезна ровно так же, как и та, что их прячет.
+// Comparison by longest common subsequence, not by line number. The difference isn't cosmetic:
+// one merged line shifts the whole rest of the document, and a positional diff would show
+// twenty-six mismatches where there are two. A panel that exaggerates losses is exactly as
+// useless as one that hides them.
 function diffLines(a: string[], b: string[]): DiffRow[] {
   const n = a.length
   const m = b.length
@@ -106,14 +120,14 @@ const diff = computed(() => diffLines(source.value.trimEnd().split('\n'), roundt
         back-to="/design-system"
       />
 
-      <!-- Зона редактирования -->
+      <!-- Editing zone -->
       <section class="ds-section">
         <h6 class="mb-3">{{ t('design-system.section.markdown-editor.editor') }}</h6>
         <MarkdownEditor v-model="body" />
         <p class="ds-note mt-2">{{ t('design-system.section.markdown-editor.editorHint') }}</p>
       </section>
 
-      <!-- Простой режим: состав возможностей как контракт поля -->
+      <!-- Simple mode: the feature set as the field's contract -->
       <section class="ds-section">
         <h6 class="mb-3">{{ t('design-system.section.markdown-editor.simple') }}</h6>
         <MarkdownEditor
@@ -138,7 +152,7 @@ const diff = computed(() => diffLines(source.value.trimEnd().split('\n'), roundt
         </div>
       </section>
 
-      <!-- Таблица: единственный блок, который не ложится в одну строку markdown -->
+      <!-- Table: the only block that doesn't fit on one markdown line -->
       <section class="ds-section">
         <h6 class="mb-3">{{ t('design-system.section.markdown-editor.table') }}</h6>
         <MarkdownEditor v-model="tableBody" min-height="220px" />
@@ -158,7 +172,25 @@ const diff = computed(() => diffLines(source.value.trimEnd().split('\n'), roundt
         </div>
       </section>
 
-      <!-- Круговой проход -->
+      <!-- Diagram: a mermaid fence shown drawn, edited as source -->
+      <section class="ds-section">
+        <h6 class="mb-3">{{ t('design-system.section.markdown-editor.diagram') }}</h6>
+        <MarkdownEditor v-model="diagramBody" min-height="220px" />
+        <p class="ds-note mt-2">{{ t('design-system.section.markdown-editor.diagramHint') }}</p>
+
+        <div class="pane-grid mt-4">
+          <div class="pane">
+            <span class="ds-tag mb-2">{{ t('design-system.section.markdown-editor.emitted') }}</span>
+            <pre class="code-box code-box--short">{{ diagramBody }}</pre>
+          </div>
+          <div class="pane">
+            <span class="ds-tag mb-2">{{ t('design-system.section.markdown-editor.noDiagram') }}</span>
+            <MarkdownEditor v-model="codeOnlyBody" :features="CODE_ONLY" min-height="120px" />
+          </div>
+        </div>
+      </section>
+
+      <!-- Round trip -->
       <section class="ds-section">
         <h6 class="mb-3">{{ t('design-system.section.markdown-editor.roundtrip') }}</h6>
 
@@ -207,7 +239,7 @@ const diff = computed(() => diffLines(source.value.trimEnd().split('\n'), roundt
         </div>
       </section>
 
-      <!-- Живой вывод -->
+      <!-- Live output -->
       <section class="ds-section">
         <h6 class="mb-3">{{ t('design-system.section.markdown-editor.output') }}</h6>
         <div class="pane-grid">
@@ -224,7 +256,7 @@ const diff = computed(() => diffLines(source.value.trimEnd().split('\n'), roundt
         </div>
       </section>
 
-      <!-- Охват -->
+      <!-- Coverage -->
       <section class="ds-section">
         <h6 class="mb-3">{{ t('design-system.section.markdown-editor.coverage') }}</h6>
         <div class="ds-card pa-4">
@@ -295,8 +327,8 @@ const diff = computed(() => diffLines(source.value.trimEnd().split('\n'), roundt
   color: var(--text-muted);
 }
 
-/* У маленького примера высота по содержимому: пустая панель на треть экрана под таблицей из
-   пяти строк читалась бы как «тут что-то не загрузилось». */
+/* The small example is as tall as its content: an empty panel a third of the screen high under a
+   five-row table would read as "something failed to load here". */
 .code-box--short {
   min-height: 0;
 }
@@ -308,7 +340,7 @@ const diff = computed(() => diffLines(source.value.trimEnd().split('\n'), roundt
   padding: 20px 24px;
 }
 
-/* ── Вердикты ─────────────────────────────────────────────── */
+/* ── Verdicts ─────────────────────────────────────────────── */
 
 .verdicts {
   display: flex;
@@ -338,7 +370,7 @@ const diff = computed(() => diffLines(source.value.trimEnd().split('\n'), roundt
   background: color-mix(in srgb, rgb(var(--v-theme-warning)) 8%, transparent);
 }
 
-/* ── Диф ──────────────────────────────────────────────────── */
+/* ── Diff ─────────────────────────────────────────────────── */
 
 .diff-row {
   display: grid;

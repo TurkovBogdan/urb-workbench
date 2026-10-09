@@ -1,1 +1,1 @@
-"""CRUD-слой ``workspace`` — по файлу на сущность (пока одна), зеркало ``models/``."""
+"""The ``workspace`` CRUD layer — one file per entity (one so far), mirroring ``models/``."""

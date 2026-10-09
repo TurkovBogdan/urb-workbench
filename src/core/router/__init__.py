@@ -1,12 +1,12 @@
-"""Маршрутизация ядра: зоны + подсистема защиты ``guards``.
+"""Core routing: zones + the ``guards`` protection subsystem.
 
-Зона = префиксное пространство роутеров поверх общего реестра guard'ов. Сам
-зон-агрегатор собирается СВЕЖИМ в ``create_app`` (без глобального синглтона —
-иначе повторные ``create_app`` в тестах копили бы маршруты). Состав пакета:
-``guards/`` (подсистема защиты: реестр + встроенные ``allow_all``/``deny_all`` +
-метка ``@guard``) и зоны ``internal``/``api``/``webhook``. Активна зона
-``internal``; ``api``/``webhook`` — позже. Guard-поверхность реэкспортится сюда
-из подпакета ``guards`` единой точкой.
+A zone = a prefixed space of routers on top of a shared guard registry. The zone
+aggregator itself is built FRESH in ``create_app`` (no global singleton —
+otherwise repeated ``create_app`` calls in tests would pile up routes). Package contents:
+``guards/`` (the protection subsystem: registry + built-in ``allow_all``/``deny_all`` +
+the ``@guard`` mark) and the ``internal``/``api``/``webhook`` zones. The active zone is
+``internal``; ``api``/``webhook`` come later. The guard surface is re-exported here
+from the ``guards`` subpackage as a single entry point.
 """
 
 from __future__ import annotations

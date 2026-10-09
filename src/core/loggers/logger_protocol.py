@@ -1,4 +1,4 @@
-"""Контракт логгера ядра."""
+"""The core logger contract."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from typing import Any, Protocol
 
 
 class CoreLoggerProtocol(Protocol):
-    """Минимальный набор методов, который должен предоставить любой логгер."""
+    """The minimal set of methods any logger must provide."""
 
     def debug(self, msg: Any, *args: Any, **kwargs: Any) -> None: ...
     def info(self, msg: Any, *args: Any, **kwargs: Any) -> None: ...

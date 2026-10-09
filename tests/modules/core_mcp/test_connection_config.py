@@ -1,4 +1,4 @@
-"""core_mcp: генерация stdio-конфига подключения (проброс MCP_TOKEN / кода / пространства)."""
+"""core_mcp: generating the stdio connection config (passing MCP_TOKEN / code / workspace)."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ def _server(code="research", *, pin_code=False, token="", workspace=""):
 
 @pytest.mark.pure
 def test_stdio_config_names_the_server_with_the_brand_not_the_bare_code():
-    """В клиенте сервер стоит среди чужих — голое ``workbench`` не говорит, чей он."""
+    """In a client the server sits among others — a bare ``workbench`` doesn't say whose it is."""
     config = json.loads(_stdio_config("workbench", pin_code=False, token="", workspace=""))
 
     assert list(config["mcpServers"]) == ["urb-workbench"]
@@ -25,7 +25,7 @@ def test_stdio_config_names_the_server_with_the_brand_not_the_bare_code():
 
 @pytest.mark.pure
 def test_stdio_config_keeps_the_token_in_env_not_in_args():
-    """Аргументы видны в ``ps`` всей машине — секрет туда не кладут, а код сервера можно."""
+    """Args are visible in ``ps`` machine-wide — no secret goes there, the server code may."""
     server = _server(token="secret-xyz")
 
     assert server["env"] == {"MCP_TOKEN": "secret-xyz"}
@@ -36,8 +36,8 @@ def test_stdio_config_keeps_the_token_in_env_not_in_args():
 def test_stdio_config_no_env_without_token_single_server():
     server = _server()
 
-    assert "env" not in server  # токена нет — env не нужен вовсе
-    assert server["args"][-1] == "--mcp-stdio"  # один сервер → код не пинуем
+    assert "env" not in server  # no token — no env needed at all
+    assert server["args"][-1] == "--mcp-stdio"  # single server → the code is not pinned
 
 
 @pytest.mark.pure
@@ -50,7 +50,7 @@ def test_stdio_config_pins_the_server_code_as_an_argument():
 
 @pytest.mark.pure
 def test_stdio_config_carries_the_configured_workspace():
-    """Настроенное пространство едет в конфиг: подключение стартует уже привязанным."""
+    """The configured workspace goes into the config: the connection starts already bound."""
     server = _server("workbench", pin_code=True, workspace="WORKSPACE@18e948522f")
 
     assert server["args"][-2:] == [
@@ -60,20 +60,20 @@ def test_stdio_config_carries_the_configured_workspace():
 
 @pytest.mark.pure
 def test_stdio_config_glues_value_to_flag():
-    """Склеенная пара не распадается при ручной правке — половины, которую теряют, просто нет.
+    """A glued pair can't fall apart under a manual edit — there is no separate half to lose.
 
-    Для ``--mcp-stdio`` это не косметика: значение у него необязательное, и осиротевший флаг не
-    упадёт, а тихо сменит смысл на «сервер выбери сам».
+    For ``--mcp-stdio`` this is not cosmetic: its value is optional, so an orphaned flag won't
+    fail, it will quietly change meaning to "pick the server yourself".
     """
     args = _server("workbench", pin_code=True, workspace="WORKSPACE@1")["args"]
 
-    assert "workbench" not in args  # не отдельным элементом
+    assert "workbench" not in args  # not as a separate element
     assert "--mcp-workspace" not in args
 
 
 @pytest.mark.pure
 def test_stdio_config_omits_an_unset_workspace():
-    """Пустой аргумент читался бы как обязательное поле, которое забыли заполнить."""
+    """An empty argument would read as a required field someone forgot to fill in."""
     server = _server("workbench", token="t")
 
     assert not any(a.startswith("--mcp-workspace") for a in server["args"])
@@ -81,16 +81,16 @@ def test_stdio_config_omits_an_unset_workspace():
 
 @pytest.mark.pure
 def test_the_generated_args_parse_back_into_the_same_intent():
-    """Единственный тест, который связывает генератор с потребителем.
+    """The only test that ties the generator to its consumer.
 
-    Обе стороны можно править по отдельности и обе останутся «правильными» — разошедшимися
-    они окажутся только в момент, когда человек скопирует конфиг и получит «Connection
-    Failed». Здесь выданное отдаётся ровно тому разборщику, который его прочтёт в живую.
+    Each side can be edited on its own and both stay "correct" — they turn out to have diverged
+    only when a person copies the config and gets "Connection Failed". Here the output is handed
+    to exactly the parser that will read it for real.
     """
     import app
 
     args = _server("workbench", pin_code=True, workspace="WORKSPACE@18e948522f")["args"]
-    # Отрезаем часть для `uv` — шиму достаётся всё после имени скрипта.
+    # Cut off the `uv` part — the shim gets everything after the script name.
     parsed = app._parse_args(args[args.index("src/app.py") + 1:])
 
     assert parsed.mcp_stdio == "workbench"

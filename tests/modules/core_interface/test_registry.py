@@ -1,4 +1,4 @@
-"""core_interface: реестр — самосогласованность карты и правила отказа."""
+"""core_interface: the registry — self-consistency of the map and the rejection rules."""
 
 from __future__ import annotations
 
@@ -31,20 +31,20 @@ def test_broken_key_fails_the_startup_check(monkeypatch):
 def test_too_long_key_fails_the_startup_check(monkeypatch):
     monkeypatch.setitem(registry.SETTINGS, "i" * (KEY_MAX_LENGTH + 1), Setting("dark"))
 
-    with pytest.raises(ValueError, match="длиннее"):
+    with pytest.raises(ValueError, match="longer than"):
         registry.validate_registry()
 
 
 def test_default_outside_its_own_options_fails_the_startup_check(monkeypatch):
     monkeypatch.setitem(registry.SETTINGS, "interface_theme", Setting("plaid", options=("dark",)))
 
-    with pytest.raises(ValueError, match="умолчание"):
+    with pytest.raises(ValueError, match="default of"):
         registry.validate_registry()
 
 
 def test_broken_registry_stops_the_build(monkeypatch, config):
-    """Проверка висит на ``configure``, а не на ``on_startup``: исключения второго lifespan
-    ловит и пишет в лог, и кривая карта уехала бы в установку молча."""
+    """The check hangs on ``configure``, not ``on_startup``: lifespan catches exceptions from the
+    latter and logs them, so a broken map would ship into the installation silently."""
     monkeypatch.setitem(registry.SETTINGS, "Interface.Theme", Setting("dark"))
 
     with pytest.raises(ValueError):
@@ -80,7 +80,7 @@ def test_diagram_theme_keeps_the_app_palette_as_default():
 def test_code_variant_offers_the_three_chooseable_looks():
     assert registry.SETTINGS["interface_code_variant"].default == "minimal"
     assert registry.rejection("interface_code_variant", "minimal") is None
-    # `compact` — вид однострочника, он следует из содержимого и человеком не выбирается.
+    # `compact` is the one-liner look: it follows from the content, a person never picks it.
     assert registry.rejection("interface_code_variant", "compact") == registry.NOT_AN_OPTION
 
 

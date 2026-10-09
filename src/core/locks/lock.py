@@ -1,13 +1,13 @@
-"""Распределённые локи: ORM-строка ``CoreLockRow``, CRUD-операции, ``CoreLock``.
+"""Distributed locks: the ``CoreLockRow`` ORM row, the CRUD operations, ``CoreLock``.
 
-Один файл, потому что все три слоя — про одну сущность и не используются
-по отдельности нигде, кроме как друг другом.
+One file, because all three layers concern one entity and are used nowhere
+separately except by each other.
 
-Публичное:
-- ``CoreLockRow`` — ORM-модель таблицы ``core_locks`` (для select-ов в коде).
-- ``CoreLock`` — высокоуровневая обёртка: ``acquire`` / ``release`` / ``extend``.
-- ``release_for_owners(owners)`` — bulk-cleanup, используется
-  раннером и тикером для авто-снятия локов завершённых/zombie задач.
+Public:
+- ``CoreLockRow`` — ORM model of the ``core_locks`` table (for selects in code).
+- ``CoreLock`` — high-level wrapper: ``acquire`` / ``release`` / ``extend``.
+- ``release_for_owners(owners)`` — bulk cleanup, used by the runner and the
+  ticker to auto-release locks held by finished/zombie tasks.
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ from src.core.utils.date import utc_now
 # ── ORM ─────────────────────────────────────────────────────────────────────
 
 class CoreLockRow(Base):
-    """Строка таблицы ``core_locks`` — один активный лок на ``key``."""
+    """A ``core_locks`` row — one active lock per ``key``."""
 
     __tablename__ = "core_locks"
 
@@ -50,7 +50,7 @@ def _insert_for(session: AsyncSession):
 async def _acquire(
     session: AsyncSession, *, key: str, owner: str, ttl_seconds: int
 ) -> bool:
-    """INSERT либо перехватить протухший лок. True = строка теперь наша."""
+    """INSERT, or take over an expired lock. True = the row is now ours."""
     insert = _insert_for(session)
     now = utc_now()
     expires = now + timedelta(seconds=ttl_seconds)
@@ -74,7 +74,7 @@ async def _acquire(
 async def _release(
     session: AsyncSession, *, key: str, owner: str
 ) -> bool:
-    """DELETE WHERE key=? AND owner=?. True = реально удалили."""
+    """DELETE WHERE key=? AND owner=?. True = a row was actually deleted."""
     result = await session.execute(
         delete(CoreLockRow).where(
             CoreLockRow.key == key, CoreLockRow.owner == owner
@@ -86,7 +86,7 @@ async def _release(
 async def _is_owner(
     session: AsyncSession, *, key: str, owner: str
 ) -> bool:
-    """True, если лок существует И принадлежит ``owner``."""
+    """True if the lock exists AND belongs to ``owner``."""
     stmt = select(CoreLockRow.owner).where(CoreLockRow.key == key)
     current = (await session.execute(stmt)).scalar_one_or_none()
     return current == owner
@@ -95,7 +95,7 @@ async def _is_owner(
 async def _extend(
     session: AsyncSession, *, key: str, owner: str, ttl_seconds: int
 ) -> bool:
-    """Продлить TTL, если мы всё ещё владелец. False — потеряли лок."""
+    """Extend the TTL if we are still the owner. False — the lock was lost."""
     expires = utc_now() + timedelta(seconds=ttl_seconds)
     stmt = (
         update(CoreLockRow)
@@ -107,7 +107,7 @@ async def _extend(
 
 
 async def release_for_owners(owners: list[str]) -> None:
-    """DELETE WHERE owner IN (...). Bulk cleanup для zombie-уборки задач."""
+    """DELETE WHERE owner IN (...). Bulk cleanup for reaping zombie tasks."""
     if not owners:
         return
     async with write_scope() as s:
@@ -116,10 +116,10 @@ async def release_for_owners(owners: list[str]) -> None:
         )
 
 
-# ── Высокоуровневый ``CoreLock`` ────────────────────────────────────────────
+# ── High-level ``CoreLock`` ─────────────────────────────────────────────────
 
 class CoreLock:
-    """Удерживаемый распределённый лок. Создаётся через ``CoreLock.acquire``."""
+    """A held distributed lock. Created through ``CoreLock.acquire``."""
 
     def __init__(self, key: str, owner: str) -> None:
         self.key = key
@@ -129,10 +129,10 @@ class CoreLock:
     async def acquire(
         cls, key: str, ttl: int, *, owner: str | None = None
     ) -> "CoreLock | None":
-        """Поставить лок. ``CoreLock`` если взяли, иначе ``None``.
+        """Take the lock. ``CoreLock`` if acquired, otherwise ``None``.
 
-        ``ttl`` — TTL в секундах. ``owner`` опциональный: если не передан —
-        генерируется ULID (анонимный одноразовый владелец).
+        ``ttl`` — TTL in seconds. ``owner`` is optional: when omitted, a ULID is
+        generated (an anonymous single-use owner).
         """
         if owner is None:
             owner = str(ULID())
@@ -141,17 +141,17 @@ class CoreLock:
         return cls(key, owner) if ok else None
 
     async def release(self) -> bool:
-        """Снять лок. True = реально сняли (мы ещё были владельцем)."""
+        """Release the lock. True = actually released (we were still the owner)."""
         async with write_scope() as s:
             return await _release(s, key=self.key, owner=self.owner)
 
     async def is_owner(self) -> bool:
-        """Fencing-проверка: лок всё ещё на нас, или нас перехватили?"""
+        """Fencing check: is the lock still ours, or has someone taken it over?"""
         async with session_scope() as s:
             return await _is_owner(s, key=self.key, owner=self.owner)
 
     async def extend(self, ttl: int) -> bool:
-        """Продлить TTL (секунды). Сначала проверяем владение, потом UPDATE."""
+        """Extend the TTL (seconds). Ownership is checked first, then UPDATE."""
         if not await self.is_owner():
             return False
         async with write_scope() as s:
@@ -161,7 +161,7 @@ class CoreLock:
 
     @classmethod
     async def force_release(cls, key: str) -> bool:
-        """Снять лок по ключу без проверки владельца. True = реально сняли."""
+        """Release the lock by key without checking the owner. True = actually released."""
         async with write_scope() as s:
             result = await s.execute(
                 delete(CoreLockRow).where(CoreLockRow.key == key)

@@ -1,8 +1,8 @@
-"""Справочники значений и мягкое усечение текста — без БД.
+"""Value dictionaries and soft text clipping — no DB.
 
-Кортежи из ``constants.py`` — единственный источник для ORM-``CHECK``, миграции и валидации в
-CRUD. Тесты сторожат их внутреннюю связность: дефолт обязан быть допустимым значением, а
-терминальные статусы — подмножеством статусов.
+The tuples in ``constants.py`` are the single source for the ORM ``CHECK``, the migration and the
+CRUD validation. The tests guard their internal consistency: a default must be an allowed value,
+and the terminal statuses a subset of the statuses.
 """
 
 from __future__ import annotations
@@ -47,7 +47,7 @@ def test_terminal_statuses_are_a_subset_of_the_statuses():
 
 @pytest.mark.pure
 def test_every_priority_has_a_sorting_weight_and_the_weights_are_distinct():
-    """Вес нужен каждому значению: приоритет без веса уехал бы в сортировке в ``else_``."""
+    """Every value needs a weight: a priority without one would fall into ``else_`` when sorting."""
     assert set(TASK_PRIORITY_WEIGHTS) == set(TASK_PRIORITIES)
     assert len(set(TASK_PRIORITY_WEIGHTS.values())) == len(TASK_PRIORITIES)
     assert TASK_PRIORITY_WEIGHTS["burning"] < TASK_PRIORITY_WEIGHTS["frozen"]
@@ -60,7 +60,7 @@ def test_sql_in_quotes_every_value_for_a_check_constraint():
 
 @pytest.mark.pure
 def test_clip_cuts_cyrillic_by_code_points_not_bytes():
-    """Кириллица в UTF-8 — два байта на символ: срез по байтам разрубил бы символ пополам."""
+    """Cyrillic is two bytes per character in UTF-8: a byte slice would cut a character in half."""
     clipped = clip("я" * (TITLE_MAX + 50), TITLE_MAX)
 
     assert len(clipped) == TITLE_MAX

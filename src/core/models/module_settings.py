@@ -1,4 +1,4 @@
-"""ORM-модель строки таблицы ``core_modules_settings``."""
+"""ORM model of a ``core_modules_settings`` row."""
 
 from __future__ import annotations
 

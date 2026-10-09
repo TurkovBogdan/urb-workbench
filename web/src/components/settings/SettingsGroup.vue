@@ -1,10 +1,11 @@
 <script setup lang="ts">
-// Карточка группы настроек: заголовок, пояснение под ним, дальше поля.
+// Settings group card: a title, an explanation under it, then the fields.
 //
-// Анатомия та же, что у карточки модуля на /settings/modules (заголовок → описание → линейка →
-// поля в колонках утилитой `.settings-columns`): группы настроек читаются одинаково независимо
-// от того, лежит их значение в базе или в этом браузере. Описание тут — обычная строка, а не markdown: у клиентских
-// настроек текст свой, а не пришедший из схемы бэкенда, и ссылкам в нём взяться неоткуда.
+// The anatomy is the same as the module card on /settings/modules (title → description → rule →
+// fields in columns via the `.settings-columns` utility): settings groups read the same regardless
+// of whether their value lives in the database or in this browser. The description here is a plain
+// string, not markdown: client settings have their own text rather than one from the backend
+// schema, so links in it have nowhere to come from.
 defineProps<{ title: string; description?: string }>()
 </script>
 

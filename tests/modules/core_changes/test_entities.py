@@ -1,4 +1,4 @@
-"""Объявления сущностей ленты изменений: проверка при регистрации."""
+"""Change-feed entity declarations: validation at registration."""
 
 from __future__ import annotations
 

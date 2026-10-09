@@ -15,8 +15,9 @@ import { workspacesRoutes } from '../features/workspace/routes'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
-  // Не прокрутка, а её опознание: обработчик ничего не мотает (возвращает `false`) и только
-  // запоминает, возврат это по истории или новый переход — мотает зону содержимого `PageLayout`.
+  // Not scrolling but recognising it: the handler scrolls nothing (returns `false`) and only
+  // records whether this is a history return or a new transition — `PageLayout` scrolls the
+  // content zone.
   scrollBehavior: trackNavigationKind,
   routes: [
     { path: '/', redirect: '/home' },
@@ -29,18 +30,19 @@ const router = createRouter({
     ...designSystemRoutes,
     ...coreMcpRoutes,
     ...coreMonitoringRoutes,
-    // Раньше планировщика (`/tasks`) не обязано быть: страницы модуля живут двумя сегментами, а
-    // у него один. Трёхсегментный маршрут у них общий ровно один — старая ссылка на задачу
-    // против `/tasks/:module/:code`, — и спор решает не порядок записи, а ранжирование
-    // vue-router: статический сегмент весомее параметра (см. features/tasks/routes.ts).
+    // Doesn't have to precede the scheduler (`/tasks`): the module's pages live at two segments,
+    // and it has one. They share exactly one three-segment route — the old task link versus
+    // `/tasks/:module/:code` — and the conflict is settled not by declaration order but by
+    // vue-router's ranking: a static segment outweighs a param (see features/tasks/routes.ts).
     ...tasksRoutes,
     ...workspacesRoutes,
     ...settingsRoutes,
     ...setupRoutes,
     ...aboutRoutes,
-    // Исследования и веб-поиск (`features/research`, `features/web_search`) — домен донора:
-    // код фич оставлен, но их маршруты не регистрируются, и бекенда под ними больше нет.
-    // Интеграции уехали целиком — вместе с модулем `core_connectors` и своей фичей.
+    // Research and web search (`features/research`, `features/web_search`) are the donor's domain:
+    // the feature code is kept, but their routes are not registered, and there is no backend
+    // behind them anymore. Integrations are gone entirely — with the `core_connectors` module and
+    // their feature.
     // Catch-all 404 — kept LAST so it can't shadow any route declared above it.
     // Renders the 404 inside the app shell.
     {

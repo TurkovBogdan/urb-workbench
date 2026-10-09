@@ -1,25 +1,26 @@
-"""Имена заголовков, которыми stdio-шим представляется backend.
+"""Names of the headers the stdio shim introduces itself to the backend with.
 
-Живут отдельным leaf-модулем, а не в ``src/core/mcp/``, намеренно: тот пакет импортирует
-``fastmcp`` (+13 МБ) своим ``__init__``, а эти две строки нужны по обе стороны провода —
-шиму (``apps/app/mcp_stdio.py``, где форк тянется лениво) и инструменту на backend. Общая
-константа здесь дешевле, чем два строковых литерала, разъезжающихся при первом переименовании.
+They live in a separate leaf module rather than in ``src/core/mcp/`` on purpose: that package
+imports ``fastmcp`` (+13 MB) from its ``__init__``, while these two strings are needed on both
+ends of the wire — by the shim (``apps/app/mcp_stdio.py``, where the fork is pulled in lazily)
+and by the tool on the backend. A shared constant here is cheaper than two string literals that
+drift apart at the first rename.
 
-**Зачем заголовки вообще.** MCP-серверы смонтированы как ``stateless_http`` (см.
-``core/router/mcp.py``): сессий сервер не ведёт, каждый вызов — самостоятельный HTTP-запрос.
-При этом backend один на всех — его делят все подключения агентов и браузер с интерфейсом.
-Значит «кто звонит» может приехать только снаружи, и приезжает оно отсюда.
+**Why headers at all.** The MCP servers are mounted as ``stateless_http`` (see
+``core/router/mcp.py``): the server keeps no sessions, every call is a standalone HTTP request.
+Yet there is one backend for everyone — shared by every agent connection and by the browser
+with the UI. So "who is calling" can only arrive from outside, and this is where it arrives.
 
-- ``MCP_SESSION_HEADER`` — случайный идентификатор, который шим придумывает себе при старте и
-  шлёт неизменным до самой смерти. Шим — один процесс на одно подключение MCP-клиента, поэтому
-  этот ключ и есть граница сессии: по нему backend держит активное рабочее пространство.
-- ``MCP_WORKSPACE_HEADER`` — пространство из конфига запуска. Это УМОЛЧАНИЕ подключения, а не
-  привязка: сессия, которой пространство не назначали, работает в нём; назначили — выбор агента
-  перекрывает конфиг и файла не трогает.
+- ``MCP_SESSION_HEADER`` — a random identifier the shim makes up for itself at startup and sends
+  unchanged until it dies. The shim is one process per MCP client connection, so this key IS the
+  session boundary: the backend keys the active workspace on it.
+- ``MCP_WORKSPACE_HEADER`` — the workspace from the launch config. It is the connection's
+  DEFAULT, not a binding: a session that has not been assigned a workspace works in this one;
+  once assigned, the agent's choice overrides the config and does not touch the file.
 
-Заголовки приходят от клиента и, строго говоря, подделываемы. Угрозой здесь это не является:
-сервер слушает localhost и закрыт bearer-токеном, а подделать чужую сессию может только тот, кто
-и так может звать инструменты напрямую.
+The headers come from the client and are, strictly speaking, forgeable. That is not a threat
+here: the server listens on localhost behind a bearer token, and only someone who can already
+call the tools directly could forge another session.
 """
 
 from __future__ import annotations

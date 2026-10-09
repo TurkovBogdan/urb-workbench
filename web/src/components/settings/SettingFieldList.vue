@@ -27,8 +27,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{ 'update:modelValue': [unknown[]] }>()
 
-// Списки кинов в SettingFieldList отдельно — multichoice/list внутри списка
-// бэк не отдаёт, остаётся 6 простых типов.
+// SettingFieldList keeps its own list of kinds — the backend never sends multichoice/list
+// inside a list, which leaves 6 simple types.
 const itemEditors = {
   int: SettingFieldInt,
   float: SettingFieldFloat,
@@ -38,8 +38,8 @@ const itemEditors = {
   choice: SettingFieldChoice,
 } as const
 
-// Item-дескриптор → полноценный field для соответствующего редактора.
-// Label/description пустые — у элементов списка их не бывает.
+// Item descriptor → a full field for the matching editor.
+// Label/description are empty — list items never have them.
 function itemField(item: ListItemDescriptor): FieldDescriptor {
   return { ...item, key: '', label: '', description: '', default: null } as FieldDescriptor
 }

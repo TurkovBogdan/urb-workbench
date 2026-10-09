@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Первый запуск установки: проверить инструменты, поставить зависимости, запустить приложение.
+# First run of an installation: check the tools, install the dependencies, start the application.
 #
 #   git clone https://github.com/TurkovBogdan/urb-workbench && cd urb-workbench
 #   ./install.sh
 #
-# Скрипт настраивает то дерево, в котором лежит. Повторный запуск безопасен: зависимости
-# синхронизируются заново, приложение поднимается. `.env` и схему базы создаёт сам первый
-# старт (`src/app.py`), поэтому отдельного шага настройки тут нет.
+# The script sets up the tree it lives in. Running it again is safe: dependencies are synced
+# again and the application comes up. `.env` and the database schema are created by the first
+# start itself (`src/app.py`), so there is no separate configuration step here.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -20,16 +20,16 @@ die() {
 
 require_checkout() {
   [[ -f src/app.py ]] ||
-    die "рядом нет src/app.py — запускайте скрипт из склонированного репозитория"
+    die "no src/app.py next to this script — run it from a cloned repository"
 }
 
-# Системные пакеты под sudo скрипт не ставит: это решение владельца машины, а не установщика.
+# The script does not install system packages under sudo: that is the machine owner's call, not the installer's.
 require_git() {
   command -v git >/dev/null 2>&1 && return 0
-  die "нужен git — поставьте его менеджером пакетов (Debian/Ubuntu: sudo apt-get install -y git; macOS: brew install git)"
+  die "git is required — install it with your package manager (Debian/Ubuntu: sudo apt-get install -y git; macOS: brew install git)"
 }
 
-# Спрашиваем только человека за терминалом: в конвейере (cron, CI) молчание — это не «да».
+# Only ask a person at a terminal: in a pipeline (cron, CI) silence is not a "yes".
 confirmed() {
   [[ -t 0 ]] || return 1
   local answer
@@ -39,34 +39,34 @@ confirmed() {
 
 ensure_uv() {
   command -v uv >/dev/null 2>&1 && return 0
-  echo "uv не найден — это менеджер проекта, он же скачивает Python 3.12."
-  echo "Официальный установщик: curl -LsSf $UV_INSTALLER_URL | sh"
-  confirmed "Поставить uv сейчас?" ||
-    die "без uv установка не пойдёт — поставьте его и запустите скрипт снова"
+  echo "uv not found — it is the project manager, and it also downloads Python 3.12."
+  echo "Official installer: curl -LsSf $UV_INSTALLER_URL | sh"
+  confirmed "Install uv now?" ||
+    die "the installation cannot proceed without uv — install it and run the script again"
   curl -LsSf "$UV_INSTALLER_URL" | sh
-  # Установщик кладёт бинарь в ~/.local/bin, но PATH этой оболочки уже собран — без
-  # подхвата следующая же строка своего же uv не нашла бы.
+  # The installer puts the binary into ~/.local/bin, but this shell's PATH is already built —
+  # without picking it up, the very next line would not find the uv it just installed.
   if [[ -f "$UV_PATH_SNIPPET" ]]; then
     # shellcheck source=/dev/null
     source "$UV_PATH_SNIPPET"
   fi
   command -v uv >/dev/null 2>&1 ||
-    die "uv поставлен, но не виден в PATH — перелогиньтесь и запустите скрипт снова"
+    die "uv is installed but not on PATH — log in again and rerun the script"
 }
 
-# Печатается ДО старта: дальше терминал занят работающим приложением, и подсказка уедет
-# за пределы экрана вместе с логом.
+# Printed BEFORE the start: after that the terminal is taken by the running application, and the
+# hint would scroll off the screen along with the log.
 announce_next_steps() {
   cat <<'EOF'
 
-Зависимости на месте. Первый старт создаст .env с секретами установки и развернёт пустую базу.
-Браузер откроется на странице «Сервер» — там правятся параметры установки (порт, база, режим).
-Дальше в интерфейсе:
+Dependencies are in place. The first start will create .env with the installation's secrets and set up an empty database.
+The browser will open on the "Server" page — that is where the installation settings (port, database, mode) are edited.
+Then, in the interface:
 
-  «Интеграции»  — ключ поискового сервиса; хватит одного, по умолчанию это Tavily
-  «MCP-серверы» — готовый конфиг подключения для MCP-клиента
+  "Integrations" — a search service key; one is enough, Tavily by default
+  "MCP servers"  — a ready-made connection config for the MCP client
 
-Остановить: ./run.sh stop     Обновить: ./update.sh
+Stop: ./run.sh stop     Update: ./update.sh
 
 EOF
 }
@@ -74,10 +74,10 @@ EOF
 require_checkout
 require_git
 ensure_uv
-# --all-groups: тот же набор, что синхронизирует обновление, иначе первое же `./update.sh`
-# переставит окружение заново.
+# --all-groups: the same set the update syncs, otherwise the very first `./update.sh` would
+# rebuild the environment from scratch.
 uv sync --all-groups
 announce_next_steps
-# Установка заканчивается не главной страницей, а настройками установки: первое, что человек
-# решает после первого старта, — оставить ли порт, базу и режим такими, какими их выписал `.env`.
+# The installation ends not on the home page but on the installation settings: the first thing a
+# person decides after the first start is whether to keep the port, database and mode `.env` was written with.
 RUN_OPEN_PATH=/settings/core exec ./run.sh

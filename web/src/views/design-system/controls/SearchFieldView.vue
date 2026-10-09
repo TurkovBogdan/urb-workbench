@@ -1,7 +1,7 @@
 <script setup lang="ts">
-// Поле поиска с переключателями области. Демо идёт на нашем материале — заголовок / тела зон /
-// заметки: именно так поиск по реестру и устроен, а выдуманные области показывали бы механику
-// на данных, которых в приложении нет.
+// A search field with scope toggles. The demo runs on our own material — title / zone bodies /
+// notes: that is exactly how registry search works, while made-up scopes would show the mechanics
+// on data the app doesn't have.
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { IconFileText, IconNote, IconLink } from '@tabler/icons-vue'
@@ -37,7 +37,7 @@ const groupOptions = [
   { title: 'Infrastructure', value: 'infra' },
 ]
 
-// Обе модели в тех же кавычках, в каких уходят наружу: текст — строка, области — массив ключей.
+// Both models in the same literal form they go out in: the text is a string, scopes an array of keys.
 const modelLiteral = computed(
   () => `query = '${query.value}' · scopes = [${active.value.map((key) => `'${key}'`).join(', ')}]`,
 )
@@ -102,8 +102,8 @@ watch(() => store.searchScopes, () => {
             <span class="ds-spec">no :scopes</span>
           </div>
 
-          <!-- Пояснение под полем меняется вместе с областью: одной подписи на оба состояния не
-               хватает, потому что состав стога у них разный. -->
+          <!-- The explanation under the field changes with the scope: one caption isn't enough for
+               both states, because their haystacks differ. -->
           <div class="ds-row">
             <span class="ds-tag">hint</span>
             <div class="ds-controls">
@@ -160,8 +160,8 @@ watch(() => store.searchScopes, () => {
         </div>
       </section>
 
-      <!-- Ради чего поле и заведено: оно стоит в панели фильтров рядом с прочими полями, и
-           переключатели не должны ломать её сетку. -->
+      <!-- What the field exists for: it sits in a filter panel next to other fields, and the
+           toggles must not break its grid. -->
       <section class="ds-section">
         <h6 class="mb-3">{{ t('design-system.section.search-field.panel') }}</h6>
         <p class="ds-note">{{ t('design-system.section.search-field.panel_note') }}</p>
@@ -260,7 +260,7 @@ watch(() => store.searchScopes, () => {
 
 .filter-panel { padding: 12px; }
 
-/* Поиск тянется, справочный селект держит свою ширину — та же раскладка, что на страницах со списком. */
+/* The search stretches, the lookup select keeps its width — the same layout as on list pages. */
 .filter-grid {
   display: grid;
   grid-template-columns: 1fr minmax(0, 220px);

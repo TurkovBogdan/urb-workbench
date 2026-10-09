@@ -1,12 +1,14 @@
-"""Реестр guard'ов + метка ``@guard`` + зон-guard (``src.core.router``)."""
+"""Guard registry + the ``@guard`` label + the zone guard (``src.core.router``)."""
 
 from __future__ import annotations
 
 from types import SimpleNamespace
 
 import pytest
-from fastapi import APIRouter, Depends, FastAPI, Request
+from fastapi import APIRouter, Depends, FastAPI, Request, WebSocket
 from httpx import ASGITransport, AsyncClient
+from starlette.requests import HTTPConnection
+from starlette.testclient import TestClient, WebSocketDenialResponse
 
 from src.core.api import ApiError, register_exception_handlers
 from src.core.router import (
@@ -23,22 +25,23 @@ from src.core.router import (
 pytestmark = pytest.mark.pure
 
 
-# Локальные test-double'ы вместо снятых core-моков (auth/ability теперь даёт core_users).
-# Ядро принципала не типизирует (duck-typed request.state.user) — достаточно объекта нужной формы.
+# Local test doubles instead of the removed core mocks (auth/ability now come from core_users).
+# The core does not type the principal (duck-typed request.state.user) — an object of the right
+# shape is enough.
 _STUB_USER = SimpleNamespace(
     id=1, email="admin@example.local", group="admin", is_active=True
 )
 
 
-async def mock_auth_guard(request: Request) -> None:
-    request.state.user = _STUB_USER
+async def mock_auth_guard(connection: HTTPConnection) -> None:
+    connection.state.user = _STUB_USER
 
 
-async def mock_ability_guard(request: Request) -> None:
+async def mock_ability_guard(connection: HTTPConnection) -> None:
     return
 
 
-# ── реестр ───────────────────────────────────────────────────────────────────
+# ── registry ─────────────────────────────────────────────────────────────────
 def test_registry_add_resolve_has():
     reg = GuardRegistry()
     reg.add("allow_all", guard_allow_all)
@@ -54,7 +57,7 @@ def test_registry_duplicate_raises():
         reg.add("auth", mock_auth_guard)
 
 
-# ── метка @guard ─────────────────────────────────────────────────────────────
+# ── @guard label ─────────────────────────────────────────────────────────────
 def test_guard_decorator_accumulates_rules():
     @guard("ability", "admin:read")
     @guard("ability", "users:write")
@@ -77,7 +80,7 @@ def test_is_allow_all_is_deny_all():
     assert not is_allow_all(plain) and not is_deny_all(plain)
 
 
-# ── зон-guard через приложение ───────────────────────────────────────────────
+# ── zone guard through an app ────────────────────────────────────────────────
 def _registry(extra: dict | None = None) -> GuardRegistry:
     reg = GuardRegistry()
     reg.add("allow_all", guard_allow_all)
@@ -128,7 +131,7 @@ async def test_allow_all_bypasses_default():
         async def open_():
             return {"ok": True}
 
-    app = _app(["deny_all"], routes)  # зона закрыта по умолчанию
+    app = _app(["deny_all"], routes)  # the zone is closed by default
     assert (await _get(app, "/closed")).status_code == 401
     assert (await _get(app, "/open")).status_code == 200
 
@@ -184,4 +187,25 @@ async def test_guards_run_in_order_first_raise_stops():
     extra = {"ok": g_ok, "boom": g_boom, "after": g_after}
     res = await _get(_app(["ok", "boom"], routes, extra), "/x")
     assert res.status_code == 403
-    assert calls == ["ok", "boom"]  # "after" не достигнут
+    assert calls == ["ok", "boom"]  # "after" is never reached
+
+
+# ── zone guard on a WebSocket route (the change feed lives in a zone) ────────
+def _ws_routes(r):
+    @r.websocket("/ws")
+    async def ws(websocket: WebSocket):
+        await websocket.accept()
+        await websocket.send_text("open")
+        await websocket.close()
+
+
+def test_zone_guard_lets_a_websocket_through():
+    with TestClient(_app(["auth"], _ws_routes)).websocket_connect("/ws") as socket:
+        assert socket.receive_text() == "open"
+
+
+def test_zone_guard_refuses_a_websocket_handshake():
+    with pytest.raises(WebSocketDenialResponse) as refused:
+        with TestClient(_app(["deny_all"], _ws_routes)).websocket_connect("/ws"):
+            pass
+    assert refused.value.status_code == 401

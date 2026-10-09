@@ -1,32 +1,37 @@
-"""ORM ``tasks`` — сама задача: единица работы человека или агента-исполнителя.
+"""ORM ``tasks`` — the task itself: a unit of work for the person or the executing agent.
 
-Таблица названа по модулю, без приставки: задача — его главная сущность, и ``tasks_task`` было бы
-заиканием. Приставку несут спутники (``tasks_group``, ``tasks_link``, ``tasks_stage``,
-``tasks_note``) — там она отвечает на вопрос «чьё это».
+The table is named after the module, without a prefix: the task is its main entity, and
+``tasks_task`` would be a stutter. The satellites carry the prefix (``tasks_group``,
+``tasks_link``, ``tasks_stage``, ``tasks_journal``) — there it answers "whose is this".
 
-Строка описывает задачу целиком, **кроме её места в дереве**: родитель и позиция среди
-соседей вынесены в ``tasks_link``. Причина — перенос ветки и перестановка соседей трогают только
-таблицу связей, а карточка задачи (её текст, сроки, статус) при этом не переписывается; та же
-развязка позволяет менять форму дерева, не трогая основную таблицу.
+A row describes the whole task **except its place in the tree**: the parent and the position
+among siblings live in ``tasks_link``. The reason: moving a branch or reordering siblings touches
+only the link table, and the task card (its text, dates, status) is not rewritten; the same
+decoupling allows changing the shape of the tree without touching the main table.
 
-Поля-справочники — ``type`` (глубина ведения), ``status`` (где в работе), ``priority`` (насколько
-срочно), ``created_by`` (кто завёл) — хранятся строками с именованными ``CHECK``, а не нативным
-enum: ``CREATE TYPE`` не существует на SQLite, а миграции модуля катятся на обоих провайдерах.
+The vocabulary fields — ``type`` (depth of tracking), ``status`` (where it is in the work),
+``priority`` (how urgent), ``created_by`` (who created it) — are stored as strings with named
+``CHECK``s, not a native enum: ``CREATE TYPE`` does not exist on SQLite, and the module's
+migrations run on both providers.
 
-Текст разложен по владельцу. Постановку пишет человек: ``description`` — цель, ``context`` —
-детали и стартовые требования, ``constraints`` — что можно и чего нельзя, ``criteria`` —
-требования к сдаче. ``body`` принадлежит агенту: у задачи это его план. Поэтому тело и стоит
-последним в текстовом блоке, а не сразу за ``description``, как у остальных сущностей модуля.
+The text is split by owner. The person writes the brief: ``description`` is the goal,
+``context`` the details and starting requirements, ``constraints`` what is and is not allowed,
+``criteria`` the acceptance requirements. The agent writes the work: ``plan`` before the code
+changes, ``progress`` along the way, ``result`` at hand-over. That is why a task has no ``body``
+like the module's other entities: its text is several fields, and ``body`` would not say which.
+The work fields close the text block in the order the work goes.
 
-Даты разделены по смыслу:
+Dates are split by meaning:
 
-- ``deadline_at`` — крайний срок, ``timestamp``: единственная дата, которую задаче назначают;
-- ``started_at`` / ``completed_at`` / ``canceled_at`` — отметки фаз, ставятся при смене статуса
-  (``crud/task.py::task_update_status``) и больше не перебиваются: это факты, а не планы.
+- ``deadline_at`` — the deadline, a ``timestamp``: the only date a task is assigned;
+- ``started_at`` / ``completed_at`` / ``canceled_at`` — phase marks, set on status change
+  (``crud/task.py::task_update_status``): they are facts, not plans. The start is never
+  overwritten; the two closing marks are cleared when the task is reopened and stamped anew when
+  it closes again.
 
-Индексы построены под три запроса, из которых состоит вся выдача: доска пространства по статусу,
-раскладка по группам и план по срокам. Все три ведут с ``workspace_code`` — поперёк пространств
-модуль не читает никогда.
+The indexes serve the three queries all output consists of: the workspace board by status, the
+layout by group, and the schedule by deadline. All three lead with ``workspace_code`` — the
+module never reads across workspaces.
 """
 
 from __future__ import annotations
@@ -42,13 +47,15 @@ from src.core.database.types import timestamp
 from src.core.utils.date import utc_now
 from src.modules.tasks.constants import (
     ACTOR_KINDS,
-    BODY_MAX,
     CODE_LEN,
     CONSTRAINTS_MAX,
     CONTEXT_MAX,
     CRITERIA_MAX,
     DESCRIPTION_MAX,
     ENUM_VALUE_MAX,
+    PLAN_MAX,
+    PROGRESS_MAX,
+    RESULT_MAX,
     TASK_CREATED_BY_DEFAULT,
     TASK_PRIORITIES,
     TASK_PRIORITY_DEFAULT,
@@ -86,8 +93,8 @@ class TasksTask(SoftDeleteMixin, Base):
             ondelete="CASCADE",
         ),
     )
-    # SET NULL, а не CASCADE: группу удаляют, когда меняют раскладку, — задачи при этом остаются
-    # работой, просто перестают быть разложенными.
+    # SET NULL, not CASCADE: a group is deleted when the layout changes — its tasks remain work,
+    # they just stop being sorted into a group.
     group_code: Mapped[str | None] = mapped_column(
         String(CODE_LEN),
         ForeignKey(
@@ -123,8 +130,14 @@ class TasksTask(SoftDeleteMixin, Base):
     criteria: Mapped[str] = mapped_column(
         String(CRITERIA_MAX), default="", server_default=text("''")
     )
-    body: Mapped[str] = mapped_column(
-        String(BODY_MAX), default="", server_default=text("''")
+    plan: Mapped[str] = mapped_column(
+        String(PLAN_MAX), default="", server_default=text("''")
+    )
+    progress: Mapped[str] = mapped_column(
+        String(PROGRESS_MAX), default="", server_default=text("''")
+    )
+    result: Mapped[str] = mapped_column(
+        String(RESULT_MAX), default="", server_default=text("''")
     )
     deadline_at: Mapped[datetime | None] = mapped_column(timestamp(), nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(timestamp(), nullable=True)

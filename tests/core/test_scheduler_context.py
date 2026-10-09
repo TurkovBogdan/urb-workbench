@@ -1,7 +1,7 @@
-"""Тесты TaskContext-логгера.
+"""Tests for the TaskContext logger.
 
-TaskContext.{debug,info,warn,error} пишет в core_tasks_logs с правильным level
-и форматирует %-args.
+TaskContext.{debug,info,warn,error} writes to core_tasks_logs with the right level
+and formats %-args.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from src.core.scheduler.context import TaskContext
 
 @pytest.fixture
 async def task_id(config: Config):
-    """Engine + core-таблицы + одна running запись, к которой цепляются логи."""
+    """Engine + core tables + one running row the logs attach to."""
     engine = await init_database(config)
     from src.core.database.runtime import Base
 
@@ -85,7 +85,7 @@ async def test_logger_formats_percent_args(task_id: int):
 
 @pytest.mark.db
 async def test_logger_truncates_long_message(task_id: int):
-    """Сообщение длиннее ``MESSAGE_MAX`` режется до лимита с маркером ``…``."""
+    """A message longer than ``MESSAGE_MAX`` is cut to the limit with a ``…`` marker."""
     from src.core.crud.tasks_logs import MESSAGE_MAX
 
     ctx = _ctx(task_id)
@@ -99,7 +99,7 @@ async def test_logger_truncates_long_message(task_id: int):
 
 @pytest.mark.db
 async def test_logger_keeps_message_at_limit(task_id: int):
-    """Сообщение ровно по лимиту не трогаем."""
+    """A message exactly at the limit is left alone."""
     from src.core.crud.tasks_logs import MESSAGE_MAX
 
     ctx = _ctx(task_id)

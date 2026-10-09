@@ -2,37 +2,38 @@ import { getCurrentInstance, onActivated, onBeforeUnmount, onDeactivated, onMoun
 
 import { useChangesStore, type Change } from '@/stores/changes'
 
-// Подписка экрана на ленту изменений — вместе с жизнью этого экрана.
+// A screen's subscription to the change feed — tied to the lifetime of that screen.
 //
-// Всё, что в такой подписке ломается, собрано здесь, а не в каждом экране. У подписки три
-// состояния, и в каждый момент она ровно в одном:
+// Everything that tends to break in such a subscription is gathered here, not in every screen. The
+// subscription has three states, and at any moment it is in exactly one:
 //
-// - ВИДЕН (смонтирован или вернулся из `KeepAlive`) — свои изменения копятся `BATCH_MS` с
-//   последнего и уходят в `onChange` одной пачкой: агент делает пять вызовов подряд — экран
-//   перечитывается один раз; переподключение ленты — `onResync`;
-// - СКРЫТ (страница жива в `KeepAlive`, но не на экране) — свои изменения не обрабатываются, а
-//   только замечаются; при возвращении — одна перечитка (`onResync`), и только если было что.
-//   Страница, которая при возвращении перечитывается и сама (`reloadsOnReturn`), вторую не
-//   получает: два одинаковых запроса подряд ничего не добавляют;
-// - СНЯТ (размонтирован) — ни одного обработчика в сторе не остаётся.
+// - VISIBLE (mounted or back from `KeepAlive`) — its changes accumulate for `BATCH_MS` after the
+//   last one and go to `onChange` as one batch: the agent makes five calls in a row — the screen
+//   reloads once; a feed reconnect — `onResync`;
+// - HIDDEN (the page is alive in `KeepAlive` but not on screen) — its changes are not processed,
+//   only noted; on return — a single reload (`onResync`), and only if something happened. A page
+//   that reloads itself on return (`reloadsOnReturn`) does not get a second one: two identical
+//   requests in a row add nothing;
+// - DISPOSED (unmounted) — not a single handler is left in the store.
 //
-// Смена состояния сначала снимает все обработчики прежнего, потом ставит новые: утечь
-// «наблюдатель скрытого» в видимое состояние или обработчик — за пределы жизни экрана не может.
-// Эхо своих правок сюда не доходит вовсе — его отсевает стор (`stores/changes.ts`).
+// A state change first removes all handlers of the previous state, then installs the new ones: a
+// "hidden watcher" cannot leak into the visible state, nor a handler beyond the screen's lifetime.
+// The echo of our own edits never reaches here at all — the store filters it out
+// (`stores/changes.ts`).
 
-/** Сколько ждём тишины после изменения, прежде чем отдать пачку экрану. */
+/** How long to wait for quiet after a change before handing the batch to the screen. */
 const BATCH_MS = 250
 
 export interface ChangeSubscription {
-  /** Какие сущности слушать (`tasks.task`, `tasks.stage`, …). */
+  /** Which entities to listen to (`tasks.task`, `tasks.stage`, …). */
   entities: string[]
-  /** Это изменение про меня? Зовётся на каждое изменение слушаемых сущностей. */
+  /** Is this change about me? Called for every change of the listened entities. */
   match: (change: Change) => boolean
-  /** Пачка своих изменений — после `BATCH_MS` тишины. */
+  /** A batch of its own changes — after `BATCH_MS` of quiet. */
   onChange: (changes: Change[]) => void
-  /** Перечитать всё: переподключение ленты или возвращение экрана после пропущенного. */
+  /** Reload everything: a feed reconnect or the screen returning after missing something. */
   onResync: () => void
-  /** Экран перечитывается сам в `onActivated` — пропущенное за время скрытия он покроет им. */
+  /** The screen reloads itself in `onActivated` — that covers whatever it missed while hidden. */
   reloadsOnReturn?: boolean
 }
 
@@ -95,7 +96,7 @@ export function useChangeSubscription(spec: ChangeSubscription): void {
     if (state !== 'visible') return
     unsubscribe()
     state = 'hidden'
-    // Недоотданная пачка не теряется: экран перечитается, когда вернётся.
+    // An undelivered batch is not lost: the screen will reload when it returns.
     if (dropBatch()) missed = true
     offs = [
       ...spec.entities.map((entity) =>
@@ -113,7 +114,7 @@ export function useChangeSubscription(spec: ChangeSubscription): void {
     state = 'disposed'
   }
 
-  // У страницы в `KeepAlive` при первом показе срабатывают оба хука; `show` повтор не заметит.
+  // A page in `KeepAlive` fires both hooks on first show; `show` ignores the repeat.
   onMounted(show)
   onActivated(show)
   onDeactivated(hide)

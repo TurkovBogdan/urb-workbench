@@ -1,10 +1,10 @@
-"""Тесты Ticker.
+"""Tests for Ticker.
 
-Покрытие:
-- ``_tick_once`` спавнит due-задачи и пропускает не-due (через зарегистрированный handler).
-- ``_tick_once`` чистит zombies: их задачи финализируются с error и их локи снимаются.
-- ``start`` идемпотентен (повторный вызов — no-op).
-- ``stop`` дожидается активных run_entry в пределах grace.
+Coverage:
+- ``_tick_once`` spawns due tasks and skips non-due ones (through a registered handler).
+- ``_tick_once`` cleans up zombies: their tasks are finalized with error and their locks released.
+- ``start`` is idempotent (a repeated call is a no-op).
+- ``stop`` waits for active run_entry calls within the grace period.
 """
 
 from __future__ import annotations
@@ -40,7 +40,7 @@ async def db(config: Config):
         await close_database()
 
 
-# ── _tick_once: спавн due-задач ─────────────────────────────────────────────
+# ── _tick_once: spawning due tasks ──────────────────────────────────────────
 
 
 @pytest.mark.db
@@ -68,10 +68,10 @@ async def test_tick_spawns_due_entry(db):
 async def test_tick_skips_not_due_entry(db):
     ran = asyncio.Event()
 
-    async def handler(ctx):  # pragma: no cover - не должен сработать
+    async def handler(ctx):  # pragma: no cover - must not fire
         ran.set()
 
-    # запускается раз в час → не due сразу после фикстивного last_run
+    # runs once an hour → not due right after the fixture's last_run
     get_registry().register(
         module="m", code="c", name="Demo", description="d",
         schedule="0 * * * *", handler=handler, ttl=60, enabled=True,
@@ -93,12 +93,12 @@ async def test_tick_skips_not_due_entry(db):
     assert not ran.is_set()
 
 
-# ── _tick_once: scope модулей ────────────────────────────────────────────────
+# ── _tick_once: module scope ─────────────────────────────────────────────────
 
 
 @pytest.mark.db
 async def test_tick_scope_filters_by_module(db):
-    """Ticker(modules={a}) спавнит только задачи модуля a, b пропускает."""
+    """Ticker(modules={a}) spawns only module a's tasks and skips b."""
     ran: set[str] = set()
 
     def make(tag: str):
@@ -200,7 +200,7 @@ async def test_stop_waits_for_active_runs_within_grace(db):
 
 @pytest.mark.db
 async def test_start_skipped_when_worker_disabled(db, config: Config):
-    """Без override и worker_enabled=false тикер не поднимается."""
+    """Without an override and with worker_enabled=false the ticker does not start."""
     from src.core import scheduler
 
     cfg = Config(_env_file=None, db_host="x", db_name="x", db_user="x",
@@ -214,7 +214,7 @@ async def test_start_skipped_when_worker_disabled(db, config: Config):
 
 @pytest.mark.db
 async def test_configure_worker_forces_ticker(db):
-    """configure_worker форсит старт тикера даже при worker_enabled=false."""
+    """configure_worker forces the ticker to start even with worker_enabled=false."""
     from src.core import scheduler
 
     cfg = Config(_env_file=None, db_host="x", db_name="x", db_user="x",
@@ -226,5 +226,5 @@ async def test_configure_worker_forces_ticker(db):
         assert scheduler._TICKER.modules == frozenset({"a"})
     finally:
         await scheduler.stop()
-    # stop() сбрасывает override → следующий start без него не поднимает тикер.
+    # stop() clears the override → the next start without it does not bring up the ticker.
     assert scheduler._WORKER_OVERRIDE is None

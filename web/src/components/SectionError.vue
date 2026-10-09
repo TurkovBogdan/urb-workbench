@@ -5,11 +5,11 @@ import { IconAlertTriangle, IconSearchOff } from '@tabler/icons-vue'
 import { ApiError } from '@/api/client/internal'
 import { errorText } from '@/api/errorText'
 
-// Отказ ЧТЕНИЯ раздела: сущности нет, список не загрузился. Экран во весь шелл здесь не даётся
-// — навигация жива, человек пришёл по верному адресу, и меню с шапкой обязаны остаться на месте.
-// Показывается на месте содержимого: почему пусто и что делать дальше.
+// A failure to READ a section: the entity doesn't exist, the list didn't load. No full-shell screen
+// here — navigation is alive, the person came to a valid address, and the menu and header must stay.
+// Shown in place of the content: why it's empty and what to do next.
 //
-// Отказ ОПЕРАЦИИ сюда не попадает никогда — он всплывает сообщением рядом с действием.
+// An OPERATION failure never lands here — it surfaces as a message next to the action.
 
 const props = defineProps<{ error: unknown }>()
 
@@ -17,8 +17,8 @@ const { t } = useI18n()
 
 const missing = computed(() => props.error instanceof ApiError && props.error.status === 404)
 
-// Заголовок общий, предметное существительное приносит сам ответ бэкенда («Исследование не
-// найдено») — оно и печатается строкой ниже, поэтому дублировать его пропом незачем.
+// The title is generic; the subject noun comes with the backend response itself ("Research not
+// found") — it is printed on the line below, so there's no point duplicating it with a prop.
 const title = computed(() => (
   missing.value ? t('common.errors.section.missing') : t('common.errors.section.failed')
 ))

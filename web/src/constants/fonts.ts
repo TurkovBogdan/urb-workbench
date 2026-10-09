@@ -137,7 +137,7 @@ export const INTERFACE_FONTS: FontOption[] = [
   SYSTEM_SANS,
 ]
 
-// Антиквы стоят первыми: роль чтения — это длинный текст, и именно здесь засечки уместны.
+// Serifs come first: the reading role is long text, and this is exactly where serifs belong.
 export const READING_FONTS: FontOption[] = [
   LITERATA,
   PT_SERIF,
@@ -153,26 +153,26 @@ export const READING_FONTS: FontOption[] = [
   SYSTEM_SANS,
 ]
 
-// «Как шрифт текста» — не гарнитура, а отказ от выбора: заголовки набираются тем же, чем набран
-// текст, и следуют за ним при смене. Стек — ссылка на его токен, поэтому строка списка набрана
-// тем, что выбрано сейчас, а в CSS значение подставляется без развилки в коде.
+// "Same as text" is not a typeface but declining to choose: headings are set in whatever the text
+// is set in, and follow it when it changes. The stack is a reference to its token, so the list row
+// is rendered in the current choice, and in CSS the value is substituted without a branch in code.
 const HEADING_AS_READING: FontOption = {
   code: 'reading',
   stack: 'var(--font-reading)',
 }
 
-// Заголовки берут либо шрифт текста, либо свой — набор тот же, что у зоны чтения: заголовок
-// живёт в том же документе, и семьи, негодные для чтения подряд, негодны и здесь.
+// Headings take either the text font or their own — from the same set as the reading zone: a
+// heading lives in the same document, and families unfit for continuous reading are unfit here too.
 export const HEADING_FONTS: FontOption[] = [HEADING_AS_READING, ...READING_FONTS]
 
-// Код — своя роль: моноширинный набор в блоках кода, инлайновых чипах и технических подписях
-// (`--font-mono`). Схемам он не предлагается: раскладка меряет подписи буквенными пропорциями,
-// а моноширинная строка шире — она вылезла бы за границы блоков.
+// Code is its own role: monospace in code blocks, inline chips and technical captions
+// (`--font-mono`). It is not offered for diagrams: the layout measures labels with proportional
+// letter widths, and a monospace line is wider — it would overflow the boxes.
 export const MONO_FONTS: FontOption[] = [JETBRAINS_MONO, IBM_PLEX_MONO, MARTIAN_MONO, SYSTEM_MONO]
 
-// Схемы — третья роль: подпись внутри блока живёт в тесной коробке, и рендерер меряет её
-// той гарнитурой, что выбрана. Отсюда состав: только гротески с плотным рисунком — антиква
-// и моноширинный набирают подпись шире, чем рассчитана коробка.
+// Diagrams are the third role: a label inside a box lives in a tight space, and the renderer
+// measures it with the selected typeface. Hence the set: only tightly drawn sans-serifs — serif
+// and monospace faces set the label wider than the box was sized for.
 export const DIAGRAM_FONTS: FontOption[] = [ONEST, GOLOS, IBM_PLEX_SANS, PT_SANS, SYSTEM_SANS]
 
 export const DEFAULT_INTERFACE_FONT = ONEST.code
@@ -189,24 +189,25 @@ export const READING_SIZES = [14, 15, 16, 17, 18, 20] as const
 
 export const DEFAULT_READING_SIZE = 14
 
-// Насыщенность зоны чтения — вся шкала CSS, от 100 до 900. Заголовки и выделения в теле
-// не следуют за ней: они заданы своим весом, иначе разница между текстом и выделением в нём
-// исчезла бы вместе с выбором.
+// Weight of the reading zone — the full CSS scale, 100 to 900. Headings and emphasis in the body
+// don't follow it: they have their own weight, otherwise the difference between the text and the
+// emphasis within it would vanish along with the choice.
 //
-// Оговорка про нижний край: начертания легче нормального есть не у всех подключённых семей
-// (у PT Sans, PT Serif, Spectral и IBM Plex Mono их нет вовсе, у Golos Text ось начинается
-// с 400) — там браузер возьмёт ближайшее доступное, и 100–300 нарисуются как 400.
+// A caveat about the low end: not every bundled family has faces lighter than regular
+// (PT Sans, PT Serif, Spectral and IBM Plex Mono have none at all, Golos Text's axis starts
+// at 400) — there the browser takes the nearest available, and 100–300 render as 400.
 export const READING_WEIGHTS = [100, 200, 300, 400, 500, 600, 700, 800, 900] as const
 
 export const DEFAULT_READING_WEIGHT = 300
 
-// Заголовки идут по той же шкале, но своим выбором: разница между ними и текстом — это и есть
-// то, чем читается разбиение на разделы, и держать её приходится в паре с весом текста.
+// Headings use the same scale but a separate choice: the difference between them and the text is
+// exactly what makes the section structure readable, and it has to be kept paired with the text
+// weight.
 export const DEFAULT_HEADING_WEIGHT = 600
 
-// Кегль блока кода в теле документа, в пикселях. Своя лестница и свой выбор: моноширинный набор
-// при том же кегле выглядит крупнее пропорционального, и листинг, набранный вровень с текстом,
-// перетягивает внимание на себя. Номера строк и отступы внутри блока заданы в `em` и идут следом.
+// Font size of a code block in a document body, in pixels. Its own ladder and its own choice:
+// monospace at the same size looks larger than proportional type, and a listing set level with the
+// text pulls attention to itself. Line numbers and padding inside the block are in `em` and follow.
 export const CODE_SIZES = [11, 12, 13, 14, 15, 16] as const
 
 export const DEFAULT_CODE_SIZE = 12
@@ -232,8 +233,8 @@ export function fontStack(options: FontOption[], code: string, fallback: string)
   return chosen?.stack ?? SANS_FALLBACK
 }
 
-// Рендереру схем нужно имя гарнитуры, а не стек: он подставляет его в собственное правило
-// внутри SVG и дописывает запасные варианты сам. Отсюда и первая семья стека вместо него целиком.
+// The diagram renderer needs a typeface name, not a stack: it puts it into its own rule inside the
+// SVG and appends fallbacks itself. Hence the stack's first family instead of the whole stack.
 export function fontFamilyName(options: FontOption[], code: string, fallback: string): string {
   return fontStack(options, code, fallback).split(',')[0].replace(/['"]/g, '').trim()
 }

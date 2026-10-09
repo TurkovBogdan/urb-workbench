@@ -3,6 +3,9 @@
   "switcher": {
     "label": "Workspace",
     "search": "Search workspaces",
+    "not_found": "Nothing found",
+    "create": "New workspace",
+    "manage": "Manage workspaces",
     "loading": "Loading workspaces…",
     "empty": "No workspaces yet",
     "empty_action": "Create the first one"
@@ -12,13 +15,19 @@
     "description": "The top level of data: modules arrange their content by workspace.",
     "add": "New workspace",
     "refresh": "Refresh",
-    "show_deleted": "Show deleted",
     "empty": "No workspaces yet",
-    "empty_hint": "Create the first one — zones and tasks will appear in it."
+    "empty_hint": "Create the first one — zones and tasks will appear in it.",
+    "nothing_found": "Nothing found",
+    "clear_search": "Clear search"
+  },
+  "filter": {
+    "query": "Search by name and description",
+    "deleted": "Deleted"
   },
   "card": {
     "updated_at": "Last change",
     "actions": "Actions",
+    "drag": "Drag workspace",
     "deleted": "Deleted",
     "edit": "Edit",
     "delete": "Delete",
@@ -30,22 +39,28 @@
     "title": "Edit workspace",
     "name": "Name",
     "description": "Short description",
-    "look": "Icon and color",
-    "left": "{count} left"
+    "sort": "Sort",
+    "sort_hint": "The higher the number, the higher in the list",
+    "look": "Icon and color"
   },
   "delete": {
     "title": "Delete workspace",
-    "empty": "The workspace is empty. Delete it?",
-    "with_content": "It contains {content}. The content stays in place and comes back with the workspace.",
-    "reversible": "Deletion can be undone: the workspace goes to the deleted list, where it can be restored.",
-    "submit": "Delete"
+    "empty": "The workspace is empty.",
+    "with_content": "It contains {content}.",
+    "effects": "What happens",
+    "hidden": "The workspace is hidden from the list and the sidebar.",
+    "content_kept": "Groups and tasks are kept and come back with the workspace.",
+    "agents": "New agents can't pick it; connected ones keep working.",
+    "restore_hint": "Changed your mind? Turn on the “Deleted” filter and pick “Restore” in the workspace menu.",
+    "submit": "Delete",
+    "done": "Workspace “{title}” deleted",
+    "undo": "Restore",
+    "restored": "Workspace “{title}” restored"
   },
   "purge": {
     "title": "Delete forever",
-    "empty": "The workspace is empty. The row will be removed from the database for good.",
-    "with_content": "Everything inside the workspace will be physically removed with it — {content}. It can't be restored.",
-    "confirm_hint": "To confirm, type the workspace name.",
-    "confirm_label": "Workspace name",
+    "empty": "The workspace is empty and will be deleted for good.",
+    "with_content": "The workspace is deleted for good with all its groups and tasks — {content}.",
     "submit": "Delete forever"
   },
   "error": {

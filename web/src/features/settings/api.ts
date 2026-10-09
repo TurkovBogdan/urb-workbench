@@ -1,8 +1,8 @@
 /**
- * Клиент HTTP API подсистемы settings (бэк: /internal/core/settings).
+ * HTTP API client of the settings subsystem (backend: /internal/core/settings).
  *
- * Описание полей — общий контракт `shared/settings-fields.ts`. Значения хранятся в модуле как
- * объект `key → value`; на PUT мы шлём raw value, бэк сам валидирует.
+ * Field descriptions follow the shared contract `shared/settings-fields.ts`. Values are stored in
+ * the module as a `key → value` object; on PUT we send the raw value, the backend validates it.
  */
 
 import { internalApi } from '@/api/client/internal'

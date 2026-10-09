@@ -11,9 +11,9 @@ const props = defineProps<{
 
 const emit = defineEmits<{ 'update:modelValue': [string] }>()
 
-// Бэк хранит naive-UTC ISO с секундами (2026-05-12T15:30:00),
-// HTML `datetime-local` оперирует форматом без секунд и таймзоны.
-// Стрипаем секунды для отображения, добавляем :00 на эмите.
+// The backend stores naive-UTC ISO with seconds (2026-05-12T15:30:00),
+// HTML `datetime-local` works with a format without seconds or timezone.
+// Strip the seconds for display, append :00 on emit.
 const inputValue = computed(() =>
   props.modelValue ? props.modelValue.slice(0, 16) : '',
 )

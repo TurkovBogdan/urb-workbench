@@ -1,8 +1,8 @@
-"""Реестр каналов логирования: имя → инстанс ``CoreLoggerProtocol``.
+"""Registry of logging channels: name → ``CoreLoggerProtocol`` instance.
 
-Один логгер на канал, лениво создаётся фабрикой. По умолчанию фабрика —
-``CoreLogger`` с файлом ``logs/<channel>.log``. Bootstrap (``apps/app/server.py``)
-заменяет фабрику на нужную (level из settings, кастомные пути).
+One logger per channel, created lazily by a factory. The default factory is
+``CoreLogger`` with the file ``logs/<channel>.log``. The bootstrap (``apps/app/server.py``)
+replaces the factory with the one it needs (level from settings, custom paths).
 """
 
 from __future__ import annotations
@@ -17,10 +17,10 @@ DEFAULT_CHANNEL = "core"
 
 
 def _default_factory(channel: str) -> CoreLoggerProtocol:
-    """Ленивый дефолт: ``CoreLogger`` с файлом ``logs/<channel>.log``.
+    """Lazy default: ``CoreLogger`` with the file ``logs/<channel>.log``.
 
-    Существует, чтобы ранние импорты до ``set_factory`` не падали и в тестах
-    не нужен был bootstrap. В нормальной сборке фабрику ставит app-bootstrap.
+    Exists so that early imports before ``set_factory`` don't crash and tests
+    need no bootstrap. In a normal build the app bootstrap sets the factory.
     """
     from src.core.app_path import AppPath, ensure_dirs
     from src.core.loggers.core_logger import CoreLogger
@@ -31,14 +31,14 @@ def _default_factory(channel: str) -> CoreLoggerProtocol:
 
 
 class LoggerStore:
-    """Class-based runtime-хранилище логгеров по каналам."""
+    """Class-based runtime store of loggers by channel."""
 
     _channels: dict[str, CoreLoggerProtocol] = {}
     _factory: LoggerFactory | None = None
 
     @classmethod
     def get(cls, channel: str = DEFAULT_CHANNEL) -> CoreLoggerProtocol:
-        """Вернуть логгер канала. При отсутствии — создаст через фабрику."""
+        """Return the channel's logger. If absent, creates it through the factory."""
         if channel not in cls._channels:
             factory = cls._factory or _default_factory
             cls._channels[channel] = factory(channel)
@@ -50,7 +50,7 @@ class LoggerStore:
         logger: CoreLoggerProtocol | None,
         channel: str = DEFAULT_CHANNEL,
     ) -> None:
-        """Зафиксировать логгер канала. ``None`` — снять; следующий ``get`` пересоздаст."""
+        """Pin the channel's logger. ``None`` — unpin; the next ``get`` recreates it."""
         if logger is None:
             cls._channels.pop(channel, None)
         else:
@@ -58,19 +58,19 @@ class LoggerStore:
 
     @classmethod
     def set_factory(cls, factory: LoggerFactory | None) -> None:
-        """Заменить фабрику. Все ранее лениво созданные каналы сбрасываются."""
+        """Replace the factory. Every channel created lazily so far is dropped."""
         cls._factory = factory
         cls._channels.clear()
 
     @classmethod
     def reset(cls) -> None:
-        """Полный сброс: фабрика и все каналы."""
+        """Full reset: the factory and every channel."""
         cls._channels.clear()
         cls._factory = None
 
 
 def set_logger_factory(factory: LoggerFactory | None) -> None:
-    """Заменить фабрику каналов. Сбрасывает уже созданные инстансы."""
+    """Replace the channel factory. Drops the instances already created."""
     LoggerStore.set_factory(factory)
 
 

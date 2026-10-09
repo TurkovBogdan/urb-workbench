@@ -1,7 +1,7 @@
-"""apps/app.mcp_stdio: шим — резолв кода, детект/спавн backend, браузер, прокси.
+"""apps/app.mcp_stdio: the shim — code resolution, backend detect/spawn, browser, proxy.
 
-Сам запуск backend и опрос готовности живут в `src/core/backend_launch.py` (общие с
-апдейтером) — их тесты там же, `tests/core/test_backend_launch.py`.
+Launching the backend itself and polling for readiness live in `src/core/backend_launch.py`
+(shared with the updater) — their tests sit alongside, `tests/core/test_backend_launch.py`.
 """
 
 from __future__ import annotations
@@ -29,8 +29,8 @@ def _cfg(**over):
 
 @pytest.fixture(autouse=True)
 def no_maintenance_flag(monkeypatch):
-    """Шим читает флаг на живой машине — тесты не должны зависеть от того, идёт ли там
-    обновление; тест про сам гейт переопределяет это своим значением."""
+    """The shim reads the flag on the live machine — tests must not depend on whether an update
+    is running there; the test of the gate itself overrides this with its own value."""
     monkeypatch.setattr(mcp_stdio.maintenance, "active", lambda: None)
 
 
@@ -41,10 +41,10 @@ def test_resolve_code_prefers_config():
 
 @pytest.mark.pure
 def test_resolve_code_picks_sole_mounted_server(monkeypatch):
-    """Пусто → единственный смонтированный модулями сервер.
+    """Empty → the only server the modules mount.
 
-    Состав модулей монкипатчится, а не берётся живым: серверов в сборке уже два, и тест про
-    правило «один — значит он» не должен падать каждый раз, когда прибавляется третий.
+    The module list is monkeypatched rather than taken live: the build already has two servers,
+    and a test of the "only one, so that one" rule must not break every time a third is added.
     """
     monkeypatch.setattr(
         "src.apps.app.modules.build_modules",
@@ -55,15 +55,15 @@ def test_resolve_code_picks_sole_mounted_server(monkeypatch):
 
 @pytest.mark.pure
 def test_resolve_code_refuses_loudly_when_several_are_mounted(monkeypatch):
-    """Серверов несколько — молча выбрать один нельзя, и отказ называет настройку.
+    """Several servers — silently picking one is not allowed, and the refusal names the setting.
 
-    Состав модулей задаётся здесь же, как и в тесте про единственный сервер: в сборке сейчас
-    один сервер, и правило про несколько не должно быть проверяемым только в те периоды, когда
-    их случайно больше одного.
+    The module list is set right here, as in the single-server test: the build currently has one
+    server, and the several-servers rule must not be testable only in the periods when there
+    happen to be more than one.
 
-    Это же ловушка обновления: конфиг, скопированный во времена единственного сервера, пина не
-    содержит и после появления второго перестаёт подключаться. Ошибка обязана сказать, чем это
-    чинится, — иначе «Connection Failed» ничего не объясняет.
+    This is also an update trap: a config copied back when there was a single server carries no
+    pin and stops connecting once a second one appears. The error has to say how to fix it —
+    otherwise "Connection Failed" explains nothing.
     """
     monkeypatch.setattr(
         "src.apps.app.modules.build_modules",
@@ -78,20 +78,21 @@ def test_resolve_code_refuses_loudly_when_several_are_mounted(monkeypatch):
 
 @pytest.mark.pure
 def test_proxy_introduces_the_connection_with_a_session_header():
-    """Шим представляется backend: без этого заголовка сессии агента неразличимы."""
+    """The shim introduces itself to the backend: without this header agent sessions are
+    indistinguishable."""
     from src.core.mcp_headers import MCP_SESSION_HEADER, MCP_WORKSPACE_HEADER
 
     headers = mcp_stdio._session_headers(_cfg())
 
     assert headers[MCP_SESSION_HEADER]
-    # Пространства в конфиге нет — заголовка-умолчания тоже: пустое значение backend прочитал
-    # бы как «настроено пустым», а это другое состояние.
+    # No workspace in the config — so no default header either: the backend would read an empty
+    # value as "configured as empty", which is a different state.
     assert MCP_WORKSPACE_HEADER not in headers
 
 
 @pytest.mark.pure
 def test_each_connection_gets_its_own_session_id():
-    """Ключ на процесс, а не на установку: два клиента — две независимые сессии."""
+    """A key per process, not per installation: two clients — two independent sessions."""
     first = mcp_stdio._session_headers(_cfg())
     second = mcp_stdio._session_headers(_cfg())
 
@@ -181,7 +182,7 @@ def test_ensure_backend_raises_and_skips_browser_on_timeout(monkeypatch):
 
 @pytest.mark.pure
 def test_ensure_backend_raises_when_the_spawned_backend_comes_up_degraded(monkeypatch):
-    """Поднялся, но схема отстала: браузер не открываем, называем ревизии."""
+    """It came up but the schema is behind: no browser, and the revisions are named."""
     calls = []
     monkeypatch.setattr(mcp_stdio, "probe_health", lambda c: None)
     monkeypatch.setattr(mcp_stdio, "_spawn_backend", lambda c: calls.append("spawn"))
@@ -199,7 +200,7 @@ def test_ensure_backend_raises_when_the_spawned_backend_comes_up_degraded(monkey
 
 @pytest.mark.pure
 def test_ensure_backend_fails_fast_on_degraded_backend(monkeypatch):
-    """Деградировавший backend жив — второй не спавним, а называем причину и ревизии."""
+    """A degraded backend is alive — don't spawn a second one, name the cause and revisions."""
     calls = []
     degraded = BackendHealth("degraded", ("rem_005",))
     monkeypatch.setattr(mcp_stdio, "probe_health", lambda c: degraded)
@@ -228,7 +229,7 @@ def test_ensure_backend_refuses_while_an_update_holds_the_flag(monkeypatch):
     with pytest.raises(RuntimeError) as refusal:
         mcp_stdio._ensure_backend(_cfg())
 
-    assert "обновление" in str(refusal.value)
+    assert "being updated" in str(refusal.value)
     assert "4242" in str(refusal.value)
     assert "update to head" in str(refusal.value)
     assert calls == []
@@ -252,7 +253,8 @@ def test_build_proxy_targets_backend_mcp_url():
 
 @pytest.mark.pure
 def test_file_only_logging_omits_stdout_handler():
-    """Фабрика шима даёт логгер без stdout-хендлера (только файл) — stdout под MCP."""
+    """The shim's factory yields a logger with no stdout handler (file only) — stdout belongs to
+    MCP."""
     import logging
     import sys
 

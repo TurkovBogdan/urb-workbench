@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import type { StrFieldDescriptor } from '@/shared/settings-fields'
 
-// Секрет наружу не отдаётся: бэк присылает сентинел `NOT_CHANGED` (заданный токен)
-// либо `""` (не задан). Поле держит присланное значение как есть — маскированное
-// (не пусто, если задан). Не тронул → уходит обратно тем же сентинелом, и бэк
-// (src/core/_settings/api.py) НЕ обновляет токен. Ввёл новое → сохраняется.
+// The secret is never sent out: the backend sends the sentinel `NOT_CHANGED` (token set)
+// or `""` (not set). The field holds the received value as is — masked
+// (non-empty if set). Left untouched → goes back as the same sentinel, and the backend
+// (src/core/_settings/api.py) does NOT update the token. A new value entered → it is saved.
 defineProps<{
   field: StrFieldDescriptor
   modelValue: string

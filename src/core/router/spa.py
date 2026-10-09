@@ -1,8 +1,8 @@
-"""Раздача собранного SPA (``web/dist``) тем же HTTP-сервером, что и API-зоны.
+"""Serving the built SPA (``web/dist``) from the same HTTP server as the API zones.
 
-Ядровый uvicorn — единственный веб-сервер; SPA это его штатная функция (не отдельный
-сервер/процесс). ``mount_spa`` вешает middleware в build phase под ``SERVER_ENABLED``
-(см. ``mount_router_zones``).
+The core uvicorn is the only web server; the SPA is one of its regular duties (not a separate
+server/process). ``mount_spa`` attaches the middleware in the build phase under ``SERVER_ENABLED``
+(see ``mount_router_zones``).
 """
 
 from __future__ import annotations
@@ -27,18 +27,18 @@ _API_PREFIXES = (API_PREFIX, INTERNAL_PREFIX, STORAGE_PREFIX, MCP_PREFIX, WEBHOO
 
 
 def _is_api_path(path: str, prefixes: tuple[str, ...]) -> bool:
-    """Путь принадлежит backend-зоне (точное совпадение префикса или сегмент под ним)."""
+    """The path belongs to a backend zone (an exact prefix match or a segment under it)."""
     return any(path == prefix or path.startswith(prefix + "/") for prefix in prefixes)
 
 
 class SpaStaticMiddleware:
-    """Отдаёт встроенный фронт (``web/dist``) для любого GET/HEAD вне API-префиксов.
+    """Serves the bundled frontend (``web/dist``) for any GET/HEAD outside the API prefixes.
 
-    Существующий файл из ``dist`` отдаётся как есть (ассеты, фавиконки); для всех
-    прочих путей — ``index.html`` (deep-link клиентского роутинга). Запросы под
-    API-префиксами проходят в backend без изменений — JSON-контракт ошибок не
-    затрагивается. Middleware короткозамыкает раздачу до роутинга, поэтому порядок
-    монтажа зон значения не имеет.
+    An existing file from ``dist`` is served as is (assets, favicons); every other
+    path gets ``index.html`` (a client-side routing deep link). Requests under the
+    API prefixes pass through to the backend unchanged — the JSON error contract is not
+    affected. The middleware short-circuits serving before routing, so the order in which
+    zones are mounted does not matter.
     """
 
     def __init__(
@@ -66,14 +66,14 @@ class SpaStaticMiddleware:
 
 
 def mount_spa(app: FastAPI) -> None:
-    """Смонтировать раздачу фронта из ``web/dist``; нет сборки → WARNING + no-op."""
+    """Mount frontend serving from ``web/dist``; no build → WARNING + no-op."""
     dist = project_root() / "web" / "dist"
     if not (dist / "index.html").is_file():
         _LOG.warning(
-            "spa: %s/index.html не найден — фронт не раздаётся; соберите "
+            "spa: %s/index.html not found — the frontend is not served; build it "
             "(`pnpm --dir web build`)",
             dist,
         )
         return
     app.add_middleware(SpaStaticMiddleware, dist=dist, api_prefixes=_API_PREFIXES)
-    _LOG.info("spa: фронт раздаётся из %s", dist)
+    _LOG.info("spa: serving the frontend from %s", dist)

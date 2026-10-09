@@ -1,8 +1,8 @@
-"""CRUD этапов плана: нумерация, отметки фаз и шлюз доказательства.
+"""Plan stage CRUD: numbering, phase stamps and the evidence gate.
 
-Шлюз здесь главный: закрыть этап без указателя на доказательство нельзя, и это единственная
-проверка модуля, которая запрещает переход статуса. Всё остальное — арифметика номеров и отметки
-времени, которые проставляет сам переход.
+The gate is the main thing here: a stage cannot be closed without a pointer to evidence, and this
+is the only check in the module that forbids a status transition. Everything else is number
+arithmetic and the timestamps the transition itself sets.
 """
 
 from __future__ import annotations
@@ -39,7 +39,7 @@ async def task(db, workspace):
     )
 
 
-# ── номера ────────────────────────────────────────────────────────────────────
+# ── numbers ───────────────────────────────────────────────────────────────────
 
 
 async def test_numbers_run_from_one_and_grow_down(task):
@@ -65,11 +65,11 @@ async def test_an_explicit_number_inserts_into_the_middle(task):
 
 
 async def test_a_taken_number_is_refused_by_name_not_by_the_index(task):
-    """Занятый номер — обычный ход переработки плана, и отвечать на него SQL нельзя.
+    """A taken number is an ordinary move when reworking a plan, and SQL must not answer it.
 
-    Уникальность держит индекс, но упереться в него значит отдать наружу ``IntegrityError`` с
-    куском INSERT: человеку шум, агенту текст, из которого нечем починиться. Слой проверяет сам
-    и называет, кто номер держит.
+    The index enforces uniqueness, but hitting it means leaking an ``IntegrityError`` with a chunk
+    of INSERT: noise to a person, text an agent has nothing to fix itself with. The layer checks
+    on its own and names who holds the number.
     """
     first = await stage_create(task_code=task.code, title="Первый", number=1)
 
@@ -78,7 +78,7 @@ async def test_a_taken_number_is_refused_by_name_not_by_the_index(task):
 
 
 async def test_a_stage_may_keep_its_own_number(task):
-    """Правка без переезда не должна отказывать, ссылаясь на саму переезжающую строку."""
+    """An edit that does not move the stage must not be refused by pointing at the row itself."""
     stage = await stage_create(task_code=task.code, title="Первый", number=1)
 
     assert (await stage_update(stage.code, number=1)).number == 1
@@ -96,7 +96,7 @@ async def test_numbers_are_counted_per_task(db, workspace):
     assert (await stage_create(task_code=other.code, title="Первый")).number == 1
 
 
-# ── принадлежность задаче ─────────────────────────────────────────────────────
+# ── belonging to a task ───────────────────────────────────────────────────────
 
 
 async def test_a_stage_needs_a_live_task(db, workspace):
@@ -110,11 +110,12 @@ async def test_a_stage_needs_a_live_task(db, workspace):
 
 
 async def test_stages_belong_to_the_extended_task_only(db, workspace):
-    """Этапы — единственное, чем расширенная отличается от стандартной.
+    """Stages are the only thing that sets an extended task apart from a standard one.
 
-    У стандартной план живёт прозой в теле, и этап там не показался бы нигде: полотно этапов
-    интерфейс рисует только расширенной. Отказ обязан называть выход — и прозу, и повышение
-    типа, — иначе агент упрётся в «нельзя» без понимания, что делать.
+    A standard task keeps its plan as prose in the body, and a stage there would show up nowhere:
+    the interface draws the stage board for extended tasks only. The refusal must name the way
+    out — both the prose and raising the type — otherwise the agent hits a "no" without knowing
+    what to do.
     """
     simple = await task_create(workspace_code=workspace.code, title="Записаться к врачу")
     standard = await task_create(
@@ -127,7 +128,7 @@ async def test_stages_belong_to_the_extended_task_only(db, workspace):
 
 
 async def test_raising_the_type_is_how_a_task_gets_stages(db, workspace):
-    """Повышение типа — штатный путь для работы, которая оказалась длиннее, чем думали."""
+    """Raising the type is the regular path for work that turned out longer than expected."""
     task = await task_create(
         workspace_code=workspace.code, title="Поправить форму", type=TYPE_STANDARD
     )
@@ -144,7 +145,7 @@ async def test_purging_the_task_takes_its_stages(db, workspace, task):
     assert await stage_get(stage.code) is None
 
 
-# ── статусы и отметки ─────────────────────────────────────────────────────────
+# ── statuses and stamps ───────────────────────────────────────────────────────
 
 
 async def test_a_new_stage_is_planned(task):
@@ -164,7 +165,7 @@ async def test_work_stamps_the_start_once(task):
 
 
 async def test_a_cancelled_stage_is_finished_too(task):
-    """«Отменён» — тоже конец работы: иначе «закрытые» и «открытые» перестают покрывать план."""
+    """"Canceled" ends the work too: otherwise "closed" and "open" stop covering the plan."""
     stage = await stage_create(task_code=task.code, title="Через вебхуки")
 
     cancelled = await stage_update_status(stage.code, STATUS_CANCELED)
@@ -172,7 +173,7 @@ async def test_a_cancelled_stage_is_finished_too(task):
     assert cancelled.finished_at is not None
 
 
-# ── шлюз доказательства ───────────────────────────────────────────────────────
+# ── evidence gate ─────────────────────────────────────────────────────────────
 
 
 async def test_closing_without_evidence_is_refused_by_name(task):
@@ -186,7 +187,7 @@ async def test_closing_without_evidence_is_refused_by_name(task):
 
 
 async def test_any_other_status_needs_no_evidence(task):
-    """Шлюз стоит только на закрытии: работа и отмена доказательства не требуют."""
+    """The gate guards closing only: starting work and canceling need no evidence."""
     stage = await stage_create(task_code=task.code, title="Модели")
 
     assert (await stage_update_status(stage.code, STATUS_IN_PROGRESS)).status == STATUS_IN_PROGRESS
@@ -199,7 +200,7 @@ async def test_an_unknown_status_is_refused(task):
         await stage_update_status(stage.code, "почти готово")
 
 
-# ── правка и удаление ─────────────────────────────────────────────────────────
+# ── editing and deletion ──────────────────────────────────────────────────────
 
 
 async def test_update_touches_only_the_named_fields(task):

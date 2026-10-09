@@ -1,4 +1,4 @@
-"""Field-классы: parse/serialize/validate/ui_descriptor."""
+"""Field classes: parse/serialize/validate/ui_descriptor."""
 
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ def test_int_roundtrip():
     with pytest.raises(ValueError):
         f.validate("3")  # type: ignore[arg-type]
     with pytest.raises(ValueError):
-        f.validate(True)  # bool — не int в нашем мире
+        f.validate(True)  # bool is not an int in our world
 
 
 # ── Float ────────────────────────────────────────────────────────────────

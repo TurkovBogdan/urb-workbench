@@ -1,23 +1,23 @@
 <script setup lang="ts">
-// Ручка перетаскивания — одна на всё приложение.
+// Drag handle — one for the whole app.
 //
-// Одна намеренно: размер зоны хвата, гашение ripple, `touch-action`, кольцо фокуса и подпись для
-// читалки задаются здесь, а место применения отличается только селектором в `handle` у sortable.
-// Разъехавшись, эти пять вещей дают пять разных ручек, из которых работает одна.
+// One on purpose: the grab area size, ripple suppression, `touch-action`, focus ring and the
+// screen-reader label are set here, and call sites differ only by the selector in sortable's `handle`.
+// Once these five things drift apart you get five different handles, of which one works.
 //
-// ЗАЧЕМ РУЧКА ВООБЩЕ. Без неё перетаскивается вся строка, и тогда у строки отнимается выделение
-// текста, а на тач-устройстве — прокрутка: жест начинается с того же движения. Ручка разводит
-// «взять» и «прокрутить» по разным местам строки.
+// WHY A HANDLE AT ALL. Without it the whole row is draggable, and then the row loses text selection,
+// and on a touch device — scrolling: the gesture starts with the same motion. The handle separates
+// "grab" and "scroll" into different parts of the row.
 //
-// `touch-action: none` обязателен и стоит ровно на ручке: браузер иначе съедает pointer-события
-// в пользу собственной прокрутки, и жест не начинается. Ставить его на строку целиком нельзя —
-// тогда список перестанет прокручиваться пальцем.
+// `touch-action: none` is required and sits exactly on the handle: otherwise the browser swallows
+// pointer events in favour of its own scrolling and the gesture never starts. It can't go on the
+// whole row — then the list would stop scrolling by finger.
 import { IconGripVertical } from '@tabler/icons-vue'
 
 withDefaults(defineProps<{
-  /** Подпись для читалки: что именно эта ручка двигает. */
+  /** Screen-reader label: what exactly this handle moves. */
   label: string
-  /** Ручка видна всегда, а не только под курсором строки. */
+  /** The handle is always visible, not only under the pointer on its row. */
   always?: boolean
 }>(), {
   always: false,
@@ -38,8 +38,8 @@ withDefaults(defineProps<{
 </template>
 
 <style scoped>
-/* Коробка шире значка: хватать приходится точно, и 14px глифа — это не зона хвата. Ширина взята
-   по высоте плотной строки списка, чтобы ручка не растила её собой. */
+/* The box is wider than the icon: grabbing has to be precise, and a 14px glyph is no grab area. The
+   size is taken from the height of a dense list row so the handle doesn't make the row taller. */
 .drag-handle {
   display: inline-flex;
   align-items: center;
@@ -58,14 +58,14 @@ withDefaults(defineProps<{
 .drag-handle--always,
 .drag-handle:focus-visible { opacity: 1; }
 
-/* Появляется по наведению на СТРОКУ, а не на себя: невидимую ручку курсором не найти. */
+/* Appears on hovering the ROW, not itself: an invisible handle can't be found with the pointer. */
 :where(.task-row, .drag-row):hover .drag-handle { opacity: 1; }
 
 .drag-handle:hover { color: var(--text); }
 
 .drag-handle:active { cursor: grabbing; }
 
-/* Палец на тач-устройстве не наводится: там ручка видна всегда, иначе её нечем вызвать. */
+/* A finger on a touch device doesn't hover: there the handle is always visible, otherwise nothing could summon it. */
 @media (hover: none) {
   .drag-handle { opacity: 1; }
 }

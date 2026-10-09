@@ -1,4 +1,4 @@
-"""Дерево задач: перенос ветки, позиция среди соседей, группа и защита от петли."""
+"""The task tree: moving a branch, position among neighbours, the group, and loop protection."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ pytestmark = pytest.mark.db
 
 
 async def test_move_puts_the_branch_at_the_end_of_the_new_list(db, workspace):
-    """Перенос — смена места целиком: ветка встаёт под всем рядом новых соседей."""
+    """A move changes the place wholesale: the branch lands below the whole row of new siblings."""
     old_parent = await task_create(workspace_code=workspace.code, title="Старый эпик")
     new_parent = await task_create(workspace_code=workspace.code, title="Новый эпик")
     neighbour = await task_create(
@@ -56,7 +56,7 @@ async def test_move_without_a_parent_makes_the_task_a_root(db, workspace):
 
 
 async def test_root_position_is_counted_within_its_own_workspace(db, workspace):
-    """Корни чужого пространства — не соседи: иначе позиция зависела бы от посторонних строк."""
+    """Another workspace's roots are not neighbours: else the position would hinge on alien rows."""
     other = await workspace_create(title="Личное")
     stranger = await task_create(workspace_code=other.code, title="Чужой корень")
     await link_move(stranger.code, parent_code=None)
@@ -75,7 +75,7 @@ async def test_move_under_a_foreign_workspace_is_refused(db, workspace):
 
 
 async def test_move_under_its_own_child_is_refused_as_a_second_level(db, workspace):
-    """Петлю отсекает правило одного уровня: ребёнок — подзадача, под неё не кладут никого."""
+    """The one-level rule rules out a loop: the child is a subtask, and nothing goes under one."""
     root = await task_create(workspace_code=workspace.code, title="Эпик")
     child = await task_create(
         workspace_code=workspace.code, title="Ребёнок", parent_code=root.code
@@ -97,7 +97,7 @@ async def test_children_are_listed_from_the_bigger_sort_down(db, workspace):
     second = await task_create(
         workspace_code=workspace.code, title="Вторая", parent_code=parent.code
     )
-    await link_move(second.code, parent_code=parent.code)  # поднимает её над соседом
+    await link_move(second.code, parent_code=parent.code)  # lifts it above its neighbour
 
     codes = [row.task_code for row in await link_list_by_parent(parent.code)]
 
@@ -108,11 +108,11 @@ async def test_move_of_a_missing_task_reports_none(db, workspace):
     assert await link_move("0" * 10, parent_code=None) is None
 
 
-# ── Перестановка перетаскиванием ──────────────────────────────────────────────
+# ── Reordering by drag ────────────────────────────────────────────────────────
 
 
 async def _row(workspace_code: str, *titles: str) -> list[str]:
-    """Ряд корней в порядке заведения; возвращает коды в том же порядке."""
+    """A row of roots in creation order; returns the codes in the same order."""
     codes = []
     for title in titles:
         task = await task_create(workspace_code=workspace_code, title=title)
@@ -139,10 +139,10 @@ async def test_reorder_without_a_neighbour_puts_the_task_on_top(db, workspace):
 
 
 async def test_reorder_renumbers_the_whole_row_with_an_even_step(db, workspace):
-    """Пересчёт ряда — то, ради чего перестановка вообще трогает соседей.
+    """Renumbering the row is the very reason a reorder touches the neighbours at all.
 
-    Промежутки после неё одинаковые: иначе после десятка перестановок между соседними числами
-    не осталось бы места, и следующая вставка не смогла бы найти себе значение.
+    The gaps after it are equal: otherwise after a dozen reorders no room would be left between
+    adjacent numbers, and the next insert could not find a value for itself.
     """
     first, second, third = await _row(workspace.code, "Первая", "Вторая", "Третья")
 
@@ -153,7 +153,7 @@ async def test_reorder_renumbers_the_whole_row_with_an_even_step(db, workspace):
 
 
 async def test_reorder_keeps_a_branch_out_of_the_root_row(db, workspace):
-    """Соседи — только строки того же родителя: ряд корней ветку под ними не видит."""
+    """Neighbours are only rows of the same parent: the root row does not see the branch below."""
     parent, other_root = await _row(workspace.code, "Эпик", "Другой корень")
     child = await task_create(
         workspace_code=workspace.code, title="Подзадача", parent_code=parent
@@ -168,7 +168,7 @@ async def test_reorder_of_a_missing_task_reports_none(db, workspace):
 
 
 async def test_a_fresh_task_lands_under_the_arranged_row(db, workspace):
-    """Свежая задача встаёт ПОД рядом, а не в его середину: наверху — расстановка рук."""
+    """A fresh task lands BELOW the row, not in its middle: the top is the hand-made arrangement."""
     first, second = await _row(workspace.code, "Первая", "Вторая")
     await link_reorder(second, after_code=None)
 
@@ -178,10 +178,10 @@ async def test_a_fresh_task_lands_under_the_arranged_row(db, workspace):
     assert codes == [second, first, third.code]
 
 
-# ── ряд корня — его группа ────────────────────────────────────────────────────
-# Экран раскладывает корни карточками по группам, и строку переставляют ВНУТРИ карточки. Пока ряд
-# был общим на пространство, бросок на верх карточки означал «в начало всего пространства»:
-# внутри группы выглядело верно, а в базе задача перепрыгивала через соседние группы.
+# ── a root's row is its group ─────────────────────────────────────────────────
+# The screen lays roots out in cards by group, and a row is reordered WITHIN a card. While the row
+# was shared across the workspace, a drop at the top of a card meant "to the start of the whole
+# workspace": inside the group it looked right, but in the DB the task jumped over adjacent groups.
 
 
 async def test_root_rows_of_two_groups_do_not_touch_each_other(db, workspace):
@@ -197,7 +197,7 @@ async def test_root_rows_of_two_groups_do_not_touch_each_other(db, workspace):
         workspace_code=workspace.code, title="Вторая", group_code=first.code
     )
 
-    # Перестановка в чужой группе не должна ни сдвинуть, ни перенумеровать соседку.
+    # A reorder in another group must neither shift nor renumber this neighbour.
     before = (await link_get(alone.code)).sort
     await link_reorder(bottom.code, after_code=None)
 
@@ -206,7 +206,7 @@ async def test_root_rows_of_two_groups_do_not_touch_each_other(db, workspace):
 
 
 async def test_a_fresh_task_starts_its_own_row_in_an_empty_group(db, workspace):
-    """Ряд пустой группы начинается с умолчания, а не продолжает чужой."""
+    """An empty group's row starts from the default instead of continuing another one."""
     filled = await group_create(workspace_code=workspace.code, title="Биллинг")
     empty = await group_create(workspace_code=workspace.code, title="Интерфейс")
     await task_create(workspace_code=workspace.code, title="Занятая", group_code=filled.code)
@@ -219,7 +219,7 @@ async def test_a_fresh_task_starts_its_own_row_in_an_empty_group(db, workspace):
 
 
 async def test_unfiled_roots_are_a_row_of_their_own(db, workspace):
-    """«Без группы» — такой же ряд, а не отсутствие ряда."""
+    """The "No group" roots are a row like any other, not the absence of a row."""
     group = await group_create(workspace_code=workspace.code, title="Биллинг")
     filed = await task_create(
         workspace_code=workspace.code, title="Разложенная", group_code=group.code
@@ -235,7 +235,7 @@ async def test_unfiled_roots_are_a_row_of_their_own(db, workspace):
 
 
 async def test_reorder_against_a_task_of_another_group_is_refused(db, workspace):
-    """Сосед из чужой карточки — неверно выбранная цель, а не новая позиция."""
+    """A neighbour from another card is a wrongly chosen target, not a new position."""
     first = await group_create(workspace_code=workspace.code, title="Биллинг")
     second = await group_create(workspace_code=workspace.code, title="Интерфейс")
     mine = await task_create(
@@ -250,7 +250,7 @@ async def test_reorder_against_a_task_of_another_group_is_refused(db, workspace)
 
 
 async def test_a_subtask_keeps_its_row_by_parent_not_by_group(db, workspace):
-    """У подзадачи ряд задан родителем: корни той же группы ей не соседи."""
+    """A subtask's row is set by its parent: roots of the same group are not its neighbours."""
     group = await group_create(workspace_code=workspace.code, title="Биллинг")
     parent = await task_create(
         workspace_code=workspace.code, title="Эпик", group_code=group.code
@@ -273,15 +273,15 @@ async def test_a_subtask_keeps_its_row_by_parent_not_by_group(db, workspace):
 
 
 async def test_changing_the_group_puts_the_task_at_the_end_of_the_new_row(db, workspace):
-    """Переезд между группами — это переезд между рядами: прежнее число к новому не относится."""
+    """Moving between groups is moving between rows: the old number means nothing in the new one."""
     source = await group_create(workspace_code=workspace.code, title="Биллинг")
     target = await group_create(workspace_code=workspace.code, title="Интерфейс")
     settled = await task_create(
         workspace_code=workspace.code, title="Обжитая", group_code=target.code
     )
-    # Ряд принимающей группы уже переставляли руками, поэтому он перенумерован от своей длины и
-    # стоит НИЖЕ умолчания. Переезжающая приходит со свежим числом — без переклейки она встала бы
-    # в новом ряду выше обжитой только потому, что в старом её никто не двигал.
+    # The receiving group's row was already reordered by hand, so it is renumbered from its own
+    # length and sits BELOW the default. The mover arrives with a fresh number — without re-stamping
+    # it would land above the settled task in the new row only because nobody moved it in the old.
     await link_reorder(settled.code, after_code=None)
     moved = await task_create(
         workspace_code=workspace.code, title="Переезжает", group_code=source.code

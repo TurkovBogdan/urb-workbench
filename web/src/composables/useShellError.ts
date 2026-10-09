@@ -1,12 +1,13 @@
 import { readonly, ref } from 'vue'
 import type { ErrorKind } from '@/constants/errors'
 
-// Отказ, который шелл показывает ВМЕСТО содержимого маршрута, не трогая адресную строку: адрес
-// остаётся тем, на который пришёл человек. Уход на отдельный `/403` стирал бы единственную улику
-// — что именно открывали, — и вместе с ней ломал бы и обращение в поддержку, и аналитику.
+// A failure the shell shows INSTEAD of the route's content, without touching the address bar: the
+// address stays the one the person arrived at. Redirecting to a separate `/403` would erase the
+// only clue — what exactly was being opened — and with it break both support requests and
+// analytics.
 //
-// Ставят: клиент API (403 на чтение), перехватчик ошибок рендера, обработчик провала навигации.
-// Снимает — любая следующая навигация (гвард в начале каждого перехода).
+// Set by: the API client (403 on a read), the render error handler, the navigation failure
+// handler. Cleared by any subsequent navigation (a guard at the start of every transition).
 const kind = ref<ErrorKind | null>(null)
 
 export const shellError = readonly(kind)

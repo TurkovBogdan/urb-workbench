@@ -1,8 +1,8 @@
-"""`src/app.py::main` — гейт запуска под флагом обслуживания и его область.
+"""`src/app.py::main` — the launch gate under the maintenance flag, and its scope.
 
-Запуск процесса (в том числе `--mcp-stdio`) под поднятым флагом отклоняется, подкоманды —
-нет: апдейтер сам гоняет `migrate upgrade` при поднятом флаге, а упавшая миграция флаг не
-опускает, и повтор обязан пройти.
+Launching a process (including `--mcp-stdio`) is refused while the flag is up; subcommands are
+not: the updater itself runs `migrate upgrade` with the flag up, a failed migration does not
+lower the flag, and a retry must get through.
 """
 
 from __future__ import annotations
@@ -20,8 +20,8 @@ from src.core import maintenance
 def update_in_progress(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> maintenance.MaintenanceFlag:
-    """Поднятый флаг во ВРЕМЕННОМ каталоге: живой флаг в настоящем `runtime/` запер бы
-    запуск всего на этой машине, включая MCP-шимы соседних сессий."""
+    """A raised flag in a TEMPORARY directory: a live flag in the real `runtime/` would lock out
+    every launch on this machine, including the MCP shims of neighbouring sessions."""
     monkeypatch.setattr(maintenance, "project_root", lambda: tmp_path)
     monkeypatch.setattr(maintenance, "process_is_updater", lambda pid: True)
     return maintenance.begin("update to head")
@@ -46,7 +46,7 @@ def test_bare_launch_refuses_while_the_flag_is_up(update_in_progress, capsys):
 
     assert exit_code == 1
     refusal = capsys.readouterr().err
-    assert "обновление" in refusal
+    assert "being updated" in refusal
     assert str(update_in_progress.pid) in refusal
     assert "update to head" in refusal
 
@@ -62,12 +62,13 @@ def test_mcp_stdio_launch_refuses_while_the_flag_is_up(
 
     assert app.main(["--mcp-stdio"]) == 1
     assert started == []
-    assert "обновление" in capsys.readouterr().err
+    assert "being updated" in capsys.readouterr().err
 
 
 @pytest.mark.pure
 def test_migrate_runs_while_the_flag_is_up(update_in_progress, monkeypatch: pytest.MonkeyPatch):
-    """Гейт на `migrate` запер бы обновление изнутри: шаг 8 накатывает миграции под флагом."""
+    """A gate on `migrate` would lock the update out from inside: step 8 applies migrations under
+    the flag."""
     actions = []
 
     async def _record(action: str) -> int:

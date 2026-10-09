@@ -1,10 +1,10 @@
 import { IconFolders, IconTable } from '@tabler/icons-vue'
 import type { FunctionalComponent } from 'vue'
 
-// Как показывать список исследований. Таблица по умолчанию: у исследования пять числовых
-// счётчиков, а колонки — единственная раскладка, в которой их можно сравнить между строками.
-// Плитки — всегда по полкам: сами по себе они давали общий поток, который таблица показывает
-// плотнее и с теми же данными, поэтому от плиток нужен ровно состав полок.
+// How to show the list of researches. Table by default: a research has five numeric counters, and
+// columns are the only layout in which they can be compared across rows. Tiles are always grouped
+// by shelf: on their own they produced a flat stream that the table shows more densely with the
+// same data, so what tiles are needed for is exactly the shelf breakdown.
 
 export type ResearchListView = 'table' | 'grouped'
 
@@ -12,7 +12,7 @@ export const DEFAULT_RESEARCH_LIST_VIEW: ResearchListView = 'table'
 
 export interface ResearchListViewOption {
   code: ResearchListView
-  /** Ключ i18n: всплывающая подпись у переключателя на странице. */
+  /** i18n key: the tooltip on the page's toggle. */
   label: string
   icon: FunctionalComponent
 }

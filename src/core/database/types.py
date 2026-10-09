@@ -1,10 +1,10 @@
-"""Портируемые типы колонок: одна модель работает на PostgreSQL и SQLite.
+"""Portable column types: one model runs on both PostgreSQL and SQLite.
 
-PostgreSQL сохраняет богатые нативные типы через ``.with_variant()``; SQLite
-(zero-install тир) откатывается на generic-базу. Эти хелперы делают **и миграции
-портируемыми**: миграция, использующая их (``json_value()``/``timestamp()``), катится
-как на PostgreSQL, так и на файловый SQLite (dev). ``create_all`` остаётся только для
-in-memory SQLite (тест-харнес), у которого нет истории миграций.
+PostgreSQL keeps its rich native types via ``.with_variant()``; SQLite (the zero-install
+tier) falls back to the generic base. These helpers make **the migrations portable too**:
+a migration that uses them (``json_value()``/``timestamp()``) runs on PostgreSQL and on
+file-backed SQLite (dev) alike. ``create_all`` is left only for in-memory SQLite (the test
+harness), which has no migration history.
 """
 
 from __future__ import annotations
@@ -17,12 +17,12 @@ from sqlalchemy.types import TypeEngine
 
 
 def timestamp() -> TypeEngine[Any]:
-    """Время без микросекунд: PG → ``TIMESTAMP(precision=0)``, SQLite → ``DATETIME``."""
+    """Time without microseconds: PG → ``TIMESTAMP(precision=0)``, SQLite → ``DATETIME``."""
     return DateTime().with_variant(TIMESTAMP(precision=0), "postgresql")
 
 
 def json_value() -> TypeEngine[Any]:
-    """Структурный JSON: PG → ``JSONB``, SQLite → ``JSON`` (хранится как TEXT)."""
+    """Structured JSON: PG → ``JSONB``, SQLite → ``JSON`` (stored as TEXT)."""
     return JSON().with_variant(JSONB(), "postgresql")
 
 

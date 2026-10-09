@@ -1,8 +1,8 @@
-"""Состав модулей приложения ``apps/app``.
+"""The module set of the ``apps/app`` application.
 
-Единый источник списка модулей: его переиспользуют сборка приложения
-(``server.py``) и standalone-применение миграций (``app.py migrate``), чтобы
-``version_locations`` совпадали с тем, что реально поднимает сервер.
+The single source of the module list: both the app assembly (``server.py``) and the
+standalone migration run (``app.py migrate``) reuse it, so that ``version_locations``
+match what the server actually brings up.
 """
 
 from __future__ import annotations
@@ -13,36 +13,40 @@ from src.modules.core_interface import CoreInterfaceModule
 from src.modules.core_mcp import CoreMcpModule
 from src.modules.core_monitoring import CoreMonitoringModule
 from src.modules.core_setup import CoreSetupModule
+from src.modules.notes import NotesModule
 from src.modules.tasks import TasksModule
 from src.modules.workspace import WorkspaceModule
 
 
 def build_modules() -> list[Module]:
-    """Список модулей приложения в порядке регистрации.
+    """The application's modules in registration order.
 
-    Поверх ядра (``src/core``: миграции, планировщик, зоны роутера, раздача SPA,
-    settings-store) подключены ``core_setup`` — страница настроек ENV (правка ``.env``
-    + рестарт), ``core_interface`` — настройки интерфейса пользователя (тема,
-    гарнитуры, оформление документа и схем), ``core_monitoring`` — раздел задач (список +
-    запуски + логи, только чтение), ``core_mcp`` — интроспекция модулей, поднятых как MCP-серверы
-    (только чтение), ``core_changes`` — лента изменений данных для живого обновления интерфейса,
-    ``workspace`` — рабочие пространства (общий уровень изоляции данных)
-    и ``tasks`` — хранилище задач внутри пространства (группы, дерево задач, план и журнал).
-    Новый модуль — добавить инстанс в список.
+    On top of the core (``src/core``: migrations, scheduler, router zones, SPA serving,
+    settings store) sit ``core_setup`` — the ENV settings page (editing ``.env``
+    + restart), ``core_interface`` — user interface settings (theme, typefaces,
+    document and diagram styling), ``core_monitoring`` — the jobs section (list +
+    runs + logs, read-only), ``core_mcp`` — introspection of the modules mounted as MCP servers
+    (read-only), ``core_changes`` — the data change feed behind the interface's live updates,
+    ``workspace`` — workspaces (the shared data isolation level), ``notes`` — markdown documents
+    with no owner, which the modules above link to,
+    and ``tasks`` — the task store inside a workspace (groups, task tree, plan and journal).
+    A new module — add an instance to the list.
 
-    **Порядок — это зависимости, а не вкус.** Модуль уровня 1 (``workspace``) стоит раньше тех,
-    кто на него ссылается: ``configure()`` модулей поверх регистрирует в нём свои счётчики, а
-    регистрировать в ещё не собранном модуле нечего. Между чужими ветками миграций порядок задаёт
-    не этот список, а ``depends_on`` в самих ревизиях.
+    **The order is dependencies, not taste.** Level-1 modules (``workspace``, ``notes``) come
+    before the ones that reference them: the ``configure()`` of the modules above registers their
+    counters in the workspace, and there is nothing to register into in a module not yet built. Between other modules'
+    migration branches the order is set not by this list but by ``depends_on`` in the revisions
+    themselves.
     """
     return [
         CoreSetupModule(),
         CoreInterfaceModule(),
         CoreMonitoringModule(),
         CoreMcpModule(),
-        # Раньше модулей данных: они объявляют в нём свои сущности из своего ``configure()``.
+        # Before the data modules: they declare their entities in it from their ``configure()``.
         CoreChangesModule(),
         WorkspaceModule(),
+        NotesModule(),
         TasksModule(),
     ]
 

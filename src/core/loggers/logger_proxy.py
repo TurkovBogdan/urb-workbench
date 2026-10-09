@@ -1,8 +1,8 @@
-"""Прокси-обёртки над ``LoggerStore``: единичный канал и tee (fan-out).
+"""Proxy wrappers over ``LoggerStore``: a single channel and a tee (fan-out).
 
-Прокси нужны, чтобы ``_LOG = get_logger(...)`` на уровне модуля видел
-замены фабрики, выполненные позже через ``set_logger_factory``: каждый
-вызов лога резолвится через ``LoggerStore`` на актуальный инстанс.
+The proxies exist so that a module-level ``_LOG = get_logger(...)`` sees
+factory replacements made later via ``set_logger_factory``: every log call
+is resolved through ``LoggerStore`` to the current instance.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from src.core.loggers.logger_store import DEFAULT_CHANNEL, LoggerStore
 
 
 class _LoggerProxy:
-    """Прокси одного канала."""
+    """Proxy for a single channel."""
 
     def __init__(self, channel: str = DEFAULT_CHANNEL) -> None:
         self._channel = channel
@@ -39,7 +39,7 @@ class _LoggerProxy:
 
 
 class _TeeProxy:
-    """Прокси-фан-аут: каждый вызов транслируется во все каналы."""
+    """Fan-out proxy: every call is forwarded to all channels."""
 
     def __init__(self, channels: tuple[str, ...]) -> None:
         self._channels = channels
@@ -70,7 +70,7 @@ class _TeeProxy:
 
 
 def get_logger(*channels: str) -> CoreLoggerProtocol:
-    """Прокси одного или нескольких каналов. Без аргументов — канал ``core``."""
+    """Proxy for one or several channels. With no arguments — the ``core`` channel."""
     if not channels:
         return _LoggerProxy(DEFAULT_CHANNEL)
     if len(channels) == 1:

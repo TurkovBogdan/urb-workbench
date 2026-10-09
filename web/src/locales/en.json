@@ -35,7 +35,7 @@
     },
     "capabilities": {
       "mcp": {
-        "title": "Twenty-two tools",
+        "title": "Twenty-eight tools",
         "text": "The agent connects over MCP and runs the work with them: creates tasks, writes the plan, closes stages, leaves journal entries. A ready-made connection config is on the “MCP servers” page."
       },
       "workspace": {
@@ -106,7 +106,7 @@
     },
     "generic": "The request failed",
     "stage_evidence_required": "A stage can't be closed without evidence: say what proves it is done — a command and its result, a file path, a diff summary.",
-    "note_already_resolved": "The entry is already closed. The journal is append-only: if the decision has changed, add a new entry.",
+    "journal_already_resolved": "The entry is already closed, and a resolution is written once: if the decision has changed, add a new entry.",
     "network": "No connection to the server",
     "timeout": "The server didn't respond in time",
     "protocol": "The server's response isn't what the app expects",
@@ -127,6 +127,10 @@
     "never": "never run",
     "completed": "Last successful run: {rel}",
     "not_completed": "no successful runs yet"
+  },
+  "filter": {
+    "remove": "Remove filter: {label}",
+    "reset": "Reset"
   },
   "pagination": {
     "of": "of",
@@ -193,6 +197,11 @@
     },
     "resync": "reconnected — refreshing the screen"
   },
+  "applying": {
+    "title": "Applying changes",
+    "description": "The server is restarting with the new settings. The page reloads by itself as soon as it is back.",
+    "moving": "The server is restarting at a new address. The page opens there by itself as soon as it answers:"
+  },
   "editor": {
     "placeholder": "Type / for commands…",
     "placeholder_plain": "Start typing…",
@@ -206,8 +215,14 @@
       "taskList": "Checklist",
       "quote": "Quote",
       "codeBlock": "Code block",
+      "diagram": "Diagram",
       "divider": "Divider",
       "table": "Table"
+    },
+    "diagram": {
+      "edit": "Edit",
+      "done": "Done",
+      "source": "Diagram source"
     },
     "toolbar": {
       "block_type": "Block type",

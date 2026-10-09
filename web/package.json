@@ -1,6 +1,6 @@
 {
   "name": "urb-workbench-web",
-  "version": "0.8.2",
+  "version": "0.8.61",
   "private": true,
   "type": "module",
   "scripts": {

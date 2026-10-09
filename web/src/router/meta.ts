@@ -16,7 +16,8 @@ declare module 'vue-router' {
     fullscreen?: boolean    // no app chrome (sidebar) — standalone full-bleed screens
     transition?: string     // content-zone <Transition> name; default 'page'. Names with
                             //   no matching CSS (e.g. 'none') render instantly. See App.vue.
-    title?:      string     // ключ словаря для <title> вкладки. Смена маршрута сама заголовок
-                            //   не меняет, а скринридер читает его первым. Ставит router/guards.
+    title?:      string     // dictionary key for the tab's <title>. A route change doesn't update
+                            //   the title by itself, and a screen reader reads it first. Set by
+                            //   router/guards.
   }
 }

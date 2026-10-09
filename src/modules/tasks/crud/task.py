@@ -1,19 +1,20 @@
-"""CRUD ``TasksTask`` — задачи. Каждая функция владеет своей сессией.
+"""CRUD for ``TasksTask`` — tasks. Each function owns its session.
 
-Три правила этого файла, которые нигде больше не продублированы:
+Three rules of this file, duplicated nowhere else:
 
-1. **Задача и её ребро дерева рождаются вместе.** ``task_create`` пишет строку в ``tasks_link``
-   в той же транзакции: без ребра задача не принадлежит дереву, а «сначала задача, потом связь»
-   оставило бы окно, в котором она нигде не видна. Атомарность тут не удобство: восстановить
-   потерянное ребро потом неоткуда — родителя знал только вызывающий.
-2. **Согласованность пространства проверяется на записи.** Родитель и ребёнок — в одном
-   пространстве, группа — из пространства задачи. Нарушение — ``ValueError`` с внятным текстом:
-   схема такую связь не запрещает (FK смотрит на ``code``, а не на пару), значит запретить её
-   может только этот слой.
-3. **Мягкое удаление каскадно.** Удалять ветку по одной задаче бессмысленно, поэтому потомки
-   получают **ту же отметку времени**, что и корень удаления. По ней же работает восстановление:
-   поднимаются ровно те, чей ``deleted_at`` совпадает с отметкой родителя — задача, удалённая
-   отдельно и раньше, из-под восстановления не выныривает.
+1. **A task and its tree edge are born together.** ``task_create`` writes the ``tasks_link`` row
+   in the same transaction: without an edge the task does not belong to the tree, and "task
+   first, link later" would leave a window in which it is visible nowhere. Atomicity is not a
+   convenience here: there is nothing to rebuild a lost edge from later — only the caller knew
+   the parent.
+2. **Workspace consistency is checked on write.** Parent and child live in one workspace, the
+   group comes from the task's workspace. A violation is a ``ValueError`` with a clear message:
+   the schema does not forbid such a link (the FK looks at ``code``, not at the pair), so only
+   this layer can.
+3. **Soft delete cascades.** Deleting a branch task by task makes no sense, so descendants get
+   **the same timestamp** as the root of the deletion. Restore works off that same mark: exactly
+   those whose ``deleted_at`` matches the parent's mark come back — a task deleted separately and
+   earlier does not resurface with the restore.
 """
 
 from __future__ import annotations
@@ -28,11 +29,16 @@ from src.modules.core_changes import DELETED, UPDATED, mark_changes
 from src.modules.tasks.codes import new_code
 from src.modules.tasks.constants import (
     ACTOR_KINDS,
-    BODY_MAX,
     CONSTRAINTS_MAX,
     CONTEXT_MAX,
     CRITERIA_MAX,
     DESCRIPTION_MAX,
+    GROUP_TASK_DISPOSALS,
+    GROUP_TASKS_DELETE,
+    GROUP_TASKS_MOVE,
+    PLAN_MAX,
+    PROGRESS_MAX,
+    RESULT_MAX,
     STATUS_CANCELED,
     STATUS_DONE,
     STATUS_IN_PROGRESS,
@@ -55,17 +61,18 @@ from src.modules.tasks.crud.link import (
     require_parent_group_alive,
     require_root_parent,
 )
+from src.modules.tasks.errors import GROUP_HAS_TASKS, TaskRuleError
 from src.modules.tasks.models.group import TasksGroup
 from src.modules.tasks.models.link import TasksLink
-from src.modules.tasks.models.note import TasksNote
+from src.modules.tasks.models.journal import TasksJournal
 from src.modules.tasks.models.stage import TasksStage
 from src.modules.tasks.models.task import TasksTask
 from src.modules.tasks.text import clip, fit
 from src.modules.workspace.models.workspace import Workspace
 
-# Приоритет сортируется по весу, а не по слову: алфавит про важность ничего не знает
-# (``burning`` встал бы между ``agent`` и ``frozen`` без всякого смысла). Неизвестное значение
-# уезжает в самый низ — CHECK его не пропустит, но выражение обязано быть тотальным.
+# Priority sorts by weight, not by word: the alphabet knows nothing about importance
+# (``burning`` would land between ``agent`` and ``frozen`` for no reason at all). An unknown value
+# sinks to the very bottom — CHECK will not let one in, but the expression must be total.
 _PRIORITY_ORDER = case(
     TASK_PRIORITY_WEIGHTS,
     value=TasksTask.priority,
@@ -74,37 +81,58 @@ _PRIORITY_ORDER = case(
 
 
 class _Keep:
-    """Метка «поле не передано» для ``task_update``.
+    """A "field not passed" marker for ``task_update``.
 
-    Нужна только датам. У текста «не передано» выражается через ``None`` (пустую строку колонка
-    хранит сама), у ссылки на группу — через ``""`` (см. ``task_update``), а у даты свободного
-    значения не остаётся: и «не трогать», и «стереть срок» — это один и тот же ``None``.
-    Разводить их приходится отдельным объектом, иначе снять однажды поставленный срок было бы
-    нечем, и правка карточки умела бы только добавлять.
+    Needed for dates only. For text, "not passed" is expressed as ``None`` (the column stores the
+    empty string itself), for the group reference — as ``""`` (see ``task_update``), but a date has
+    no spare value left: both "leave as is" and "clear the deadline" are the same ``None``. They
+    have to be told apart by a separate object, otherwise there would be no way to remove a
+    deadline once set, and editing the card could only ever add.
     """
 
     __slots__ = ()
 
-    def __repr__(self) -> str:  # pragma: no cover — только для отладочного вывода
+    def __repr__(self) -> str:  # pragma: no cover — for debug output only
         return "KEEP"
 
 
 KEEP = _Keep()
 
-# Отметка фазы, которую ставит переход в статус. Остальные статусы фаз не отмечают: «в тесте» и
-# «на ревью» — это всё ещё «работа идёт», а второй записи о её начале не нужно.
+# The phase timestamp a status transition sets. Other statuses mark no phase: "in testing" and
+# "in review" are still "work in progress", and its start needs no second record.
 _STATUS_STAMPS = {
     STATUS_IN_PROGRESS: "started_at",
     STATUS_DONE: "completed_at",
     STATUS_CANCELED: "canceled_at",
 }
 
+# The closing marks: a task carries at most one of them — the one of its current terminal status.
+_CLOSING_STAMPS = ("completed_at", "canceled_at")
+
+
+def _stamp_phase(row: TasksTask, status: str) -> None:
+    """Make the phase marks agree with ``status`` — on a move and at creation alike.
+
+    The start is stamped once and kept: going from ``done`` back to work and back again must not
+    rewrite the date work on the task began — that is a fact, not the current state. The closing
+    marks follow the status instead: an open task carries neither, a closed one only its own —
+    a task moved straight from ``done`` to ``canceled`` is canceled, and a completion date left on
+    it would claim an end the work did not reach. A mark already there for the same status stays.
+    """
+    current = _STATUS_STAMPS.get(status)
+    for closing_field in _CLOSING_STAMPS:
+        if closing_field != current:
+            setattr(row, closing_field, None)
+    if current is not None and getattr(row, current) is None:
+        setattr(row, current, utc_now())
+
 
 def _checked(value: str, allowed: tuple[str, ...], field: str) -> str:
-    """Значение из справочника или отказ со списком допустимых.
+    """A value from the vocabulary, or a refusal listing the allowed ones.
 
-    Дублирует ``CHECK`` в схеме намеренно: из базы то же нарушение прилетело бы
-    ``IntegrityError`` с именем констрейнта — текстом для инженера, а не для вызывающего.
+    Duplicates the schema's ``CHECK`` on purpose: from the database the same violation would
+    arrive as an ``IntegrityError`` naming the constraint — text for an engineer, not for the
+    caller.
     """
     if value not in allowed:
         raise ValueError(
@@ -114,12 +142,13 @@ def _checked(value: str, allowed: tuple[str, ...], field: str) -> str:
 
 
 def _hit(query: str, *fields: str | None) -> bool:
-    """Подстрока без учёта регистра — сравнение в Python, а не в SQL.
+    """Case-insensitive substring — compared in Python, not in SQL.
 
-    ``lower()`` в SQLite складывает только ASCII: запрос «Панель» не нашёл бы «панель», зато на
-    PostgreSQL нашёл бы — один и тот же поиск отвечал бы по-разному на двух провайдерах, и
-    разошлись бы они молча. Строк в выборке сотни, а не сотни тысяч, поэтому цена отбора на
-    стороне приложения — ничто рядом с этой разницей.
+    SQLite's ``lower()`` folds ASCII only: a capitalised Cyrillic query would not find the same
+    word in lower case there, yet would on PostgreSQL — one and the same search would answer
+    differently on the two providers, and they would diverge silently. The selection holds
+    hundreds of rows, not hundreds of thousands, so the cost of filtering in the application is
+    nothing next to that difference.
     """
     needle = query.lower()
     return any(field and needle in field.lower() for field in fields)
@@ -137,7 +166,7 @@ async def _require_workspace(s, workspace_code: str) -> None:
 
 
 async def _require_group_of(s, group_code: str, workspace_code: str) -> None:
-    """Группа существует и принадлежит тому же пространству, что и задача."""
+    """The group exists and belongs to the same workspace as the task."""
     stmt = select(TasksGroup.workspace_code).where(
         TasksGroup.code == group_code, TasksGroup.deleted_at.is_(None)
     )
@@ -154,10 +183,10 @@ async def _require_group_of(s, group_code: str, workspace_code: str) -> None:
 async def _require_parent_of(
     s, parent_code: str, workspace_code: str, child_status: str
 ) -> str | None:
-    """Родитель существует, живёт в том же пространстве, что и ребёнок, открыт для него и сам
-    не подзадача.
+    """The parent exists, lives in the same workspace as the child, is not closed while the child
+    is open, and is not a subtask itself.
 
-    Ответ — группа родителя: ребёнок получает её вместе с местом в дереве.
+    Returns the parent's group: the child takes it along with its place in the tree.
     """
     stmt = select(TasksTask.workspace_code, TasksTask.group_code, TasksTask.status).where(
         TasksTask.code == parent_code, TasksTask.deleted_at.is_(None)
@@ -178,10 +207,10 @@ async def _require_parent_of(
 
 
 async def _require_parent_group(s, code: str, group_code: str | None) -> None:
-    """Отказ, если подзадаче назначают группу не её родителя.
+    """Refuse if a subtask is assigned a group other than its parent's.
 
-    Корня это не касается. Подзадаче разрешена ровно одна группа — родительская: так её можно
-    вернуть туда, если она разошлась с родителем до того, как правило появилось.
+    Roots are unaffected. A subtask is allowed exactly one group — its parent's: that way it can be
+    brought back there if it drifted from its parent before the rule existed.
     """
     link = await s.get(TasksLink, code)
     if link is None or link.parent_code is None:
@@ -197,10 +226,10 @@ async def _require_parent_group(s, code: str, group_code: str | None) -> None:
 
 
 async def _carry_children(s, parent: TasksTask) -> None:
-    """Подзадачи следуют за родителем в его новую группу — удалённые тоже.
+    """Subtasks follow their parent into its new group — deleted ones too.
 
-    Удалённые — потому что восстановление поднимает их на прежнее место в дереве, и с чужой
-    группой они вернулись бы нарушением, которое никто не совершал.
+    Deleted ones because a restore brings them back to their old place in the tree, and with a
+    foreign group they would come back as a violation nobody committed.
     """
     children = list(
         (
@@ -222,14 +251,15 @@ async def _carry_children(s, parent: TasksTask) -> None:
 
 
 async def _branch_stamp(s, branch: list[str]) -> datetime:
-    """Отметка удаления, которой в этой ветке ещё никто не помечен.
+    """A deletion mark that nothing in this branch carries yet.
 
-    Отметка — идентификатор операции удаления (по ней восстановление отбирает «ушедших вместе»),
-    а точность у неё секундная: ``utc_now`` режет микросекунды, и ``TIMESTAMP(precision=0)`` на
-    PostgreSQL тоже. Удалить потомка отдельно и через мгновение — родителя целиком это ровно
-    одна секунда, и две разные операции получили бы одну отметку: восстановление родителя
-    подняло бы заодно и то, что человек убрал раньше и намеренно. Поэтому при совпадении
-    отметка сдвигается на секунду вперёд — чужой операции она уже не принадлежит.
+    The mark identifies a delete operation (restore uses it to pick "those that left together"),
+    and its precision is one second: ``utc_now`` drops microseconds, and so does
+    ``TIMESTAMP(precision=0)`` on PostgreSQL. Deleting a descendant on its own and, a moment later,
+    the whole parent fits within one second, and two different operations would share one mark:
+    restoring the parent would also bring back what the person had deliberately removed earlier.
+    So on a collision the mark is shifted a second forward — then it no longer belongs to the
+    other operation.
     """
     stmt = select(TasksTask.deleted_at).where(
         TasksTask.code.in_(branch), TasksTask.deleted_at.is_not(None)
@@ -242,11 +272,12 @@ async def _branch_stamp(s, branch: list[str]) -> datetime:
 
 
 async def _descendant_codes(s, code: str) -> list[str]:
-    """Коды всех потомков задачи — обход дерева вширь по таблице связей.
+    """Codes of all the task's descendants — a breadth-first walk over the link table.
 
-    Обход в Python, а не рекурсивный CTE: дерево задач одного разработчика измеряется сотнями
-    строк, а читаемость выражения тут дороже одного round-trip. ``seen`` защищает от цикла,
-    который в базу мог попасть мимо CRUD: вечный цикл в удалении хуже кривого дерева.
+    Walked in Python rather than with a recursive CTE: one developer's task tree is measured in
+    hundreds of rows, and the readability of the expression is worth more here than one
+    round-trip. ``seen`` guards against a cycle that could have reached the database bypassing the
+    CRUD: an endless loop in delete is worse than a crooked tree.
     """
     found: list[str] = []
     seen = {code}
@@ -270,22 +301,24 @@ async def task_create(
     context: str | None = None,
     constraints: str | None = None,
     criteria: str | None = None,
-    body: str | None = None,
+    plan: str | None = None,
+    progress: str | None = None,
+    result: str | None = None,
     type: str = TASK_TYPE_DEFAULT,
     status: str = TASK_STATUS_DEFAULT,
     priority: str = TASK_PRIORITY_DEFAULT,
     created_by: str = TASK_CREATED_BY_DEFAULT,
     deadline_at: datetime | None = None,
 ) -> TasksTask:
-    """Завести задачу вместе с её ребром дерева.
+    """Create a task together with its tree edge.
 
-    ``parent_code=None`` — корень пространства. Ребро всегда создаётся с
-    позицией под всем рядом соседей (``bottom_sort``): расстановка наверху — работа рук, и свежая
-    задача не должна прыгать через неё. Дальше её двигают перетаскиванием (``link_reorder``) или
-    переносят под другого родителя (``task_update(parent_code=…)``).
+    ``parent_code=None`` — a root of the workspace. The edge is always created at a position below
+    the whole sibling row (``bottom_sort``): the arrangement at the top is handwork, and a fresh
+    task must not jump over it. From there it is moved by dragging (``link_reorder``) or moved
+    under another parent (``task_update(parent_code=…)``).
 
-    Подзадача получает группу родителя. Пустая ``group_code`` — «не задано», а не «вне группы»:
-    так форма, которая про группу подзадачи ничего не спрашивает, не упирается в отказ.
+    A subtask takes its parent's group. An empty ``group_code`` means "not given", not "outside any
+    group": that way a form that asks nothing about a subtask's group does not run into a refusal.
     """
     _checked(type, TASK_TYPES, "task type")
     _checked(status, TASK_STATUSES, "task status")
@@ -317,19 +350,22 @@ async def task_create(
             context=clip(context, CONTEXT_MAX),
             constraints=clip(constraints, CONSTRAINTS_MAX),
             criteria=clip(criteria, CRITERIA_MAX),
-            body=fit(body, BODY_MAX, "task body"),
+            plan=fit(plan, PLAN_MAX, "task plan"),
+            progress=fit(progress, PROGRESS_MAX, "task progress"),
+            result=fit(result, RESULT_MAX, "task result"),
             deadline_at=deadline_at,
             created_by=created_by,
         )
+        _stamp_phase(row, status)
         s.add(row)
         await s.flush()
         s.add(
             TasksLink(
                 task_code=row.code,
                 parent_code=parent_code or None,
-                # Под всем рядом соседей, а не в постоянные 500: ряд, переставленный мышью,
-                # перенумерован от своей длины, и постоянное значение вклинивало бы свежую
-                # задачу в его середину.
+                # Below the whole sibling row, not at a constant 500: a row reordered with the
+                # mouse is renumbered from its length, and a constant value would wedge a fresh
+                # task into its middle.
                 sort=await bottom_sort(
                     s, parent_code or None, workspace_code, group_code or None
                 ),
@@ -357,26 +393,27 @@ async def task_list_by_workspace(
     group_code: str | None = None,
     include_deleted: bool = False,
 ) -> list[TasksTask]:
-    """Плоский список задач пространства в РУЧНОМ порядке: больший ``sort`` выше.
+    """A flat list of the workspace's tasks in MANUAL order: higher ``sort`` on top.
 
-    Порядок задаёт человек перетаскиванием (``link_reorder``), и он же — единственная правда о
-    том, что за чем идёт. Раньше список строился по важности и времени появления; с ручной
-    расстановкой это несовместимо: строка, переставленная мышью, возвращалась бы на своё место
-    следующим же запросом. Важность осталась глифом в строке и фильтром над ней.
+    The person sets the order by dragging (``link_reorder``), and it is the only truth about what
+    comes after what. The list used to be built by priority and creation time; that is
+    incompatible with manual arrangement: a row moved with the mouse would snap back on the very
+    next request. Priority remains a glyph on the row and a filter over it.
 
-    Сортировка живёт в ``tasks_link`` — её значения у детей одного родителя свои, и общий список
-    (корни вперемешку с ветками) порядок внутри каждой ветки сохраняет: интерфейс всё равно
-    раскладывает плоский ответ по родителям.
+    The sort lives in ``tasks_link`` — its values are local to the children of one parent, and the
+    combined list (roots mixed with branches) preserves the order within each branch: the UI lays
+    the flat response out by parent anyway.
 
-    ``group_code=""`` — только неразложенные (единственная форма спросить про ``NULL``), код —
-    только эта группа, ``None`` — не фильтровать по группе вовсе.
+    ``group_code=""`` — only ungrouped tasks (the only way to ask about ``NULL``), a code — only
+    that group, ``None`` — no group filter at all.
 
-    ``status`` сужает до одного значения, ``statuses`` — до набора (так выражается «всё
-    незавершённое»: перечислить пять статусов дешевле, чем заводить в схеме отрицание). Заданы
-    оба — применяются оба, то есть пересечение; звать так незачем, но и запрещать нечего.
+    ``status`` narrows to one value, ``statuses`` — to a set (that is how "everything unfinished" is
+    expressed: listing five statuses is cheaper than adding negation to the schema). Both given —
+    both apply, i.e. the intersection; there is no reason to call it that way, but nothing to
+    forbid either.
 
-    ``query`` ищет подстроку без учёта регистра в заголовке и цели. Тела сюда не входят: по ним
-    ищут отдельно и по явной просьбе — ``task_search_codes``.
+    ``query`` searches for a case-insensitive substring in the title and goal. Bodies are not
+    included: they are searched separately and on explicit request — ``task_search_codes``.
     """
     stmt = (
         select(TasksTask)
@@ -411,16 +448,17 @@ async def task_search_codes(
     in_plan: bool = False,
     in_journal: bool = False,
 ) -> list[str]:
-    """Коды задач пространства, у которых запрос нашёлся В ТЕЛАХ — по названным областям.
+    """Codes of the workspace's tasks whose BODIES match the query — in the named areas.
 
-    Заголовка и цели здесь нет намеренно: их видно в строке списка, и ищет по ним тот, у кого
-    список уже на руках. Сюда ходят за тем, чего в строке нет, — за постановкой, планом с
-    этапами и журналом. Ни одна область не включена по умолчанию: поиск, тихо залезающий в
-    восьмикилобайтные тела, возвращает совпадения, по которым не понять, та ли это задача.
+    Title and goal are left out on purpose: they are visible on the list row, and whoever searches
+    them already has the list in hand. This is where one comes for what the row lacks — the
+    brief, the plan with its stages, and the journal. No area is on by default: a search that
+    quietly digs into eight-kilobyte bodies returns matches that do not tell you whether it is the
+    right task.
 
-    Отдаются ИМЕННО коды, а не строки: спрашивающий держит список пространства целиком и
-    пересекает его со своим — второй копии тех же карточек ему не нужно. По той же причине
-    удалённые не отсеиваются: что показывать, решает пересечение на той стороне.
+    It returns CODES specifically, not rows: the caller holds the whole workspace list and
+    intersects it with its own — it needs no second copy of the same cards. For the same reason
+    deleted tasks are not filtered out: the intersection on the other side decides what to show.
     """
     if not query or not (in_brief or in_plan or in_journal):
         return []
@@ -432,14 +470,14 @@ async def task_search_codes(
         if in_brief:
             columns += [TasksTask.context, TasksTask.constraints, TasksTask.criteria]
         if in_plan:
-            columns.append(TasksTask.body)
+            columns += [TasksTask.plan, TasksTask.progress, TasksTask.result]
         stmt = select(*columns).where(TasksTask.workspace_code == workspace_code)
         async with session_scope() as s:
             for code, *texts in (await s.execute(stmt)).all():
                 if _hit(query, *texts):
                     hits.add(code)
 
-    # Этапы и журнал висят на задаче и своего пространства не знают — отсюда join к задаче.
+    # Stages and journal hang off the task and do not know their workspace — hence the join.
     if in_plan:
         stmt = (
             select(
@@ -459,8 +497,8 @@ async def task_search_codes(
 
     if in_journal:
         stmt = (
-            select(TasksNote.task_code, TasksNote.title, TasksNote.body, TasksNote.resolution)
-            .join(TasksTask, TasksTask.code == TasksNote.task_code)
+            select(TasksJournal.task_code, TasksJournal.title, TasksJournal.body, TasksJournal.resolution)
+            .join(TasksTask, TasksTask.code == TasksJournal.task_code)
             .where(TasksTask.workspace_code == workspace_code)
         )
         async with session_scope() as s:
@@ -477,10 +515,10 @@ async def task_list_by_parent(
     workspace_code: str | None = None,
     include_deleted: bool = False,
 ) -> list[TasksTask]:
-    """Дети узла по порядку (больший ``sort`` выше).
+    """A node's children in order (higher ``sort`` on top).
 
-    ``parent_code=None`` — корни; корней у каждого пространства свои, поэтому вместе с ``None``
-    осмысленно передать ``workspace_code``, иначе в ответ приедут корни всех пространств сразу.
+    ``parent_code=None`` — the roots; every workspace has its own, so with ``None`` it makes sense
+    to pass ``workspace_code`` too, otherwise the roots of all workspaces come back at once.
     """
     stmt = (
         select(TasksTask)
@@ -500,14 +538,15 @@ async def task_list_by_parent(
 
 
 async def _refile(s, row: TasksTask) -> None:
-    """Задача сменила группу — положить её в конец ряда новой.
+    """The task changed group — put it at the end of the new group's row.
 
-    Ряд соседей у корня — это его группа (``crud/link.py::_siblings``), поэтому переезд между
-    группами это переезд между рядами: прежнее число позиции в новом ряду не значит ничего, и
-    оставить его — значит воткнуть задачу в середину чужой расстановки наугад. В конец, а не в
-    начало, по той же причине, что и у свежей задачи: верх ряда — работа рук.
+    A root's sibling row is its group (``crud/link.py::_siblings``), so moving between groups is
+    moving between rows: the old position number means nothing in the new row, and keeping it
+    would stick the task into the middle of someone else's arrangement at random. At the end, not
+    the start, for the same reason as a fresh task: the top of the row is handwork.
 
-    Подзадачу не трогаем: её ряд задан родителем, и смена группы на место в дереве не влияет.
+    A subtask is left alone: its row is set by its parent, and a group change does not affect its
+    place in the tree.
     """
     link = await s.get(TasksLink, row.code)
     if link is None or link.parent_code is not None:
@@ -520,10 +559,10 @@ async def _refile(s, row: TasksTask) -> None:
 async def _place_in_tree(
     s, row: TasksTask, *, parent_code: str | None, group_code: str | None
 ) -> None:
-    """Родитель, затем группа — внутри транзакции вызывающего; ``None`` — не трогать.
+    """Parent, then group — inside the caller's transaction; ``None`` — leave as is.
 
-    Группа после родителя: так «вынести в корень и сразу в другую группу» — одно движение, а
-    группа подзадачи проверяется уже на её новом месте.
+    Group after parent: that way "move to the root and straight into another group" is a single
+    motion, and a subtask's group is checked at its new place.
     """
     if group_code:
         await _require_group_of(s, group_code, row.workspace_code)
@@ -551,12 +590,12 @@ async def task_reorder(
     parent_code: str | None = None,
     group_code: str | None = None,
 ) -> TasksTask | None:
-    """Перетаскивание строки: новое место в дереве и в ряду — одной транзакцией.
+    """A row drag: the new place in the tree and among its siblings — in one transaction.
 
-    ``parent_code`` / ``group_code`` — как у ``task_update`` (``None`` — не трогать, ``""`` —
-    снять), ``after_code`` — сосед сверху в новом ряду, ``None`` — в начало. Отказ позиции
-    откатывает и перенос: иначе человек видел бы ошибку, а задача уже стояла бы на новом месте.
-    ``None`` в ответе — задачи нет (или она удалена).
+    ``parent_code`` / ``group_code`` — as in ``task_update`` (``None`` — leave as is, ``""`` —
+    clear), ``after_code`` — the sibling just above at the new place, ``None`` — to the start. A
+    refused position rolls back the move too: otherwise the person would see an error while the
+    task already sat in its new place. ``None`` in the result — no such task (or it is deleted).
     """
     async with write_scope() as s:
         row = await s.get(TasksTask, code)
@@ -577,29 +616,31 @@ async def task_update(
     context: str | None = None,
     constraints: str | None = None,
     criteria: str | None = None,
-    body: str | None = None,
+    plan: str | None = None,
+    progress: str | None = None,
+    result: str | None = None,
     type: str | None = None,
     priority: str | None = None,
     group_code: str | None = None,
     parent_code: str | None = None,
     deadline_at: datetime | None | _Keep = KEEP,
 ) -> TasksTask | None:
-    """Обновить переданные поля задачи (``None`` = не трогать).
+    """Update the given task fields (``None`` = leave as is).
 
-    ``group_code=""`` — снять разложенность (``NULL``): пустая строка означает «не задано» во всех
-    текстовых полях модуля, а для ссылки единственная форма «не задано» — ``NULL``.
+    ``group_code=""`` — ungroup (``NULL``): an empty string means "not set" in every text field of
+    the module, and for a reference the only form of "not set" is ``NULL``.
 
-    ``parent_code`` — перенести под этого родителя, ``""`` — вынести в корень; правила переноса —
-    ``crud/link.py::link_move_in``. Перенос и правка карточки — одна транзакция: отказ переноса
-    откатывает и правку. Группа применяется после переноса, поэтому «вынести в корень и сразу в
-    другую группу» — один вызов, а группа подзадачи — только родительская. Сменившему группу
-    корню подзадачи следуют.
+    ``parent_code`` — move under this parent, ``""`` — move out to the root; the move rules are in
+    ``crud/link.py::link_move_in``. The move and the card edit are one transaction: a refused move
+    rolls the edit back too. The group is applied after the move, so "move to the root and straight
+    into another group" is a single call, and a subtask's group can only be its parent's. When a
+    root changes group, its subtasks follow.
 
-    У дат «не трогать» — это ``KEEP``, а ``None`` стирает дату: дата — единственное поле, у
-    которого нет своего «пустого» значения помимо ``None`` (см. ``_Keep``).
+    For dates "leave as is" is ``KEEP``, and ``None`` clears the date: a date is the only field
+    with no "empty" value of its own besides ``None`` (see ``_Keep``).
 
-    Статуса здесь нет намеренно: его меняет ``task_update_status``, потому что переход ставит
-    ещё и отметку фазы, и разрешать обойти её стороной незачем.
+    Status is absent here on purpose: ``task_update_status`` changes it, because the transition
+    also sets the phase timestamp, and there is no reason to allow going around it.
     """
     if type is not None:
         _checked(type, TASK_TYPES, "task type")
@@ -619,8 +660,12 @@ async def task_update(
             row.constraints = clip(constraints, CONSTRAINTS_MAX)
         if criteria is not None:
             row.criteria = clip(criteria, CRITERIA_MAX)
-        if body is not None:
-            row.body = fit(body, BODY_MAX, "task body")
+        if plan is not None:
+            row.plan = fit(plan, PLAN_MAX, "task plan")
+        if progress is not None:
+            row.progress = fit(progress, PROGRESS_MAX, "task progress")
+        if result is not None:
+            row.result = fit(result, RESULT_MAX, "task result")
         if type is not None:
             row.type = type
         if priority is not None:
@@ -634,7 +679,7 @@ async def task_update(
 
 
 async def _require_no_open_subtasks(s, row: TasksTask, status: str) -> None:
-    """Отказ закрыть задачу, пока у неё есть незакрытые живые подзадачи — они названы."""
+    """Refuse to close a task while it has open live subtasks — they are named."""
     open_subtasks_query = (
         select(TasksTask.code, TasksTask.status)
         .join(TasksLink, TasksLink.task_code == TasksTask.code)
@@ -654,7 +699,7 @@ async def _require_no_open_subtasks(s, row: TasksTask, status: str) -> None:
 
 
 async def _require_open_parent_for_status(s, row: TasksTask, status: str) -> None:
-    """Отказ открыть подзадачу закрытой задачи: сначала переоткрывают родителя."""
+    """Refuse to reopen a subtask of a closed task: the parent is reopened first."""
     link = await s.get(TasksLink, row.code)
     if link is None or link.parent_code is None:
         return
@@ -669,47 +714,41 @@ async def _require_open_parent_for_status(s, row: TasksTask, status: str) -> Non
 
 
 async def task_update_status(code: str, status: str) -> TasksTask | None:
-    """Сменить статус и отметить фазу: ``in_progress`` → ``started_at``, ``done`` →
-    ``completed_at``, ``canceled`` → ``canceled_at``.
+    """Change the status and stamp the phase: ``in_progress`` → ``started_at``, ``done`` →
+    ``completed_at``, ``canceled`` → ``canceled_at`` — the rules are ``_stamp_phase``'s.
 
-    Отметка ставится только в первый раз: возврат из ``done`` в работу и обратно не должен
-    переписывать дату, когда за задачу сели, — это факт, а не текущее состояние.
-
-    Закрытая задача не держит открытых частей — с обеих сторон: задачу с незакрытыми живыми
-    подзадачами не закрывают, а подзадачу закрытой задачи не открывают. Что при этом делать с
-    родителем, решает человек — переоткрыть его или закрыть части, — поэтому здесь отказ, а не
-    каскад.
+    A closed task holds no open parts — from both sides: a task with open live subtasks is not
+    closed, and a subtask of a closed task is not reopened. What to do with the parent then is the
+    person's call — reopen it or close the parts — hence a refusal here, not a cascade.
     """
     _checked(status, TASK_STATUSES, "task status")
     async with write_scope() as s:
         row = await s.get(TasksTask, code)
         if row is None or row.deleted_at is not None:
             return None
-        closing = status in TASK_STATUSES_TERMINAL
-        if closing:
+        if status in TASK_STATUSES_TERMINAL:
             await _require_no_open_subtasks(s, row, status)
         else:
             await _require_open_parent_for_status(s, row, status)
         row.status = status
-        stamp_field = _STATUS_STAMPS.get(status)
-        if stamp_field is not None and getattr(row, stamp_field) is None:
-            setattr(row, stamp_field, utc_now())
+        _stamp_phase(row, status)
         await s.flush()
         await s.refresh(row)
     return row
 
 
 async def task_delete(code: str, *, hard: bool = False) -> bool:
-    """Удалить задачу вместе с веткой. ``True`` — задача существовала.
+    """Delete a task together with its branch. ``True`` — the task existed.
 
-    Мягкий путь (по умолчанию) ставит **одну и ту же** отметку времени задаче и всем её потомкам
-    — по ней потом работает ``task_restore``. Уже удалённые ранее потомки свою отметку
-    сохраняют и из-под восстановления не поднимутся (как это держится при секундной точности
-    времени — см. ``_branch_stamp``).
+    The soft path (default) puts **one and the same** timestamp on the task and all its
+    descendants — ``task_restore`` later works off it. Descendants deleted earlier keep their own
+    mark and do not come back with the restore (how that holds at one-second time precision — see
+    ``_branch_stamp``).
 
-    ``hard=True`` физически сносит всю ветку. Потомков приходится перечислять явно: FK-каскад
-    снёс бы только рёбра (``tasks_link``), а сами задачи-потомки остались бы в базе вообще без
-    места в дереве — невидимые ни из одного обхода.
+    ``hard=True`` physically removes the whole branch. Descendants have to be listed explicitly:
+    the FK cascade would remove only the edges (``tasks_link``), and the descendant tasks
+    themselves would stay in the database with no place in the tree at all — invisible to any
+    walk.
     """
     async with write_scope() as s:
         row = await s.get(TasksTask, code)
@@ -726,7 +765,7 @@ async def task_delete(code: str, *, hard: bool = False) -> bool:
                 )
             )
             await s.execute(sa_delete(TasksTask).where(TasksTask.code.in_(branch)))
-            # Массовые операторы объектов не дают — ленте изменений ветку называем сами.
+            # Bulk statements yield no objects — so we name the branch to the change feed ourselves.
             mark_changes(s, "tasks.task", DELETED, branch)
             mark_changes(s, "tasks.link", DELETED, branch)
         else:
@@ -736,16 +775,16 @@ async def task_delete(code: str, *, hard: bool = False) -> bool:
                 .where(TasksTask.code.in_(branch), TasksTask.deleted_at.is_(None))
                 .values(deleted_at=stamp)
             )
-            # Мягкое удаление — правка строки (отметка ``deleted_at``), а не исчезновение.
+            # A soft delete is a row edit (the ``deleted_at`` mark), not a disappearance.
             mark_changes(s, "tasks.task", UPDATED, branch)
     return True
 
 
 async def task_restore(code: str) -> bool:
-    """Поднять задачу и тех потомков, что ушли вместе с ней. ``True`` — задача была удалена.
+    """Restore a task and the descendants that left with it. ``True`` — the task was deleted.
 
-    Признак «ушли вместе» — совпадение ``deleted_at`` с отметкой самой задачи: другой отметкой
-    помечено отдельное, более раннее удаление, и воскрешать его никто не просил.
+    "Left together" means ``deleted_at`` matches the task's own mark: a different mark belongs to
+    a separate, earlier deletion, and nobody asked to resurrect that.
     """
     async with write_scope() as s:
         row = await s.get(TasksTask, code)
@@ -765,11 +804,11 @@ async def task_restore(code: str) -> bool:
 async def task_count_by_workspace_codes(
     workspace_codes: list[str], *, include_deleted: bool = False
 ) -> dict[str, int]:
-    """``workspace_code → сколько в нём задач`` одним ``GROUP BY`` — для списка пространств.
+    """``workspace_code → number of its tasks`` in one ``GROUP BY`` — for the workspace list.
 
-    Счётчики всех карточек списка берутся одним запросом, а не по запросу на карточку: список
-    целиком помещается на экран, и N+1 здесь стоил бы ровно столько же строк кода, сколько
-    экономит. Пространства без задач в ответе просто нет — ноль подставляет вызывающий.
+    The counters for every card in the list come from one query, not a query per card: the whole
+    list fits on screen, and an N+1 here would cost exactly as many lines of code as it saves. A
+    workspace with no tasks is simply absent from the result — the caller fills in the zero.
     """
     if not workspace_codes:
         return {}
@@ -787,11 +826,11 @@ async def task_count_by_workspace_codes(
 async def task_count_by_group_codes(
     group_codes: list[str], *, include_deleted: bool = False
 ) -> dict[str, int]:
-    """``group_code → сколько в ней задач`` одним ``GROUP BY`` — для списка групп.
+    """``group_code → number of its tasks`` in one ``GROUP BY`` — for the group list.
 
-    Тем же приёмом, что и счётчик по пространствам: список групп помещается на экран целиком, и
-    запрос на карточку дал бы N+1 там, где хватает одной группировки. Группы без задач в ответе
-    нет — ноль подставляет вызывающий.
+    Same technique as the workspace counter: the group list fits on screen whole, and a query per
+    card would be an N+1 where a single grouping suffices. A group with no tasks is absent from
+    the result — the caller fills in the zero.
     """
     if not group_codes:
         return {}
@@ -807,11 +846,12 @@ async def task_count_by_group_codes(
 
 
 async def task_workspace_by_codes(codes: list[str]) -> dict[str, str]:
-    """``code → workspace_code`` для живых задач одним запросом; пропавших в ответе нет.
+    """``code → workspace_code`` for live tasks in one query; missing ones are absent.
 
-    Нужна тому, кто проверяет контур у ПАЧКИ кодов: забор (``mcp/scope.py``) читает по одной
-    задаче за раз, и на списке это превратилось бы в запрос на элемент. Отсутствие кода в ответе
-    — это и «нет такой», и «удалена»: для проверки перед записью разницы между ними нет.
+    Needed by whoever checks the boundary for a BATCH of codes: the workspace fence
+    (``mcp/scope.py``) reads one task at a time, and over a list that would become a query per
+    item. A code absent from the result means both "no such task" and "deleted": for a check
+    before a write there is no difference between them.
     """
     if not codes:
         return {}
@@ -822,22 +862,82 @@ async def task_workspace_by_codes(codes: list[str]) -> dict[str, str]:
         return {code: workspace for code, workspace in (await s.execute(stmt)).all()}
 
 
+async def release_group_tasks(
+    s, group_code: str, *, disposal: str | None, target: str | None = None
+) -> int:
+    """Take every task off ``group_code`` before the group is soft-deleted; return how many live.
+
+    Runs inside the caller's transaction (``group_crud.group_delete``): the group's deletion and
+    the fate of its tasks commit together or not at all. Afterwards no task — live or already in
+    the trash — points at the group, because nothing draws a deleted group and its tasks would
+    vanish from every list while still existing.
+
+    ``disposal`` is one of ``GROUP_TASK_DISPOSALS`` and is required while the group holds live
+    tasks; with none it may be ``None``, and the trashed ones just lose the group. ``delete`` puts
+    the live tasks and their subtask branches in the trash under one mark, then ungroups them like
+    the rest, so a task restored later lands in "No group" rather than in a group that is gone.
+    """
+    rows = list(
+        (
+            await s.execute(
+                select(TasksTask)
+                .where(TasksTask.group_code == group_code)
+                .order_by(TasksTask.created_at, TasksTask.code)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    live = [row for row in rows if row.deleted_at is None]
+    if live and disposal not in GROUP_TASK_DISPOSALS:
+        raise TaskRuleError(
+            GROUP_HAS_TASKS,
+            f"The group holds {len(live)} live task(s) — say what becomes of them: "
+            f"{', '.join(GROUP_TASK_DISPOSALS)}.",
+        )
+    destination: str | None = None
+    if live and disposal == GROUP_TASKS_MOVE:
+        if not target or target == group_code:
+            raise ValueError("Name another group of this workspace to move the tasks to.")
+        await _require_group_of(s, target, live[0].workspace_code)
+        destination = target
+    if live and disposal == GROUP_TASKS_DELETE:
+        branch: list[str] = []
+        for row in live:
+            branch += [row.code, *await _descendant_codes(s, row.code)]
+        stamp = await _branch_stamp(s, branch)
+        await s.execute(
+            update(TasksTask)
+            .where(TasksTask.code.in_(branch), TasksTask.deleted_at.is_(None))
+            .values(deleted_at=stamp)
+        )
+        # Bulk statement — the change feed is told by hand, as in ``task_delete``.
+        mark_changes(s, "tasks.task", UPDATED, branch)
+    # Edited through the ORM so ``updated_at`` moves, and filed at the end of the new row like any
+    # refile (``_refile``); subtasks are in the same group and follow their parents.
+    for row in rows:
+        row.group_code = destination
+        await _refile(s, row)
+    await s.flush()
+    return len(live)
+
+
 async def task_regroup(codes: list[str], group_code: str | None) -> int:
-    """Переложить пачку задач в группу (``None`` — снять разложенность); вернуть, сколько легло.
+    """Refile a batch of tasks into a group (``None`` — ungroup); return how many landed.
 
-    Одна транзакция на всю пачку, и это её причина существовать: та же работа тремя вызовами
-    ``task_update`` даёт частичное применение, а частично переложенная пачка выглядит ровно как
-    переложенная.
+    One transaction for the whole batch, and that is its reason to exist: the same work as three
+    ``task_update`` calls can apply partially, and a partially refiled batch looks exactly like a
+    refiled one.
 
-    Поэтому и проверки идут до первой записи: пропавшая задача, задачи из разных пространств,
-    группа не оттуда — всё это ``ValueError`` с перечислением виноватых кодов, и ни одна строка
-    при этом не тронута.
+    That is also why the checks run before the first write: a missing task, tasks from different
+    workspaces, a group from elsewhere — each is a ``ValueError`` listing the offending codes, and
+    not a single row is touched.
 
-    Группа подзадачи — группа её родителя, поэтому подзадачи переложенного корня едут за ним, а
-    подзадача в пачке без своего родителя — отказ (кроме той, что возвращается в его группу).
+    A subtask's group is its parent's, so the subtasks of a refiled root follow it, and a subtask
+    in the batch without its parent is refused (except one returning to its parent's group).
 
-    Строки правятся через ORM, а не массовым ``UPDATE``: ``onupdate`` у ``updated_at`` висит на
-    маппере, и в обход него отметка времени осталась бы вчерашней.
+    Rows are edited through the ORM, not with a bulk ``UPDATE``: the ``onupdate`` of
+    ``updated_at`` lives on the mapper, and bypassing it would leave yesterday's timestamp.
     """
     if not codes:
         raise ValueError("No task codes given — name at least one task to file.")
@@ -887,7 +987,7 @@ async def task_regroup(codes: list[str], group_code: str | None) -> int:
                 )
             ).all()
         )
-        # Подзадача, чей родитель едет в той же пачке, уедет за ним сама — отказывать ей не за что.
+        # A subtask whose parent is in the same batch will follow it anyway — nothing to refuse.
         misfiled = [
             code
             for code, parent in parent_by_subtask.items()
@@ -901,8 +1001,8 @@ async def task_regroup(codes: list[str], group_code: str | None) -> int:
                 f"{named} — a subtask sits in its parent's group. File the parents instead, "
                 "their subtasks follow them. Nothing was filed."
             )
-        # Переложенные встают в конец ряда новой группы — по одной, в порядке перечисления:
-        # ряд у корня и есть группа, и прежняя позиция в другой группе к новой не относится.
+        # Refiled tasks go to the end of the new group's row — one by one, in the order listed:
+        # a root's row is its group, and its old position in another group means nothing here.
         for row in rows:
             if target == row.group_code:
                 continue
@@ -922,6 +1022,7 @@ __all__ = [
     "task_get",
     "task_list_by_parent",
     "task_list_by_workspace",
+    "release_group_tasks",
     "task_regroup",
     "task_reorder",
     "task_restore",

@@ -1,4 +1,4 @@
-"""McpServerTokenVerifier — agnostic bearer-верификатор MCP-серверов (pure)."""
+"""McpServerTokenVerifier — the agnostic bearer verifier of MCP servers (pure)."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ pytestmark = pytest.mark.pure
 
 
 async def test_verify_token_maps_principal_to_access_token():
-    """Принципал резолвера → AccessToken(client_id=str(id), scopes=[group])."""
+    """The resolver's principal → AccessToken(client_id=str(id), scopes=[group])."""
 
     async def resolve(token: str, scope: str):
         return SimpleNamespace(id=7, group="manager") if token == "good" else None
@@ -25,7 +25,7 @@ async def test_verify_token_maps_principal_to_access_token():
 
 
 async def test_verify_token_none_when_resolver_rejects():
-    """resolve → None (неизвестный/просроченный/чужой scope) ⇒ verify_token → None."""
+    """resolve → None (unknown/expired/foreign scope) ⇒ verify_token → None."""
 
     async def resolve(token: str, scope: str):
         return None
@@ -34,7 +34,7 @@ async def test_verify_token_none_when_resolver_rejects():
 
 
 async def test_verify_token_requests_mcp_scope():
-    """Верификатор спрашивает резолвер строго про scope 'mcp' (типизация токена)."""
+    """The verifier asks the resolver strictly for scope 'mcp' (token typing)."""
     seen: dict[str, str] = {}
 
     async def resolve(token: str, scope: str):

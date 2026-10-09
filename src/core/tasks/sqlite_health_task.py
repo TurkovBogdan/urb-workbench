@@ -1,9 +1,9 @@
-"""Здоровье файловой базы SQLite: размер журнала и две проверки целостности.
+"""Health of the file-based SQLite database: journal size and two integrity checks.
 
-У движка почти нет громких отказов. Голодание чекпойнта не логируется и не
-возвращает ошибку — растущий файл-спутник рядом с небольшой базой единственный
-его признак. А ``integrity_check`` не смотрит на внешние ключи вовсе, поэтому
-проверок две, а не одна.
+The engine has almost no loud failures. Checkpoint starvation is neither logged
+nor returned as an error — a companion file growing next to a small database is
+its only sign. And ``integrity_check`` does not look at foreign keys at all,
+hence two checks rather than one.
 """
 
 from __future__ import annotations
@@ -20,12 +20,12 @@ _WAL_SHARE_TO_WARN = 0.25
 
 
 class SqliteHealthTask(CoreTaskBase):
-    """Раз в час: размер журнала относительно базы + целостность страниц и ссылок."""
+    """Hourly: journal size relative to the database + page and reference integrity."""
 
     MODULE = "core"
     CODE = "sqlite_health"
     NAME = "SQLite health"
-    # Английский запасной текст: интерфейс показывает перевод из словаря по (MODULE, CODE).
+    # English fallback text: the UI shows the dictionary translation keyed by (MODULE, CODE).
     DESCRIPTION = (
         "Hourly: size of the WAL companion file relative to the database (checkpoint "
         "starvation shows no other sign), quick_check and foreign_key_check."

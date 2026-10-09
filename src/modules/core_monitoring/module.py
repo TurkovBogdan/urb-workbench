@@ -1,8 +1,8 @@
-"""Module-провайдер модуля core_monitoring.
+"""Module provider of the core_monitoring module.
 
-Инфра-модуль наблюдаемости: отдаёт раздел задач (список зарегистрированных
-scheduler-задач + их запуски и логи). Своих таблиц/миграций/настроек нет —
-читает core-CRUD (`core/crud/tasks`, `tasks_logs`) и реестр планировщика.
+An observability infra module: serves the jobs section (the list of registered scheduler jobs
++ their runs and logs). It has no tables/migrations/settings of its own — it reads the core
+CRUD (`core/crud/tasks`, `tasks_logs`) and the scheduler registry.
 """
 
 from __future__ import annotations

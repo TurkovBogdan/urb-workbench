@@ -1,4 +1,4 @@
-"""Один прогон задачи. Точка входа для тикера и (в будущем) CLI."""
+"""A single task run. Entry point for the ticker and (in the future) the CLI."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from src.core.scheduler.registry import TaskEntry
 
 
 async def run_entry(entry: TaskEntry) -> None:
-    """Один прогон задачи. Безопасен для multi-instance: create_running атомарен."""
+    """A single task run. Multi-instance safe: create_running is atomic."""
     log = get_logger("tasks", f"tasks/{entry.code}")
     task_id = await crud_tasks.create_running(module=entry.module, code=entry.code)
     if task_id is None:
@@ -27,8 +27,8 @@ async def run_entry(entry: TaskEntry) -> None:
         f"task:{entry.module}:{entry.code}", entry.ttl, owner=owner
     )
     if lock is None:
-        # Партициальный индекс пропустил, но task-лок всё ещё держит другой процесс.
-        # Откатываем running-запись через finalize_error и выходим.
+        # The partial index let us through, but another process still holds the task lock.
+        # Roll back the running record through finalize_error and leave.
         await crud_tasks.finalize_error(task_id, text="task lock busy")
         return
 
@@ -66,7 +66,7 @@ async def run_entry(entry: TaskEntry) -> None:
         hb.cancel()
         with suppress(asyncio.CancelledError):
             await hb
-        # Снимаем task-лок и любые суб-локи, поставленные хендлером с ``owner=ctx.lock.owner``.
+        # Release the task lock and any sub-locks the handler took with ``owner=ctx.lock.owner``.
         try:
             await release_for_owners([owner])
         except Exception:

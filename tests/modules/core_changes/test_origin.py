@@ -1,8 +1,8 @@
-"""Метка источника: ``X-Client-Id`` запроса доезжает до сообщения ленты как ``origin``.
+"""Origin tag: a request's ``X-Client-Id`` reaches the feed message as ``origin``.
 
-Самое хрупкое место — переход границы greenlet'а: обработчики событий сессии SQLAlchemy async
-выполняет не в задаче запроса, а в greenlet'е, и переменная контекста обязана туда дойти. Поэтому
-проверка идёт через настоящий HTTP-запрос и настоящую запись, а не через подстановку значения.
+The most fragile spot is crossing the greenlet boundary: SQLAlchemy async runs session event
+handlers not in the request's task but in a greenlet, and the context variable has to reach it
+there. So the check goes through a real HTTP request and a real write, not a substituted value.
 """
 
 from __future__ import annotations
