@@ -40,3 +40,7 @@ export const WHOLE_CODE_SPAN = new RegExp(
 // the list item's first paragraph when either zone gets the tokens. Both strip it the same way —
 // the renderer turns it into a checkbox, the editor into the item's `checked` attribute.
 export const TASK_MARKER = /^\[([ xX])\]\s+/
+
+// The fence language that makes a code block a diagram. The renderer draws such a fence; the
+// editor turns it into its diagram block and prints the block back as the same fence.
+export const DIAGRAM_LANGUAGE = 'mermaid'

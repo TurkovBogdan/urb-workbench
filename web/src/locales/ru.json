@@ -215,8 +215,14 @@
       "taskList": "Чек-лист",
       "quote": "Цитата",
       "codeBlock": "Блок кода",
+      "diagram": "Схема",
       "divider": "Разделитель",
       "table": "Таблица"
+    },
+    "diagram": {
+      "edit": "Редактировать",
+      "done": "Готово",
+      "source": "Исходник схемы"
     },
     "toolbar": {
       "block_type": "Тип блока",

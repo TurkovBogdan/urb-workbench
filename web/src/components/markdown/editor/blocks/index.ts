@@ -30,6 +30,7 @@ export {
   type ColumnAlign,
 } from './table'
 export { EntityRef } from './entityRef'
+export { Diagram } from './diagram'
 
 /** Which of our nodes to enable. A disabled node is NOT in the schema — it is not a hidden button. */
 export interface FlatBlocksOptions {

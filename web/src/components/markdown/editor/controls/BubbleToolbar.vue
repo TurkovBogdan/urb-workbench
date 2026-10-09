@@ -55,8 +55,9 @@ function place(): void {
 
   const { selection } = editor.state
   // The toolbar edits text: without a selection there is nothing to edit. A code block has no
-  // inline marks, so there it would only get in the way.
-  if (selection.empty || editor.isActive('codeBlock')) return hide()
+  // inline marks, so there it would only get in the way; a selected diagram has no text at all —
+  // its source is edited in its own field.
+  if (selection.empty || editor.isActive('codeBlock') || editor.isActive('diagram')) return hide()
 
   const start = editor.view.coordsAtPos(selection.from)
   const end = editor.view.coordsAtPos(selection.to)

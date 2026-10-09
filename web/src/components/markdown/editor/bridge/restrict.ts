@@ -11,6 +11,7 @@
 // without its structure (a table) is dropped silently.
 import type { JSONContent } from '@tiptap/core'
 import type { FeatureSet } from '../modes'
+import { DIAGRAM_LANGUAGE } from '../../shared/contracts'
 
 export function restrict(doc: JSONContent, features: FeatureSet): JSONContent {
   const blocks: JSONContent[] = []
@@ -46,6 +47,18 @@ function block(node: JSONContent, features: FeatureSet): JSONContent[] {
       // The listing's text stays as paragraph text — without a language and without a fence.
       return [paragraph((node.content ?? []).map((child) => ({ type: 'text', text: child.text ?? '' }))
         .filter((child) => (child.text ?? '').length > 0))]
+
+    // A field without diagrams still keeps the source: as the mermaid fence it was, when the field
+    // has code blocks, otherwise as the paragraph text a code block falls back to.
+    case 'diagram': {
+      if (features.has('diagram')) return [node]
+      const source = String(node.attrs?.source ?? '')
+      return block({
+        type: 'codeBlock',
+        attrs: { language: DIAGRAM_LANGUAGE },
+        content: source ? [{ type: 'text', text: source }] : [],
+      }, features)
+    }
 
     case 'horizontalRule':
       return features.has('divider') ? [node] : []

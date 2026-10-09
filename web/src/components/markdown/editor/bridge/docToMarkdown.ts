@@ -13,6 +13,7 @@
 // Checked in both directions by the round-trip panel on the design-system page.
 import type { JSONContent } from '@tiptap/core'
 import { escapeLineStarts, escapeText } from './escape'
+import { DIAGRAM_LANGUAGE } from '../../shared/contracts'
 
 export function docToMarkdown(doc: JSONContent): string {
   return (doc.content ?? [])
@@ -36,6 +37,9 @@ function block(node: JSONContent): string {
 
     case 'codeBlock':
       return fenced(text(node.content), String(node.attrs?.language ?? '') || '')
+
+    case 'diagram':
+      return fenced(String(node.attrs?.source ?? ''), DIAGRAM_LANGUAGE)
 
     case 'horizontalRule':
       return '---'

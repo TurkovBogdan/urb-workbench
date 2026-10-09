@@ -215,8 +215,14 @@
       "taskList": "Checklist",
       "quote": "Quote",
       "codeBlock": "Code block",
+      "diagram": "Diagram",
       "divider": "Divider",
       "table": "Table"
+    },
+    "diagram": {
+      "edit": "Edit",
+      "done": "Done",
+      "source": "Diagram source"
     },
     "toolbar": {
       "block_type": "Block type",

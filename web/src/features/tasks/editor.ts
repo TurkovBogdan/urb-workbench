@@ -15,12 +15,12 @@ import type { Feature } from '@/components/markdown/editor/modes'
 /**
  * Brief and plan — everything the editor can do, except the handle.
  *
- * These hold reasoned prose: subsections, lists, code listings, comparison tables, references to
- * neighbouring entities. There is nothing to restrict here — this is exactly the set the renderer
- * displays.
+ * These hold reasoned prose: subsections, lists, code listings, diagrams, comparison tables,
+ * references to neighbouring entities. There is nothing to restrict here — this is exactly the set
+ * the renderer displays.
  */
 export const TASK_DOCUMENT_FEATURES: readonly Feature[] = [
-  'heading', 'list', 'quote', 'codeBlock', 'divider', 'table',
+  'heading', 'list', 'quote', 'codeBlock', 'diagram', 'divider', 'table',
   'bold', 'italic', 'strike', 'code', 'link', 'entityRef',
   'slash',
 ]

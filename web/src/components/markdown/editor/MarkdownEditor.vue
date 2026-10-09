@@ -20,7 +20,7 @@ import StarterKit from '@tiptap/starter-kit'
 import { Placeholder } from '@tiptap/extension-placeholder'
 import DragHandle from '@tiptap/extension-drag-handle-vue-3'
 import { IconGripVertical } from '@tabler/icons-vue'
-import { EntityRef, FlatBlocks } from './blocks'
+import { Diagram, EntityRef, FlatBlocks } from './blocks'
 import {
   BlockMoves,
   DragSource,
@@ -227,6 +227,7 @@ const editor = useEditor({
         ]
       : []),
     ...(has('entityRef') ? [EntityRef] : []),
+    ...(has('diagram') ? [Diagram] : []),
     // The list is built by a function: labels come from the dictionary and survive a language switch.
     ...(has('slash')
       ? [SlashMenuExtension.configure({
@@ -268,9 +269,14 @@ onBeforeUnmount(() => {
   editor.value?.destroy()
 })
 
+// Only a drag that starts on the handle is a block drag with our own card and source marking. Any
+// other drag in the zone — selected text pulled across the document — is ProseMirror's own, with
+// the browser's preview; in a field without a handle it is the only kind there is, and the
+// marking command does not even exist there (DragSource comes with the handle).
 function onDragStart(event: DragEvent): void {
   // A layer anchored to the entity is supposed to close when a drag starts.
   moveMenu.value = false
+  if (!(event.target as Element | null)?.closest?.('.editor__grip')) return
   drag.start(event)
 }
 

@@ -10,6 +10,7 @@ import PageLayout from '@/layout/templates/PageLayout.vue'
 import PageHeader from '@/layout/components/PageHeader.vue'
 import MarkdownRenderer from '@/components/markdown/renderer/MarkdownRenderer.vue'
 import { MarkdownEditor, UNSUPPORTED, docToMarkdown, markdownToDoc } from '@/components/markdown/editor'
+import type { Feature } from '@/components/markdown/editor/modes'
 // A real note body from the stable research, not a made-up example: it has tables, fences,
 // entity codes in backticks and long paragraphs with soft wraps — exactly the material the bridge
 // must work on. Imported as a file because it contains 344 backticks, which would all need
@@ -34,6 +35,19 @@ const TABLE_SAMPLE = `| Construct | Editable | Printed back |
 `
 
 const tableBody = ref(TABLE_SAMPLE)
+
+// A diagram block, and the same fence in a field that has code blocks but no diagrams: there it
+// stays the fence it was, shown as code.
+const DIAGRAM_SAMPLE = `Editor and renderer share the parser:
+
+\`\`\`mermaid
+flowchart LR
+  body[(Body)] --> parse[markdownToDoc] --> doc[Document] --> print[docToMarkdown] --> body
+\`\`\``
+
+const diagramBody = ref(DIAGRAM_SAMPLE)
+const codeOnlyBody = ref(DIAGRAM_SAMPLE)
+const CODE_ONLY: readonly Feature[] = ['codeBlock', 'bold', 'italic', 'code', 'slash']
 
 // Simple mode: what a short field is edited with — a stage title, a caption, a one-line note.
 // The limit is deliberately small so the counter turns red within a couple of phrases.
@@ -154,6 +168,24 @@ const diff = computed(() => diffLines(source.value.trimEnd().split('\n'), roundt
             <div class="preview-box">
               <MarkdownRenderer :text="tableBody" />
             </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Diagram: a mermaid fence shown drawn, edited as source -->
+      <section class="ds-section">
+        <h6 class="mb-3">{{ t('design-system.section.markdown-editor.diagram') }}</h6>
+        <MarkdownEditor v-model="diagramBody" min-height="220px" />
+        <p class="ds-note mt-2">{{ t('design-system.section.markdown-editor.diagramHint') }}</p>
+
+        <div class="pane-grid mt-4">
+          <div class="pane">
+            <span class="ds-tag mb-2">{{ t('design-system.section.markdown-editor.emitted') }}</span>
+            <pre class="code-box code-box--short">{{ diagramBody }}</pre>
+          </div>
+          <div class="pane">
+            <span class="ds-tag mb-2">{{ t('design-system.section.markdown-editor.noDiagram') }}</span>
+            <MarkdownEditor v-model="codeOnlyBody" :features="CODE_ONLY" min-height="120px" />
           </div>
         </div>
       </section>

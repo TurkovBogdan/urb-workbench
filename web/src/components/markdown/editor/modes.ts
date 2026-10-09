@@ -18,7 +18,7 @@
 // rejects it, and ProseMirror refuses the WHOLE document at once.
 
 /** Block constructs. The paragraph is not listed: it is always present and cannot be disabled. */
-export type BlockFeature = 'heading' | 'list' | 'quote' | 'codeBlock' | 'divider' | 'table'
+export type BlockFeature = 'heading' | 'list' | 'quote' | 'codeBlock' | 'diagram' | 'divider' | 'table'
 
 /** Inline: text marks and the entity reference pill. */
 export type InlineFeature = 'bold' | 'italic' | 'strike' | 'code' | 'link' | 'entityRef'
@@ -29,7 +29,7 @@ export type ChromeFeature = 'handle' | 'slash'
 export type Feature = BlockFeature | InlineFeature | ChromeFeature
 
 export const BLOCK_FEATURES: readonly BlockFeature[] = [
-  'heading', 'list', 'quote', 'codeBlock', 'divider', 'table',
+  'heading', 'list', 'quote', 'codeBlock', 'diagram', 'divider', 'table',
 ]
 
 export const INLINE_FEATURES: readonly InlineFeature[] = [

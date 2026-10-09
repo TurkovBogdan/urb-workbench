@@ -11,7 +11,9 @@
 import MarkdownIt from 'markdown-it'
 import type { Token } from 'markdown-it'
 import type { JSONContent } from '@tiptap/core'
-import { canonicalCode, REF_CODE, TASK_MARKER, WHOLE_CODE_SPAN } from '../../shared/contracts'
+import {
+  canonicalCode, DIAGRAM_LANGUAGE, REF_CODE, TASK_MARKER, WHOLE_CODE_SPAN,
+} from '../../shared/contracts'
 import type { FeatureSet } from '../modes'
 import { restrict } from './restrict'
 
@@ -147,9 +149,15 @@ function parseFull(markdown: string): JSONContent {
       case 'fence':
       case 'code_block': {
         const code = token.content.replace(/\n$/, '')
+        const language = fenceLanguage(token)
+        // A mermaid fence is a diagram block: the source goes whole into its attribute.
+        if (language === DIAGRAM_LANGUAGE) {
+          addBlock({ type: 'diagram', attrs: { source: code } })
+          break
+        }
         addBlock({
           type: 'codeBlock',
-          attrs: { language: fenceLanguage(token) },
+          attrs: { language },
           content: code ? [{ type: 'text', text: code }] : [],
         })
         break

@@ -14,7 +14,7 @@ import type { Component } from 'vue'
 import type { BlockFeature, FeatureSet } from '../modes'
 import {
   IconAlignLeft, IconH1, IconH2, IconH3, IconList, IconListNumbers, IconListCheck,
-  IconBlockquote, IconSourceCode, IconSeparatorHorizontal, IconTable,
+  IconBlockquote, IconSourceCode, IconSchema, IconSeparatorHorizontal, IconTable,
 } from '@tabler/icons-vue'
 
 export interface SlashItem {
@@ -126,6 +126,14 @@ export function createSlashItems(t: (key: string) => string, features?: FeatureS
       title: t('common.editor.slash.codeBlock'), keys: 'Mod-Alt-c',
       keywords: ['code', 'код', 'fence'],
       run: (editor, range) => at(editor, range).toggleCodeBlock().run(),
+    },
+    // Inserted with a starter source and opened for editing at once: an empty diagram draws
+    // nothing, and the person who asked for one is about to type its source anyway.
+    {
+      id: 'diagram', group: 4, icon: IconSchema, feature: 'diagram',
+      title: t('common.editor.slash.diagram'), keys: null,
+      keywords: ['diagram', 'mermaid', 'flowchart', 'схема', 'диаграмма'],
+      run: (editor, range) => at(editor, range).insertDiagram().run(),
     },
     {
       id: 'divider', group: 4, icon: IconSeparatorHorizontal, feature: 'divider',
