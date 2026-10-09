@@ -13,6 +13,7 @@ const PAGES: Record<string, string> = {
   buttons:         'controls/ButtonsView',
   'button-group':  'controls/ButtonGroupView',
   'copy-chip':     'controls/CopyChipView',
+  'action-menu':   'controls/ActionMenuView',
   selects:         'controls/SelectsView',
   inputs:          'controls/InputsView',
   'invisible-field': 'controls/InvisibleFieldView',

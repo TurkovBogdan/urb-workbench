@@ -85,7 +85,7 @@
       "add_subtask": "Add subtask",
       "mark_done": "Done",
       "reopen": "Back to work",
-      "mark_canceled": "Canceled",
+      "mark_canceled": "Cancel",
       "detach": "Detach from task",
       "collapse_children": "Collapse subtasks",
       "expand_children": "Expand subtasks",

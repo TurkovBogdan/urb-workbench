@@ -87,6 +87,15 @@
           "Ellipsis"
         ]
       },
+      "action-menu": {
+        "label": "Action menu",
+        "tags": [
+          "ActionMenu",
+          "Right click",
+          "Hotkeys",
+          "Object code"
+        ]
+      },
       "selects": {
         "label": "Dropdowns",
         "tags": [
@@ -767,6 +776,10 @@
       "title": "Copy chip",
       "description": "CopyChip — text and a copy icon in one button: clicking anywhere takes the value to the clipboard"
     },
+    "action-menu": {
+      "title": "Action menu",
+      "description": "ActionMenu — the menu of a list row: opens from the \"⋯\" and on a right click on the row; items with a digit run from the keyboard while the menu is open"
+    },
     "counter-button": {
       "title": "Counter button",
       "description": "CounterButton — an icon, a number and a collapse arrow in one button: shows how much is inside, and hides it on a click anywhere on it"
@@ -803,6 +816,19 @@
       "label": "A label shorter than the value — the full text still gets copied",
       "long": "A long value is truncated with an ellipsis, the icon stays",
       "hint": "Default hint is \"Copy\"; it can be customized",
+      "usage": "Usage"
+    },
+    "action-menu": {
+      "in_context": "In a list row",
+      "in_context_note": "This is how it sits on a task, a group and a workspace. Right-click anywhere on the row — the menu opens at the pointer, and the row stays marked while it is open. With the menu open, the letter next to an item runs it: E edit, D delete, C cancel, W and S up and down — in any layout. Shift with a right click keeps the browser's own menu.",
+      "row_title": "Configurable Pro: first phase of the new pricing",
+      "actions": "Actions",
+      "edit": "Edit",
+      "delete": "Delete",
+      "up": "Move up",
+      "down": "Move down",
+      "last_action": "Last action",
+      "none": "none yet",
       "usage": "Usage"
     },
     "counter-button": {

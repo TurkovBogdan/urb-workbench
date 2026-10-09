@@ -85,7 +85,7 @@
       "add_subtask": "Добавить подзадачу",
       "mark_done": "Выполнено",
       "reopen": "Вернуть в работу",
-      "mark_canceled": "Отменено",
+      "mark_canceled": "Отменить",
       "detach": "Открепить от задачи",
       "collapse_children": "Свернуть подзадачи",
       "expand_children": "Развернуть подзадачи",

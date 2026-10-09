@@ -12,7 +12,7 @@ import {
   IconMessages, IconMail, IconChevronDown, IconUsersGroup, IconMoodSmile,
   IconMoodSad, IconHeading, IconPalette, IconBrush, IconLayoutList, IconLayoutNavbar,
   IconSearch, IconFileText, IconFolders, IconLayoutSidebar, IconSubtask, IconCopy, IconFilter,
-  IconCursorText,
+  IconCursorText, IconDotsVertical,
 } from '@tabler/icons-vue'
 import type { TablerIcon } from '@/shared/nav'
 import PageLayout from '@/layout/templates/PageLayout.vue'
@@ -46,6 +46,7 @@ const groups: Group[] = [
       { slug: 'buttons',      icon: IconClick },
       { slug: 'button-group', icon: IconLayoutColumns },
       { slug: 'copy-chip',    icon: IconCopy },
+      { slug: 'action-menu',  icon: IconDotsVertical },
       { slug: 'selects',      icon: IconSelector },
       { slug: 'inputs',       icon: IconForms },
       { slug: 'invisible-field', icon: IconCursorText },

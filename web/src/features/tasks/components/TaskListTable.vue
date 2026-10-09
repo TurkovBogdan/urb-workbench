@@ -30,17 +30,16 @@ import {
   IconArrowUp,
   IconCheck,
   IconCopy,
-  IconDotsVertical,
   IconPencil,
   IconPlus,
   IconTrash,
 } from '@tabler/icons-vue'
 
+import ActionMenu, { type ActionMenuItem } from '@/components/ActionMenu.vue'
 import CounterButton from '@/components/CounterButton.vue'
 import IconSwatch from '@/components/IconSwatch.vue'
 import TablePaginationBar from '@/components/TablePaginationBar.vue'
 import { useClipboard } from '@/composables/useClipboard'
-import { usePointerMenu } from '@/composables/usePointerMenu'
 
 import GroupDropZone from './GroupDropZone.vue'
 import TaskRows from './TaskRows.vue'
@@ -100,36 +99,46 @@ function toggleFold(section: TaskSection) {
 // ── Group card menu ───────────────────────────────────────────────────────────
 // Opens from the "⋯" and on a right click on the card's header or footer, the same way a task row's
 // menu does; the rows between them have menus of their own.
-// One menu for the whole list — only one can be open — so the cards share one state and remember
-// whose it is. A press inside the menu or on that card's own "⋯" does not close it.
-const menuGroup = ref<string | null>(null)
-const {
-  open: groupMenuOpen,
-  openAt: openGroupMenuAt,
-  fromButton: groupMenuFromButton,
-  placement: groupMenuPlacement,
-} = usePointerMenu((target) => {
-  const element = target instanceof Element ? target : target.parentElement
-  return !!element?.closest(`.task-group__menu, [data-group-menu="${menuGroup.value}"]`)
-})
+// Every card has its own menu; the list keeps only whose is open, to mark that card's strips.
+const openGroupMenu = ref<string | null>(null)
+const groupMenus = new Map<string, InstanceType<typeof ActionMenu>>()
 
 function isGroupMenuOpen(code: string): boolean {
-  return groupMenuOpen.value && menuGroup.value === code
+  return openGroupMenu.value === code
 }
 
 function setGroupMenu(code: string, open: boolean) {
-  if (open) {
-    menuGroup.value = code
-    groupMenuOpen.value = true
-  } else if (menuGroup.value === code) {
-    groupMenuOpen.value = false
-  }
+  if (open) openGroupMenu.value = code
+  else if (openGroupMenu.value === code) openGroupMenu.value = null
+}
+
+function bindGroupMenu(code: string, menu: unknown) {
+  if (menu) groupMenus.set(code, menu as InstanceType<typeof ActionMenu>)
+  else groupMenus.delete(code)
 }
 
 function openGroupMenuOnCard(event: MouseEvent, code: string) {
-  if (event.shiftKey) return
-  menuGroup.value = code
-  openGroupMenuAt(event)
+  groupMenus.get(code)?.openAt(event)
+}
+
+// E edits, D deletes — the app's letters for both, the same as on the groups page.
+//
+// The two moves are the same reorder without a mouse: WCAG 2.2 SC 2.5.7 asks for a single-pointer
+// alternative to a gesture, and a menu that opens from the keyboard covers SC 2.1.1 too. On
+// narrowed results they are absent — as is the gesture itself. W and S, as on a task row.
+function groupMenuItems(group: GroupListRow): ActionMenuItem[] {
+  const items: ActionMenuItem[] = [
+    { key: 'edit', icon: IconPencil, label: t('tasks.group.card.edit'), hotkey: 'E', run: () => emit('editGroup', group) },
+    { key: 'add', icon: IconPlus, label: t('tasks.task.list.add_to_group'), run: () => emit('createIn', group.code) },
+  ]
+  if (reorderable.value) {
+    items.push(
+      { key: 'up', icon: IconArrowUp, label: t('tasks.group.card.move_up'), disabled: !canShift(group.code, -1), hotkey: 'W', run: () => shift(group.code, -1) },
+      { key: 'down', icon: IconArrowDown, label: t('tasks.group.card.move_down'), disabled: !canShift(group.code, 1), hotkey: 'S', run: () => shift(group.code, 1) },
+    )
+  }
+  items.push({ key: 'delete', icon: IconTrash, label: t('tasks.group.card.delete'), danger: true, hotkey: 'D', run: () => emit('removeGroup', group) })
+  return items
 }
 
 /**
@@ -324,69 +333,16 @@ function onPageSizeChange(size: number) {
             <IconCheck v-if="isCopied(section.group.code)" :size="16" :stroke-width="1.7" />
             <IconCopy v-else :size="16" :stroke-width="1.7" />
           </VBtn>
-          <VMenu
+          <ActionMenu
             v-if="section.group"
-            :model-value="isGroupMenuOpen(section.group.code)"
-            v-bind="groupMenuPlacement"
-            @update:model-value="setGroupMenu(section.group.code, $event)"
-          >
-            <template #activator="{ props: menu }">
-              <VBtn
-                v-bind="menu"
-                variant="text"
-                size="x-small"
-                icon
-                class="task-group__more"
-                :data-group-menu="section.group.code"
-                :aria-label="t('tasks.group.card.actions')"
-                @click="groupMenuFromButton"
-              >
-                <IconDotsVertical :size="16" :stroke-width="1.7" />
-              </VBtn>
-            </template>
-
-            <!-- A right click on the menu itself does nothing: the browser's own menu would open on
-                 top of ours and hide it. -->
-            <VList density="compact" class="task-group__menu" @contextmenu.prevent>
-              <VListItem :prepend-icon="IconCopy" @click="copy(section.group.code)">
-                <VListItemTitle>{{ t('common.action.copy_code') }}</VListItemTitle>
-              </VListItem>
-              <VListItem :prepend-icon="IconPencil" @click="emit('editGroup', section.group)">
-                <VListItemTitle>{{ t('tasks.group.card.edit') }}</VListItemTitle>
-              </VListItem>
-              <VListItem :prepend-icon="IconPlus" @click="emit('createIn', section.group.code)">
-                <VListItemTitle>{{ t('tasks.task.list.add_to_group') }}</VListItemTitle>
-              </VListItem>
-
-              <!-- The same two moves without a mouse: WCAG 2.2 SC 2.5.7 asks for a single-pointer
-                   alternative to a gesture, and a menu that opens from the keyboard covers
-                   SC 2.1.1 too. On narrowed results they are absent — as is the gesture itself. -->
-              <template v-if="reorderable">
-                <VListItem
-                  :prepend-icon="IconArrowUp"
-                  :disabled="!canShift(section.group.code, -1)"
-                  @click="shift(section.group.code, -1)"
-                >
-                  <VListItemTitle>{{ t('tasks.group.card.move_up') }}</VListItemTitle>
-                </VListItem>
-                <VListItem
-                  :prepend-icon="IconArrowDown"
-                  :disabled="!canShift(section.group.code, 1)"
-                  @click="shift(section.group.code, 1)"
-                >
-                  <VListItemTitle>{{ t('tasks.group.card.move_down') }}</VListItemTitle>
-                </VListItem>
-              </template>
-
-              <VListItem
-                :prepend-icon="IconTrash"
-                class="task-group__menu-danger"
-                @click="emit('removeGroup', section.group)"
-              >
-                <VListItemTitle>{{ t('tasks.group.card.delete') }}</VListItemTitle>
-              </VListItem>
-            </VList>
-          </VMenu>
+            :ref="(menu) => bindGroupMenu(section.group!.code, menu)"
+            class="task-group__more"
+            :open="isGroupMenuOpen(section.group.code)"
+            :items="groupMenuItems(section.group)"
+            :code="section.group.code"
+            :label="t('tasks.group.card.actions')"
+            @update:open="setGroupMenu(section.group.code, $event)"
+          />
         </template>
       </VCardItem>
       </GroupDropZone>
@@ -536,6 +492,14 @@ function onPageSizeChange(size: number) {
   color: var(--text-muted);
 }
 
+/* The "⋯" takes the box of the copy button beside it (`size="x-small"`): two neighbours of
+   different size would sit on different centres. */
+.task-group__more :deep(.action-menu__button) {
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+}
+
 /* While its menu is open the card's own strips — header and footer — stay marked, as a task row
    does: the pointer has gone onto the menu items, and without the mark nothing says which group the
    actions will hit. Both strips, whichever one was clicked: the menu belongs to the whole card. An
@@ -548,10 +512,6 @@ function onPageSizeChange(size: number) {
 .task-group__foot--menu { background: var(--surface-hi); }
 
 .task-group--empty:has(.task-group__head--menu) { opacity: 1; }
-
-/* As on the groups page: deleting is the one item that costs something, and it says so in color. */
-.task-group__menu-danger :deep(.v-list-item-title),
-.task-group__menu-danger :deep(.v-list-item__prepend) { color: var(--error); }
 
 .task-group__head :deep(.v-card-item__append) {
   display: flex;
