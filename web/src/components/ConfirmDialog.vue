@@ -6,7 +6,7 @@
 // work, and closes by setting the model. That split is what lets the parent keep the dialog open
 // on failure (with the error rendered where the user is looking) instead of it vanishing on click
 // and leaving them to guess whether anything happened.
-import { onBeforeUnmount, watch } from 'vue'
+import { onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppDialog from './AppDialog.vue'
 
@@ -29,6 +29,11 @@ const props = withDefaults(defineProps<{
    * an irreversible one, where a reflexive Enter must not finish the job.
    */
   enterConfirms?: boolean
+  /**
+   * The confirm button holds the focus as the dialog opens: Enter presses it, Tab moves on to
+   * the way back. For a step reached from the keyboard, where the hand is already on the keys.
+   */
+  focusConfirm?: boolean
 }>(), {
   text: undefined,
   confirmLabel: undefined,
@@ -36,6 +41,7 @@ const props = withDefaults(defineProps<{
   tone: 'danger',
   loading: false,
   enterConfirms: false,
+  focusConfirm: false,
 })
 
 const emit = defineEmits<{ (e: 'confirm'): void }>()
@@ -69,6 +75,15 @@ watch(open, (isOpen) => {
 }, { immediate: true })
 
 onBeforeUnmount(stopListening)
+
+// Focused once the window has finished entering: the dialog keeps its content mounted between
+// openings and places the focus itself as it enters, so an earlier focus would be taken back.
+// `autofocus` would not do either — a browser honours it once per page, not per dialog.
+const confirmButton = ref<{ $el: HTMLElement } | null>(null)
+
+function focusConfirmButton() {
+  if (props.focusConfirm) confirmButton.value?.$el.focus({ preventScroll: true })
+}
 </script>
 
 <template>
@@ -80,6 +95,7 @@ onBeforeUnmount(stopListening)
     :rule="false"
     :persistent="loading"
     :close-disabled="loading"
+    @after-enter="focusConfirmButton"
   >
     <div class="cfm__text">
       <slot>{{ text }}</slot>
@@ -90,6 +106,7 @@ onBeforeUnmount(stopListening)
         {{ cancelLabel ?? t('common.action.cancel') }}
       </VBtn>
       <VBtn
+        ref="confirmButton"
         :color="tone === 'danger' ? 'error' : 'primary'"
         variant="flat"
         :loading="loading"

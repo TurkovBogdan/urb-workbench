@@ -16,7 +16,7 @@
 //
 // Exactly 36px: a list is scanned top to bottom, and rows of uneven height have to be examined.
 // So there is no description or body here — the task is opened for those.
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   IconArrowDown,
@@ -34,6 +34,7 @@ import {
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import CounterButton from '@/components/CounterButton.vue'
 import DragHandle from '@/components/DragHandle.vue'
+import KeyCap from '@/components/KeyCap.vue'
 import { useClipboard } from '@/composables/useClipboard'
 import { usePointerMenu } from '@/composables/usePointerMenu'
 import { fmtDate, fmtDateShort } from '@/shared/utils/date'
@@ -157,6 +158,46 @@ const confirmText = computed(() => {
   const key = props.task.has_children ? 'text_children' : 'text'
   return t(`tasks.task.card.delete_confirm.${key}`, { title })
 })
+
+// While the menu is open, 1 and 2 run its two status items — the same ones the mouse would, so
+// the keys follow the task's state the way the items do: 1 closes the work, or brings it back
+// (done, deleted); 2 cancels it, or brings a canceled one back to work. The digit stands next to
+// its item, which is how the keys are learned.
+function setStatus(status: string) {
+  emit('status', { code: props.task.code, status })
+}
+
+const primaryAction = computed<(() => void) | null>(() => {
+  if (props.task.deleted_at) return () => emit('restore', props.task.code)
+  if (props.task.status === 'done') return () => setStatus('in_progress')
+  return () => setStatus('done')
+})
+
+const secondaryAction = computed<(() => void) | null>(() => {
+  if (props.task.deleted_at) return null
+  if (props.task.status === 'canceled') return () => setStatus('in_progress')
+  return () => ask('cancel')
+})
+
+// Matched by `code`, not by the character, so the keys work in any layout and on the keypad.
+const MENU_KEYS: Record<string, 1 | 2> = { Digit1: 1, Numpad1: 1, Digit2: 2, Numpad2: 2 }
+
+function runMenuKey(event: KeyboardEvent) {
+  if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || event.repeat) return
+  const key = MENU_KEYS[event.code]
+  const action = key === 1 ? primaryAction.value : key === 2 ? secondaryAction.value : null
+  if (!action) return
+  event.preventDefault()
+  menuOpen.value = false
+  action()
+}
+
+watch(menuOpen, (isOpen) => {
+  if (isOpen) window.addEventListener('keydown', runMenuKey)
+  else window.removeEventListener('keydown', runMenuKey)
+})
+
+onBeforeUnmount(() => window.removeEventListener('keydown', runMenuKey))
 </script>
 
 <template>
@@ -318,28 +359,39 @@ const confirmText = computed(() => {
             </VListItem>
 
             <VDivider class="my-1" />
-            <!-- The status the task already has is not offered again; a done task gets the way
-                 back in its place. -->
+            <!-- The status the task already has is not offered again; a closed task gets the way
+                 back to work in its place. Each of the two carries its key. -->
             <VListItem
               v-if="props.task.status === 'done'"
               :prepend-icon="statusIcon('in_progress')"
-              @click="emit('status', { code: props.task.code, status: 'in_progress' })"
+              @click="setStatus('in_progress')"
             >
               <VListItemTitle>{{ t('tasks.task.card.reopen') }}</VListItemTitle>
+              <template #append><KeyCap class="task-menu__key" label="1" /></template>
             </VListItem>
             <VListItem
               v-else
               :prepend-icon="statusIcon('done')"
-              @click="emit('status', { code: props.task.code, status: 'done' })"
+              @click="setStatus('done')"
             >
               <VListItemTitle>{{ t('tasks.task.card.mark_done') }}</VListItemTitle>
+              <template #append><KeyCap class="task-menu__key" label="1" /></template>
             </VListItem>
             <VListItem
-              v-if="props.task.status !== 'canceled'"
+              v-if="props.task.status === 'canceled'"
+              :prepend-icon="statusIcon('in_progress')"
+              @click="setStatus('in_progress')"
+            >
+              <VListItemTitle>{{ t('tasks.task.card.reopen') }}</VListItemTitle>
+              <template #append><KeyCap class="task-menu__key" label="2" /></template>
+            </VListItem>
+            <VListItem
+              v-else
               :prepend-icon="statusIcon('canceled')"
               @click="ask('cancel')"
             >
               <VListItemTitle>{{ t('tasks.task.card.mark_canceled') }}</VListItemTitle>
+              <template #append><KeyCap class="task-menu__key" label="2" /></template>
             </VListItem>
             <VListItem
               :prepend-icon="IconTrash"
@@ -386,6 +438,7 @@ const confirmText = computed(() => {
             @click="emit('restore', props.task.code)"
           >
             <VListItemTitle>{{ t('tasks.task.card.restore') }}</VListItemTitle>
+            <template #append><KeyCap class="task-menu__key" label="1" /></template>
           </VListItem>
         </VList>
       </VMenu>
@@ -399,6 +452,7 @@ const confirmText = computed(() => {
         :cancel-label="confirmAction === 'cancel' ? t('tasks.task.card.cancel_confirm.keep') : undefined"
         :tone="confirmAction === 'delete' ? 'danger' : 'primary'"
         enter-confirms
+        focus-confirm
         @confirm="confirmed"
       />
     </span>
@@ -589,4 +643,7 @@ const confirmText = computed(() => {
 
 .task-menu-danger :deep(.v-list-item-title) { color: var(--error); }
 .task-menu-danger :deep(.v-list-item__prepend) { color: var(--error); }
+
+/* The key that runs the item while the menu is open, set apart from the item's name. */
+.task-menu__key { margin-left: 16px; }
 </style>

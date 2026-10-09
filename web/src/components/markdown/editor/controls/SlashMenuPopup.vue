@@ -2,6 +2,7 @@
 // The popup half of the slash menu. Plain Vuetify: the menu inherits the application's theme,
 // density and focus styling because it is made of the same parts as the rest of the interface.
 import { computed, nextTick, ref, watch } from 'vue'
+import KeyCap from '@/components/KeyCap.vue'
 import { shortcutLabels } from './slashMenu'
 import type { SlashController, SlashState } from './slashMenu'
 
@@ -61,7 +62,7 @@ const style = computed(() => ({
                 <VListItemTitle class="slash__title">{{ item.title }}</VListItemTitle>
                 <template #append>
                   <span v-if="item.keys" class="slash__keys">
-                    <kbd v-for="key in shortcutLabels(item.keys)" :key="key" class="slash__key">{{ key }}</kbd>
+                    <KeyCap v-for="key in shortcutLabels(item.keys)" :key="key" :label="key" />
                   </span>
                 </template>
               </VListItem>
@@ -111,18 +112,5 @@ const style = computed(() => ({
   align-items: center;
   gap: 3px;
   padding-left: 16px;
-}
-
-.slash__key {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  line-height: 1;
-  color: var(--text-faint);
-  background: color-mix(in srgb, rgb(var(--v-theme-on-surface)) 6%, transparent);
-  border: 1px solid var(--border-soft);
-  border-radius: 3px;
-  padding: 2px 4px;
-  min-width: 16px;
-  text-align: center;
 }
 </style>
