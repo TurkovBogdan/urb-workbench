@@ -563,15 +563,15 @@ function addChild(under?: TaskListRow) {
 }
 
 /**
- * A newly created subtask opens right away — that is what it was created for. If the save was of
- * the task itself, it is re-read in place.
+ * A new subtask either opens, or stays here as a new row of the subtask panel — the person picked
+ * which with the dialog's button.
  */
-function onSaved(saved: string) {
-  if (saved !== code.value) {
-    void router.push(taskPath(saved))
+function onSaved(saved: string, openIt: boolean) {
+  if (openIt) {
+    goTask(saved)
     return
   }
-  void store.load(code.value)
+  void subtasks.value?.reload()
 }
 
 async function remove() {
@@ -1017,7 +1017,6 @@ async function purge() {
     <TaskFormDialog
       v-model="formOpen"
       :workspace="task?.workspace_code ?? ''"
-      :task="null"
       :parent="parent"
       @saved="onSaved"
     />

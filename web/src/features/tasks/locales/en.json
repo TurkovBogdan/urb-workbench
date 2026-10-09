@@ -107,20 +107,15 @@
     },
     "form": {
       "create_title": "New task",
-      "title": "Edit task",
       "under": "Subtask of: {title}",
       "name": "Title",
       "description": "Brief statement",
-      "context": "Starting points",
-      "constraints": "Constraints",
-      "criteria": "Acceptance criteria",
-      "plan": "Implementation plan",
       "type": "Type",
       "status": "Status",
       "priority": "Priority",
       "group": "Group",
-      "no_group": "No group",
-      "deadline_at": "Deadline"
+      "deadline_at": "Deadline",
+      "add_and_open": "Add and open"
     },
     "conflict": {
       "title": "The field you are editing has changed",

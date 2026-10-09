@@ -1,53 +1,37 @@
 <script setup lang="ts">
-// Task card: one dialog for create and edit — the fields and checks are shared, the only
-// difference is the endpoints called. The mode comes from a prop: `task === null` — create.
+// New task: the title, the brief statement and the task's parameters — nothing more. The rest of
+// the brief and the agent's work are written on the task page, where each field has its editor;
+// an existing task is edited there too, so this dialog only creates.
 //
-// The form keeps ITS OWN copy of the values and syncs on open: editing must not change the card
-// in the list before saving, and cancel must leave the list untouched.
-//
-// Status is in the form, but it is sent as a SEPARATE request (`setTaskStatus`): the general
-// update does not accept status — only its own endpoint stamps the start, completion and cancel
-// timestamps. On create it travels with the card: there is nothing to stamp yet.
+// The dialog is a small task page: the title field as its heading, the brief statement on the left
+// as an invisible field, the parameters on the right in the look and measure of the page's right
+// column. The person writes the task here once and then meets the same fields in the same places
+// there.
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { IconCalendarEvent } from '@tabler/icons-vue'
 
 import AppDialog from '@/components/AppDialog.vue'
 import HelpHint from '@/components/HelpHint.vue'
-import LimitField from '@/components/LimitField.vue'
+import IconSwatch from '@/components/IconSwatch.vue'
+import InvisibleField from '@/components/InvisibleField.vue'
+import { MarkdownEditor } from '@/components/markdown/editor'
+import SectionHeader from '@/components/SectionHeader.vue'
+import VSelectSearch from '@/components/VSelectSearch.vue'
 import { errorText } from '@/api/errorText'
 
-import {
-  createTask,
-  getTask,
-  listGroups,
-  setTaskStatus,
-  updateTask,
-  type GroupRow,
-  type TaskDetail,
-  type TaskListRow,
-} from '../api'
-import { formatDeadline, parseDay } from '../dates'
-import {
-  TASK_CONSTRAINTS_MAX,
-  TASK_CONTEXT_MAX,
-  TASK_CRITERIA_MAX,
-  TASK_DESCRIPTION_MAX,
-  TASK_PLAN_MAX,
-  TASK_STATUSES,
-  TASK_TITLE_MAX,
-  TASK_TYPES,
-  typeLayout,
-} from '../labels'
+import { createTask, listGroups, type GroupRow, type TaskDetail, type TaskListRow } from '../api'
+import { formatDeadline } from '../dates'
+import { TASK_DESCRIPTION_MAX, TASK_STATUSES, TASK_TITLE_MAX, TASK_TYPES } from '../labels'
 import TaskPrioritySelect from './TaskPrioritySelect.vue'
+import TaskStatusSelect from './TaskStatusSelect.vue'
 
 const open = defineModel<boolean>({ required: true })
 
 const props = defineProps<{
   /** Workspace the task is created in; the group list depends on it too. */
   workspace: string
-  /** Editing an existing task; `null` — creating. */
-  task: TaskDetail | TaskListRow | null
-  /** Parent of the subtask being created; unused when editing — moving is a separate operation. */
+  /** Parent of the subtask being created. */
   parent?: TaskListRow | TaskDetail | null
   /**
    * The group is already decided: the task is created from that group's card, `null` — from the
@@ -56,54 +40,44 @@ const props = defineProps<{
   group?: string | null
 }>()
 
-const emit = defineEmits<{ saved: [code: string] }>()
+const emit = defineEmits<{ saved: [code: string, openIt: boolean] }>()
 
 const { t } = useI18n()
 
 const title = ref('')
 const description = ref('')
-const context = ref('')
-const constraints = ref('')
-const criteria = ref('')
-const plan = ref('')
-const progress = ref('')
-const result = ref('')
 const type = ref<string>(TASK_TYPES[0])
 const status = ref<string>(TASK_STATUSES[0])
 const priority = ref<string>('normal')
 const groupCode = ref<string | null>(null)
 const deadlineAt = ref<Date | null>(null)
 
-const saving = ref(false)
-// The task texts are still loading: from the list the card arrives WITHOUT them (a list row carries
-// neither the brief nor the agent's work), and an update is a full replacement of the card. Were
-// the form to save empty texts it never loaded, they would be erased silently. So the save button
-// is locked while they load.
-const loadingBody = ref(false)
+// Which of the two buttons is saving: only that one spins, both are locked.
+const saving = ref<'add' | 'open' | null>(null)
 const error = ref<string | null>(null)
 
 const groups = ref<GroupRow[]>([])
 
-const creating = computed(() => props.task === null)
-
 // An empty title is not saved: without it the row is indistinguishable in the list. The backend
 // strips whitespace before the length check — so here too a whitespace-only string counts as
 // empty.
-const valid = computed(() => title.value.trim().length > 0 && !loadingBody.value)
+const valid = computed(() => title.value.trim().length > 0)
+
+// A subtask always takes its parent's group — the backend ignores any other — so asking for one
+// would only offer a choice that silently does not happen.
+const asksGroup = computed(() => props.group === undefined && !props.parent)
 
 const typeItems = computed(() =>
   TASK_TYPES.map((value) => ({ value, title: t(`tasks.task.type.${value}`) })),
 )
-const statusItems = computed(() =>
-  TASK_STATUSES.map((value) => ({ value, title: t(`tasks.task.status.${value}`) })),
-)
 const groupItems = computed(() =>
-  groups.value.map((group) => ({ value: group.code, title: group.title })),
+  groups.value.map((group) => ({
+    value: group.code,
+    title: group.title,
+    icon: group.icon,
+    color: group.color,
+  })),
 )
-
-// What the form shows for the selected type. A hidden field keeps going to the backend with its
-// previous value: switching the type hides but does not erase — the same rule as on the task page.
-const layout = computed(() => typeLayout(type.value))
 
 async function loadGroups() {
   if (!props.workspace) {
@@ -120,116 +94,46 @@ async function loadGroups() {
   }
 }
 
-/** Spread the card over the form fields. Texts are taken only from a full task — see `loadingBody`. */
-function apply(task: TaskDetail | TaskListRow | null) {
-  title.value = task?.title ?? ''
-  description.value = task?.description ?? ''
-  type.value = task?.type ?? TASK_TYPES[0]
-  status.value = task?.status ?? TASK_STATUSES[0]
-  priority.value = task?.priority ?? 'normal'
-  groupCode.value = task ? task.group_code : (props.group ?? null)
-  deadlineAt.value = parseDay(task?.deadline_at ?? null)
-  if (task && 'plan' in task) applyTexts(task)
-}
-
-/**
- * The card's long texts: the brief and the agent's work. The form shows the brief and the plan;
- * progress and result it does not show but must preserve — the agent writes those.
- */
-function applyTexts(task: TaskDetail) {
-  context.value = task.context
-  constraints.value = task.constraints
-  criteria.value = task.criteria
-  plan.value = task.plan
-  progress.value = task.progress
-  result.value = task.result
-}
-
-watch(() => [open.value, props.task] as const, async ([isOpen, task]) => {
+watch(open, (isOpen) => {
   if (!isOpen) return
   error.value = null
-  context.value = ''
-  constraints.value = ''
-  criteria.value = ''
-  plan.value = ''
-  progress.value = ''
-  result.value = ''
-  apply(task)
+  title.value = ''
+  description.value = ''
+  type.value = TASK_TYPES[0]
+  status.value = TASK_STATUSES[0]
+  priority.value = 'normal'
+  groupCode.value = props.group ?? null
+  deadlineAt.value = null
   void loadGroups()
-  // From the list comes a row without the long texts — fetch the full task, otherwise the full
-  // card replacement would send an empty brief instead of the written one. Take ONLY the texts
-  // from the response: the person may have started editing the other fields meanwhile, and
-  // overwriting them would erase what was typed.
-  if (!task || 'plan' in task) return
-  loadingBody.value = true
-  try {
-    applyTexts(await getTask(task.code, { report: false }))
-  } catch (e) {
-    error.value = errorText(e)
-  } finally {
-    loadingBody.value = false
-  }
 }, { immediate: true })
 
-async function save() {
-  if (!valid.value) return
-  saving.value = true
+async function save(openIt: boolean) {
+  if (!valid.value || saving.value) return
+  saving.value = openIt ? 'open' : 'add'
   error.value = null
   try {
-    // `report: false` — the operation's refusal is shown HERE, next to the button: the dialog stays
-    // open with the entered text, while a toast would take the message out of sight.
-    if (props.task) {
-      let saved = await updateTask(
-        props.task.code,
-        {
-          title: title.value.trim(),
-          description: description.value.trim(),
-          context: context.value,
-          constraints: constraints.value,
-          criteria: criteria.value,
-          plan: plan.value,
-          progress: progress.value,
-          result: result.value,
-          type: type.value,
-          priority: priority.value,
-          group_code: groupCode.value,
-          deadline_at: formatDeadline(deadlineAt.value),
-        },
-        { report: false },
-      )
-      // A second request, and only on change: status is changed by the endpoint that stamps the
-      // phase, and calling it on every save would mark work as started on a typo fix.
-      if (status.value !== props.task.status) {
-        saved = await setTaskStatus(props.task.code, status.value, { report: false })
-      }
-      open.value = false
-      emit('saved', saved.code)
-    } else {
-      const saved = await createTask(
-        {
-          workspace: props.workspace,
-          title: title.value.trim(),
-          description: description.value.trim(),
-          context: context.value,
-          constraints: constraints.value,
-          criteria: criteria.value,
-          plan: plan.value,
-          type: type.value,
-          status: status.value,
-          priority: priority.value,
-          group_code: groupCode.value,
-          parent_code: props.parent?.code ?? null,
-          deadline_at: formatDeadline(deadlineAt.value),
-        },
-        { report: false },
-      )
-      open.value = false
-      emit('saved', saved.code)
-    }
+    // `report: false` — the refusal is shown HERE, next to the buttons: the dialog stays open with
+    // the entered text, while a toast would take the message out of sight.
+    const saved = await createTask(
+      {
+        workspace: props.workspace,
+        title: title.value.trim(),
+        description: description.value.trim(),
+        type: type.value,
+        status: status.value,
+        priority: priority.value,
+        group_code: groupCode.value,
+        parent_code: props.parent?.code ?? null,
+        deadline_at: formatDeadline(deadlineAt.value),
+      },
+      { report: false },
+    )
+    open.value = false
+    emit('saved', saved.code, openIt)
   } catch (e) {
     error.value = errorText(e)
   } finally {
-    saving.value = false
+    saving.value = null
   }
 }
 </script>
@@ -237,202 +141,244 @@ async function save() {
 <template>
   <AppDialog
     v-model="open"
-    :title="creating ? t('tasks.task.form.create_title') : t('tasks.task.form.title')"
-    :description="props.parent && creating ? t('tasks.task.form.under', { title: props.parent.title }) : props.task?.code"
-    size="base"
-    scrollable
-    :persistent="saving"
-    :close-disabled="saving"
+    :title="t('tasks.task.form.create_title')"
+    size="wide"
+    :persistent="saving !== null"
+    :close-disabled="saving !== null"
   >
-    <!-- Field order goes from "what is it" to "when": title and description, then the
-         classification (type, status, priority, group), then dates, and the long body last. -->
-    <div class="task-form">
-      <!-- The same limit counter as the task page's editors and the group form: input stops at
-           the limit, and the counter warns in advance. -->
-      <LimitField
+    <!-- The title field IS the dialog's heading, as on the task page: the task being written names
+         the window, not a generic "New task". A subtask's parent stands above it — where the task
+         will live, read before its name. -->
+    <template #title>
+      <p v-if="props.parent" class="task-form__parent">
+        {{ t('tasks.task.form.under', { title: props.parent.title }) }}
+      </p>
+      <InvisibleField
         v-model="title"
-        :label="t('tasks.task.form.name')"
-        :max-length="TASK_TITLE_MAX"
-        variant="outlined"
-        hide-details
+        :placeholder="t('tasks.task.detail.name')"
+        :aria-label="t('tasks.task.detail.name')"
+        :maxlength="TASK_TITLE_MAX"
         autofocus
+        class="task-form__title"
+        @keydown.enter.prevent="save(true)"
       />
+    </template>
 
-      <LimitField
-        v-model="description"
-        :label="t('tasks.task.form.description')"
-        :max-length="TASK_DESCRIPTION_MAX"
-        multiline
-        auto-grow
-        variant="outlined"
-        rows="2"
-        hide-details
-      >
-        <!-- Inside the field, not in the label: a floating label ignores the pointer, and the
-             explanation would never open. -->
-        <template #append-inner>
-          <HelpHint :text="t('tasks.task.detail.hint.description')" />
-        </template>
-      </LimitField>
+    <div class="task-form">
+      <div class="task-form__grid">
+        <!-- The brief statement under the same section header as its card on the task page. The
+             goal is one or two sentences, hence simple mode, the same as there. -->
+        <div class="task-form__texts">
+          <SectionHeader
+            :title="t('tasks.task.detail.description')"
+            :hint="t('tasks.task.detail.hint.description')"
+            class="task-form__section"
+          />
+          <MarkdownEditor
+            v-model="description"
+            :aria-label="t('tasks.task.detail.description')"
+            :max-length="TASK_DESCRIPTION_MAX"
+            mode="simple"
+            variant="plain"
+            min-height="72px"
+          />
+        </div>
 
-      <!-- Type comes BEFORE the long fields: it decides which of them are shown at all, and
-           picking it after the form has expanded to full screen would rearrange fields under the
-           cursor. What was written stays on switching — only the display is hidden. -->
-      <div class="task-form__field">
-        <span class="task-form__label">{{ t('tasks.task.form.type') }}</span>
-        <VBtnToggle v-model="type" mandatory density="default" variant="tonal" class="task-form__toggle">
-          <VBtn v-for="item in typeItems" :key="item.value" :value="item.value">
-            {{ item.title }}
-          </VBtn>
-        </VBtnToggle>
+        <!-- The parameters in the order of the task page's right column. -->
+        <div class="task-form__params">
+          <!-- The group is optional: a task without one lands in the "No group" section, not lost.
+               `:chips="false"` is mandatory: with chips Vuetify renders `#chip` and silently ignores
+               `#selection`, so the selected group would be left without its icon. -->
+          <VSelectSearch
+            v-if="asksGroup"
+            v-model="groupCode"
+            :items="groupItems"
+            :label="t('tasks.task.form.group')"
+            :search-placeholder="t('tasks.task.detail.group_search')"
+            :no-data-text="t('tasks.task.detail.group_empty')"
+            :chips="false"
+            variant="outlined"
+            density="compact"
+            clearable
+            hide-details
+          >
+            <template #item="{ props: itemProps, item }">
+              <VListItem v-bind="itemProps">
+                <template #prepend>
+                  <IconSwatch :icon="item.icon" :color="item.color" :width="20" />
+                </template>
+              </VListItem>
+            </template>
+
+            <template #selection="{ item }">
+              <span class="task-form__group-value">
+                <IconSwatch :icon="item.icon ?? ''" :color="item.color ?? ''" :width="20" />
+                {{ item.title }}
+              </span>
+            </template>
+          </VSelectSearch>
+
+          <TaskStatusSelect
+            v-model="status"
+            :label="t('tasks.task.form.status')"
+            variant="outlined"
+            density="compact"
+            hide-details
+          />
+
+          <TaskPrioritySelect
+            v-model="priority"
+            :label="t('tasks.task.form.priority')"
+            variant="outlined"
+            density="compact"
+            hide-details
+          />
+
+          <!-- The calendar icon goes INSIDE the field, as on the task page: outside it stands as a
+               separate box before the outline and shifts the field off the column's line. -->
+          <VDateInput
+            v-model="deadlineAt"
+            :label="t('tasks.task.form.deadline_at')"
+            prepend-icon=""
+            :prepend-inner-icon="IconCalendarEvent"
+            variant="outlined"
+            density="compact"
+            clearable
+            hide-details
+          />
+
+          <div class="task-form__field">
+            <span class="task-form__label">
+              {{ t('tasks.task.form.type') }}
+              <HelpHint :text="t('tasks.task.detail.type_hint')" />
+            </span>
+            <VBtnToggle
+              v-model="type"
+              mandatory
+              divided
+              variant="outlined"
+              density="compact"
+              class="task-form__toggle"
+            >
+              <VBtn v-for="item in typeItems" :key="item.value" :value="item.value">
+                {{ item.title }}
+              </VBtn>
+            </VBtnToggle>
+          </div>
+        </div>
       </div>
-
-      <div class="task-form__row">
-        <VSelect
-          v-model="status"
-          :items="statusItems"
-          :label="t('tasks.task.form.status')"
-          :chips="false"
-          variant="outlined"
-          hide-details
-        />
-        <TaskPrioritySelect
-          v-model="priority"
-          :label="t('tasks.task.form.priority')"
-          variant="outlined"
-          hide-details
-        />
-      </div>
-
-      <!-- The group is optional: a task without one lands in the "No group" section, not lost. -->
-      <VSelect
-        v-if="props.group === undefined"
-        v-model="groupCode"
-        :items="groupItems"
-        :label="t('tasks.task.form.group')"
-        :placeholder="t('tasks.task.form.no_group')"
-        :chips="false"
-        variant="outlined"
-        clearable
-        hide-details
-      />
-
-      <!-- The deadline is the only assignable date: the day to finish by. The picked day is sent
-           as the last second of that day (`formatDeadline`). -->
-      <VDateInput
-        v-model="deadlineAt"
-        :label="t('tasks.task.form.deadline_at')"
-        variant="outlined"
-        clearable
-      />
-
-      <!-- Until the long texts are loaded the fields are locked: an empty, writable box would look
-           like "there is no text", although there is and it is about to arrive. -->
-      <VTextarea
-        v-model="context"
-        :label="t('tasks.task.form.context')"
-        :maxlength="TASK_CONTEXT_MAX"
-        :disabled="loadingBody"
-        :loading="loadingBody"
-        variant="outlined"
-        rows="4"
-        auto-grow
-        hide-details
-      >
-        <template #append-inner>
-          <HelpHint :text="t('tasks.task.detail.hint.context')" />
-        </template>
-      </VTextarea>
-
-      <!-- Constraints, criteria and plan are shown from type `standard` up: a simple task has none,
-           and empty fields would stretch the form to full screen without asking anything. -->
-      <template v-if="layout.brief">
-        <VTextarea
-          v-model="constraints"
-          :label="t('tasks.task.form.constraints')"
-          :maxlength="TASK_CONSTRAINTS_MAX"
-          :disabled="loadingBody"
-          variant="outlined"
-          rows="3"
-          auto-grow
-          hide-details
-        >
-          <template #append-inner>
-            <HelpHint :text="t('tasks.task.detail.hint.constraints')" />
-          </template>
-        </VTextarea>
-
-        <VTextarea
-          v-model="criteria"
-          :label="t('tasks.task.form.criteria')"
-          :maxlength="TASK_CRITERIA_MAX"
-          :disabled="loadingBody"
-          variant="outlined"
-          rows="3"
-          auto-grow
-          hide-details
-        >
-          <template #append-inner>
-            <HelpHint :text="t('tasks.task.detail.hint.criteria')" />
-          </template>
-        </VTextarea>
-      </template>
-
-      <VTextarea
-        v-if="layout.plan"
-        v-model="plan"
-        :label="t('tasks.task.form.plan')"
-        :maxlength="TASK_PLAN_MAX"
-        :disabled="loadingBody"
-        :loading="loadingBody"
-        variant="outlined"
-        rows="5"
-        auto-grow
-        hide-details
-      >
-        <template #append-inner>
-          <HelpHint :text="t('tasks.task.detail.hint.plan')" />
-        </template>
-      </VTextarea>
 
       <VAlert v-if="error" type="error" variant="tonal" density="compact">{{ error }}</VAlert>
     </div>
 
     <template #actions>
-      <VBtn variant="text" :disabled="saving" @click="open = false">
+      <VBtn variant="text" :disabled="saving !== null" @click="open = false">
         {{ t('common.action.cancel') }}
       </VBtn>
-      <VBtn color="primary" variant="flat" :loading="saving" :disabled="!valid" @click="save">
-        {{ creating ? t('common.action.add') : t('common.action.save') }}
+      <VBtn
+        variant="tonal"
+        :loading="saving === 'add'"
+        :disabled="!valid || saving === 'open'"
+        @click="save(false)"
+      >
+        {{ t('common.action.add') }}
+      </VBtn>
+      <VBtn
+        color="primary"
+        variant="flat"
+        :loading="saving === 'open'"
+        :disabled="!valid || saving === 'add'"
+        @click="save(true)"
+      >
+        {{ t('tasks.task.form.add_and_open') }}
       </VBtn>
     </template>
   </AppDialog>
 </template>
 
 <style scoped>
-/* Some fields carry a persistent hint with a counter, so the gap between fields is smaller than
-   usual: the hint's own spacing already separates them. */
+/* The grid is decided by the dialog's own width, not the screen's: the dialog is capped at its
+   size step, and a narrow screen squeezes it below that. */
 .task-form {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 18px;
+  container-type: inline-size;
 }
 
-/* Two fields in a row: they are about the same thing (task classification, dates) and apart would
-   double the dialog's height. Below 520px the row breaks up — on a narrow screen a half-width
-   field is unreadable. */
-.task-form__row {
+/* One column until the parameters fit beside the texts; past 760px — texts 7, parameters 5. The
+   threshold keeps the parameter fields no narrower than in the task page's column (~280px): below
+   it the type buttons' labels run into their borders. */
+.task-form__grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  grid-template-columns: 1fr;
+  gap: 24px;
 }
 
-@media (max-width: 520px) {
-  .task-form__row { grid-template-columns: 1fr; }
+@container (min-width: 760px) {
+  .task-form__grid { grid-template-columns: 7fr 5fr; }
+
+  /* Side by side the parameters get the rule the task page draws with its column's card edge. */
+  .task-form__params {
+    padding-left: 24px;
+    border-left: 1px solid var(--border-soft);
+  }
 }
 
-/* The label sits closer to its field than the fields sit to each other — otherwise it reads as a
-   heading for the whole block rather than the toggle's label. */
+/* No gap of its own: the editor carries its top padding, and with it the header-to-text distance
+   comes out the same as in the task page's description card. */
+.task-form__texts {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+}
+
+/* `SectionHeader` takes `flex: 1` to fill a row; in this column that would stretch it to the
+   height the parameters column sets. */
+.task-form__section { flex: none; }
+
+/* Spacing and field sizes copy the task page's right column (`.task-page__settings`): the densest
+   field step, and more air between the fields than usual — the floated labels stick out above
+   the outline, and a smaller gap glues each label to the field above it. */
+.task-form__params {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+/* The parent line reads like the header's description line, only above the title; one line, cut
+   with an ellipsis — a long parent title must not push the field down. */
+.task-form__parent {
+  margin: 0 0 6px;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The title is set the way the task page sets its heading (`.task-page__title`). */
+
+.task-form__title :deep(.v-field__input) {
+  min-height: 28px;
+  padding-block: 4px;
+  margin-block: -4px;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 28px;
+}
+
+/* The floated label is set smaller than its value — the same override as on the task page: the
+   global `.v-field .v-label` rule pins it to 13px outside the layers, Vuetify's own 0.75em scale
+   never reaches it. */
+.task-form :deep(.v-field .v-label.v-field-label--floating) {
+  font-size: 11px;
+  transform: translateY(calc(-50% - 2px));
+}
+
 .task-form__field {
   display: flex;
   flex-direction: column;
@@ -440,13 +386,32 @@ async function save() {
 }
 
 .task-form__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 12px;
   color: var(--text-muted);
 }
 
-/* A button group's size is not inherited by its children (docs/conventions/frontend.md): 34px plus
-   the toggle's 1px outline top and bottom levels it with the neighbouring 36px fields. Set through the
-   variable: the global `.v-btn-group .v-btn` rule reads it to beat the group's inline `height: auto`. */
+.task-form__group-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* The same buttons as the task page's type toggle: 26px plus the 1px outline top and bottom
+   levels them with the 28px fields. The height goes through the variable — the global
+   `.v-btn-group .v-btn` rule reads it to beat the group's inline `height: auto`. */
 .task-form__toggle { width: 100%; }
-.task-form__toggle :deep(.v-btn) { flex: 1; --v-btn-height: 34px; font-size: 0.875rem; }
+
+.task-form__toggle :deep(.v-btn) {
+  flex: 1;
+  min-width: 0;
+  --v-btn-height: 26px;
+  padding-inline: 6px;
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: none;
+}
 </style>
