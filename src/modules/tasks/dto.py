@@ -183,6 +183,13 @@ class TaskNoteRow(BaseModel):
     updated_at: DatetimeUTCStr
 
 
+class TaskNoteDetail(TaskNoteRow):
+    """A task note whole — its page: the text, and the task it belongs to."""
+
+    task_code: TaskCode
+    body: str = ""
+
+
 class TaskDetail(TaskListRow):
     """The whole task: brief, plan, tree neighbours, group, stages, journal and notes.
 
@@ -488,6 +495,7 @@ __all__ = [
     "TaskCode",
     "TaskDetail",
     "TaskListRow",
+    "TaskNoteDetail",
     "TaskNoteRow",
     "TaskRow",
     "WorkspaceCode",

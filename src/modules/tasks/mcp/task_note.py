@@ -58,14 +58,17 @@ def register(mcp: "FastMCP") -> None:
     async def task_note_add(
         task_code: str, title: str, description: str | None = None, body: str | None = None
     ) -> AgentTaskNoteCreated:
-        """Add a note to a task — a document written while working out how to do it.
+        """Add a note to a task — planning material: what the plan rests on.
 
         A note is for what the plan cannot hold: a data schema, a comparison of options, a
         concept, a table someone will come back to. The plan says how you will do the work and
-        which files it touches; a note is the material behind it. If a paragraph in the plan
-        would do, it is not a note.
+        which files it touches; a note is the material behind it, and the task page shows it
+        right under the plan. A note is a substantial document, not a few paragraphs: what three
+        or four paragraphs cover goes into the plan or a journal entry instead.
 
-        The note belongs to this task alone. Write the text now or later with
+        Planning material, not a planning step: write one whenever the work needs it, at any
+        stage — and always when the user asks for one. The note belongs to this task alone.
+        Write the text now or later with
         content_set(code, "body", …) and its neighbours; task_get lists the task's notes without
         their text, task_note_get reads one whole.
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 import pytest
 from fastmcp.exceptions import ToolError
 
+from src.modules.notes.crud import note as notes_crud
 from src.modules.tasks.constants import TYPE_EXTENDED
 from src.modules.tasks.crud import journal as journal_crud
 from src.modules.tasks.crud import note as note_crud
@@ -74,7 +75,7 @@ async def test_a_task_opens_its_own_page(call, workspace, no_browser):
     assert no_browser == [url["result"]]
 
 
-async def test_a_stage_an_entry_and_a_note_open_the_task_they_live_on(
+async def test_a_stage_and_an_entry_open_the_task_a_note_its_own_page_inside_it(
     call, workspace, no_browser
 ):
     await call("workspace_use", workspace_code=workspace.code)
@@ -85,9 +86,28 @@ async def test_a_stage_an_entry_and_a_note_open_the_task_they_live_on(
     entry = await journal_crud.journal_create(task_code=task.code, type="fact", title="tariff.py:88")
     note = await note_crud.task_note_add(task_code=task.code, title="Схема тарифов")
 
-    for code in (f"STAGE@{stage.code}", f"JOURNAL@{entry.code}", f"NOTE@{note.code}"):
+    for code in (f"STAGE@{stage.code}", f"JOURNAL@{entry.code}"):
         url = (await call("interface_open", code=code))["result"]
         assert url.endswith(f"/tasks/task/TASK@{task.code}")
+    url = (await call("interface_open", code=f"note@{note.code.lower()}"))["result"]
+    assert url.endswith(f"/tasks/task/TASK@{task.code}/note/NOTE@{note.code}")
+
+
+async def test_a_note_with_no_page_is_refused_and_nothing_opens(call, workspace, no_browser):
+    """A deleted note has left its task's list, and a note held by no task belongs to nothing
+    this server shows: neither has a page, and neither opens a browser on a "not found"."""
+    await call("workspace_use", workspace_code=workspace.code)
+    task = await task_crud.task_create(workspace_code=workspace.code, title="Тарифы")
+    deleted = await note_crud.task_note_add(task_code=task.code, title="Удалённая")
+    await notes_crud.note_delete(deleted.code)
+    orphan = await notes_crud.note_create(title="Ничья")
+
+    with pytest.raises(ToolError, match="is deleted"):
+        await call("interface_open", code=f"NOTE@{deleted.code}")
+    with pytest.raises(ToolError, match="does not exist"):
+        await call("interface_open", code=f"NOTE@{orphan.code}")
+
+    assert no_browser == []
 
 
 async def test_an_entry_quoted_by_the_retired_note_word_is_refused_and_nothing_opens(

@@ -17,7 +17,7 @@ from src.core.database import session_scope, write_scope
 from src.modules.notes.crud import note as notes_crud
 from src.modules.notes.models.note import Note
 from src.modules.tasks.codes import tagged
-from src.modules.tasks.constants import SORT_DEFAULT, SORT_STEP, TASK_CODE_PREFIX
+from src.modules.tasks.constants import NOTE_CODE_PREFIX, SORT_DEFAULT, SORT_STEP, TASK_CODE_PREFIX
 from src.modules.tasks.models.note import TasksNote
 from src.modules.tasks.models.task import TasksTask
 
@@ -68,4 +68,30 @@ async def task_note_task(note_code: str) -> str | None:
     return row.task_code if row else None
 
 
-__all__ = ["task_note_add", "task_note_list", "task_note_task"]
+async def task_note_reorder(task_code: str, codes: list[str]) -> None:
+    """Put the named notes of a task in this order, top to bottom.
+
+    The order comes whole, as the person sees it after a drag: the cards are a grid, and naming a
+    position by one neighbour does not say where a card in the next row went. Notes left out —
+    deleted ones the page does not show — keep their place below. A code that is not this task's
+    is refused, and nothing moves.
+    """
+    wanted = list(dict.fromkeys(codes))
+    async with write_scope() as s:
+        stmt = select(TasksNote).where(TasksNote.task_code == task_code)
+        links = {row.note_code: row for row in (await s.execute(stmt)).scalars().all()}
+        foreign = [code for code in wanted if code not in links]
+        if foreign:
+            raise ValueError(
+                f"Not notes of {tagged(TASK_CODE_PREFIX, task_code)}: "
+                f"{', '.join(tagged(NOTE_CODE_PREFIX, code) or '' for code in foreign)}."
+            )
+        top = SORT_DEFAULT + (len(wanted) - 1) * SORT_STEP
+        for position, code in enumerate(wanted):
+            links[code].sort = top - position * SORT_STEP
+        rest = [row for code, row in links.items() if code not in wanted]
+        for position, row in enumerate(sorted(rest, key=lambda row: -row.sort), start=len(wanted)):
+            row.sort = top - position * SORT_STEP
+
+
+__all__ = ["task_note_add", "task_note_list", "task_note_reorder", "task_note_task"]

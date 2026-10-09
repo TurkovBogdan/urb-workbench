@@ -5,8 +5,8 @@ and is opened in the local browser. The app is local and the backend serves the 
 itself, so the address is built from ``server_host``/``server_port`` — the same base url the
 stdio shim opens.
 
-Not everything has a page of its own. A stage, a journal entry and a task note live on their
-task's page, and
+Not everything has a page of its own. A stage and a journal entry live on their task's page,
+and
 a code of that type leads there too — we resolve the owner and open it. Refusing here would be
 pedantry: the agent asks to show the work, not an address.
 
@@ -30,6 +30,7 @@ from src.modules.tasks.constants import (
     STAGE_CODE_PREFIX,
     TASK_CODE_PREFIX,
 )
+from src.modules.notes.crud import note as notes_crud
 from src.modules.tasks.crud import journal as journal_crud
 from src.modules.tasks.crud import note as note_crud
 from src.modules.tasks.crud import stage as stage_crud
@@ -57,18 +58,32 @@ _OPENABLE = (
 
 
 async def _owning_task(prefix: str, bare: str) -> str:
-    """The task that owns a stage, a journal entry or a task note."""
-    if prefix == NOTE_CODE_PREFIX:
-        task_code = await note_crud.task_note_task(bare)
-    elif prefix == STAGE_CODE_PREFIX:
+    """The task that owns a stage or a journal entry."""
+    if prefix == STAGE_CODE_PREFIX:
         row = await stage_crud.stage_get(bare)
-        task_code = row.task_code if row else None
     else:
         row = await journal_crud.journal_get(bare)
-        task_code = row.task_code if row else None
-    if task_code is None:
+    if row is None:
         raise ValueError(f"{tagged(prefix, bare)} does not exist.")
-    return task_code
+    return row.task_code
+
+
+async def _note_page(bare: str) -> str:
+    """The page of a note — decided by what the note belongs to.
+
+    A note of the ``notes`` module does not know its owner; each owner holds its own link. So the
+    owners are asked in turn, and the first that holds the note gives the address inside its own
+    page. Today that is a task; a knowledge base, when it comes, answers here with its own page.
+    A deleted note has no page to show — its owner's page lists it no more.
+    """
+    code = tagged(NOTE_CODE_PREFIX, bare)
+    if await notes_crud.note_get(bare) is None:
+        raise ValueError(f"{code} does not exist (or is deleted) — there is no page to show.")
+    task = await note_crud.task_note_task(bare)
+    if task is not None:
+        return f"/tasks/task/{tagged(TASK_CODE_PREFIX, task)}/note/{code}"
+    # Held by no owner this server knows: for the agent it does not exist, as for the other tools.
+    raise ValueError(f"{code} does not exist (or is deleted) — there is no page to show.")
 
 
 def _app_url(path: str) -> str:
@@ -88,8 +103,9 @@ def register(mcp: "FastMCP") -> None:
         thing on screen rather than a paragraph about it. Returning the address also lets you
         paste it into the conversation.
 
-        A STAGE@, a JOURNAL@ or a NOTE@ opens the task it belongs to: they live on its page and
-        have none of their own. A WORKSPACE@ or a TASKGROUP@ opens the list it is a row in.
+        A STAGE@ or a JOURNAL@ opens the task it belongs to: they live on its page and have none
+        of their own. A NOTE@ opens its own page, inside its task's. A WORKSPACE@ or a TASKGROUP@
+        opens the list it is a row in.
 
         It acts on the user's machine, so do it when it was asked for or clearly helps, not
         after every call.
@@ -107,6 +123,8 @@ def register(mcp: "FastMCP") -> None:
         await require_scope(prefix, bare)
         if prefix in _LIST_PAGE:
             path = _LIST_PAGE[prefix]
+        elif prefix == NOTE_CODE_PREFIX:
+            path = await _note_page(bare)
         else:
             task = bare if prefix == TASK_CODE_PREFIX else await _owning_task(prefix, bare)
             path = f"/tasks/task/{tagged(TASK_CODE_PREFIX, task)}"

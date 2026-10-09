@@ -36,6 +36,7 @@ TASK_DELETED = "tasks.task.deleted"
 TASK_NOT_DELETED = "tasks.task.not_deleted"
 STAGE_NOT_FOUND = "tasks.stage.not_found"
 JOURNAL_NOT_FOUND = "tasks.journal.not_found"
+NOTE_NOT_FOUND = "tasks.note.not_found"
 
 
 class TaskRuleError(ValueError):
@@ -58,6 +59,7 @@ __all__ = [
     "GROUP_NOT_FOUND",
     "JOURNAL_ALREADY_RESOLVED",
     "JOURNAL_NOT_FOUND",
+    "NOTE_NOT_FOUND",
     "STAGE_EVIDENCE_REQUIRED",
     "STAGE_NOT_FOUND",
     "TASK_DELETED",

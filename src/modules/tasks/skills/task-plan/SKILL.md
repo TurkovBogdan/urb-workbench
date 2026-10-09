@@ -65,7 +65,11 @@ reads the result first.
 Some planning produces material rather than steps: a data schema, a comparison of three options,
 a concept with a diagram, a table you will come back to. Put that in a **task note** —
 `task_note_add(task_code, title, description, body)` — and point at it from the plan by its
-`NOTE@` code. The plan stays the approach and the files; the note is what the approach rests on.
+`NOTE@` code. The plan stays the approach and the files; the note is what the approach rests on,
+and the task page shows the notes right under the plan.
+
+A note is planning material, not a planning step: it is written whenever the work needs it — at
+any stage, after the plan too — and always when the user asks for one.
 
 - A paragraph the plan can hold is not a note. A note earns its place when it has sections,
   a diagram or a table, or when someone will open it on its own.

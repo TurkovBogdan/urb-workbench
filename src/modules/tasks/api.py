@@ -64,6 +64,7 @@ from src.modules.tasks.constants import (
     GROUP_TASK_DISPOSALS,
     ICON_MAX,
     JOURNAL_CODE_PREFIX,
+    NOTE_CODE_PREFIX,
     SORT_DEFAULT,
     STAGE_CODE_PREFIX,
     TASK_CODE_PREFIX,
@@ -72,6 +73,11 @@ from src.modules.tasks.constants import (
     TASK_TYPE_DEFAULT,
     TITLE_MAX,
 )
+from src.modules.notes.constants import BODY_MAX as NOTE_BODY_MAX
+from src.modules.notes.constants import DESCRIPTION_MAX as NOTE_DESCRIPTION_MAX
+from src.modules.notes.constants import TITLE_MAX as NOTE_TITLE_MAX
+from src.modules.notes.crud import note as notes_crud
+from src.modules.notes.models.note import Note
 from src.modules.tasks.crud import group as group_crud
 from src.modules.tasks.crud import journal as journal_crud
 from src.modules.tasks.crud import link as link_crud
@@ -83,6 +89,7 @@ from src.modules.tasks.errors import (
     GROUP_NOT_DELETED,
     GROUP_NOT_FOUND,
     JOURNAL_NOT_FOUND,
+    NOTE_NOT_FOUND,
     STAGE_NOT_FOUND,
     TASK_DELETED,
     TASK_NOT_DELETED,
@@ -96,6 +103,7 @@ from src.modules.tasks.dto import (
     StageRow,
     TaskDetail,
     TaskListRow,
+    TaskNoteDetail,
     TaskNoteRow,
     TaskRow,
 )
@@ -1119,6 +1127,115 @@ async def delete_journal_entry(code: str) -> Response:
     if not await journal_crud.journal_delete(await _journal_code(code)):
         raise ApiError.not_found("Journal entry not found", code=JOURNAL_NOT_FOUND)
     return Response(status_code=204)
+
+
+# ── task notes ────────────────────────────────────────────────────────────────
+# The document is the ``notes`` module's; these routes are the task's view of it. They, not
+# ``/internal/notes``, serve the task page: only here is it known whose note it is, and that a
+# deleted task's notes are read but not changed.
+
+
+class TaskNoteCreateBody(_Body):
+    """A new note of the task. The page creates it with a placeholder title and opens it."""
+
+    title: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=NOTE_TITLE_MAX)
+    ]
+    description: Annotated[str, StringConstraints(max_length=NOTE_DESCRIPTION_MAX)] = ""
+    body: Annotated[str, StringConstraints(max_length=NOTE_BODY_MAX)] = ""
+
+
+class TaskNotePatchBody(_Body):
+    """The fields the note page changed — only those, as with the task card: a field left out
+    keeps its value, so a save of the title cannot roll back text the agent wrote meanwhile."""
+
+    title: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=NOTE_TITLE_MAX)
+    ] | None = None
+    description: Annotated[str, StringConstraints(max_length=NOTE_DESCRIPTION_MAX)] | None = None
+    body: Annotated[str, StringConstraints(max_length=NOTE_BODY_MAX)] | None = None
+
+
+class TaskNoteOrderBody(_Body):
+    """The task's notes top to bottom, as the person left them after a drag."""
+
+    codes: list[str]
+
+
+def _note_code(value: str) -> str:
+    return _bare(value, NOTE_CODE_PREFIX) or ""
+
+
+async def _task_note(task: str, note: str) -> Note:
+    """A live note of this task, or 404 — a note of another task is not found here either."""
+    row = await notes_crud.note_get(note)
+    if row is None or await note_crud.task_note_task(note) != task:
+        raise ApiError.not_found("Task note not found", code=NOTE_NOT_FOUND)
+    return row
+
+
+def _note_detail(row: Note, task: str) -> TaskNoteDetail:
+    return TaskNoteDetail(**TaskNoteRow.model_validate(row).model_dump(), task_code=task, body=row.body)
+
+
+@router.post("/tasks/{code}/notes", status_code=201)
+async def create_task_note(code: str, payload: TaskNoteCreateBody) -> TaskNoteDetail:
+    bare = _task_code(code)
+    _live(await _require_task(bare))
+    try:
+        row = await note_crud.task_note_add(
+            task_code=bare, title=payload.title, description=payload.description, body=payload.body
+        )
+    except ValueError as error:
+        raise ApiError.bad_request(str(error)) from error
+    return _note_detail(row, bare)
+
+
+@router.get("/tasks/{code}/notes/{note}")
+async def get_task_note(code: str, note: str) -> TaskNoteDetail:
+    """One note whole — on a deleted task too: its notes are read, not changed."""
+    bare = _task_code(code)
+    await _require_task(bare)
+    return _note_detail(await _task_note(bare, _note_code(note)), bare)
+
+
+@router.patch("/tasks/{code}/notes/{note}")
+async def update_task_note(code: str, note: str, payload: TaskNotePatchBody) -> TaskNoteDetail:
+    bare = _task_code(code)
+    _live(await _require_task(bare))
+    note_bare = _note_code(note)
+    await _task_note(bare, note_bare)
+    try:
+        row = await notes_crud.note_update(
+            note_bare, title=payload.title, description=payload.description, body=payload.body
+        )
+    except ValueError as error:
+        raise ApiError.bad_request(str(error)) from error
+    if row is None:
+        raise ApiError.not_found("Task note not found", code=NOTE_NOT_FOUND)
+    return _note_detail(row, bare)
+
+
+@router.delete("/tasks/{code}/notes/{note}", status_code=204)
+async def delete_task_note(code: str, note: str) -> Response:
+    """Soft delete: the note leaves the task's list; there is no way back from the page yet."""
+    bare = _task_code(code)
+    _live(await _require_task(bare))
+    note_bare = _note_code(note)
+    await _task_note(bare, note_bare)
+    await notes_crud.note_delete(note_bare)
+    return Response(status_code=204)
+
+
+@router.put("/tasks/{code}/notes/order")
+async def reorder_task_notes(code: str, payload: TaskNoteOrderBody) -> list[TaskNoteRow]:
+    bare = _task_code(code)
+    _live(await _require_task(bare))
+    try:
+        await note_crud.task_note_reorder(bare, [_note_code(value) for value in payload.codes])
+    except ValueError as error:
+        raise ApiError.bad_request(str(error)) from error
+    return [TaskNoteRow.model_validate(row) for row in await note_crud.task_note_list(bare)]
 
 
 __all__ = [
