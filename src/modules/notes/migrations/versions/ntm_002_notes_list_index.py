@@ -5,7 +5,7 @@ An index for the list of every document: filter out deleted rows, newest change 
 **A separate revision rather than part of ``ntm_001``, on purpose.** ``notes`` is the target of
 the consumers' FKs (``tasks_note`` first), and ``depends_on`` may point only at a NON-head: a head
 that is an ancestor of another chain's head breaks the overlap check while the state is being
-read. This revision buries the creating one under itself, so ``tsm_011_note`` safely depends on
+read. This revision buries the creating one under itself, so ``tsm_010_note`` safely depends on
 ``ntm_001_notes`` — the same split as ``wkm_001`` / ``wkm_002``.
 
 Revision ID: ntm_002_notes_list_index

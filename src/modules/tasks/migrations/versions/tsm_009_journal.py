@@ -11,8 +11,8 @@ Only names change — the columns, their types and the rows stay as they are.
   keys are re-declared with the same ``ON DELETE CASCADE``, or deleting a task would stop
   clearing its journal.
 
-Revision ID: tsm_010_journal
-Revises: tsm_009_task_work_fields
+Revision ID: tsm_009_journal
+Revises: tsm_008_brief_work_fields
 Create Date: 2026-10-09
 """
 
@@ -22,8 +22,8 @@ from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "tsm_010_journal"
-down_revision: Union[str, None] = "tsm_009_task_work_fields"
+revision: str = "tsm_009_journal"
+down_revision: Union[str, None] = "tsm_008_brief_work_fields"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

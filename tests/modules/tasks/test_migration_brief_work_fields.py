@@ -1,8 +1,11 @@
-"""Migration ``tsm_009``: the task plan survives the rename, both ways, on both providers.
+"""Migration ``tsm_008``: the task plan survives the rename and the brief lists widen, both ways.
 
 The db tests build the schema with ``create_all`` and never run this revision over a database
 that already holds a plan. Here it runs for real — up, down and up again, over a task with a
-plan and the rows hanging off it:
+plan, a constraints list longer than the old width, and the rows hanging off it:
+
+- the long list keeps every character going up, and the way down clips it to the old width
+  before narrowing the column — PostgreSQL would refuse the ``ALTER`` otherwise;
 
 - on SQLite the revision rebuilds ``tasks``, and dropping the old table would cascade to its
   children unless the runner turns foreign keys off around it — the stage, the journal entry and
@@ -22,10 +25,12 @@ from src.core.config import Config
 from src.core.database.migrations import AlembicRunner
 from src.core.database.sqlite import WRITE_EXECUTION_OPTIONS, configure_sqlite, foreign_keys_disabled
 
-_BEFORE = "tsm_008_brief_lists_len"
+_BEFORE = "tsm_007_codes_upper"
 # The revision under test, not the heads: later revisions rename what this one leaves behind.
-_AFTER = "tsm_009_task_work_fields"
+_AFTER = "tsm_008_brief_work_fields"
 _PLAN = "## Подход\n" + "п" * 8000 + "\n\nМеняю: tariff.py"
+_OLD_LIST_WIDTH = 1024
+_CONSTRAINTS = "- не трогать " + "о" * 1500
 _CHILDREN = ("tasks_link", "tasks_stage", "tasks_note")
 
 
@@ -64,7 +69,7 @@ async def _children(engine) -> list[int]:
     return [(await _rows(engine, f"SELECT count(*) FROM {table}"))[0][0] for table in _CHILDREN]
 
 
-async def _seed_at_tsm_008(engine) -> None:
+async def _seed_at_tsm_007(engine) -> None:
     now = "CURRENT_TIMESTAMP"
     await _rows(
         engine,
@@ -104,7 +109,7 @@ async def _cycle(engine) -> None:
     await _migrate(engine, runner, "heads")
     await _migrate(engine, runner, _BEFORE, down=True)
     assert "body" in await _columns(engine)
-    await _seed_at_tsm_008(engine)
+    await _seed_at_tsm_007(engine)
     children = await _children(engine)
     assert children == [1, 1, 1]
 
@@ -114,15 +119,22 @@ async def _cycle(engine) -> None:
     assert {"plan", "progress", "result"} <= set(columns)
     assert await _rows(engine, "SELECT plan, progress, result FROM tasks") == [(_PLAN, "", "")]
     assert await _children(engine) == children
+    # Written only now: before the widening PostgreSQL would refuse a list this long.
+    await _rows(engine, "UPDATE tasks SET constraints = :value", value=_CONSTRAINTS)
+    assert await _rows(engine, "SELECT constraints FROM tasks") == [(_CONSTRAINTS,)]
 
     await _migrate(engine, runner, _BEFORE, down=True)
     columns = await _columns(engine)
     assert "body" in columns and not {"plan", "progress", "result"} & set(columns)
-    assert await _rows(engine, "SELECT body FROM tasks") == [(_PLAN,)]
+    assert await _rows(engine, "SELECT body, constraints FROM tasks") == [
+        (_PLAN, _CONSTRAINTS[:_OLD_LIST_WIDTH])
+    ]
     assert await _children(engine) == children
 
     await _migrate(engine, runner, _AFTER)
-    assert await _rows(engine, "SELECT plan FROM tasks") == [(_PLAN,)]
+    assert await _rows(engine, "SELECT plan, constraints FROM tasks") == [
+        (_PLAN, _CONSTRAINTS[:_OLD_LIST_WIDTH])
+    ]
     assert await _children(engine) == children
 
 
@@ -165,9 +177,16 @@ async def test_postgres_columns_hold_their_width(config: Config):
             await _rows(
                 engine,
                 "SELECT column_name, character_maximum_length FROM information_schema.columns "
-                "WHERE table_name = 'tasks' AND column_name IN ('plan', 'progress', 'result')",
+                "WHERE table_name = 'tasks' AND column_name IN "
+                "('constraints', 'criteria', 'plan', 'progress', 'result')",
             )
         )
-        assert widths == {"plan": 8192, "progress": 16384, "result": 2048}
+        assert widths == {
+            "constraints": 2048,
+            "criteria": 2048,
+            "plan": 8192,
+            "progress": 16384,
+            "result": 2048,
+        }
     finally:
         await engine.dispose()

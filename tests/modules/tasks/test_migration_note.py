@@ -1,4 +1,4 @@
-"""Migration ``tsm_011``: ``tasks_note`` comes, goes and comes back, and both cascades hold.
+"""Migration ``tsm_010``: ``tasks_note`` comes, goes and comes back, and both cascades hold.
 
 The table links two chains — ``tasks`` and ``notes`` — so what can go quietly wrong is the
 order between them and the cascades: a hard-deleted task must take its links and leave the
@@ -17,8 +17,8 @@ from src.core.config import Config
 from src.core.database.migrations import AlembicRunner
 from src.core.database.sqlite import WRITE_EXECUTION_OPTIONS, configure_sqlite, foreign_keys_disabled
 
-_BEFORE = "tsm_010_journal"
-_AFTER = "tsm_011_note"
+_BEFORE = "tsm_009_journal"
+_AFTER = "tsm_010_note"
 
 
 async def _migrate(engine, runner: AlembicRunner, target: str, *, down: bool = False) -> None:

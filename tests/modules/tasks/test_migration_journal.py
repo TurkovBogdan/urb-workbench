@@ -1,4 +1,4 @@
-"""Migration ``tsm_010``: the journal is renamed, its rows and its cascade survive, both ways.
+"""Migration ``tsm_009``: the journal is renamed, its rows and its cascade survive, both ways.
 
 Only names change — the table, the check, both foreign keys, both indexes. What can go wrong is
 quiet: SQLite cannot rename a constraint, so the table is rebuilt, and a foreign key re-declared
@@ -18,8 +18,8 @@ from src.core.config import Config
 from src.core.database.migrations import AlembicRunner
 from src.core.database.sqlite import WRITE_EXECUTION_OPTIONS, configure_sqlite, foreign_keys_disabled
 
-_BEFORE = "tsm_009_task_work_fields"
-_AFTER = "tsm_010_journal"
+_BEFORE = "tsm_008_brief_work_fields"
+_AFTER = "tsm_009_journal"
 
 
 async def _migrate(engine, runner: AlembicRunner, target: str, *, down: bool = False) -> None:

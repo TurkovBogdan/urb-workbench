@@ -7,8 +7,8 @@ and so does a hard-deleted note.
 ``depends_on`` points at ``ntm_001_notes``, which creates the FK target and is not the head of
 its chain (``ntm_002`` sits on it) — a dependency on a head breaks the overlap check.
 
-Revision ID: tsm_011_note
-Revises: tsm_010_journal
+Revision ID: tsm_010_note
+Revises: tsm_009_journal
 Create Date: 2026-10-09
 """
 
@@ -20,8 +20,8 @@ import sqlalchemy as sa
 from alembic import op
 from src.core.database.types import timestamp
 
-revision: str = "tsm_011_note"
-down_revision: Union[str, None] = "tsm_010_journal"
+revision: str = "tsm_010_note"
+down_revision: Union[str, None] = "tsm_009_journal"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = "ntm_001_notes"
 

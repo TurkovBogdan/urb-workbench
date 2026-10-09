@@ -69,7 +69,7 @@ Two details that are easy to get wrong:
 
 | Table | Columns | Indexes | Revisions |
 | --- | --- | --- | --- |
-| `workspaces` | `code` (PK, hex of length `CODE_LEN`), `title`, `description`, `color`, `icon`, `sort`, `deleted_at`, `created_at`, `updated_at` | `ix_workspaces_deleted_sort` (`deleted_at`, `sort`, `title`, `code`) — mirrors the list query | `wkm_001_workspaces` — the table, `wkm_002_workspaces_list_index` — the index, `wkm_003_description_len` — `description` narrowed to 128, `wkm_004_sort` — the position and the index rebuilt for it |
+| `workspaces` | `code` (PK, hex of length `CODE_LEN`), `title`, `description`, `color`, `icon`, `sort`, `deleted_at`, `created_at`, `updated_at` | `ix_workspaces_deleted_sort` (`deleted_at`, `sort`, `title`, `code`) — mirrors the list query | `wkm_001_workspaces` — the table, `wkm_002_workspaces_list_index` — the index, `wkm_003_description_sort` — `description` narrowed to 128, the position and the index rebuilt for it |
 
 The list order is a task group's: higher `sort` on top, then title, then code. A workspace
 created without a number lands at the end of the list; the form sets the number directly.
