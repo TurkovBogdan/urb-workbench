@@ -111,6 +111,11 @@ async def journal_create(
     return row
 
 
+def journal_is_open(entry: TasksJournal) -> bool:
+    """Open — unresolved AND of a kind that waits for something; a ``fact`` never does."""
+    return not entry.resolution and entry.type in JOURNAL_TYPES_OPENABLE
+
+
 async def journal_get(code: str) -> TasksJournal | None:
     async with session_scope() as s:
         return await s.get(TasksJournal, code)
@@ -158,7 +163,9 @@ async def journal_list_by_task(
     if type is not None:
         stmt = stmt.where(TasksJournal.type == type)
     if open_only:
-        stmt = stmt.where(TasksJournal.resolution == "")
+        stmt = stmt.where(
+            TasksJournal.resolution == "", TasksJournal.type.in_(JOURNAL_TYPES_OPENABLE)
+        )
     async with session_scope() as s:
         return list((await s.execute(stmt)).scalars().all())
 
@@ -233,6 +240,7 @@ __all__ = [
     "journal_create",
     "journal_delete",
     "journal_get",
+    "journal_is_open",
     "journal_list_by_task",
     "journal_open_count_by_task_codes",
     "journal_resolve",

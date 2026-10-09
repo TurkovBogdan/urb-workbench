@@ -35,7 +35,7 @@
     },
     "capabilities": {
       "mcp": {
-        "title": "Twenty-two tools",
+        "title": "Twenty-eight tools",
         "text": "The agent connects over MCP and runs the work with them: creates tasks, writes the plan, closes stages, leaves journal entries. A ready-made connection config is on the “MCP servers” page."
       },
       "workspace": {

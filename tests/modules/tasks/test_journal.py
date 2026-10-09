@@ -23,6 +23,7 @@ from src.modules.tasks.crud.journal import (
     journal_create,
     journal_delete,
     journal_get,
+    journal_is_open,
     journal_list_by_task,
     journal_open_count_by_task_codes,
     journal_resolve,
@@ -183,6 +184,24 @@ async def test_list_narrows_to_a_type_and_to_open_ones(task):
     open_only = await journal_list_by_task(task.code, open_only=True)
 
     assert [row.code for row in by_type] == [decision.code]
+    assert [row.code for row in open_only] == [decision.code]
+
+
+async def test_a_fact_written_without_a_resolution_is_not_open(task):
+    """``journal_add`` writes a fact with no resolution — the MCP tool has no field for one.
+
+    Every live fact on the stable install looks like that. "Open" used to be read as "the
+    resolution is empty", so such facts showed up as open in the task card and the journal filter
+    while the hand-in count, which skips facts, said zero.
+    """
+    fact = await journal_create(task_code=task.code, type=JOURNAL_FACT, title="Строк 1842")
+    decision = await journal_create(task_code=task.code, type=JOURNAL_DECISION, title="Решение")
+
+    open_only = await journal_list_by_task(task.code, open_only=True)
+
+    assert fact.resolution == ""
+    assert not journal_is_open(fact)
+    assert journal_is_open(decision)
     assert [row.code for row in open_only] == [decision.code]
 
 

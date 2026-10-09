@@ -22,6 +22,12 @@ import { GROUP_DESCRIPTION_MAX, TASK_TITLE_MAX } from '../labels'
 /** Default position mirrors `constants.py::SORT_DEFAULT` — the middle of the scale. */
 const SORT_DEFAULT = 500
 
+/** A cleared field falls back to the default; 0 is a real position — the bottom of the list. */
+function sortOrDefault(value: unknown): number {
+  const number = Number(value)
+  return String(value ?? '').trim() !== '' && Number.isFinite(number) ? number : SORT_DEFAULT
+}
+
 const open = defineModel<boolean>({ required: true })
 
 const props = defineProps<{
@@ -75,7 +81,7 @@ async function save() {
     description: description.value.trim(),
     color: color.value ?? '',
     icon: icon.value ?? '',
-    sort: Number(sort.value) || SORT_DEFAULT,
+    sort: sortOrDefault(sort.value),
   }
   try {
     // `report: false` — the refusal is shown HERE, next to the button: the dialog stays open with

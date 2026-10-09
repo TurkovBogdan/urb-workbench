@@ -2,7 +2,7 @@
 
 > A workbench for a developer and the agent that does the work. The person sets a task, the agent carries it through MCP, and everything it does shows up for the person right away as a page in the browser.
 
-The application has two halves. The first is the **`workbench` MCP server**: twenty-two tools the agent uses to create tasks, write a plan, close stages and keep a journal. The second is the **web interface**: the same data, open to the person for reading and editing. The work does not dissolve with the agent's session — it stays in the database and outlives it.
+The application has two halves. The first is the **`workbench` MCP server**: twenty-eight tools the agent uses to create tasks, write a plan, close stages and keep a journal. The second is the **web interface**: the same data, open to the person for reading and editing. The work does not dissolve with the agent's session — it stays in the database and outlives it.
 
 ## How work is organized
 
@@ -30,7 +30,7 @@ Twenty-eight tools in six groups.
 - **Work.** List and read tasks, create, edit, change status.
 - **Plan.** Add a stage, edit it, close it. A stage cannot be closed without evidence: the argument is mandatory, and it expects a pointer — a command with its outcome, the path to a changed file, a diff summary.
 - **Journal.** Add an entry, close it with a resolution, list entries. Entries are append-only: history cannot be rewritten.
-- **Task notes.** Add a note to a task, read it whole, rename it. The task lists its notes by title and description, without their text.
+- **Task notes.** Add a note to a task, read it whole, rename it or change its description. The task lists its notes by title and description, without their text.
 - **Long text.** A task's brief and work, a stage's body, an entry's body and a note's text are edited in place: replace everything, replace a line, replace a section by its heading, append. The reply is not the document but the **edit seam** — a slice of text on each side of the insertion. That is where you can see whether something got glued together wrong.
 
 On top of these six groups there are four standalone tools: `delete(code)` (one door for every type), `interface_open(code)` puts an entity on the person's screen, and `skills_list` / `skill_get` serve the server's own handbooks: how it expects a brief, a plan and a journal, and what its interface renders. The agent reads them before the work, not after a failure.

@@ -185,6 +185,9 @@ export const JOURNAL_TYPES = ['decision', 'remark', 'finding', 'fact'] as const
 
 export type JournalType = (typeof JOURNAL_TYPES)[number]
 
+// Mirror of `constants.py::JOURNAL_TYPES_OPENABLE`: a fact is closed the moment it is written.
+export const JOURNAL_TYPES_OPENABLE: readonly string[] = ['decision', 'remark', 'finding']
+
 // Color answers "whose is this and what is it waiting for": a decision is our work (accent), the
 // task author's remark needs an answer (warning), a finding is someone else's debt (neutral),
 // a fact is just memory and waits for nothing.

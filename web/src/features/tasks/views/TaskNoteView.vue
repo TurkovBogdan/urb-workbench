@@ -186,10 +186,15 @@ async function commit(): Promise<void> {
   for (const field of fields) base[field] = draftValue(field)
   const request = patchTaskNote(taskCode.value, row.code, body, { report: false })
   saving = request
+  // A late answer for a note the person has already left must not land on the next one's page.
+  const stillShowing = () => note.value?.code === row.code
   try {
-    note.value = await request
+    const saved = await request
+    if (!stillShowing()) return
+    note.value = saved
     saveError.value = null
   } catch (e) {
+    if (!stillShowing()) return
     for (const field of fields) base[field] = before[field]
     saveError.value = errorText(e)
   }

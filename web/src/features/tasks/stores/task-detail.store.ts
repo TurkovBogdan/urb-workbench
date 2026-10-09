@@ -35,6 +35,15 @@ export const useTaskDetailStore = defineStore('tasks-task-detail', () => {
   // one if the person has already moved to another task.
   let current = ''
 
+  /**
+   * Take a write's response only while its task is still the one on screen: the person may have
+   * followed a link to another task while the save was in flight, and a late answer would put the
+   * old card on the new page — and the next edit would then go to the old task.
+   */
+  function stillShowing(code: string): boolean {
+    return task.value?.code === code
+  }
+
   async function load(code: string) {
     current = code
     loading.value = true
@@ -71,10 +80,11 @@ export const useTaskDetailStore = defineStore('tasks-task-detail', () => {
     try {
       // `report: false` — a failed edit is reported by the card itself, next to the fields: a toast
       // about a request the person did not launch by hand reads as a failure of who knows what.
-      task.value = await patchTask(row.code, fields, { report: false })
+      const updated = await patchTask(row.code, fields, { report: false })
+      if (stillShowing(row.code)) task.value = updated
       return true
     } catch (e) {
-      saveError.value = errorText(e)
+      if (stillShowing(row.code)) saveError.value = errorText(e)
       return false
     } finally {
       saving.value = false
@@ -93,7 +103,8 @@ export const useTaskDetailStore = defineStore('tasks-task-detail', () => {
     if (!code || status === task.value?.status) return
     busy.value = true
     try {
-      task.value = await setTaskStatus(code, status)
+      const updated = await setTaskStatus(code, status)
+      if (stillShowing(code)) task.value = updated
     } catch {
       // The client's toast reported the refusal; the status on screen stays as it was — i.e. as in
       // the database.
@@ -109,7 +120,7 @@ export const useTaskDetailStore = defineStore('tasks-task-detail', () => {
     busy.value = true
     try {
       await deleteTask(code)
-      await load(code)
+      if (stillShowing(code)) await load(code)
       return true
     } catch {
       return false
@@ -123,7 +134,8 @@ export const useTaskDetailStore = defineStore('tasks-task-detail', () => {
     if (!code) return false
     busy.value = true
     try {
-      task.value = await restoreTask(code)
+      const restored = await restoreTask(code)
+      if (stillShowing(code)) task.value = restored
       return true
     } catch {
       return false

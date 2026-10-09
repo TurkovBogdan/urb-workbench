@@ -26,7 +26,7 @@
       },
       "document": {
         "title": "Document appearance",
-        "description": "How the reading zone is set — bodies of tasks, plan stages and journal entries. The interface around it is not affected."
+        "description": "How the reading zone is set — the text of tasks, plan stages, journal entries and notes. The interface around it is not affected."
       },
       "code": {
         "title": "Code block appearance",
@@ -59,7 +59,7 @@
       },
       "reading": {
         "label": "Text font",
-        "description": "Bodies of tasks, plan stages and journal entries — text that is read through."
+        "description": "The text of tasks, plan stages, journal entries and notes — what is read through."
       },
       "heading": {
         "label": "Heading font",

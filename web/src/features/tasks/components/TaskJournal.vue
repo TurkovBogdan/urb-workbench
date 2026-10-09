@@ -24,6 +24,7 @@ import {
   JOURNAL_BODY_MAX,
   JOURNAL_RESOLUTION_MAX,
   JOURNAL_TYPES,
+  JOURNAL_TYPES_OPENABLE,
   TASK_TITLE_MAX,
   journalColor,
 } from '../labels'
@@ -53,7 +54,8 @@ const typeItems = computed(() =>
 )
 
 /** An open entry is one with an empty resolution. A fact is closed at creation. */
-const isOpen = (entry: JournalRow) => entry.resolution === ''
+const isOpen = (entry: JournalRow) =>
+  entry.resolution === '' && JOURNAL_TYPES_OPENABLE.includes(entry.type)
 
 const visible = computed(() =>
   openOnly.value ? props.entries.filter(isOpen) : props.entries,
@@ -203,7 +205,7 @@ async function resolve(entry: JournalRow, value: string) {
       </p>
 
       <VTextField
-        v-else
+        v-else-if="isOpen(entry)"
         :label="t('tasks.journal.resolve')"
         :maxlength="JOURNAL_RESOLUTION_MAX"
         :disabled="props.disabled || busy"

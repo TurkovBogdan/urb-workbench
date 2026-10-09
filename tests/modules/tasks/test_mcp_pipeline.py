@@ -309,3 +309,19 @@ async def test_unfinished_is_the_default_and_history_does_not_crowd_it(call, wor
     assert [row["title"] for row in (await call("tasks_list", status="done"))["tasks"]] == [
         gone.title
     ]
+
+
+async def test_a_fact_the_agent_writes_is_never_listed_as_open(call, workspace, brief):
+    """``journal_add`` has no resolution field, so a fact lands with an empty one — and is still
+    closed: the card, the open-only journal and the hand-in count must all agree on that."""
+    await call("workspace_use", workspace_code=workspace.code)
+    task = f"TASK@{brief.code}"
+    await call("journal_add", task_code=task, type="fact", title="Строк в тарифах — 1842")
+    decision = await call("journal_add", task_code=task, type="decision", title="Взяли кэш")
+
+    detail = await call("task_get", task_code=task)
+    open_only = await call("journal_list", task_code=task, open_only=True)
+
+    assert [entry["code"] for entry in detail["open_entries"]] == [decision["code"]]
+    assert detail["closed_entries"] == 1
+    assert [entry["code"] for entry in open_only["entries"]] == [decision["code"]]

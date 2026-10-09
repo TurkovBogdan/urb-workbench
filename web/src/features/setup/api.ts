@@ -63,9 +63,11 @@ export async function applySetup(values: Record<string, string>): Promise<ApplyR
   return internalApi.put<ApplyResult>(BASE, { values })
 }
 
+// Silent: it is polled while the server restarts, so every failed attempt is expected, and a toast
+// per attempt would stack dozens of "network error" over the applying screen.
 export async function isBackendUp(): Promise<boolean> {
   try {
-    await internalApi.get('/health')
+    await internalApi.get('/health', { report: false })
     return true
   } catch {
     return false

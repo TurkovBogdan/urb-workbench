@@ -68,7 +68,11 @@ watch(open, (isOpen) => {
   if (!isOpen) return
   query.value = ''
   resetHighlight()
-  void store.refresh()
+  // The fresh list may be shorter than the one the highlight was set on — another tab or an agent
+  // deleted a workspace — and Enter would then pick nothing.
+  void store.refresh().then(() => {
+    if (highlighted.value >= matches.value.length) resetHighlight()
+  })
 })
 
 watch(query, resetHighlight)
@@ -172,7 +176,6 @@ async function onCreated(): Promise<void> {
       class="ws-panel"
       @keydown.down.prevent="move(1)"
       @keydown.up.prevent="move(-1)"
-      @keydown.enter.prevent="chooseHighlighted"
     >
       <label class="ws-panel__search">
         <IconSearch :size="16" :stroke-width="1.7" class="ws-panel__search-icon" />
@@ -185,6 +188,7 @@ async function onCreated(): Promise<void> {
           :aria-label="t('workspace.switcher.search')"
           autocomplete="off"
           spellcheck="false"
+          @keydown.enter.prevent="chooseHighlighted"
         >
       </label>
 
@@ -224,7 +228,10 @@ async function onCreated(): Promise<void> {
       </div>
       <div v-else class="ws-panel__empty">{{ t('workspace.switcher.not_found') }}</div>
 
-      <div class="ws-panel__footer">
+      <!-- With close-on-content-click off, VMenu treats Enter like Tab and cancels it, so the
+           footer button and link would never activate from the keyboard; keep Enter from reaching
+           the menu here. -->
+      <div class="ws-panel__footer" @keydown.enter.stop>
         <button type="button" class="ws-action" @click="startCreate">
           <IconPlus :size="16" :stroke-width="1.7" />
           {{ t('workspace.switcher.create') }}

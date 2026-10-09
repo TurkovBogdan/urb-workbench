@@ -151,8 +151,9 @@ class StageRow(BaseModel):
 class JournalRow(BaseModel):
     """A journal entry: the subject (``title`` + ``body``) and the resolution.
 
-    There is no separate "open" flag: it is derived from an empty ``resolution``, and keeping a
-    computable flag alongside would create a second source of truth for the same thing.
+    There is no separate "open" flag: it is derived from an empty ``resolution`` on a kind that
+    waits for one (a ``fact`` never does), and keeping a computable flag alongside would create a
+    second source of truth for the same thing.
     """
 
     model_config = ConfigDict(from_attributes=True)
@@ -292,8 +293,9 @@ class AgentStageRow(BaseModel):
     evidence: str = ""
 
 
-# A journal entry. There is no "open" flag — it is derived from an empty ``resolution``, and
-# keeping a computable flag alongside would create a second source of truth for the same thing.
+# A journal entry. There is no "open" flag — it is derived from an empty ``resolution`` on a kind
+# that waits for one (a ``fact`` never does), and keeping a computable flag alongside would create
+# a second source of truth for the same thing.
 class AgentJournalRow(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

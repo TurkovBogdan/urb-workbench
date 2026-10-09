@@ -914,7 +914,8 @@ async function purge() {
 
               <template #selection="{ item }">
                 <span class="task-page__group-value">
-                  <IconSwatch :icon="item.icon" :color="item.color" :width="20" />
+                  <!-- Before the group list arrives the selection is a bare code with no icon. -->
+                  <IconSwatch :icon="item.icon ?? ''" :color="item.color ?? ''" :width="20" />
                   {{ item.title }}
                 </span>
               </template>

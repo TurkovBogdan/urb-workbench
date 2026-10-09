@@ -64,8 +64,19 @@ function finishEditing(refocus: boolean): void {
   if (typeof pos === 'number') props.editor.chain().focus().setNodeSelection(pos).run()
 }
 
+// The document may refuse the change — the length limit filters the transaction out. The node then
+// keeps its old source, `:value` does not change, so Vue never repaints the field and it would go on
+// showing text that is not in the document. Put the field back, as the editor does for plain text.
+function pushSource(area: HTMLTextAreaElement): void {
+  props.updateAttributes({ source: area.value })
+  if (area.value === source.value) return
+  const caret = Math.min(area.selectionStart, source.value.length)
+  area.value = source.value
+  area.setSelectionRange(caret, caret)
+}
+
 function onInput(event: Event): void {
-  props.updateAttributes({ source: (event.target as HTMLTextAreaElement).value })
+  pushSource(event.target as HTMLTextAreaElement)
 }
 
 function onKeydown(event: KeyboardEvent): void {
@@ -78,7 +89,7 @@ function onKeydown(event: KeyboardEvent): void {
     event.preventDefault()
     const area = event.target as HTMLTextAreaElement
     area.setRangeText(INDENT, area.selectionStart, area.selectionEnd, 'end')
-    props.updateAttributes({ source: area.value })
+    pushSource(area)
   }
 }
 

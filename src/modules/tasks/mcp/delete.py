@@ -42,10 +42,10 @@ _REFUSALS = {
         "detail to add goes to its body with content_add(code, \"body\", …)."
     ),
     GROUP_CODE_PREFIX: (
-        "Removing a group is the person's to do: the tasks filed there keep pointing at it, and "
-        "bringing it back is theirs as well — you would leave them a hole you cannot undo. "
-        "Re-word the theme with group_update, or empty it with tasks_regroup(group_code=\"\", …) "
-        "and leave the empty group for them to clear."
+        "Removing a group is the person's to do: it decides what happens to the tasks filed "
+        "there — left without a group, moved to another, or binned with it — and bringing it "
+        "back is theirs as well. Re-word the theme with group_update, or empty it with "
+        "tasks_regroup(group_code=\"\", …) and leave the empty group for them to clear."
     ),
     WORKSPACE_CODE_PREFIX: (
         "A workspace holds everything else here, and deleting it is the person's call. "

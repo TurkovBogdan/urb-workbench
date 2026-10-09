@@ -2,9 +2,9 @@
 
 A row is a pair: the **subject** (``title`` + ``body``) and the **resolution** (``resolution``).
 The subject says what was raised, the resolution says how it was closed. Hence the only state
-there is here: an entry is open while ``resolution`` is empty, and the task cannot be handed in
-while open entries remain. There is no separate column for that state — otherwise the agent
-would set it itself, bypassing the condition.
+there is here: an entry is open while ``resolution`` is empty (a ``fact`` is closed the moment it
+is written), and the open entries are counted and reported when the task is handed in. There is no
+separate column for that state — otherwise the agent would set it itself, bypassing the count.
 
 ``type`` decides what the row describes and who writes each half of it:
 

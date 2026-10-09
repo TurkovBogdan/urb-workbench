@@ -185,7 +185,7 @@ def register(mcp: "FastMCP") -> None:
         children = await task_crud.task_list_by_parent(bare)
         stages = await stage_crud.stage_list_by_task(bare)
         entries = await journal_crud.journal_list_by_task(bare)
-        open_entries = [entry for entry in entries if not entry.resolution]
+        open_entries = [entry for entry in entries if journal_crud.journal_is_open(entry)]
         return AgentTaskDetail(
             workspace=active.code,
             workspace_title=active.title,
