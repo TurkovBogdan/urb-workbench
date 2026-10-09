@@ -105,6 +105,14 @@
           "Icons"
         ]
       },
+      "invisible-field": {
+        "label": "Invisible field",
+        "tags": [
+          "InvisibleField",
+          "Edit in place",
+          "Page title"
+        ]
+      },
       "search-field": {
         "label": "Search field",
         "tags": [
@@ -559,6 +567,10 @@
       "title": "Input fields",
       "description": "VTextField, VTextarea — variants, states, length limit, density"
     },
+    "invisible-field": {
+      "title": "Invisible field",
+      "description": "A text field that looks like plain text: no border and no background — not at rest, not on hover, not on focus. For a value edited where it is read, such as a page title."
+    },
     "search-field": {
       "title": "Search field",
       "description": "One query and scope toggles right in the field's frame: the buttons say where the entered text is searched, and live in the field because they belong only to it."
@@ -952,6 +964,22 @@
       "group": "Shelf chip",
       "edges": "Edge cases",
       "usage": "Usage examples"
+    },
+    "invisible-field": {
+      "basic": "Where it stands",
+      "heading": "Heading",
+      "line": "Line of text",
+      "placeholder": "Task title",
+      "sample_heading": "Translate the interface into English",
+      "sample_line": "A line of ordinary text you can edit right here",
+      "parts": "Parts",
+      "usage": "How it is wired",
+      "part": {
+        "chrome": "No border and no background in any state — not even on focus. Only the text cursor over it and the blinking caret inside give the field away.",
+        "edge": "No inner padding: the text starts at the field's edge and stands on one line with the text around it.",
+        "size": "Size, weight and line height come from the place the field stands in — the field only removes its chrome.",
+        "where": "The title of the task page and of the note page: the name is edited right in the header."
+      }
     },
     "search-field": {
       "basic": "Field and scopes",
@@ -1379,6 +1407,9 @@
       "simpleHint": "Only paragraph, bold and italic live here: no slash menu, no drag handles, no block constructs — their nodes aren't in the schema. Paste a heading or a list from the clipboard: the text is kept, the formatting is dropped. The counter below counts the stored markdown and turns red past the limit.",
       "table": "Table",
       "tableHint": "Insert with \"/\" then \"Table\". Tab and Shift+Tab move across cells, Tab from the last cell and Enter from the last row start a new one. Columns and alignment are on the panel above the table; the header row can't be removed — without it a table doesn't exist in GFM.",
+      "diagram": "Diagram",
+      "diagramHint": "A mermaid fence is shown as a drawn diagram; a double click opens it fullscreen. \"Edit\" on the right swaps the diagram for its source; \"Done\", Esc or leaving the block bring the diagram back. Insert a new one with \"/\" then \"Diagram\": the block opens for editing at once.",
+      "noDiagram": "A field without diagrams: the same fence stays a code block",
       "roundtrip": "Round trip: markdown → document → markdown",
       "source": "Source",
       "emitted": "What the serializer returned",

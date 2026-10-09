@@ -15,6 +15,7 @@ const PAGES: Record<string, string> = {
   'copy-chip':     'controls/CopyChipView',
   selects:         'controls/SelectsView',
   inputs:          'controls/InputsView',
+  'invisible-field': 'controls/InvisibleFieldView',
   'search-field':  'controls/SearchFieldView',
   numbers:         'controls/NumbersView',
   toggle:          'controls/ToggleView',
