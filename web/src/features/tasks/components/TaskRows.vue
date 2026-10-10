@@ -10,6 +10,11 @@
 // THE WHOLE BRANCH IS DRAGGED: a root moves together with its subtasks because they sit inside its
 // wrapper.
 //
+// A task becomes a subtask only by being let go among a branch's subtasks (`TaskSubtree` accepts
+// it, at that place). A row itself takes nothing: the gesture is mostly for fixing the order, and a
+// row that also meant "put it under me" made the order hard to fix — so a task without subtasks
+// cannot be made a parent by dragging.
+//
 // The gesture is built on Pointer Events (`forceFallback: true`), not native HTML5 DnD. Native DnD
 // is justified only for files from the OS and moves between windows: it sends no events for a
 // finger in any mobile browser, gives no control over the preview and blocks scrolling during the
@@ -20,7 +25,8 @@
 //
 // The mouse is not the only way: the same moves exist as row menu items. This is not a nicety but
 // a requirement — WCAG 2.2 SC 2.5.7 asks for a single-pointer alternative to dragging, and a menu
-// that opens from the keyboard covers SC 2.1.1 as well.
+// that opens from the keyboard covers SC 2.1.1 as well. One gesture is still without its item:
+// putting a task under another one.
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useDraggable } from 'vue-draggable-plus'
@@ -135,6 +141,12 @@ const sortable = useDraggable(container, codes, {
     // header means "into this group", and it is already there. A pointless gesture, not worth a
     // request.
     if (to.dataset.drop === 'end' && to.dataset.group === groupKey.value) return
+    // Dropped among another task's subtasks: it becomes one of them, at the place it was let go.
+    // The group is not named — a subtask takes its parent's.
+    if (to.dataset.parent) {
+      emit('move', { code, after: anchorAfterDrop(to, code, event.newIndex), parent: to.dataset.parent })
+      return
+    }
     // Only a ROOT move arrives here — own or from a neighbouring card: `onEnd` goes to the sortable
     // the gesture started from, while a subtask pulled out of a branch is handled by its own
     // container (`TaskSubtree`), which also knows that this is a detach.
@@ -286,6 +298,11 @@ function fromSubtree(payload: {
 /* While a branch is held, its rows do not react to hover: a highlight under the cursor at that
    moment would mean "drop here", and a branch cannot be dropped into itself. */
 :deep(.task-drag--chosen) .task-row:hover { background: transparent; }
+
+/* A placeholder takes the depth of the row it would land in: a task becoming a subtask is shown
+   indented already, a subtask pulled out to the top level — flush. The row writes its depth inline,
+   and only an important declaration outranks that. */
+.task-rows > :deep(.task-drag--ghost > .task-row) { --row-depth: 0 !important; }
 </style>
 
 <!-- Not `scoped`: with `fallbackOnBody` the preview is a clone appended straight to `<body>`, so no
