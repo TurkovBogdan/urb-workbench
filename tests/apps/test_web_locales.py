@@ -5,10 +5,6 @@ A key forgotten in `en.json` does not break the page: `vue-i18n` silently falls 
 (`fallbackLocale`), and a Russian string shows up in the English interface, noticed by eye — if
 at all. Here it fails at once, as does a placeholder mismatch: a `{count}` lost in translation
 renders as an empty gap.
-
-Features not wired into the shell (`research`, `web_search`) are slated for deletion and get no
-full English dictionary. For `research` it is partial — exactly the keys asked for by its
-components shown in the design-system showcase; the rest falls back to Russian.
 """
 
 from __future__ import annotations
@@ -24,8 +20,6 @@ pytestmark = pytest.mark.pure
 WEB_SRC = Path(__file__).resolve().parents[2] / "web" / "src"
 FEATURES = WEB_SRC / "features"
 
-UNWIRED_FEATURES = ("research", "web_search")
-
 _PLACEHOLDER = re.compile(r"\{(\w+)\}")
 _CYRILLIC = re.compile(r"[А-Яа-яЁё]")
 
@@ -35,7 +29,7 @@ def _dictionaries() -> list[Path]:
     roots += [
         path / "locales"
         for path in sorted(FEATURES.iterdir())
-        if (path / "locales" / "ru.json").exists() and path.name not in UNWIRED_FEATURES
+        if (path / "locales" / "ru.json").exists()
     ]
     return roots
 
@@ -86,3 +80,20 @@ def test_english_carries_no_russian_text(root: Path):
     english = _load(root / "en.json")
 
     assert not {key: value for key, value in english.items() if _CYRILLIC.search(str(value))}
+
+
+# vue-i18n reads a bare `@` as the start of a linked message. The message then fails to compile at
+# the moment it is first shown, not at load — and inside a Tiptap node view that render error
+# unmounts the node, so an entity pill vanished from the document the instant its "not a task
+# code" hint appeared. A literal at-sign is written `{'@'}`; the project links no messages.
+_LITERAL = re.compile(r"\{'[^']*'\}")
+
+
+@pytest.mark.parametrize("locale", ["ru", "en"])
+@pytest.mark.parametrize("root", _dictionaries(), ids=_id)
+def test_no_bare_at_sign(root: Path, locale: str):
+    strings = _load(root / f"{locale}.json")
+
+    bare = {key: value for key, value in strings.items() if "@" in _LITERAL.sub("", str(value))}
+
+    assert not bare, bare

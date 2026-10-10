@@ -39,10 +39,6 @@ const router = createRouter({
     ...settingsRoutes,
     ...setupRoutes,
     ...aboutRoutes,
-    // Research and web search (`features/research`, `features/web_search`) are the donor's domain:
-    // the feature code is kept, but their routes are not registered, and there is no backend
-    // behind them anymore. Integrations are gone entirely — with the `core_connectors` module and
-    // their feature.
     // Catch-all 404 — kept LAST so it can't shadow any route declared above it.
     // Renders the 404 inside the app shell.
     {

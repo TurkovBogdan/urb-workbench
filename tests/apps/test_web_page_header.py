@@ -32,12 +32,6 @@ WEB_SRC = Path(__file__).resolve().parents[2] / "web" / "src"
 EXEMPT = {
     "views/HomeView.vue",
     "views/errors/NotFoundView.vue",
-    # The print version of a research page: it has no frame by design — it is a document for
-    # paper, not a screen with navigation. It is also unreachable: the `research` module was
-    # removed (2026-09-20), its route is registered nowhere, and the `features/research` folder
-    # lives on only because the design-system showcase shows two of its cards. Drop this line
-    # together with the folder.
-    "features/research/views/ResearchPrintView.vue",
 }
 
 PAGE_FRAME = "<PageHeader"

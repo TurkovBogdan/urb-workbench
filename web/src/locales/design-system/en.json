@@ -13,8 +13,7 @@
       "content": "Content",
       "structure": "Structure",
       "interface": "Interface",
-      "special": "Special components",
-      "project": "Project"
+      "special": "Special components"
     },
     "page": {
       "tokens": {
@@ -447,24 +446,6 @@
           "Download"
         ]
       },
-      "research-card": {
-        "label": "Research card",
-        "tags": [
-          "ResearchCard",
-          "Registry",
-          "Shelf",
-          "Actions"
-        ]
-      },
-      "group-select": {
-        "label": "Group select",
-        "tags": [
-          "GroupSelect",
-          "Reference list",
-          "Search",
-          "Icons"
-        ]
-      },
       "kanban": {
         "label": "Kanban",
         "tags": [
@@ -724,14 +705,6 @@
       "title": "File cards",
       "description": "FileCards — floating file cards with a type icon and a trust-level color/caption"
     },
-    "research-card": {
-      "title": "Research card",
-      "description": "ResearchCard — a research registry tile: title with actions, description, shelf and date"
-    },
-    "group-select": {
-      "title": "Group select",
-      "description": "GroupSelect — a shelf list with search and icons; the set comes from the reference list and loads itself"
-    },
     "kanban": {
       "title": "Kanban",
       "description": "Kanban board — cards in columns with horizontal scroll"
@@ -980,15 +953,6 @@
       "states": "Trust states",
       "kinds": "File types",
       "list": "List variant",
-      "usage": "Usage examples"
-    },
-    "group-select": {
-      "variants": "Variants"
-    },
-    "research-card": {
-      "base": "Tile",
-      "group": "Shelf chip",
-      "edges": "Edge cases",
       "usage": "Usage examples"
     },
     "invisible-field": {

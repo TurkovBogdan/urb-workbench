@@ -55,7 +55,6 @@
   "nav": {
     "mcp": "MCP",
     "workspace": "Workspace",
-    "research": "Research",
     "data": "Data",
     "tasks": "Tasks",
     "settings": "Settings",
@@ -223,6 +222,11 @@
       "edit": "Edit",
       "done": "Done",
       "source": "Diagram source"
+    },
+    "ref": {
+      "edit": "Change code",
+      "field": "Task code",
+      "invalid": "Not a task code: TASK{'@'} followed by 10 hex characters"
     },
     "toolbar": {
       "block_type": "Block type",

@@ -32,7 +32,7 @@ limited in width, while tables and code blocks are exempt — they are scanned, 
 The second paragraph shows the distance between sections and that the space above a heading is
 noticeably larger than below it: a heading belongs to the text that follows. Inside the line
 there is \`inline code\`, **bold emphasis**, *italics* and an [external link](https://example.com),
-and also an entity link pill — RESEARCH@ef8a7d2f25.
+and also an entity link pill — TASK@ef8a7d2f25.
 
 ### Third-level heading
 
@@ -88,7 +88,7 @@ const RU: PreviewSamples = {
 Второй абзац — чтобы стало видно расстояние между разделами и то, что отступ над заголовком
 заметно больше отступа под ним: заголовок принадлежит тексту, который идёт следом. Внутри
 строки встречаются \`inline-код\`, **жирное выделение**, *курсив* и [внешняя ссылка](https://example.com),
-а ещё пилюля ссылки на сущность — RESEARCH@ef8a7d2f25.
+а ещё пилюля ссылки на сущность — TASK@ef8a7d2f25.
 
 ### Заголовок третьего уровня
 

@@ -1,6 +1,6 @@
 Stage 4 — reworking HOW the license gets its values. Before making changes, this records how
 everything works as of 2026-09-17: checked against the code, addresses given. Open questions and
-blockers live separately — `NOTE@271f8e548f`; the journal of what's been done — `NOTE@a3d1815018`.
+blockers live separately — `TASK@71e67f1883`; the journal of what's been done — `TASK@892b930bb0`.
 
 ## The scheme in two halves
 

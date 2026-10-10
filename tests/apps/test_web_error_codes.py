@@ -63,7 +63,7 @@ def test_views_show_errors_through_the_dictionary():
     raw = [
         f"{path.relative_to(FEATURES).as_posix()}:{number}"
         for path in FEATURES.rglob("*")
-        if path.suffix in (".vue", ".ts") and not {"research", "web_search"} & set(path.parts)
+        if path.suffix in (".vue", ".ts")
         for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
         if "instanceof Error ? e.message" in line
     ]

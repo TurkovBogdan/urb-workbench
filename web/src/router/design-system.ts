@@ -61,8 +61,6 @@ const PAGES: Record<string, string> = {
   kanban:          'interface/KanbanView',
   'edge-scroller': 'interface/EdgeScrollerView',
   'counter-button': 'special/CounterButtonView',
-  'research-card': 'project/ResearchCardView',
-  'group-select':  'project/GroupSelectView',
 }
 
 // A static glob: the view path is a variable, and the bundler needs a parseable pattern.

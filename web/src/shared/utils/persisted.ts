@@ -4,9 +4,9 @@
 // A value equal to the default is NOT written (the key is removed): storage keeps only deliberate
 // deviations, and a change of the default in code reaches everyone who didn't touch it.
 //
-// Lives apart from `stores/settings` because such a ref has two homes: the person's settings and
-// interface state (`stores/ui-state`). A shared helper in one of them would mean the other imports
-// a foreign store for one line of code.
+// Lives apart from `stores/settings` because such a ref has more than one home: the person's
+// settings and the chosen workspace (`features/workspace/stores/workspace-context.store`). A shared
+// helper in one of them would mean the other imports a foreign store for one line of code.
 //
 // Interface settings take `synced` from here (the neighbouring file): there storage becomes a
 // cache on top of the database. What stays here is what lives only in the browser.

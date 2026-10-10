@@ -15,6 +15,7 @@ import {
   IconHash,
 } from '@tabler/icons-vue'
 import type { Feature, FeatureSet } from '../modes'
+import { parseRefCode } from '../../shared/contracts'
 
 const props = defineProps<{ editor: Editor | undefined; tick: number; features: FeatureSet }>()
 
@@ -182,8 +183,10 @@ function applyLink(): void {
   place()
 }
 
+// Only a whole code of the vocabulary becomes a pill — the same test the pill's own edit field
+// applies, so the toolbar cannot insert a reference that the pill would refuse.
 function applyRef(): void {
-  const code = refCode.value.trim()
+  const code = parseRefCode(refCode.value)
   if (code) chain()?.insertEntityRef(code).run()
   refCode.value = ''
   refMenu.value = false
@@ -303,7 +306,7 @@ function applyRef(): void {
               autofocus
               density="compact"
               variant="outlined"
-              placeholder="AREA@0123456789"
+              placeholder="TASK@0123456789"
               hide-details
               style="font-family: var(--font-mono)"
               @keydown.enter.prevent="applyRef"

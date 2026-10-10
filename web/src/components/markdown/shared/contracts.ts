@@ -7,9 +7,25 @@
 // exists to prevent.
 
 // Entity cross-references: a `TYPE@<hash>` code in a body is a typed link to that entity.
-// The vocabulary is the set of types a code may carry; where each one leads is the renderer's
-// business alone (REF_ROUTE in renderer/render.ts) and deliberately not part of this contract.
-export const REF_TYPES = ['RESEARCH', 'AREA', 'NOTE', 'QUERY', 'SOURCE'] as const
+// The vocabulary holds only types whose page can be addressed from the code alone. A stage, a
+// journal entry or a note lives on its owner's page, and the owner is not in the code — those
+// types wait for a resolver on the backend rather than leading to a guessed address.
+export const REF_TYPES = ['TASK'] as const
+
+export type RefType = (typeof REF_TYPES)[number]
+
+// Where a code leads. Part of the contract because both zones navigate: the viewer through its
+// link, the editor through its pill — one address for both, or a pill opens a different page
+// depending on whether the field is being edited.
+const REF_PATH: Record<RefType, (code: string) => string> = {
+  TASK: (code) => `/tasks/task/${code}`,
+}
+
+/** The app address of a canonical code whose type is in the vocabulary. */
+export function refPath(code: string): string {
+  const type = code.split('@')[0] as RefType
+  return REF_PATH[type](code)
+}
 
 // Codes are exactly this many hex chars; the negative lookahead rejects a longer hex run, so a
 // body still quoting a retired 22-char code reads as plain text rather than a dead link.
@@ -35,6 +51,12 @@ export const WHOLE_CODE_SPAN = new RegExp(
   `^(${REF_TYPES.join('|')})@([0-9a-f]{${CODE_LEN}})$`,
   'i',
 )
+
+/** The canonical code when `text` is exactly one code of the vocabulary, otherwise `null`. */
+export function parseRefCode(text: string): string | null {
+  const trimmed = text.trim()
+  return WHOLE_CODE_SPAN.test(trimmed) ? canonicalCode(trimmed) : null
+}
 
 // GFM task list: markdown-it has no rule for it, so the marker is still sitting at the front of
 // the list item's first paragraph when either zone gets the tokens. Both strip it the same way —

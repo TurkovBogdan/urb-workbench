@@ -11,7 +11,7 @@ import {
   IconLayoutBottombarExpand, IconToggleLeft, IconPaperclip,
   IconMessages, IconMail, IconChevronDown, IconUsersGroup, IconMoodSmile,
   IconMoodSad, IconHeading, IconPalette, IconBrush, IconLayoutList, IconLayoutNavbar,
-  IconSearch, IconFileText, IconFolders, IconLayoutSidebar, IconSubtask, IconCopy, IconFilter,
+  IconSearch, IconLayoutSidebar, IconSubtask, IconCopy, IconFilter,
   IconCursorText, IconDotsVertical,
 } from '@tabler/icons-vue'
 import type { TablerIcon } from '@/shared/nav'
@@ -126,20 +126,11 @@ const groups: Group[] = [
     ],
   },
   // Special — narrow components built for one interface task, not general building blocks like
-  // a button or a field. Unlike the project ones, they still know nothing about the domain.
+  // a button or a field. They still know nothing about the domain.
   {
     key: 'special',
     pages: [
       { slug: 'counter-button', icon: IconSubtask },
-    ],
-  },
-  // Project — what lives in `features/` and knows the domain (research, shelves). The other
-  // sections hold building blocks that can be carried to any project; these can't.
-  {
-    key: 'project',
-    pages: [
-      { slug: 'research-card', icon: IconFileText },
-      { slug: 'group-select',  icon: IconFolders },
     ],
   },
 ]
