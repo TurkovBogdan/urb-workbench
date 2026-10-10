@@ -1,8 +1,8 @@
 """CRUD for ``TasksJournal`` — the work journal. Each function owns its session.
 
 Entries are never deleted by the agent and never re-titled, and this layer has no entry edit at
-all; the one editable part is the body, which only the MCP content handler writes
-(``mcp/content/journal.py``). ``journal_resolve`` fills the resolution **once**. A repeat call on
+all; the one editable part is the body, which only the agent surface's content handler writes
+(``workbench/content/journal.py``). ``journal_resolve`` fills the resolution **once**. A repeat call on
 an already resolved entry is refused — otherwise history could be rewritten to fit the outcome, and analysing a failure would
 stop meaning anything. A reversal is recorded as a new entry, not as an edit of the old one.
 

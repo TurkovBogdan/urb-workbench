@@ -301,20 +301,3 @@ async def test_search_route_takes_the_workspace_with_its_prefix(client):
     )
 
     assert response.json() == [f"TASK@{row.code}"]
-
-
-# ── MCP ───────────────────────────────────────────────────────────────────────
-
-
-async def test_mcp_list_finds_cyrillic_regardless_of_case(call, workspace):
-    """The agent's search goes to the same query — and handles case the same way.
-
-    Kept apart from the CRUD test on purpose: the fix lives in ``task_list_by_workspace``, but
-    two surfaces use it, and the second has its own path to it.
-    """
-    await call("workspace_use", workspace_code=workspace.code)
-    await task_create(workspace_code=workspace.code, title="Панель фильтров")
-
-    found = await call("tasks_list", query="ПАНЕЛЬ")
-
-    assert [row["title"] for row in found["tasks"]] == ["Панель фильтров"]

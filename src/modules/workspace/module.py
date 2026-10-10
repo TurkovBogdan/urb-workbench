@@ -30,7 +30,6 @@ from typing import ClassVar
 from src.core.module import Module
 from src.modules.workspace import models  # noqa: F401 — registers the models in Base.metadata
 from src.modules.workspace.api import router
-from src.modules.workspace.mcp.auth import resolve_mcp_token
 
 _HERE = Path(__file__).resolve().parent
 
@@ -43,11 +42,6 @@ class WorkspaceModule(Module):
     migrations_dir = _HERE / "migrations" / "versions"
     internal_router = router
     internal_router_prefix = "/workspace"
-    # The application's only MCP token resolver. It lives on the level 1 module on purpose: that
-    # module sits below every application module and outlives any of them — why that matters,
-    # see ``mcp/auth.py``. ``staticmethod`` is mandatory: access through an instance
-    # (``m.mcp_token_resolver``) would bind the function as a method and pass ``self`` first.
-    mcp_token_resolver = staticmethod(resolve_mcp_token)
 
 
 __all__ = ["WorkspaceModule"]

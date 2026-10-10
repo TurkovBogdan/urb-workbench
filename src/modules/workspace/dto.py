@@ -1,15 +1,11 @@
-"""DTOs of the ``workspace`` module — the contracts of both surfaces: the web viewer and the agent.
+"""DTOs of the ``workspace`` module — the web viewer's contracts.
 
-**The ``Agent`` prefix = the agent surface.** A class with this prefix is returned by the MCP
-tools (``mcp/``) and by nobody else; everything else is a web viewer contract. The boundary is
-solid: the surfaces share no contracts even where the field sets coincide — ``WorkspaceListRow``
-and ``AgentWorkspaceRow`` describe the same table row and have diverged on purpose. The human
-needs styling and counter label keys, the agent needs numbers; merge them into one class and a
-field added for a column starts costing the agent context in every session.
-
-The agent class has no docstring on purpose: pydantic puts it into the tool's JSON schema as the
-description, and the agent pays for it on every connection. So explanations of agent contracts
-live in comments ABOVE the class.
+The agent's view of a workspace is not here: it belongs to the agent surface, the ``workbench``
+module (``workbench/dto.py``), and shares only ``WorkspaceCode`` with this file. The surfaces
+share no contracts even where the field sets coincide — ``WorkspaceListRow`` and
+``AgentWorkspaceRow`` describe the same table row and have diverged on purpose. The human needs
+styling and counter label keys, the agent needs numbers; merge them into one class and a field
+added for a column starts costing the agent context in every session.
 
 A code in the output carries the presentation prefix (``WORKSPACE@…``) — ``prefixed`` from
 ``workspace.codes`` handles that: the serializer adds the type word only in JSON, the internal
@@ -87,41 +83,7 @@ class WorkspaceListRow(WorkspaceRow):
     counters: list[WorkspaceCounterRow] = []
 
 
-# The workspace the call ran in — goes into EVERY response of a bound tool. Not a service field
-# and not debugging: the agent has no other way to notice it is working in the wrong context — a
-# list of someone else's tasks looks like a list of tasks, and an empty one like "no work". A
-# named workspace turns this mistake from invisible into obvious from the first response, and it
-# costs two fields.
-class AgentScope(BaseModel):
-    workspace: WorkspaceCode
-    workspace_title: str
-
-
-# A workspace through the agent's eyes: what it is called, what is inside and whether the agent
-# works in it. Counters come as a flat dict (``{"groups": 2, "tasks": 12}``), not as a list of
-# rows with label keys as in the interface: a label key is needed by whoever renders human text,
-# while the agent needs a number next to a name. The key set depends on the application's
-# composition — it is the same registry (``stats.py``), and it is not a fixed contract.
-class AgentWorkspaceRow(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    code: WorkspaceCode
-    title: str
-    description: str = ""
-    counters: dict[str, int] = {}
-    active: bool = False
-
-
-# The binding response: the same workspace plus what the agent does not know about its choice —
-# how long it lasts and what makes it permanent.
-class AgentWorkspaceBound(AgentWorkspaceRow):
-    note: str
-
-
 __all__ = [
-    "AgentScope",
-    "AgentWorkspaceBound",
-    "AgentWorkspaceRow",
     "WorkspaceCode",
     "WorkspaceCounterRow",
     "WorkspaceListRow",

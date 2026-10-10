@@ -218,7 +218,7 @@ async def test_content_edits_reach_the_feed_for_every_field(workspace, feed):
     """An agent's content edit is what an open task page must redraw. The handlers write the
     ORM row directly, past CRUD — so the feed sees them only through flush capture, and that is
     pinned here per field rather than assumed."""
-    from src.modules.tasks.mcp.content.registry import MCP_CONTENT_HANDLERS
+    from src.modules.workbench.content.registry import MCP_CONTENT_HANDLERS
 
     task = await task_create(workspace_code=workspace.code, title="Выпуск", type=TYPE_EXTENDED)
     stage = await stage_create(task_code=task.code, title="Сборка")
@@ -280,7 +280,7 @@ async def test_a_task_note_soft_delete_reaches_the_feed_as_the_document_only(wor
 
 
 async def test_a_refused_content_edit_publishes_nothing(workspace, feed):
-    from src.modules.tasks.mcp.content.task import McpTaskResultHandler
+    from src.modules.workbench.content.task import McpTaskResultHandler
 
     task = await task_create(workspace_code=workspace.code, title="Выпуск", type=TYPE_EXTENDED)
     await feed()
