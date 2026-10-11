@@ -1,5 +1,5 @@
 {
-  "instructions": "Workbench MCP server — the developer's own workspaces and the work inside them.\n\nWORKSPACE FIRST. Everything here lives inside a workspace, and nothing reads across workspaces: it is what keeps work apart from personal, one client apart from another. This session works in exactly one, and no tool takes it as an argument — you set it once. If a tool answers that nothing is bound yet, call workspaces_list() to see what exists and workspace_use(workspace_code) to pick one. Some connections are already configured with a workspace; workspaces_list() marks the active one either way.\nThe binding is yours alone — a second agent working elsewhere does not move it, and it lasts as long as this connection.\n\nCODES. Every entity has a code that says what it is — WORKSPACE@ (a workspace), TASKGROUP@ (a standing theme inside one), TASK@, STAGE@ (a step of a task's plan), JOURNAL@ (a journal entry), NOTE@ (a task note — a document written at a task). Pass a code back whole, exactly as you received it; never invent one. A code from another workspace is refused by name rather than acted on quietly — that refusal means you are in the wrong workspace, not that the entity is missing.\n\nEVERY ANSWER NAMES ITS WORKSPACE. Read it. It is the only way to notice that you are working in the wrong one: a list of someone else's tasks looks exactly like a list of tasks.\n\nHOW WORK IS SHAPED. Three depths, and each adds one way of working. `simple` — a title, a goal and the context, often a job for a person. `standard` — plus the rest of the brief (constraints, criteria of done), your work in three fields — the plan you write after reading the code, the progress diary you keep along the way, the result you write at hand-over — and a journal of decisions, findings and facts. `extended` — plus STAGES: the plan broken into steps, each with its own state and its own evidence. Stages are what separates extended from standard, and they earn their keep only when the work outlasts one sitting; a standard task refuses them and says so.\nThe brief is yours to fill in and correct on any task, including one a person set — when you change theirs, say what and why in a decision entry. The verdict on whether the work is accepted is never yours: write what you did in `result`, then hand over at in_review.\n\nTHE LAYOUT IS THEIRS, THE HANDS ARE YOURS. Groups are how the person sees their own work, and you can make and re-word them — on request. Make one when they ask for it, not because the backlog looks untidy to you: three themes they recognise beat seven you invented. Deleting a group stays theirs, because undoing it is theirs.\n\nSKILLS. This server carries its own reference material — how it expects a brief, a plan and a journal to be written, and what its interface actually renders. skills_list() names what is available; skill_get(name, section?) returns it. Read skill_get('task-brief') before writing a brief and skill_get('task-plan') before planning: those are conventions of this app, not things to infer.\n\nTOOLS. Space: workspaces_list, workspace_use. Layout: groups_list, group_create, group_update, tasks_regroup. Work: tasks_list, task_get, task_create, task_update, task_status. Plan: stage_add, stage_update, stage_close. Journal: journal_add, journal_resolve, journal_list. Task notes — planning material: schemas, option breakdowns, concepts the plan rests on, shown under the plan, on a task of any type; substantial documents, never a few paragraphs (those go into the plan or the journal); written at any stage of the work, and always when the user asks for one: task_note_add, task_note_get, task_note_update; task_get lists them without text. CONTENT — the long markdown fields — is edited by content_set / content_replace / content_set_section / content_add, addressed by the entity code and the field: TASK@ context, and from `standard` up constraints, criteria, plan, progress, result; STAGE@ body; JOURNAL@ body; NOTE@ body. None of them echoes the text you sent: content_replace and content_add answer with the SEAM of the edit, content_set_section with what it CUT, content_set with the new length. Plus delete(code), one door for every type, and interface_open(code) to put something on the user's screen.",
+  "instructions": "Workbench MCP server — the developer's own workspaces and the work inside them.\n\nWORKSPACE FIRST. Everything here lives inside a workspace, and nothing reads across workspaces: it is what keeps work apart from personal, one client apart from another. This session works in exactly one, and no tool takes it as an argument — you set it once. If a tool answers that nothing is bound yet, call workspaces_list() to see what exists and workspace_use(workspace_code) to pick one. Some connections are already configured with a workspace; workspaces_list() marks the active one either way.\nThe binding is yours alone — a second agent working elsewhere does not move it, and it lasts as long as this connection.\n\nCODES. Every entity has a code that says what it is — WORKSPACE@ (a workspace), TASKGROUP@ (a standing theme inside one), TASK@, STAGE@ (a step of a task's plan), JOURNAL@ (a journal entry), NOTE@ (a task note — a document written at a task), CODEX@ (a codex or a note in one). Pass a code back whole, exactly as you received it; never invent one. A code from another workspace is refused by name rather than acted on quietly — that refusal means you are in the wrong workspace, not that the entity is missing.\n\nEVERY ANSWER NAMES ITS WORKSPACE. Read it. It is the only way to notice that you are working in the wrong one: a list of someone else's tasks looks exactly like a list of tasks.\n\nHOW WORK IS SHAPED. Three depths, and each adds one way of working. `simple` — a title, a goal and the context, often a job for a person. `standard` — plus the rest of the brief (constraints, criteria of done), your work in three fields — the plan you write after reading the code, the progress diary you keep along the way, the result you write at hand-over — and a journal of decisions, findings and facts. `extended` — plus STAGES: the plan broken into steps, each with its own state and its own evidence. Stages are what separates extended from standard, and they earn their keep only when the work outlasts one sitting; a standard task refuses them and says so.\nThe brief is yours to fill in and correct on any task, including one a person set — when you change theirs, say what and why in a decision entry. The verdict on whether the work is accepted is never yours: write what you did in `result`, then hand over at in_review.\n\nTHE LAYOUT IS THEIRS, THE HANDS ARE YOURS. Groups are how the person sees their own work, and you can make and re-word them — on request. Make one when they ask for it, not because the backlog looks untidy to you: three themes they recognise beat seven you invented. Deleting a group stays theirs, because undoing it is theirs.\n\nCODEXES. Development rules that do not depend on the project — «Python backend», «Vue frontend» — each a codex with a tree of notes, at most four levels deep. The person mounts codexes into a workspace; together they are one canvas, and a path starts with a codex slug: python/test/fixtures. Before work a codex covers, read codex_index and that codex's codex_rules, then the notes you need. You write notes — never a codex — and only where the mount allows it (agent_can_edit); keep them current when the work teaches you something the rules should say.\n\nSKILLS. This server carries its own reference material — how it expects a brief, a plan and a journal to be written, and what its interface actually renders. skills_list() names what is available; skill_get(name, section?) returns it. Read skill_get('task-brief') before writing a brief and skill_get('task-plan') before planning: those are conventions of this app, not things to infer.\n\nTOOLS. Space: workspaces_list, workspace_use. Layout: groups_list, group_create, group_update, tasks_regroup. Work: tasks_list, task_get, task_create, task_update, task_status. Plan: stage_add, stage_update, stage_close. Journal: journal_add, journal_resolve, journal_list. Task notes — planning material: schemas, option breakdowns, concepts the plan rests on, shown under the plan, on a task of any type; substantial documents, never a few paragraphs (those go into the plan or the journal); written at any stage of the work, and always when the user asks for one: task_note_add, task_note_get, task_note_update; task_get lists them without text. Codexes: codex_index, codex_rules, codex_get, codex_tree, codex_search, codex_add, codex_update. CONTENT — the long markdown fields — is edited by content_set / content_replace / content_set_section / content_add, addressed by the entity code and the field: TASK@ context, and from `standard` up constraints, criteria, plan, progress, result; STAGE@ body; JOURNAL@ body; NOTE@ body; CODEX@ (a note) body. None of them echoes the text you sent: content_replace and content_add answer with the SEAM of the edit, content_set_section with what it CUT, content_set with the new length. Plus delete(code), one door for every type, and interface_open(code) to put something on the user's screen.",
   "tools": [
     {
       "name": "workspaces_list",
@@ -2111,18 +2111,580 @@
       }
     },
     {
+      "name": "codex_index",
+      "description": "List the codexes mounted into this workspace — the development rules you work by.\n\nA codex is a set of rules on one theme that does not depend on the project («Python\nbackend», «Vue frontend»), with a tree of notes inside. The person mounts codexes into a\nworkspace; together they are your canvas, and every path starts with a codex slug.\n`description` says when to turn to a codex; `agent_can_edit` — whether you may write\nnotes in it here. Read a codex's rules with codex_rules before working by it.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "workspace": {
+            "type": "string"
+          },
+          "workspace_title": {
+            "type": "string"
+          },
+          "codexes": {
+            "default": [],
+            "items": {
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "slug": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "description": {
+                  "default": "",
+                  "type": "string"
+                },
+                "agent_can_edit": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "code",
+                "slug",
+                "title",
+                "agent_can_edit"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "workspace",
+          "workspace_title"
+        ],
+        "type": "object"
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "codex_rules",
+      "description": "Read the rules of working in one codex — how its notes are meant to be read and kept.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "codex": {
+            "type": "string",
+            "description": "The codex — its CODEX@ code or its slug, as codex_index lists it."
+          }
+        },
+        "required": [
+          "codex"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "workspace": {
+            "type": "string"
+          },
+          "workspace_title": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "rules": {
+            "default": "",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace",
+          "workspace_title",
+          "code",
+          "slug",
+          "title"
+        ],
+        "type": "object"
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "codex_get",
+      "description": "Read one codex or note and see what lies directly under it.\n\nA note comes whole — its text, path and parent. A codex comes as its title and\ndescription (its rules: codex_rules). The children come as a list to choose from — code,\nslug, title, description and how many children each has — without their text: open the\none you need with another codex_get.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "target": {
+            "type": "string",
+            "description": "A CODEX@ code, or a path from the canvas root — `python/test`."
+          }
+        },
+        "required": [
+          "target"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "workspace": {
+            "type": "string"
+          },
+          "workspace_title": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "codex_code": {
+            "type": "string"
+          },
+          "parent_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "default": "",
+            "type": "string"
+          },
+          "body": {
+            "default": "",
+            "type": "string"
+          },
+          "writable": {
+            "type": "boolean"
+          },
+          "children": {
+            "default": [],
+            "items": {
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "slug": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "description": {
+                  "default": "",
+                  "type": "string"
+                },
+                "children": {
+                  "default": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "code",
+                "slug",
+                "title"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "workspace",
+          "workspace_title",
+          "code",
+          "kind",
+          "path",
+          "codex_code",
+          "title",
+          "writable"
+        ],
+        "type": "object"
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "codex_tree",
+      "description": "Show the tree down from a point — codes, slugs and titles, no descriptions or text.\n\nFrom the root (`/` or empty) — every mounted codex. The tree is never cut: the codexes\nare at most four levels deep (codex / note / note / note).",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "target": {
+            "default": "",
+            "type": "string",
+            "description": "A CODEX@ code or a path; `/` or empty for the whole canvas."
+          }
+        },
+        "type": "object"
+      },
+      "outputSchema": {
+        "$defs": {
+          "AgentCodexTreeNode": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "slug": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "children": {
+                "default": [],
+                "items": {
+                  "$ref": "#/$defs/AgentCodexTreeNode"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "code",
+              "slug",
+              "title"
+            ],
+            "type": "object"
+          }
+        },
+        "properties": {
+          "workspace": {
+            "type": "string"
+          },
+          "workspace_title": {
+            "type": "string"
+          },
+          "root": {
+            "type": "string"
+          },
+          "nodes": {
+            "default": [],
+            "items": {
+              "$ref": "#/$defs/AgentCodexTreeNode"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "workspace",
+          "workspace_title",
+          "root"
+        ],
+        "type": "object"
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "codex_search",
+      "description": "Find codexes and notes whose title, description or text holds `query`, any case.\n\nEach hit carries its code, path, title, description and a fragment around the match.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "What to look for — a word or a phrase, matched as written, case aside."
+          },
+          "path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Search only this branch — a CODEX@ code or a path; omit for the whole canvas."
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "workspace": {
+            "type": "string"
+          },
+          "workspace_title": {
+            "type": "string"
+          },
+          "hits": {
+            "default": [],
+            "items": {
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "description": {
+                  "default": "",
+                  "type": "string"
+                },
+                "fragment": {
+                  "default": "",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "path",
+                "title"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "workspace",
+          "workspace_title"
+        ],
+        "type": "object"
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "codex_add",
+      "description": "Add a note under a codex or a note — where the mount lets you write.\n\nA note with children is a section: its text is the summary of what lies below\n(`python/test` — the testing standard in brief; its children — the details). The tree\nis at most four levels deep: codex / note / note / note.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "parent": {
+            "type": "string",
+            "description": "The codex or note to add under — a CODEX@ code or a path."
+          },
+          "slug": {
+            "type": "string",
+            "description": "The note's path segment — a-z, 0-9 and '-', free among its siblings."
+          },
+          "title": {
+            "type": "string",
+            "description": "What the note is, one line."
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "When to read it — the line a reader decides by whether to open it."
+          },
+          "body": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The text, markdown — skill_get('markdown'); write it now or later with\ncontent_set(code, \"body\", …)."
+          }
+        },
+        "required": [
+          "parent",
+          "slug",
+          "title"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "workspace": {
+            "type": "string"
+          },
+          "workspace_title": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace",
+          "workspace_title",
+          "code",
+          "path"
+        ],
+        "type": "object"
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "codex_update",
+      "description": "Change a note — its fields, its slug, its place. Only what you pass changes.\n\nMoving is `parent`: the note goes with its whole branch, within its codex, and the tree\nstays within four levels. `after` places it among its siblings. The text is content —\ncontent_set / content_replace / content_set_section / content_add with the field \"body\".",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "target": {
+            "type": "string",
+            "description": "The note — a CODEX@ code or a path. A codex itself is the person's."
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "New one-line name."
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "New \"when to read it\"; an empty string clears it."
+          },
+          "slug": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "New path segment — renames the path of everything below it too."
+          },
+          "parent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Move under this codex or note — a CODEX@ code or a path."
+          },
+          "after": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Place right after this sibling — a CODEX@ code or a path — or \"start\" to put\nit first."
+          }
+        },
+        "required": [
+          "target"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "workspace": {
+            "type": "string"
+          },
+          "workspace_title": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace",
+          "workspace_title",
+          "code",
+          "path"
+        ],
+        "type": "object"
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
       "name": "content_set",
-      "description": "Replace a content field of a TASK@, a STAGE@, a JOURNAL@ or a NOTE@ with `text`, whole.\n\nThis is how a field is first written — a plan after reading the code, a result at\nhand-over. Naming the files you read and the files you will change is what separates a\nplan from a promise.\n\nReturns a receipt only — the new length, since the field is the text you just sent.\nWatch it against the limit: going over is refused, not trimmed. To amend part of a\nfield, use content_replace / content_set_section / content_add instead of rewriting it.\n\nA `simple` task has only its context: constraints, criteria, plan, progress and result\nare refused there by every content tool until the type is raised with task_update.",
+      "description": "Replace a content field of a TASK@, STAGE@, JOURNAL@, NOTE@ or codex note (CODEX@) whole.\n\nThis is how a field is first written — a plan after reading the code, a result at\nhand-over. Naming the files you read and the files you will change is what separates a\nplan from a promise.\n\nReturns a receipt only — the new length, since the field is the text you just sent.\nWatch it against the limit: going over is refused, not trimmed. To amend part of a\nfield, use content_replace / content_set_section / content_add instead of rewriting it.\n\nA `simple` task has only its context: constraints, criteria, plan, progress and result\nare refused there by every content tool until the type is raised with task_update.",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {
           "code": {
             "type": "string",
-            "description": "Whose field to replace — a TASK@, STAGE@, JOURNAL@ or NOTE@ code."
+            "description": "Whose field to replace — a TASK@, STAGE@, JOURNAL@, NOTE@ or CODEX@ code."
           },
           "field": {
             "type": "string",
-            "description": "The field, by the name the answers show it under. TASK@: context,\nconstraints, criteria, plan, progress, result. STAGE@, JOURNAL@, NOTE@: body."
+            "description": "The field, by the name the answers show it under. TASK@: context,\nconstraints, criteria, plan, progress, result. STAGE@, JOURNAL@, NOTE@, CODEX@\n(a note, not a codex): body."
           },
           "text": {
             "type": "string",
@@ -2169,11 +2731,11 @@
         "properties": {
           "code": {
             "type": "string",
-            "description": "Whose field to edit — a TASK@, STAGE@, JOURNAL@ or NOTE@ code."
+            "description": "Whose field to edit — a TASK@, STAGE@, JOURNAL@, NOTE@ or CODEX@ code."
           },
           "field": {
             "type": "string",
-            "description": "TASK@: context, constraints, criteria, plan, progress, result.\nSTAGE@, JOURNAL@, NOTE@: body."
+            "description": "TASK@: context, constraints, criteria, plan, progress, result.\nSTAGE@, JOURNAL@, NOTE@, CODEX@ (a note, not a codex): body."
           },
           "find": {
             "type": "string",
@@ -2237,11 +2799,11 @@
         "properties": {
           "code": {
             "type": "string",
-            "description": "Whose field to edit — a TASK@, STAGE@, JOURNAL@ or NOTE@ code."
+            "description": "Whose field to edit — a TASK@, STAGE@, JOURNAL@, NOTE@ or CODEX@ code."
           },
           "field": {
             "type": "string",
-            "description": "TASK@: context, constraints, criteria, plan, progress, result.\nSTAGE@, JOURNAL@, NOTE@: body."
+            "description": "TASK@: context, constraints, criteria, plan, progress, result.\nSTAGE@, JOURNAL@, NOTE@, CODEX@ (a note, not a codex): body."
           },
           "heading": {
             "type": "string",
@@ -2308,11 +2870,11 @@
         "properties": {
           "code": {
             "type": "string",
-            "description": "Whose field to add to — a TASK@, STAGE@, JOURNAL@ or NOTE@ code."
+            "description": "Whose field to add to — a TASK@, STAGE@, JOURNAL@, NOTE@ or CODEX@ code."
           },
           "field": {
             "type": "string",
-            "description": "TASK@: context, constraints, criteria, plan, progress, result.\nSTAGE@, JOURNAL@, NOTE@: body."
+            "description": "TASK@: context, constraints, criteria, plan, progress, result.\nSTAGE@, JOURNAL@, NOTE@, CODEX@ (a note, not a codex): body."
           },
           "text": {
             "type": "string",
@@ -2370,13 +2932,13 @@
     },
     {
       "name": "delete",
-      "description": "Delete one entity. The code decides what goes, and what goes with it.\n\nTASK@ — the task and the whole branch under it, reversibly: it goes to the bin, and a\nperson can bring it back. You cannot: restoring is theirs, so say so rather than\ncreating a replacement.\nSTAGE@ — removed outright. A plan has no hidden steps; a step you decided against is\nclosed with stage_close(outcome=\"canceled\"), which keeps why. Deleting leaves a gap in\nthe numbering, and that is fine — numbers order the plan, they do not count it.\nNOTE@ — the task note, reversibly: it leaves the task's list, and a person can bring it\nback.\n\nA journal entry is not deletable, and neither is a group or a workspace.",
+      "description": "Delete one entity. The code decides what goes, and what goes with it.\n\nTASK@ — the task and the whole branch under it, reversibly: it goes to the bin, and a\nperson can bring it back. You cannot: restoring is theirs, so say so rather than\ncreating a replacement.\nSTAGE@ — removed outright. A plan has no hidden steps; a step you decided against is\nclosed with stage_close(outcome=\"canceled\"), which keeps why. Deleting leaves a gap in\nthe numbering, and that is fine — numbers order the plan, they do not count it.\nNOTE@ — the task note, reversibly: it leaves the task's list, and a person can bring it\nback.\nCODEX@ — a codex note, reversibly, and only alone: one with child notes is refused with\ntheir list — delete those first. Only where the mount lets you write; a codex itself is\nthe person's.\n\nA journal entry is not deletable, and neither is a group or a workspace.",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {
           "code": {
             "type": "string",
-            "description": "The entity to delete — a TASK@, STAGE@ or NOTE@ code."
+            "description": "The entity to delete — a TASK@, STAGE@, NOTE@ or CODEX@ (a note) code."
           }
         },
         "required": [
@@ -2583,7 +3145,7 @@
       "arguments": {
         "code": "SOURCE@0000000000"
       },
-      "refusal": "Error calling tool 'delete': 'SOURCE@0000000000' is not something this deletes — pass a TASK@ or STAGE@ or NOTE@ code."
+      "refusal": "Error calling tool 'delete': 'SOURCE@0000000000' is not something this deletes — pass a TASK@ or STAGE@ or NOTE@ or CODEX@ code."
     },
     {
       "tool": "interface_open",
@@ -2599,7 +3161,7 @@
         "field": "body",
         "text": "x"
       },
-      "refusal": "Error calling tool 'content_set': 'SOURCE@0000000000' has no content to edit — content_* works on TASK@ / STAGE@ / JOURNAL@ / NOTE@ codes."
+      "refusal": "Error calling tool 'content_set': 'SOURCE@0000000000' has no content to edit — content_* works on TASK@ / STAGE@ / JOURNAL@ / NOTE@ / CODEX@ codes."
     },
     {
       "tool": "content_set",
@@ -2608,7 +3170,7 @@
         "field": "body",
         "text": "x"
       },
-      "refusal": "Error calling tool 'content_set': 'WORKSPACE@0000000000' has no content to edit — content_* works on TASK@ / STAGE@ / JOURNAL@ / NOTE@ codes."
+      "refusal": "Error calling tool 'content_set': 'WORKSPACE@0000000000' has no content to edit — content_* works on TASK@ / STAGE@ / JOURNAL@ / NOTE@ / CODEX@ codes."
     },
     {
       "tool": "content_set",

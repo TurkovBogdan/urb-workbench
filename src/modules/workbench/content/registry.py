@@ -18,8 +18,10 @@ from src.modules.tasks.constants import (
     STAGE_CODE_PREFIX,
     TASK_CODE_PREFIX,
 )
+from src.modules.codex.constants import CODEX_CODE_PREFIX
 from src.modules.workbench.codes import code_prefix
 from src.modules.workbench.content.base import McpContentHandler
+from src.modules.workbench.content.codex_note import McpCodexNoteBodyHandler
 from src.modules.workbench.content.journal import McpJournalBodyHandler
 from src.modules.workbench.content.stage import McpStageBodyHandler
 from src.modules.workbench.content.task_note import McpTaskNoteBodyHandler
@@ -44,6 +46,7 @@ MCP_CONTENT_HANDLERS: dict[tuple[str, str], McpContentHandler] = {
         McpStageBodyHandler(),
         McpJournalBodyHandler(),
         McpTaskNoteBodyHandler(),
+        McpCodexNoteBodyHandler(),
     )
 }
 
@@ -59,6 +62,9 @@ _SET_ELSEWHERE = {
     (JOURNAL_CODE_PREFIX, "resolution"): "journal_resolve, once, together with closing the entry",
     (NOTE_CODE_PREFIX, "title"): "task_note_update",
     (NOTE_CODE_PREFIX, "description"): "task_note_update",
+    (CODEX_CODE_PREFIX, "title"): "codex_update",
+    (CODEX_CODE_PREFIX, "description"): "codex_update",
+    (CODEX_CODE_PREFIX, "slug"): "codex_update",
 }
 
 def content_prefixes() -> tuple[str, ...]:

@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING
 from src.modules.tasks.constants import GROUP_CODE_PREFIX, JOURNAL_CODE_PREFIX
 from src.modules.workbench.codes import bare_code, code_prefix
 from src.modules.workbench.contracts import Deletable, by_prefix
+from src.modules.workbench.entities.codex import CodexDeletion
 from src.modules.workbench.entities.tasks import NoteDeletion, StageDeletion, TaskDeletion
 from src.modules.workbench.scope import require_visible
 from src.modules.workspace.constants import WORKSPACE_CODE_PREFIX
@@ -27,7 +28,9 @@ from src.modules.workspace.constants import WORKSPACE_CODE_PREFIX
 if TYPE_CHECKING:  # fastmcp fork — backend only (via mcp_server(ctx))
     from fastmcp import FastMCP
 
-DELETABLE: dict[str, Deletable] = by_prefix(TaskDeletion(), StageDeletion(), NoteDeletion())
+DELETABLE: dict[str, Deletable] = by_prefix(
+    TaskDeletion(), StageDeletion(), NoteDeletion(), CodexDeletion()
+)
 
 # Why not — per type. The text reaches the agent as is, so it names the way out, not the ban.
 DELETE_REFUSALS: dict[str, str] = {
@@ -63,11 +66,14 @@ def register(mcp: "FastMCP") -> None:
         the numbering, and that is fine — numbers order the plan, they do not count it.
         NOTE@ — the task note, reversibly: it leaves the task's list, and a person can bring it
         back.
+        CODEX@ — a codex note, reversibly, and only alone: one with child notes is refused with
+        their list — delete those first. Only where the mount lets you write; a codex itself is
+        the person's.
 
         A journal entry is not deletable, and neither is a group or a workspace.
 
         Args:
-            code: The entity to delete — a TASK@, STAGE@ or NOTE@ code.
+            code: The entity to delete — a TASK@, STAGE@, NOTE@ or CODEX@ (a note) code.
         """
         prefix = code_prefix(code)
         refusal = DELETE_REFUSALS.get(prefix)

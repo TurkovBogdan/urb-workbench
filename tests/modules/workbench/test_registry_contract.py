@@ -144,7 +144,7 @@ async def test_the_handler_s_limit_applies(call, bound):
 
 
 async def test_a_registered_type_joins_the_content_refusal(call, bound):
-    with pytest.raises(ToolError, match="TASK@ / STAGE@ / JOURNAL@ / NOTE@ / STUB@ codes"):
+    with pytest.raises(ToolError, match="TASK@ / STAGE@ / JOURNAL@ / NOTE@ / CODEX@ / STUB@ codes"):
         await call("content_set", code="SOURCE@1", field="body", text="х")
 
 

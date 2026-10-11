@@ -28,6 +28,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from src.modules.workbench.content import register as _register_content
+from src.modules.workbench.tools.codex import register as _register_codex
 from src.modules.workbench.tools.delete import register as _register_delete
 from src.modules.workbench.tools.group import register as _register_group
 from src.modules.workbench.tools.interface import register as _register_interface
@@ -55,7 +56,8 @@ _INSTRUCTIONS = (
     "lasts as long as this connection.\n\n"
     "CODES. Every entity has a code that says what it is — WORKSPACE@ (a workspace), TASKGROUP@ "
     "(a standing theme inside one), TASK@, STAGE@ (a step of a task's plan), JOURNAL@ (a journal "
-    "entry), NOTE@ (a task note — a document written at a task). Pass a code back whole, exactly as you received it; never invent one. A code from "
+    "entry), NOTE@ (a task note — a document written at a task), CODEX@ (a codex or a note in "
+    "one). Pass a code back whole, exactly as you received it; never invent one. A code from "
     "another workspace is refused by name rather than acted on quietly — that refusal means you "
     "are in the wrong workspace, not that the entity is missing.\n\n"
     "EVERY ANSWER NAMES ITS WORKSPACE. Read it. It is the only way to notice that you are "
@@ -77,6 +79,13 @@ _INSTRUCTIONS = (
     "and you can make and re-word them — on request. Make one when they ask for it, not because "
     "the backlog looks untidy to you: three themes they recognise beat seven you invented. "
     "Deleting a group stays theirs, because undoing it is theirs.\n\n"
+    "CODEXES. Development rules that do not depend on the project — «Python backend», «Vue "
+    "frontend» — each a codex with a tree of notes, at most four levels deep. The person mounts "
+    "codexes into a workspace; together they are one canvas, and a path starts with a codex "
+    "slug: python/test/fixtures. Before work a codex covers, read codex_index and that codex's "
+    "codex_rules, then the notes you need. You write notes — never a codex — and only where the "
+    "mount allows it (agent_can_edit); keep them current when the work teaches you something "
+    "the rules should say.\n\n"
     "SKILLS. This server carries its own reference material — how it expects a brief, a plan "
     "and a journal to be written, and what its interface actually renders. skills_list() names "
     "what is available; skill_get(name, section?) returns it. Read skill_get('task-brief') "
@@ -89,10 +98,13 @@ _INSTRUCTIONS = (
     "schemas, option breakdowns, concepts the plan rests on, shown under the plan, on a task of "
     "any type; substantial documents, never a few paragraphs (those go into the plan or the "
     "journal); written at any stage of the work, and always when the user asks for one: "
-    "task_note_add, task_note_get, task_note_update; task_get lists them without text. CONTENT — the long markdown fields — is "
+    "task_note_add, task_note_get, task_note_update; task_get lists them without text. "
+    "Codexes: codex_index, codex_rules, codex_get, codex_tree, codex_search, codex_add, "
+    "codex_update. CONTENT — the long markdown fields — is "
     "edited by content_set / content_replace / content_set_section / content_add, addressed by "
     "the entity code and the field: TASK@ context, and from `standard` up constraints, "
-    "criteria, plan, progress, result; STAGE@ body; JOURNAL@ body; NOTE@ body. None of them "
+    "criteria, plan, progress, result; STAGE@ body; JOURNAL@ body; NOTE@ body; CODEX@ (a note) "
+    "body. None of them "
     "echoes the text you sent: content_replace "
     "and content_add answer with the SEAM of the edit, content_set_section with what it CUT, "
     "content_set with the new length. Plus delete(code), one door for every type, and "
@@ -111,6 +123,7 @@ def mcp_server(ctx: "McpServerContext") -> "FastMCP":
     _register_stage(mcp)
     _register_journal(mcp)
     _register_task_note(mcp)
+    _register_codex(mcp)
     _register_content(mcp)
     _register_delete(mcp)
     _register_skill(mcp)

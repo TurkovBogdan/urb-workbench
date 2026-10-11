@@ -36,6 +36,7 @@ from src.modules.workspace.crud.workspace import workspace_create
 async def db(config: Config):
     engine = await init_database(config)
     from src.core.database.runtime import Base
+    import src.modules.codex.models  # noqa: F401 — registers the codex tables
     import src.modules.notes.models  # noqa: F401 — the ``note_code`` FK target of task notes
     import src.modules.tasks.models  # noqa: F401 — registers the tasks tables
     import src.modules.workspace.models  # noqa: F401 — the ``workspace_code`` FK target

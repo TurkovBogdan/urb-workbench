@@ -28,6 +28,10 @@ from src.modules.tasks.constants import (
     TYPE_SIMPLE,
     TYPE_STANDARD,
 )
+from src.modules.codex.constants import BODY_MAX as CODEX_BODY_MAX
+from src.modules.codex.crud import codex as codex_crud
+from src.modules.codex.crud import mount as mount_crud
+from src.modules.codex.crud import note as codex_note_crud
 from src.modules.notes.constants import BODY_MAX as NOTE_BODY_MAX
 from src.modules.notes.crud import note as notes_crud
 from src.modules.tasks.crud import journal as journal_crud
@@ -50,6 +54,7 @@ FIELDS = [
     ("STAGE", "body", BODY_MAX),
     ("JOURNAL", "body", JOURNAL_BODY_MAX),
     ("NOTE", "body", NOTE_BODY_MAX),
+    ("CODEX", "body", CODEX_BODY_MAX),
 ]
 FIELD_IDS = [f"{prefix}.{field}" for prefix, field, _ in FIELDS]
 
@@ -81,7 +86,15 @@ async def note(task):
 
 
 @pytest.fixture
-async def codes(call, workspace, task, stage, entry, note) -> dict[str, str]:
+async def codex_note(workspace):
+    """A note of a codex mounted into the workspace with the agent's right to write."""
+    codex = await codex_crud.codex_create(slug="python", title="Python")
+    await mount_crud.mount_add(codex.code, workspace.code)
+    return await codex_note_crud.note_create(parent_code=codex.code, slug="test", title="Тесты")
+
+
+@pytest.fixture
+async def codes(call, workspace, task, stage, entry, note, codex_note) -> dict[str, str]:
     """The session bound to the workspace; a code per prefix, the way the agent passes it."""
     await call("workspace_use", workspace_code=workspace.code)
     return {
@@ -89,6 +102,7 @@ async def codes(call, workspace, task, stage, entry, note) -> dict[str, str]:
         "STAGE": f"STAGE@{stage.code}",
         "JOURNAL": f"JOURNAL@{entry.code}",
         "NOTE": f"NOTE@{note.code}",
+        "CODEX": f"CODEX@{codex_note.code}",
     }
 
 
@@ -107,6 +121,8 @@ async def stored(prefix: str, code: str, field: str) -> str:
         row = await stage_crud.stage_get(bare)
     elif prefix == "NOTE":
         row = await notes_crud.note_get(bare, include_deleted=True)
+    elif prefix == "CODEX":
+        row = await codex_note_crud.note_get(bare, include_deleted=True)
     else:
         row = await journal_crud.journal_get(bare)
     return getattr(row, field)
@@ -128,15 +144,26 @@ async def test_the_registry_holds_exactly_the_content_fields():
 async def test_every_long_text_column_has_a_handler_and_no_short_one_does():
     """Totality against the models, not against a list: a long markdown column added later
     without a handler fails here. "Long" is the line the module draws — wider than the 1024 of
-    ``evidence`` and ``resolution``, which are pointers and verdicts, not content."""
+    ``evidence`` and ``resolution``, which are pointers and verdicts, not content.
+
+    ``CODEX@`` names two tables; its content is the note's. A codex's own ``body`` — its rules — is
+    long too and deliberately has no handler: the codex is the person's, and the agent is refused
+    on it (``test_mcp_codex.py``)."""
     from sqlalchemy import String
 
+    from src.modules.codex.models import CodexNote
     from src.modules.notes.models.note import Note
     from src.modules.tasks.models.journal import TasksJournal
     from src.modules.tasks.models.stage import TasksStage
     from src.modules.tasks.models.task import TasksTask
 
-    models = {"TASK": TasksTask, "STAGE": TasksStage, "JOURNAL": TasksJournal, "NOTE": Note}
+    models = {
+        "TASK": TasksTask,
+        "STAGE": TasksStage,
+        "JOURNAL": TasksJournal,
+        "NOTE": Note,
+        "CODEX": CodexNote,
+    }
     long_columns = {
         (prefix, column.name)
         for prefix, model in models.items()
@@ -144,7 +171,7 @@ async def test_every_long_text_column_has_a_handler_and_no_short_one_does():
         if isinstance(column.type, String) and (column.type.length or 0) > 1024
     }
 
-    assert len(long_columns) == 9
+    assert len(long_columns) == 10
     assert long_columns == set(MCP_CONTENT_HANDLERS)
     for (prefix, field), handler in MCP_CONTENT_HANDLERS.items():
         assert handler.limit == models[prefix].__table__.columns[field].type.length

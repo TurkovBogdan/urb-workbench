@@ -45,7 +45,7 @@ def register(mcp: "FastMCP") -> None:
 
     @mcp.tool()
     async def content_set(code: str, field: str, text: str) -> AgentContentSet:
-        """Replace a content field of a TASK@, a STAGE@, a JOURNAL@ or a NOTE@ with `text`, whole.
+        """Replace a content field of a TASK@, STAGE@, JOURNAL@, NOTE@ or codex note (CODEX@) whole.
 
         This is how a field is first written — a plan after reading the code, a result at
         hand-over. Naming the files you read and the files you will change is what separates a
@@ -59,9 +59,10 @@ def register(mcp: "FastMCP") -> None:
         are refused there by every content tool until the type is raised with task_update.
 
         Args:
-            code: Whose field to replace — a TASK@, STAGE@, JOURNAL@ or NOTE@ code.
+            code: Whose field to replace — a TASK@, STAGE@, JOURNAL@, NOTE@ or CODEX@ code.
             field: The field, by the name the answers show it under. TASK@: context,
-                constraints, criteria, plan, progress, result. STAGE@, JOURNAL@, NOTE@: body.
+                constraints, criteria, plan, progress, result. STAGE@, JOURNAL@, NOTE@, CODEX@
+                (a note, not a codex): body.
             text: The new text — everything there now is discarded.
                 Markdown, rendered in the interface — skill_get('markdown').
         """
@@ -84,9 +85,9 @@ def register(mcp: "FastMCP") -> None:
         a window cut short mid-text). Read it: it is where a splice goes wrong.
 
         Args:
-            code: Whose field to edit — a TASK@, STAGE@, JOURNAL@ or NOTE@ code.
+            code: Whose field to edit — a TASK@, STAGE@, JOURNAL@, NOTE@ or CODEX@ code.
             field: TASK@: context, constraints, criteria, plan, progress, result.
-                STAGE@, JOURNAL@, NOTE@: body.
+                STAGE@, JOURNAL@, NOTE@, CODEX@ (a note, not a codex): body.
             find: The exact substring as it stands in the field.
             text: What replaces it.
                 Markdown, rendered in the interface — skill_get('markdown').
@@ -118,9 +119,9 @@ def register(mcp: "FastMCP") -> None:
         text is stored nowhere.
 
         Args:
-            code: Whose field to edit — a TASK@, STAGE@, JOURNAL@ or NOTE@ code.
+            code: Whose field to edit — a TASK@, STAGE@, JOURNAL@, NOTE@ or CODEX@ code.
             field: TASK@: context, constraints, criteria, plan, progress, result.
-                STAGE@, JOURNAL@, NOTE@: body.
+                STAGE@, JOURNAL@, NOTE@, CODEX@ (a note, not a codex): body.
             heading: The heading line, or the path to it when it repeats.
             text: The whole new section, normally starting with the heading again — leave it out
                 and the heading goes too. Spliced in verbatim.
@@ -154,9 +155,9 @@ def register(mcp: "FastMCP") -> None:
         sent. Read it: it shows exactly what your text ran into.
 
         Args:
-            code: Whose field to add to — a TASK@, STAGE@, JOURNAL@ or NOTE@ code.
+            code: Whose field to add to — a TASK@, STAGE@, JOURNAL@, NOTE@ or CODEX@ code.
             field: TASK@: context, constraints, criteria, plan, progress, result.
-                STAGE@, JOURNAL@, NOTE@: body.
+                STAGE@, JOURNAL@, NOTE@, CODEX@ (a note, not a codex): body.
             text: What to add, carrying its own leading/trailing blank lines.
                 Markdown, rendered in the interface — skill_get('markdown').
             position: start / end / before / after.

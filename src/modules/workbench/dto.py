@@ -22,6 +22,7 @@ from __future__ import annotations
 from pydantic import BaseModel, ConfigDict
 
 from src.core.utils.date import DatetimeUTCStr
+from src.modules.codex.dto import CodexCode
 from src.modules.tasks.dto import GroupCode, JournalCode, NoteCode, StageCode, TaskCode
 from src.modules.workspace.dto import WorkspaceCode
 
@@ -300,7 +301,94 @@ class AgentContentSectionSet(BaseModel):
     stopped_at: str | None = None
 
 
+# ── codex ─────────────────────────────────────────────────────────────────────
+# A mounted codex as the index shows it: the line the agent decides by (``description`` — when to
+# turn to it) and whether it may write there. The rules themselves are a separate read.
+class AgentCodexRow(BaseModel):
+    code: CodexCode
+    slug: str
+    title: str
+    description: str = ""
+    agent_can_edit: bool
+
+
+class AgentCodexIndex(AgentScope):
+    codexes: list[AgentCodexRow] = []
+
+
+class AgentCodexRules(AgentScope):
+    code: CodexCode
+    slug: str
+    title: str
+    rules: str = ""
+
+
+# A child is listed to be chosen, not read: no text, and ``children`` is how many it holds itself.
+class AgentCodexChild(BaseModel):
+    code: CodexCode
+    slug: str
+    title: str
+    description: str = ""
+    children: int = 0
+
+
+# A codex or a note, by code or path. ``kind`` says which; a codex carries no ``body`` here — its
+# rules come from codex_rules. ``parent_code`` is the parent note, or the codex for a top-level
+# note; ``writable`` — whether the agent may write notes of this codex in this workspace.
+class AgentCodexNode(AgentScope):
+    code: CodexCode
+    kind: str
+    path: str
+    codex_code: CodexCode
+    parent_code: CodexCode | None = None
+    title: str
+    description: str = ""
+    body: str = ""
+    writable: bool
+    children: list[AgentCodexChild] = []
+
+
+class AgentCodexTreeNode(BaseModel):
+    code: CodexCode
+    slug: str
+    title: str
+    children: list[AgentCodexTreeNode] = []
+
+
+class AgentCodexTree(AgentScope):
+    root: str
+    nodes: list[AgentCodexTreeNode] = []
+
+
+class AgentCodexHit(BaseModel):
+    code: CodexCode
+    path: str
+    title: str
+    description: str = ""
+    fragment: str = ""
+
+
+class AgentCodexSearch(AgentScope):
+    hits: list[AgentCodexHit] = []
+
+
+# After a write: where the note now is — the path is what changes on a rename or a move.
+class AgentCodexNoteWritten(AgentScope):
+    code: CodexCode
+    path: str
+
+
 __all__ = [
+    "AgentCodexChild",
+    "AgentCodexHit",
+    "AgentCodexIndex",
+    "AgentCodexNode",
+    "AgentCodexNoteWritten",
+    "AgentCodexRow",
+    "AgentCodexRules",
+    "AgentCodexSearch",
+    "AgentCodexTree",
+    "AgentCodexTreeNode",
     "AgentContentAdded",
     "AgentContentReplaced",
     "AgentContentSectionSet",
