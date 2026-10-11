@@ -4,7 +4,7 @@ The application's modules are stacked, and the stack is what lets one be removed
 touching its neighbours:
 
 - level 1 — ``workspace``, ``notes``: the base entities, importing no application module;
-- level 2 — ``tasks``: a domain on top of them;
+- level 2 — ``tasks``, ``codex``: domains on top of them;
 - level 3 — ``workbench``: the agent surface, built on every domain below it.
 
 A module of level N may import modules of levels below N only — not its own level, not above.
@@ -37,6 +37,7 @@ LEVELS = {
     "workspace": 1,
     "notes": 1,
     "tasks": 2,
+    "codex": 2,
     "workbench": 3,
 }
 

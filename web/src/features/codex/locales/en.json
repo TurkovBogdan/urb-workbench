@@ -1,0 +1,18 @@
+{
+  "error": {
+    "codex": {
+      "not_found": "Codex not found",
+      "deleted": "The codex is deleted — restore it first",
+      "not_deleted": "The codex is not deleted — nothing to restore"
+    },
+    "note": {
+      "not_found": "Codex note not found",
+      "deleted": "The note is deleted — restore it first",
+      "not_deleted": "The note is not deleted — nothing to restore",
+      "has_children": "The note has nested notes ({children}) — delete them first or delete the whole branch"
+    },
+    "mount": {
+      "not_found": "The codex is not mounted into this workspace"
+    }
+  }
+}

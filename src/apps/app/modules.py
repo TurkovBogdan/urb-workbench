@@ -8,6 +8,7 @@ match what the server actually brings up.
 from __future__ import annotations
 
 from src.core.module import Module
+from src.modules.codex import CodexModule
 from src.modules.core_changes import CoreChangesModule
 from src.modules.core_interface import CoreInterfaceModule
 from src.modules.core_mcp import CoreMcpModule
@@ -30,7 +31,8 @@ def build_modules() -> list[Module]:
     (read-only), ``core_changes`` — the data change feed behind the interface's live updates,
     ``workspace`` — workspaces (the shared data isolation level), ``notes`` — markdown documents
     with no owner, which the modules above link to,
-    ``tasks`` — the task store inside a workspace (groups, task tree, plan and journal), and
+    ``tasks`` — the task store inside a workspace (groups, task tree, plan and journal),
+    ``codex`` — development rules shared across projects, mounted into workspaces, and
     ``workbench`` — the agent surface over all of them: the ``workbench`` MCP server.
     A new module — add an instance to the list.
 
@@ -51,6 +53,7 @@ def build_modules() -> list[Module]:
         WorkspaceModule(),
         NotesModule(),
         TasksModule(),
+        CodexModule(),
         WorkbenchModule(),
     ]
 
