@@ -12,12 +12,18 @@
 // also when there are no notes: a person writes notes too, not only the agent. Adding creates a
 // placeholder note and opens it at once — the page is the form.
 //
+// A card reads like every other entry in the app: the handle leads it, the "⋯" closes its title
+// line, and a right click anywhere on the card opens the same menu.
+//
 // Order is changed by dragging a card by its handle, and saved whole: in a grid a card has no
 // single neighbour to name, so "after which one" is not enough to say where it landed.
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { useDraggable } from 'vue-draggable-plus'
+import { IconExternalLink, IconFileText, IconTrash } from '@tabler/icons-vue'
 
+import ActionMenu, { type ActionMenuItem } from '@/components/ActionMenu.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import DragHandle from '@/components/DragHandle.vue'
 
@@ -42,6 +48,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const router = useRouter()
 
 // ── Order ─────────────────────────────────────────────────────────────────────
 // The cards render a local copy of the list, and the library reorders THAT copy the moment the
@@ -120,6 +127,38 @@ async function remove(): Promise<void> {
 const confirmText = computed(() =>
   t('tasks.note.delete_confirm.text', { title: removing.value?.title ?? '' }),
 )
+
+// ── Menu ──────────────────────────────────────────────────────────────────────
+// The same items in the same order as a task row's menu: the ways to open first, then the rest. The
+// list keeps only whose menu is open, to mark that card while the pointer is on the items.
+const openMenu = ref<string | null>(null)
+const menus = new Map<string, InstanceType<typeof ActionMenu>>()
+
+function setMenu(code: string, open: boolean): void {
+  if (open) openMenu.value = code
+  else if (openMenu.value === code) openMenu.value = null
+}
+
+function bindMenu(code: string, menu: unknown): void {
+  if (menu) menus.set(code, menu as InstanceType<typeof ActionMenu>)
+  else menus.delete(code)
+}
+
+function openInNewTab(note: TaskNoteRow): void {
+  const { href } = router.resolve({ name: 'tasks-task-note', params: { code: props.taskCode, note: note.code } })
+  window.open(href, '_blank', 'noopener')
+}
+
+function menuItems(note: TaskNoteRow): ActionMenuItem[] {
+  const items: ActionMenuItem[] = [
+    { key: 'open-tab', icon: IconExternalLink, label: t('tasks.note.open_new_tab'), hotkey: 'T', run: () => openInNewTab(note) },
+    { key: 'open', icon: IconFileText, label: t('tasks.note.open'), hotkey: 'E', run: () => emit('open', note.code) },
+  ]
+  if (!props.disabled) {
+    items.push({ key: 'delete', icon: IconTrash, label: t('tasks.note.delete'), danger: true, hotkey: 'D', divider: true, run: () => ask(note) })
+  }
+  return items
+}
 </script>
 
 <template>
@@ -140,20 +179,27 @@ const confirmText = computed(() =>
       :key="note.code"
       :data-code="note.code"
       class="task-note drag-row"
+      :class="{ 'task-note--menu': openMenu === note.code }"
       variant="outlined"
       rounded="lg"
       link
       @click="emit('open', note.code)"
+      @contextmenu="menus.get(note.code)?.openAt($event)"
     >
+      <DragHandle v-if="!props.disabled" class="task-note__handle" :label="t('tasks.note.drag')" @click.stop />
       <div class="task-note__head">
         <span class="task-note__title" :title="note.title">{{ note.title }}</span>
-        <DragHandle v-if="!props.disabled" :label="t('tasks.note.drag')" @click.stop />
+        <ActionMenu
+          :ref="(menu) => bindMenu(note.code, menu)"
+          class="task-note__menu"
+          :open="openMenu === note.code"
+          :items="menuItems(note)"
+          :code="note.code"
+          :label="t('tasks.note.actions')"
+          @update:open="setMenu(note.code, $event)"
+        />
       </div>
       <p v-if="note.description" class="task-note__description">{{ note.description }}</p>
-      <!-- Deleting is rare and asks first, so it is a quiet word in the corner, not a menu. -->
-      <button v-if="!props.disabled" type="button" class="task-note__delete" @click.stop="ask(note)">
-        {{ t('tasks.note.delete') }}
-      </button>
     </VCard>
     </div>
 
@@ -183,7 +229,7 @@ const confirmText = computed(() =>
 }
 
 /* 16px on the left, as in the cards above: the note's title stands on the line of theirs. The right
-   side is tighter — the handle's own box makes up the rest. */
+   side is tighter — the "⋯" button's own box makes up the rest. */
 .task-note {
   position: relative;
   display: flex;
@@ -192,6 +238,19 @@ const confirmText = computed(() =>
   min-height: 72px;
   padding: 12px 8px 12px 16px;
 }
+
+/* The handle sits in the card's left padding, level with the title line, out of the flow: the title
+   keeps its 16px whether the handle is shown or not. The glyph is centred in its box, so a box
+   shifted 2px past the edge still ends before the title starts. */
+.task-note__handle {
+  position: absolute;
+  top: 12px;
+  left: -2px;
+}
+
+/* While its menu is open the card stays as it looks under the pointer: the pointer has gone onto
+   the items, and only this mark says which note they will act on. */
+.task-note--menu { border-color: var(--gc-ink, var(--accent)); }
 
 .task-note__head {
   display: flex;
@@ -228,44 +287,6 @@ const confirmText = computed(() =>
   line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
-}
-
-/* A text button in the small type of a mark, shown only on the card under the pointer — a delete
-   on every card at once would be louder than the notes — and red only when aimed at. It is pinned
-   to the bottom-right corner, out of the flow: the card is as tall as its title and description,
-   and delete lines up across a row of cards of different text lengths. */
-.task-note__delete {
-  opacity: 0;
-  position: absolute;
-  right: 12px;
-  bottom: 6px;
-  /* Over the description's last line, the card's own surface with a short fade on the left: a long
-     description slides under the word instead of running into it. */
-  padding: 2px 0 2px 24px;
-  background: linear-gradient(
-    to right,
-    transparent,
-    rgb(var(--v-theme-surface)) 20px
-  );
-  font: inherit;
-  font-size: 11px;
-  line-height: 1;
-  color: var(--text-faint);
-  border: none;
-  cursor: pointer;
-  transition: opacity 0.18s ease, color 0.12s ease;
-}
-
-/* Keyboard too: Tab into the card brings it out the same way the pointer does. */
-.task-note:hover .task-note__delete,
-.task-note:focus-within .task-note__delete { opacity: 1; }
-
-.task-note__delete:hover,
-.task-note__delete:focus-visible { color: var(--error); }
-
-/* A finger does not hover: on a touch screen it stays visible, as the drag handle does. */
-@media (hover: none) {
-  .task-note__delete { opacity: 1; }
 }
 
 .task-note--ghost { opacity: 0.4; }

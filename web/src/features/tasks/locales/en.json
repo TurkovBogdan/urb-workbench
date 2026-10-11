@@ -207,6 +207,9 @@
     "new_title": "New note",
     "list": "Task notes",
     "drag": "Drag the note",
+    "actions": "Actions",
+    "open": "Open",
+    "open_new_tab": "Open in new tab",
     "delete": "Delete",
     "delete_confirm": {
       "title": "Delete the note?",
