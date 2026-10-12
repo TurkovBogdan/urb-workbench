@@ -13,8 +13,8 @@ export interface ActionMenuItem {
   disabled?: boolean
   /**
    * The key that runs the item while the menu is open, as written on it: a Latin letter by the
-   * action's meaning — `E` edit, `D` delete, `C` cancel — or a digit where one was asked for
-   * explicitly. It stands next to the item.
+   * action's meaning — `E` edit, `D` delete — or a digit where one was asked for explicitly. `C`
+   * is taken by the menu's own "Copy code". It stands next to the item.
    */
   hotkey?: string
   /** The item opens a new block: a divider goes above it. */
@@ -34,7 +34,7 @@ export interface ActionMenuItem {
 // KEYS ARE A PROPERTY OF THE ITEM, not a handler next to the menu: the key drawn by an item and
 // the key that runs it come from the same field and cannot drift apart. Matched by `code`, not by
 // the character, so `E` works in the Russian layout too and a digit works on the keypad.
-import { onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { IconCheck, IconCopy, IconDotsVertical } from '@tabler/icons-vue'
 
@@ -64,14 +64,33 @@ const { openAt, fromButton, placement } = usePointerMenu(
   open,
 )
 
-// The menu would close on the click and take the check mark with it — so the item holds the menu
-// open just long enough for the check to be seen, then closes it itself.
-const COPIED_MARK_MS = 700
 const { copy, isCopied } = useClipboard()
 
-async function copyCode(code: string) {
-  await copy(code)
-  setTimeout(() => { open.value = false }, COPIED_MARK_MS)
+// "Copy code" is the menu's own item, and C is reserved for it in every menu that has a code.
+const COPY_KEY = 'copy-code'
+// Closing at once would take the check mark away unseen — the menu stays just long enough to show it.
+const COPIED_MARK_MS = 350
+let closeTimer: ReturnType<typeof setTimeout> | undefined
+
+const entries = computed<ActionMenuItem[]>(() => {
+  const code = props.code
+  if (!code) return props.items
+  const copyItem: ActionMenuItem = {
+    key: COPY_KEY,
+    icon: isCopied(code) ? IconCheck : IconCopy,
+    label: t('common.action.copy_code'),
+    hotkey: 'C',
+    run: () => { void copy(code) },
+  }
+  return [copyItem, ...props.items]
+})
+
+// One path for a click and a key, so both close the menu the same way.
+function activate(item: ActionMenuItem) {
+  if (item.disabled) return
+  item.run()
+  if (item.key === COPY_KEY) closeTimer = setTimeout(() => { open.value = false }, COPIED_MARK_MS)
+  else open.value = false
 }
 
 const HOTKEY = /^(?:Key([A-Z])|(?:Digit|Numpad)([1-9]))$/
@@ -80,19 +99,22 @@ function runHotkey(event: KeyboardEvent) {
   if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || event.repeat) return
   const match = HOTKEY.exec(event.code)
   const key = match?.[1] ?? match?.[2]
-  const item = key && props.items.find((candidate) => candidate.hotkey === key)
+  const item = key && entries.value.find((candidate) => candidate.hotkey === key)
   if (!item || item.disabled) return
   event.preventDefault()
-  open.value = false
-  item.run()
+  activate(item)
 }
 
 watch(open, (isOpen) => {
+  clearTimeout(closeTimer)
   if (isOpen) window.addEventListener('keydown', runHotkey)
   else window.removeEventListener('keydown', runHotkey)
 })
 
-onBeforeUnmount(() => window.removeEventListener('keydown', runHotkey))
+onBeforeUnmount(() => {
+  clearTimeout(closeTimer)
+  window.removeEventListener('keydown', runHotkey)
+})
 
 defineExpose({ openAt })
 </script>
@@ -118,21 +140,15 @@ defineExpose({ openAt })
       <!-- A right click on the menu itself does nothing: the browser's own menu would open on top
            of ours and hide it. -->
       <VList density="compact" @contextmenu.prevent>
-        <!-- `.stop` keeps the click from the menu's content: that click would close it at once. -->
-        <VListItem
-          v-if="props.code"
-          :prepend-icon="isCopied(props.code) ? IconCheck : IconCopy"
-          @click.stop="copyCode(props.code)"
-        >
-          <VListItemTitle>{{ t('common.action.copy_code') }}</VListItemTitle>
-        </VListItem>
-        <template v-for="item in props.items" :key="item.key">
+        <!-- `.stop` keeps the click from the menu's content, which would close it at once: closing
+             is `activate`'s, so "Copy code" can hold the menu open for its check mark. -->
+        <template v-for="item in entries" :key="item.key">
           <VDivider v-if="item.divider" class="my-1" />
           <VListItem
             :prepend-icon="item.icon"
             :disabled="item.disabled"
             :class="{ 'action-menu__item--danger': item.danger }"
-            @click="item.run()"
+            @click.stop="activate(item)"
           >
             <VListItemTitle>{{ item.label }}</VListItemTitle>
             <template v-if="item.hotkey" #append>

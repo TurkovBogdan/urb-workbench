@@ -34,7 +34,7 @@ const menu = ref<InstanceType<typeof ActionMenu>>()
 const menuOpen = ref(false)
 
 // The key is a field of the item: the menu draws it and runs the item on it.
-// Letters by meaning — E edit, D delete, C cancel; a digit only where one was asked for
+// Letters by meaning — E edit, D delete; C is the menu's own "Copy code"; a digit only where one was asked for
 const items = computed<ActionMenuItem[]>(() => [
   { key: 'edit', icon: IconPencil, label: 'Edit', hotkey: 'E', run: edit },
   { key: 'delete', icon: IconTrash, label: 'Delete', danger: true, hotkey: 'D', run: remove },

@@ -793,7 +793,7 @@
     },
     "action-menu": {
       "in_context": "In a list row",
-      "in_context_note": "This is how it sits on a task, a group and a workspace. Right-click anywhere on the row — the menu opens at the pointer, and the row stays marked while it is open. With the menu open, the letter next to an item runs it: E edit, D delete, C cancel, W and S up and down — in any layout. Shift with a right click keeps the browser's own menu.",
+      "in_context_note": "This is how it sits on a task, a group and a workspace. Right-click anywhere on the row — the menu opens at the pointer, and the row stays marked while it is open. With the menu open, the letter next to an item runs it: C copy code, E edit, D delete, W and S up and down — in any layout. Shift with a right click keeps the browser's own menu.",
       "row_title": "Configurable Pro: first phase of the new pricing",
       "actions": "Actions",
       "edit": "Edit",
