@@ -176,11 +176,6 @@ def test_diagram_layout_matches_the_registry():
     assert _number(diagrams, "DEFAULT_DIAGRAM_HEIGHT") == _default("interface_diagram_max_height")
 
 
-# The research list layout was checked here too while it was an interface setting. The key
-# `interface_list_research_view` was removed along with the section (2026-09-20): the value set
-# remains only in the frontend (`constants/lists.ts`), and there is nothing to check it against.
-
-
 # Option labels live in the dictionary by code (`composables/useAppearanceOptions.ts`), and the
 # constants keep only codes and proper names. A miss here is quiet: `vue-i18n` renders the key path,
 # and the option shows in the list as `settings.interface.option.font.lora.note`.

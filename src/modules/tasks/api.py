@@ -96,6 +96,7 @@ from src.modules.tasks.errors import (
     TASK_NOT_FOUND,
     TaskRuleError,
 )
+from src.modules.tasks.rules import task_accepts_edits
 from src.modules.tasks.dto import (
     GroupListRow,
     GroupRow,
@@ -527,7 +528,7 @@ def _live(row: TasksTask) -> None:
     409, not 404: the record exists and the person sees it in the deleted list — this operation
     just does not apply to it right now.
     """
-    if row.deleted_at is not None:
+    if not task_accepts_edits(row):
         raise ApiError.conflict("Task is deleted — restore it first", code=TASK_DELETED)
 
 

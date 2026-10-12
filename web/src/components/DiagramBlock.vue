@@ -113,8 +113,11 @@ const family = computed(() =>
 
 // Block styling goes to CSS as variables: alignment via auto margins (the block is as wide as its
 // content, so that is how centering is done), the height cap as `none` when it has been lifted.
+// `--diagram-justify` places the picture inside the block when the block is wider than the picture
+// (the editor stretches it to the column, so a double click anywhere on it opens the viewer).
 const frame = computed(() => ({
   '--diagram-side-margin': diagramAlign(settings.diagrams.align) === 'center' ? 'auto' : '0',
+  '--diagram-justify': diagramAlign(settings.diagrams.align) === 'center' ? 'center' : 'flex-start',
   '--diagram-max-height':
     settings.diagrams.maxHeight === NO_DIAGRAM_HEIGHT ? 'none' : `${settings.diagrams.maxHeight}px`,
 }))
@@ -294,7 +297,16 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <CodeBlock v-if="unsupported" :code="code" lang="mermaid" variant="icon" />
+  <!-- `actions` — controls of the place the diagram sits in (the editor's "Edit"). They go on the
+       caption line, at its right end: inside the picture's frame and level with the hint, however
+       narrow the picture. A diagram drawn as its source gets the same line under the listing, so it
+       can still be acted on — a broken diagram is exactly the one that needs editing. -->
+  <div v-if="unsupported">
+    <CodeBlock :code="code" lang="mermaid" variant="icon" />
+    <div v-if="$slots.actions" class="diagram__hint">
+      <span class="diagram__actions"><slot name="actions" /></span>
+    </div>
+  </div>
 
   <div v-else-if="!svg" class="diagram-loading">
     <VProgressCircular indeterminate size="16" width="2" />
@@ -306,6 +318,7 @@ onBeforeUnmount(() => {
     <figcaption class="diagram__hint">
       <IconMaximize :size="13" stroke-width="2" />
       {{ t('common.diagram.open_hint') }}
+      <span v-if="$slots.actions" class="diagram__actions"><slot name="actions" /></span>
     </figcaption>
   </figure>
 
@@ -396,7 +409,7 @@ onBeforeUnmount(() => {
    stops reading top to bottom along one vertical. */
 .diagram__preview {
   display: flex;
-  justify-content: flex-start;
+  justify-content: var(--diagram-justify, flex-start);
 }
 
 /* The preview is always fitted: the diagram is examined in fullscreen, not here, so there is no
@@ -419,6 +432,16 @@ onBeforeUnmount(() => {
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--text-faint);
+}
+
+/* The caption line's right end. The hint's monospace is not passed on: a button there speaks in
+   the interface's type, like every other button. */
+.diagram__actions {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+  padding-left: 12px;
+  font-family: var(--font);
 }
 
 .viewer {

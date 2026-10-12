@@ -68,6 +68,18 @@ async def task_note_task(note_code: str) -> str | None:
     return row.task_code if row else None
 
 
+async def task_note_owner(s, note_code: str) -> TasksTask | None:
+    """The task row holding a note, read in the caller's transaction; ``None`` — no task's note.
+
+    Takes the session rather than opening one: a write to the note decides by this row whether
+    it may go ahead, and the answer must come from the same transaction the write lands in.
+    """
+    stmt = select(TasksTask).join(TasksNote, TasksNote.task_code == TasksTask.code).where(
+        TasksNote.note_code == note_code
+    )
+    return (await s.execute(stmt)).scalar_one_or_none()
+
+
 async def task_note_reorder(task_code: str, codes: list[str]) -> None:
     """Put the named notes of a task in this order, top to bottom.
 
@@ -94,4 +106,10 @@ async def task_note_reorder(task_code: str, codes: list[str]) -> None:
             row.sort = top - position * SORT_STEP
 
 
-__all__ = ["task_note_add", "task_note_list", "task_note_reorder", "task_note_task"]
+__all__ = [
+    "task_note_add",
+    "task_note_list",
+    "task_note_owner",
+    "task_note_reorder",
+    "task_note_task",
+]

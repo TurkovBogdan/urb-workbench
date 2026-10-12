@@ -291,9 +291,10 @@
   margin-bottom: 0;
 }
 
-/* EDITING: a code block is a `<pre>` with editable content, not a mounted `CodeBlock`. Border,
-   header, size and margins mirror the viewer component — there is no highlighting and cannot be,
-   only non-editable text can be highlighted. */
+/* A bare `pre` in a body. Neither zone draws one any more — the viewer mounts `CodeBlock`, the
+   editor its own node view (editor/blocks/CodeBlockView.vue), and both restate these properties
+   with more specific rules — but the listing inside the viewer's block still takes `tab-size` and
+   `white-space` from here, so the rules stay as the body's baseline. */
 .md-body pre {
   font-family: var(--font-mono);
   font-size: var(--reading-code-size, 12px);
@@ -304,19 +305,6 @@
   border: 1px solid var(--border-soft);
   border-radius: var(--radius-sm);
   overflow: hidden;
-}
-
-/* The language header — a block without a language has none at all. */
-.md-body pre[data-language]:not([data-language=""])::before {
-  content: attr(data-language);
-  display: block;
-  padding: 6px 10px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border-soft);
-  color: var(--text-muted);
-  font-size: 11px;
-  text-transform: lowercase;
-  user-select: none;
 }
 
 /* The app's global style paints ANY `code` in the accent colour with an outline — inside `pre`
@@ -429,9 +417,10 @@
 /* A link in running text is underlined, not just coloured: colour is the one difference that
    vanishes for a colour-blind reader, and in a body this dense a blue word is easy to miss. The
    line is faint and dropped below the baseline to mark the word without striking through
-   descenders; hover brings it to full strength. `md-ref` is excluded — it has its own shape, and
-   an underline would only smear it. */
-.md-body a:not(.md-ref) {
+   descenders; hover brings it to full strength. The pill is excluded — it has its own shape, and
+   an underline would only smear it: the viewer's pill is the link itself (`md-ref`), the editor's
+   carries its link inside (`md-ref-label`). */
+.md-body a:not(.md-ref, .md-ref-label) {
   color: rgb(var(--v-theme-primary));
   text-decoration: underline;
   text-decoration-color: color-mix(in srgb, rgb(var(--v-theme-primary)) 40%, transparent);
@@ -439,30 +428,65 @@
   text-underline-offset: 0.18em;
 }
 
-.md-body a:not(.md-ref):hover {
+.md-body a:not(.md-ref, .md-ref-label):hover {
   text-decoration-color: currentColor;
 }
 
 /* ── Entity reference ─────────────────────────────────────── */
 
-/* `TYPE@<code>` — a compact inline pill with a link glyph. In prose it reads like a footnote: the
-   label is a short hash (or the resolved title), the full code sits in the tooltip and the URL.
-   In the viewer it is an `<a>`, in the editor a `<span>` (a click inside the document places the
-   caret rather than navigating), so the rule targets a class, not a tag. */
+/* `TYPE@<code>` — a compact inline pill with its type's glyph. The label is the code; what the
+   entity is shows in the hover card (`EntityPreviewPopup.vue`). In the viewer the pill is an
+   `<a>`, in the editor a `<span>` holding its own link (`EntityRefView.vue`), so the rule targets
+   a class, not a tag. The generic link glyph stays as the fallback for a type that has no glyph of
+   its own. */
 .md-body {
   --md-ref-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 15l6-6'/%3E%3Cpath d='M11 6l.463-.536a5 5 0 0 1 7.071 7.072L18 13'/%3E%3Cpath d='M13 18l-.397.534a5.07 5.07 0 0 1-7.127 0 4.97 4.97 0 0 1 0-7.071L6 11'/%3E%3C/svg%3E");
 }
 
+/* One Tabler glyph per type — the one the interface already shows for that thing, so a pill reads
+   the way its section does: a task `square-check`, a group `sitemap` and the knowledge base `book`
+   (the sidebar), a workspace `layout-grid`, stages `list-check` and the journal `notebook` (the
+   home page), a task note `file-text` (its open action). */
+.md-body .md-ref--task {
+  --md-ref-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'/%3E%3Cpath d='M9 12l2 2l4-4'/%3E%3C/svg%3E");
+}
+
+.md-body .md-ref--taskgroup {
+  --md-ref-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 17a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v2a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2l0 -2'/%3E%3Cpath d='M15 17a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v2a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2l0 -2'/%3E%3Cpath d='M9 5a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v2a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2l0 -2'/%3E%3Cpath d='M6 15v-1a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v1'/%3E%3Cpath d='M12 9l0 3'/%3E%3C/svg%3E");
+}
+
+.md-body .md-ref--stage {
+  --md-ref-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 5.5l1.5 1.5l2.5 -2.5'/%3E%3Cpath d='M3.5 11.5l1.5 1.5l2.5 -2.5'/%3E%3Cpath d='M3.5 17.5l1.5 1.5l2.5 -2.5'/%3E%3Cpath d='M11 6l9 0'/%3E%3Cpath d='M11 12l9 0'/%3E%3Cpath d='M11 18l9 0'/%3E%3C/svg%3E");
+}
+
+.md-body .md-ref--journal {
+  --md-ref-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 4h11a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-11a1 1 0 0 1 -1 -1v-14a1 1 0 0 1 1 -1m3 0v18'/%3E%3Cpath d='M13 8l2 0'/%3E%3Cpath d='M13 12l2 0'/%3E%3C/svg%3E");
+}
+
+.md-body .md-ref--note {
+  --md-ref-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 3v4a1 1 0 0 0 1 1h4'/%3E%3Cpath d='M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2'/%3E%3Cpath d='M9 9l1 0'/%3E%3Cpath d='M9 13l6 0'/%3E%3Cpath d='M9 17l6 0'/%3E%3C/svg%3E");
+}
+
+.md-body .md-ref--workspace {
+  --md-ref-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4'/%3E%3Cpath d='M14 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4'/%3E%3Cpath d='M4 15a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4'/%3E%3Cpath d='M14 15a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4'/%3E%3C/svg%3E");
+}
+
+.md-body .md-ref--codex {
+  --md-ref-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 19a9 9 0 0 1 9 0a9 9 0 0 1 9 0'/%3E%3Cpath d='M3 6a9 9 0 0 1 9 0a9 9 0 0 1 9 0'/%3E%3Cpath d='M3 6l0 13'/%3E%3Cpath d='M12 6l0 13'/%3E%3Cpath d='M21 6l0 13'/%3E%3C/svg%3E");
+}
+
 .md-body .md-ref {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 3px;
   font-family: var(--font-mono);
   font-size: 0.78em;
   line-height: 1;
-  padding: 1.5px 6px 1.5px 5px;
+  /* The left padding holds the glyph: 4px of edge, the glyph, 3px to the code. */
+  padding: 1.5px 5px 1.5px calc(4px + 1.1em + 3px);
   margin: 0 1px;
-  border-radius: 9px;
+  /* A tag, not a capsule: the same slight rounding as the other small plates of the interface. */
+  border-radius: 4px;
   color: rgb(var(--v-theme-primary));
   background: color-mix(in srgb, rgb(var(--v-theme-primary)) 9%, transparent);
   border: 1px solid color-mix(in srgb, rgb(var(--v-theme-primary)) 22%, transparent);
@@ -472,31 +496,52 @@
   transition: background 0.12s ease, border-color 0.12s ease;
 }
 
+/* The glyph is laid over the left padding, not placed in the row. As a flex item it decided the
+   pill's baseline — empty, so its bottom edge — and the code rode above the line; aligning the code
+   by baseline instead left it off the glyph's centre by half a pixel, which read as the text
+   jumping from one glyph to the next. Out of the flow, the code is the pill's only item: it sits on
+   the line of the text around it, in the middle of the pill, and the glyph is centred on the pill.
+   In `em` of the pill's own text, so the glyph follows the scale; a little over the text size — at
+   cap height it read as a speck next to the code. */
 .md-body .md-ref::before {
   content: "";
-  flex: none;
-  /* `cap` is the cap height of the current font, so the glyph follows the text it sits in instead
-     of freezing at a size chosen for one scale. The px pair is the fallback for engines without
-     this unit. */
-  width: 11px;
-  height: 11px;
-  width: 1cap;
-  height: 1cap;
+  position: absolute;
+  left: 4px;
+  top: 50%;
+  width: 1.1em;
+  height: 1.1em;
+  transform: translateY(-50%);
   background: currentColor;
   -webkit-mask: var(--md-ref-icon) center / contain no-repeat;
   mask: var(--md-ref-icon) center / contain no-repeat;
 }
 
-/* Hover only on the viewer's link: in the editor the pill leads nowhere, and highlighting it under
-   the pointer would promise a navigation that will not happen. */
-.md-body a.md-ref {
+/* Both zones open the entity on click, so both answer the pointer the same way. */
+.md-body a.md-ref,
+.md-body .md-ref--editable {
   cursor: pointer;
 }
 
-.md-body a.md-ref:hover {
+.md-body a.md-ref:hover,
+.md-body .md-ref--editable:hover {
   text-decoration: none;
   background: color-mix(in srgb, rgb(var(--v-theme-primary)) 18%, transparent);
   border-color: color-mix(in srgb, rgb(var(--v-theme-primary)) 45%, transparent);
+}
+
+/* A code whose entity does not exist: red, and the type's glyph gives way to Tabler `trash` — the
+   pill says at a glance that it leads nowhere, before anyone hovers it. The state comes from the
+   preview (`md-ref--missing`), so it holds in both zones; two classes outweigh the type's one. */
+.md-body .md-ref.md-ref--missing {
+  --md-ref-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 7l16 0'/%3E%3Cpath d='M10 11l0 6'/%3E%3Cpath d='M14 11l0 6'/%3E%3Cpath d='M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12'/%3E%3Cpath d='M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3'/%3E%3C/svg%3E");
+  color: rgb(var(--v-theme-error));
+  background: color-mix(in srgb, rgb(var(--v-theme-error)) 9%, transparent);
+  border-color: color-mix(in srgb, rgb(var(--v-theme-error)) 28%, transparent);
+}
+
+.md-body .md-ref.md-ref--missing:hover {
+  background: color-mix(in srgb, rgb(var(--v-theme-error)) 16%, transparent);
+  border-color: color-mix(in srgb, rgb(var(--v-theme-error)) 50%, transparent);
 }
 
 /* ── Images ───────────────────────────────────────────────── */

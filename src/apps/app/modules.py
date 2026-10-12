@@ -8,13 +8,16 @@ match what the server actually brings up.
 from __future__ import annotations
 
 from src.core.module import Module
+from src.modules.codex import CodexModule
 from src.modules.core_changes import CoreChangesModule
 from src.modules.core_interface import CoreInterfaceModule
+from src.modules.core_lookup import CoreLookupModule
 from src.modules.core_mcp import CoreMcpModule
 from src.modules.core_monitoring import CoreMonitoringModule
 from src.modules.core_setup import CoreSetupModule
 from src.modules.notes import NotesModule
 from src.modules.tasks import TasksModule
+from src.modules.workbench import WorkbenchModule
 from src.modules.workspace import WorkspaceModule
 
 
@@ -27,14 +30,17 @@ def build_modules() -> list[Module]:
     document and diagram styling), ``core_monitoring`` — the jobs section (list +
     runs + logs, read-only), ``core_mcp`` — introspection of the modules mounted as MCP servers
     (read-only), ``core_changes`` — the data change feed behind the interface's live updates,
-    ``workspace`` — workspaces (the shared data isolation level), ``notes`` — markdown documents
+    ``core_lookup`` — what an entity code stands for, for codes of any module, ``workspace`` — workspaces (the shared data isolation level), ``notes`` — markdown documents
     with no owner, which the modules above link to,
-    and ``tasks`` — the task store inside a workspace (groups, task tree, plan and journal).
+    ``tasks`` — the task store inside a workspace (groups, task tree, plan and journal),
+    ``codex`` — development rules shared across projects, mounted into workspaces, and
+    ``workbench`` — the agent surface over all of them: the ``workbench`` MCP server.
     A new module — add an instance to the list.
 
     **The order is dependencies, not taste.** Level-1 modules (``workspace``, ``notes``) come
     before the ones that reference them: the ``configure()`` of the modules above registers their
-    counters in the workspace, and there is nothing to register into in a module not yet built. Between other modules'
+    counters in the workspace, and there is nothing to register into in a module not yet built.
+    ``workbench`` (level 3) is last: it serves every domain module below it. Between other modules'
     migration branches the order is set not by this list but by ``depends_on`` in the revisions
     themselves.
     """
@@ -45,9 +51,13 @@ def build_modules() -> list[Module]:
         CoreMcpModule(),
         # Before the data modules: they declare their entities in it from their ``configure()``.
         CoreChangesModule(),
+        # Before the data modules too: they register their code prefixes in it.
+        CoreLookupModule(),
         WorkspaceModule(),
         NotesModule(),
         TasksModule(),
+        CodexModule(),
+        WorkbenchModule(),
     ]
 
 

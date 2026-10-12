@@ -1,8 +1,8 @@
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch, type Ref } from 'vue'
 
 /**
  * An action menu that opens two ways — from its "⋯" button and on a right click at the pointer —
- * and behaves the same on every surface that has one (a task row, a group card).
+ * and behaves the same on every surface that has one. `ActionMenu` is built on it.
  *
  * `isInside` says which presses belong to the menu: its own content and the button that toggles
  * it. Any other press, of any mouse button, closes the menu. Vuetify closes a menu only on a left
@@ -13,9 +13,11 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
  * Bind `placement` onto the `VMenu`: at the pointer the menu opens from its corner and closes on
  * scroll — it is pinned to a screen point, not to the row, and scrolling would leave it hanging
  * over someone else's entry. From the button it hangs off the button as usual.
+ *
+ * `open` may come from outside — a component's `v-model:open` — when the row around the menu has
+ * to know it is open.
  */
-export function usePointerMenu(isInside: (target: Node) => boolean) {
-  const open = ref(false)
+export function usePointerMenu(isInside: (target: Node) => boolean, open: Ref<boolean> = ref(false)) {
   /** Where a right click opened the menu; `null` — it hangs off the "⋯" button. */
   const point = ref<[x: number, y: number] | null>(null)
 

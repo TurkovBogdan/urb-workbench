@@ -21,29 +21,20 @@ lifecycle for them. The one thing that has to be added by hand is
 has three surfaces (workspaces, groups, tasks), and a second copy of the app setup would drift
 from the first on the very first change.
 
-``mcp``/``call`` are the module's second surface, the ``workbench`` MCP server brought up
-in-memory: tools are called exactly as the agent sees them (``@`` prefixes in codes, DTOs,
-``ToolError`` errors). This client has no HTTP request, so every call in a test shares one
-session — the common local key (``workspace/mcp/session.py``). That is both convenient (the
-binding holds across calls within a test) and a limitation: that the session header arrives at
-all and that two sessions do not see each other cannot be checked in-memory —
-``test_mcp_session_http.py`` does that.
+The agent's surface over the same data — the ``workbench`` MCP server — is tested with its own
+module, in ``tests/modules/workbench/``.
 """
 
 from __future__ import annotations
 
 import pytest
 from fastapi import FastAPI
-from fastmcp import Client
-from fastmcp.server.middleware import Middleware
 from httpx import ASGITransport, AsyncClient
 
 from src.core.api import register_exception_handlers
 from src.core.config import Config
 from src.core.database import close_database, init_database
-from src.core.mcp.context import McpServerContext
 from src.modules.tasks.api import router
-from src.modules.tasks.mcp import mcp_server
 from src.modules.workspace.crud.workspace import workspace_create
 
 
@@ -94,21 +85,3 @@ async def client(app):
         transport=ASGITransport(app=app), base_url="http://test"
     ) as c:
         yield c
-
-
-@pytest.fixture
-async def mcp(db):
-    """The ``workbench`` MCP server in-memory: auth off, audit a no-op."""
-    server = mcp_server(McpServerContext(auth=None, audit=Middleware(), allowed_hosts=[]))
-    async with Client(server) as c:
-        yield c
-
-
-@pytest.fixture
-def call(mcp):
-    """Call a tool and return ``structured_content``. A rule refusal → ``ToolError``."""
-
-    async def _call(name: str, **args):
-        return (await mcp.call_tool(name, args)).structured_content
-
-    return _call

@@ -130,7 +130,7 @@ The command stops running MCP server instances, blocks new ones from starting wh
 └── tools/     # utility scripts (demo data seeding)
 ```
 
-There are eight modules. Three are application modules: `workspace` (workspaces — the shared isolation level), `notes` (markdown documents with no owner, which the modules above link to) and `tasks` (groups, the task tree, plan, journal and the `workbench` MCP server). The other five are infrastructure: `core_setup` (editing `.env`), `core_interface` (appearance settings), `core_monitoring` (background jobs), `core_mcp` (MCP server introspection), `core_changes` (the change feed behind live updates).
+There are nine modules. Four are application modules, stacked in levels — a module uses only the ones below it: `workspace` (workspaces — the shared isolation level) and `notes` (markdown documents with no owner, which the modules above link to) at the bottom, `tasks` (groups, the task tree, plan, journal) above them, and `workbench` on top — the agent surface: the `workbench` MCP server with all its tools and skills, built on the modules below. The other five are infrastructure: `core_setup` (editing `.env`), `core_interface` (appearance settings), `core_monitoring` (background jobs), `core_mcp` (MCP server introspection), `core_changes` (the change feed behind live updates).
 
 ## For developers
 

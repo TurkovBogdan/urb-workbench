@@ -28,16 +28,13 @@ pytestmark = pytest.mark.pure
 WEB_SRC = Path(__file__).resolve().parents[2] / "web" / "src"
 
 # Pages without a header are only those with no page frame at all:
-# home (a full-screen welcome showcase) and the "not found" screen (it draws itself).
+# home (a full-screen welcome showcase) and the "not found" screen (it draws itself). The codex
+# materials run their tree navigation from the top of the page, and the record's heading opens the
+# column beside it rather than the page — a layout decided for that page alone.
 EXEMPT = {
     "views/HomeView.vue",
     "views/errors/NotFoundView.vue",
-    # The print version of a research page: it has no frame by design — it is a document for
-    # paper, not a screen with navigation. It is also unreachable: the `research` module was
-    # removed (2026-09-20), its route is registered nowhere, and the `features/research` folder
-    # lives on only because the design-system showcase shows two of its cards. Drop this line
-    # together with the folder.
-    "features/research/views/ResearchPrintView.vue",
+    "features/codex/views/CodexEditorView.vue",
 }
 
 PAGE_FRAME = "<PageHeader"

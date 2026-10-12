@@ -16,27 +16,24 @@
 //
 // Exactly 36px: a list is scanned top to bottom, and rows of uneven height have to be examined.
 // So there is no description or body here — the task is opened for those.
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import {
   IconArrowDown,
   IconArrowUp,
-  IconCheck,
-  IconCopy,
-  IconDotsVertical,
-  IconPencil,
+  IconExternalLink,
+  IconFileText,
   IconRestore,
   IconSubtask,
   IconTrash,
   IconUnlink,
 } from '@tabler/icons-vue'
 
+import ActionMenu, { type ActionMenuItem } from '@/components/ActionMenu.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import CounterButton from '@/components/CounterButton.vue'
 import DragHandle from '@/components/DragHandle.vue'
-import KeyCap from '@/components/KeyCap.vue'
-import { useClipboard } from '@/composables/useClipboard'
-import { usePointerMenu } from '@/composables/usePointerMenu'
 import { fmtDate, fmtDateShort } from '@/shared/utils/date'
 
 import { isTerminal, priorityColor, priorityIcon, statusColor, statusIcon } from '../labels'
@@ -79,6 +76,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const router = useRouter()
 const store = useTasksStore()
 
 // Branch collapse state lives in the store next to group card collapse state — one map for both:
@@ -109,26 +107,8 @@ function dateOf(task: TaskListRow): { value: string; label: string } | null {
 // The action menu opens from the "⋯" and on a right click anywhere in the row. While it is open the
 // row keeps its "⋯" visible — otherwise the button would vanish from under the cursor as soon as it
 // moved onto a menu item.
-const menuOverlay = ref<{ contentEl?: HTMLElement }>()
-const menuGutter = ref<HTMLElement>()
-const {
-  open: menuOpen,
-  openAt: openMenuAt,
-  fromButton: menuFromButton,
-  placement: menuPlacement,
-} = usePointerMenu(
-  (target) => !!(menuOverlay.value?.contentEl?.contains(target) || menuGutter.value?.contains(target)),
-)
-
-// The menu would close on the click and take the check mark with it — so the item holds the menu
-// open just long enough for the check to be seen, then closes it itself.
-const COPIED_MARK_MS = 700
-const { copy, isCopied } = useClipboard()
-
-async function copyCode() {
-  await copy(props.task.code)
-  setTimeout(() => { menuOpen.value = false }, COPIED_MARK_MS)
-}
+const menu = ref<InstanceType<typeof ActionMenu>>()
+const menuOpen = ref(false)
 
 // Canceling and deleting take a task out of sight in one click from a menu that opens under any
 // stray right click — so both ask first. Marking done does not: it is the expected end of the work.
@@ -159,45 +139,81 @@ const confirmText = computed(() => {
   return t(`tasks.task.card.delete_confirm.${key}`, { title })
 })
 
-// While the menu is open, 1 and 2 run its two status items — the same ones the mouse would, so
-// the keys follow the task's state the way the items do: 1 closes the work, or brings it back
-// (done, deleted); 2 cancels it, or brings a canceled one back to work. The digit stands next to
-// its item, which is how the keys are learned.
 function setStatus(status: string) {
   emit('status', { code: props.task.code, status })
 }
 
-const primaryAction = computed<(() => void) | null>(() => {
-  if (props.task.deleted_at) return () => emit('restore', props.task.code)
-  if (props.task.status === 'done') return () => setStatus('in_progress')
-  return () => setStatus('done')
-})
-
-const secondaryAction = computed<(() => void) | null>(() => {
-  if (props.task.deleted_at) return null
-  if (props.task.status === 'canceled') return () => setStatus('in_progress')
-  return () => ask('cancel')
-})
-
-// Matched by `code`, not by the character, so the keys work in any layout and on the keypad.
-const MENU_KEYS: Record<string, 1 | 2> = { Digit1: 1, Numpad1: 1, Digit2: 2, Numpad2: 2 }
-
-function runMenuKey(event: KeyboardEvent) {
-  if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || event.repeat) return
-  const key = MENU_KEYS[event.code]
-  const action = key === 1 ? primaryAction.value : key === 2 ? secondaryAction.value : null
-  if (!action) return
-  event.preventDefault()
-  menuOpen.value = false
-  action()
+/** The page stays where it is: the row only knows the address, the new tab does the rest. */
+function openInNewTab(code: string) {
+  const { href } = router.resolve({ name: 'tasks-task', params: { code } })
+  window.open(href, '_blank', 'noopener')
 }
 
-watch(menuOpen, (isOpen) => {
-  if (isOpen) window.addEventListener('keydown', runMenuKey)
-  else window.removeEventListener('keydown', runMenuKey)
-})
+// The action set depends on state: a live task gets edit, closing, delete and reorder, a deleted
+// one gets only restore. The backend refuses to edit a deleted task (409), and an item bound to
+// fail would make the button lie. Order is by frequency: working on the task, then ending it, then
+// moving it.
+//
+// Open and delete take their letters, E and D, as everywhere in the app, and T opens in a new tab;
+// cancel has no key — C belongs to the menu's own "Copy code". The status
+// items that bring work back keep the digits they were given explicitly: 1 closes the work, or
+// brings it back (done, deleted); 2 brings a canceled one back to work. The status the task
+// already has is not offered again; a closed task gets the way back to work in its place.
+const menuItems = computed<ActionMenuItem[]>(() => {
+  const task = props.task
+  if (task.deleted_at) {
+    return [{
+      key: 'restore',
+      icon: IconRestore,
+      label: t('tasks.task.card.restore'),
+      hotkey: '1',
+      run: () => emit('restore', task.code),
+    }]
+  }
 
-onBeforeUnmount(() => window.removeEventListener('keydown', runMenuKey))
+  // A task is edited on its page, where every field lives; a form here would be a second, smaller
+  // copy of it. So the menu opens the page rather than editing, and the ways to open lead it.
+  const items: ActionMenuItem[] = [
+    { key: 'open', icon: IconFileText, label: t('tasks.task.card.open'), hotkey: 'E', run: () => emit('open', task.code) },
+    { key: 'open-tab', icon: IconExternalLink, label: t('tasks.task.card.open_new_tab'), hotkey: 'T', run: () => openInNewTab(task.code) },
+  ]
+  // The tree is one level deep: the backend refuses a subtask under a subtask.
+  if (task.parent_code === null) {
+    items.push({
+      key: 'add-child',
+      icon: IconSubtask,
+      label: t('tasks.task.card.add_subtask'),
+      divider: true,
+      run: () => emit('addChild', task),
+    })
+  }
+
+  items.push(
+    task.status === 'done'
+      ? { key: 'close', icon: statusIcon('in_progress'), label: t('tasks.task.card.reopen'), hotkey: '1', divider: true, run: () => setStatus('in_progress') }
+      : { key: 'close', icon: statusIcon('done'), label: t('tasks.task.card.mark_done'), hotkey: '1', divider: true, run: () => setStatus('done') },
+    task.status === 'canceled'
+      ? { key: 'cancel', icon: statusIcon('in_progress'), label: t('tasks.task.card.reopen'), hotkey: '2', run: () => setStatus('in_progress') }
+      : { key: 'cancel', icon: statusIcon('canceled'), label: t('tasks.task.card.mark_canceled'), run: () => ask('cancel') },
+    { key: 'delete', icon: IconTrash, label: t('tasks.task.card.delete'), danger: true, hotkey: 'D', run: () => ask('delete') },
+  )
+
+  // Mouseless reordering disappears together with the handle: on a narrowed list the order is
+  // changed neither by gesture nor by menu item. W and S are up and down, as on a game keyboard.
+  if (props.reorderable === false) return items
+  items.push(
+    { key: 'up', icon: IconArrowUp, label: t('tasks.task.card.move_up'), disabled: !props.canUp, divider: true, hotkey: 'W', run: () => emit('step', -1) },
+    { key: 'down', icon: IconArrowDown, label: t('tasks.task.card.move_down'), disabled: !props.canDown, hotkey: 'S', run: () => emit('step', 1) },
+  )
+  // Detaching is the same as dragging up with the mouse, only without a drop point: the task
+  // becomes first in its group so the result is visible at once. Having a parent decides, not the
+  // row depth: on the task page its direct subtasks form the branch's top row, yet they can be
+  // detached just the same.
+  if (task.parent_code !== null) {
+    items.push({ key: 'detach', icon: IconUnlink, label: t('tasks.task.card.detach'), run: () => emit('detach') })
+  }
+  return items
+})
 </script>
 
 <template>
@@ -215,7 +231,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', runMenuKey))
     tabindex="0"
     @click="emit('open', props.task.code)"
     @keydown.enter="emit('open', props.task.code)"
-    @contextmenu="openMenuAt"
+    @contextmenu="menu?.openAt($event)"
   >
     <!-- A subtask has a handle too: its row is its siblings, and it is reordered by the same
          gesture. The handle's slot is always occupied — the row must not twitch on hover. -->
@@ -307,141 +323,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', runMenuKey))
       </span>
     </span>
 
-    <!-- The menu is a utility gutter, not data: a click on it must not open the task. Three dots
-         on every row are constant noise, so the button appears under the cursor and stays while
-         the menu is open. -->
-    <span
-      ref="menuGutter"
-      class="task-row__menu"
-      :class="{ 'task-row__menu--open': menuOpen }"
-      @click.stop
-    >
-      <VMenu ref="menuOverlay" v-model="menuOpen" v-bind="menuPlacement">
-        <template #activator="{ props: menu }">
-          <VBtn
-            v-bind="menu"
-            icon
-            variant="text"
-            class="row-action"
-            :title="t('tasks.task.card.actions')"
-            @click="menuFromButton"
-          >
-            <IconDotsVertical :size="16" :stroke-width="1.6" />
-          </VBtn>
-        </template>
-
-        <!-- The action set depends on state: a live task gets edit, closing, delete and reorder,
-             a deleted one gets only restore. The backend refuses to edit a deleted task (409), and
-             an item bound to fail would make the button lie. Order is by frequency: working on the
-             task, then ending it, then moving it. A right click on the menu itself does nothing:
-             the browser's own menu would open on top of ours and hide it. -->
-        <VList density="compact" @contextmenu.prevent>
-          <!-- The code is what a task is named by to the agent; a deleted task can be named too. -->
-          <VListItem
-            :prepend-icon="isCopied(props.task.code) ? IconCheck : IconCopy"
-            @click.stop="copyCode"
-          >
-            <VListItemTitle>{{ t('common.action.copy_code') }}</VListItemTitle>
-          </VListItem>
-          <template v-if="!props.task.deleted_at">
-            <!-- A task is edited on its page, where every field lives; a form here would be a
-                 second, smaller copy of it. -->
-            <VListItem :prepend-icon="IconPencil" @click="emit('open', props.task.code)">
-              <VListItemTitle>{{ t('tasks.task.card.edit') }}</VListItemTitle>
-            </VListItem>
-            <!-- The tree is one level deep: the backend refuses a subtask under a subtask. -->
-            <VListItem
-              v-if="props.task.parent_code === null"
-              :prepend-icon="IconSubtask"
-              @click="emit('addChild', props.task)"
-            >
-              <VListItemTitle>{{ t('tasks.task.card.add_subtask') }}</VListItemTitle>
-            </VListItem>
-
-            <VDivider class="my-1" />
-            <!-- The status the task already has is not offered again; a closed task gets the way
-                 back to work in its place. Each of the two carries its key. -->
-            <VListItem
-              v-if="props.task.status === 'done'"
-              :prepend-icon="statusIcon('in_progress')"
-              @click="setStatus('in_progress')"
-            >
-              <VListItemTitle>{{ t('tasks.task.card.reopen') }}</VListItemTitle>
-              <template #append><KeyCap class="task-menu__key" label="1" /></template>
-            </VListItem>
-            <VListItem
-              v-else
-              :prepend-icon="statusIcon('done')"
-              @click="setStatus('done')"
-            >
-              <VListItemTitle>{{ t('tasks.task.card.mark_done') }}</VListItemTitle>
-              <template #append><KeyCap class="task-menu__key" label="1" /></template>
-            </VListItem>
-            <VListItem
-              v-if="props.task.status === 'canceled'"
-              :prepend-icon="statusIcon('in_progress')"
-              @click="setStatus('in_progress')"
-            >
-              <VListItemTitle>{{ t('tasks.task.card.reopen') }}</VListItemTitle>
-              <template #append><KeyCap class="task-menu__key" label="2" /></template>
-            </VListItem>
-            <VListItem
-              v-else
-              :prepend-icon="statusIcon('canceled')"
-              @click="ask('cancel')"
-            >
-              <VListItemTitle>{{ t('tasks.task.card.mark_canceled') }}</VListItemTitle>
-              <template #append><KeyCap class="task-menu__key" label="2" /></template>
-            </VListItem>
-            <VListItem
-              :prepend-icon="IconTrash"
-              class="task-menu-danger"
-              @click="ask('delete')"
-            >
-              <VListItemTitle>{{ t('tasks.task.card.delete') }}</VListItemTitle>
-            </VListItem>
-
-            <!-- Mouseless reordering disappears together with the handle: on a narrowed list the
-                 order is changed neither by gesture nor by menu item. -->
-            <template v-if="props.reorderable !== false">
-              <VDivider class="my-1" />
-              <VListItem
-                :prepend-icon="IconArrowUp"
-                :disabled="!props.canUp"
-                @click="emit('step', -1)"
-              >
-                <VListItemTitle>{{ t('tasks.task.card.move_up') }}</VListItemTitle>
-              </VListItem>
-              <VListItem
-                :prepend-icon="IconArrowDown"
-                :disabled="!props.canDown"
-                @click="emit('step', 1)"
-              >
-                <VListItemTitle>{{ t('tasks.task.card.move_down') }}</VListItemTitle>
-              </VListItem>
-              <!-- Detaching is the same as dragging up with the mouse, only without a drop point:
-                   the task becomes first in its group so the result is visible at once. Having a
-                   parent decides, not the row depth: on the task page its direct subtasks form the
-                   branch's top row, yet they can be detached just the same. -->
-              <VListItem
-                v-if="props.task.parent_code !== null"
-                :prepend-icon="IconUnlink"
-                @click="emit('detach')"
-              >
-                <VListItemTitle>{{ t('tasks.task.card.detach') }}</VListItemTitle>
-              </VListItem>
-            </template>
-          </template>
-          <VListItem
-            v-else
-            :prepend-icon="IconRestore"
-            @click="emit('restore', props.task.code)"
-          >
-            <VListItemTitle>{{ t('tasks.task.card.restore') }}</VListItemTitle>
-            <template #append><KeyCap class="task-menu__key" label="1" /></template>
-          </VListItem>
-        </VList>
-      </VMenu>
+    <!-- Three dots on every row are constant noise, so the button appears under the cursor and
+         stays while the menu is open. -->
+    <span class="task-row__menu" :class="{ 'task-row__menu--open': menuOpen }">
+      <ActionMenu
+        ref="menu"
+        v-model:open="menuOpen"
+        :items="menuItems"
+        :code="props.task.code"
+        :label="t('tasks.task.card.actions')"
+      />
 
       <!-- Both steps are reversible and asked about often, so Enter confirms at once. -->
       <ConfirmDialog
@@ -634,16 +525,4 @@ onBeforeUnmount(() => window.removeEventListener('keydown', runMenuKey))
 .task-row:hover .task-row__menu,
 .task-row:focus-within .task-row__menu,
 .task-row__menu--open { opacity: 1; }
-
-.task-row__menu :deep(.v-btn) {
-  width: 28px;
-  min-width: 28px;
-  height: 28px;
-}
-
-.task-menu-danger :deep(.v-list-item-title) { color: var(--error); }
-.task-menu-danger :deep(.v-list-item__prepend) { color: var(--error); }
-
-/* The key that runs the item while the menu is open, set apart from the item's name. */
-.task-menu__key { margin-left: 16px; }
 </style>

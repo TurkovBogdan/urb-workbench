@@ -1,0 +1,3191 @@
+{
+  "instructions": "Workbench MCP server — the developer's own workspaces and the work inside them.\n\nWORKSPACE FIRST. Everything here lives inside a workspace, and nothing reads across workspaces: it is what keeps work apart from personal, one client apart from another. This session works in exactly one, and no tool takes it as an argument — you set it once. If a tool answers that nothing is bound yet, call workspaces_list() to see what exists and workspace_use(workspace_code) to pick one. Some connections are already configured with a workspace; workspaces_list() marks the active one either way.\nThe binding is yours alone — a second agent working elsewhere does not move it, and it lasts as long as this connection.\nOnce the workspace is set, read codex_index before any work: it lists the development rules mounted here (CODEXES below).\n\nCODES. Every entity has a code that says what it is — WORKSPACE@ (a workspace), TASKGROUP@ (a standing theme inside one), TASK@, STAGE@ (a step of a task's plan), JOURNAL@ (a journal entry), NOTE@ (a task note — a document written at a task), CODEX@ (a codex or a note in one). Pass a code back whole, exactly as you received it; never invent one. A code from another workspace is refused by name rather than acted on quietly — that refusal means you are in the wrong workspace, not that the entity is missing.\n\nANSWERS ABOUT THE WORK NAME THEIR WORKSPACE. Read it. It is the only way to notice that you are working in the wrong one: a list of someone else's tasks looks exactly like a list of tasks. codex_index, codex_get and codex_tree do not name it — they read what is mounted into the active one.\n\nHOW WORK IS SHAPED. Three depths, and each adds one way of working. `simple` — a title, a goal and the context, often a job for a person. `standard` — plus the rest of the brief (constraints, criteria of done), your work in three fields — the plan you write after reading the code, the progress diary you keep along the way, the result you write at hand-over — and a journal of decisions, findings and facts. `extended` — plus STAGES: the plan broken into steps, each with its own state and its own evidence. Stages are what separates extended from standard, and they earn their keep only when the work outlasts one sitting; a standard task refuses them and says so.\nThe brief is yours to fill in and correct on any task, including one a person set — when you change theirs, say what and why in a decision entry. The verdict on whether the work is accepted is never yours: write what you did in `result`, then hand over at in_review.\n\nTHE LAYOUT IS THEIRS, THE HANDS ARE YOURS. Groups are how the person sees their own work, and you can make and re-word them — on request. Make one when they ask for it, not because the backlog looks untidy to you: three themes they recognise beat seven you invented. Deleting a group stays theirs, because undoing it is theirs.\n\nCODEXES. Development rules that do not depend on the project — «Python backend», «Vue frontend». A codex's root text holds the rules of working in its area, a tree of notes below it the details, at most four levels deep. The person mounts codexes into a workspace; together they are one canvas, and a path starts with a codex segment: /python/test/fixtures. The way through it: codex_index — each codex says when to turn to it; before work a codex covers, its root with codex_get, and follow its rules; then the notes that bear on the work — codex_tree to find your bearings, codex_search by words, codex_get for the text. You write notes, never a codex, and only where codex_index shows it editable — when the work settles something that holds beyond this task.\n\nSKILLS. This server carries its own reference material — how it expects a brief, a plan and a journal to be written, and what its interface actually renders. skills_list() names what is available; skill_get(name, section?) returns it. Read skill_get('task-brief') before writing a brief and skill_get('task-plan') before planning: those are conventions of this app, not things to infer.\n\nTOOLS. Space: workspaces_list, workspace_use. Layout: groups_list, group_create, group_update, tasks_regroup. Work: tasks_list, task_get, task_create, task_update, task_status. Plan: stage_add, stage_update, stage_close. Journal: journal_add, journal_resolve, journal_list. Task notes — planning material: schemas, option breakdowns, concepts the plan rests on, shown under the plan, on a task of any type; substantial documents, never a few paragraphs (those go into the plan or the journal); written at any stage of the work, and always when the user asks for one: task_note_add, task_note_get, task_note_update; task_get lists them without text. Codexes: codex_index, codex_get, codex_tree, codex_search, codex_add, codex_update. CONTENT — the long markdown fields — is edited by content_set / content_replace / content_set_section / content_add, addressed by the entity code and the field: TASK@ context, and from `standard` up constraints, criteria, plan, progress, result; STAGE@ body; JOURNAL@ body; NOTE@ body; CODEX@ (a note) body. None of them echoes the text you sent: content_replace and content_add answer with the SEAM of the edit, content_set_section with what it CUT, content_set with the new length. Plus delete(code), one door for every type, and interface_open(code) to put something on the user's screen.",
+  "tools": [
+    {
+      "name": "workspaces_list",
+      "description": "List the workspaces and show which one this session works in.\n\nA workspace is the top-level boundary of everything else here: groups and tasks live\ninside one, and nothing on this server reads across them. Call this first when you do not\nknow where you are — the row with `active: true` is the one your other calls will hit,\nand if no row has it, nothing is bound yet.\n\nCounters say what is inside each one, so you can tell the working space from the empty\none without opening it.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "items": {
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "description": {
+                  "default": "",
+                  "type": "string"
+                },
+                "counters": {
+                  "additionalProperties": {
+                    "type": "integer"
+                  },
+                  "default": {},
+                  "type": "object"
+                },
+                "active": {
+                  "default": false,
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "code",
+                "title"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "type": "object",
+        "x-fastmcp-wrap-result": true
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "workspace_use",
+      "description": "Bind this session to a workspace — after this, no tool takes a workspace argument.\n\nThis is the first call of a session unless the connection was configured with one. Every\nworkspace-scoped tool then works inside what you picked, and a code from any other\nworkspace is refused by name rather than silently acted on.\n\nThe binding belongs to this connection: a second agent working in another workspace does\nnot move yours, and yours does not move theirs.\n\nThe answer's `note` says what comes next — among it, whether codexes (development rules)\nare mounted here and how to read them.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "workspace_code": {
+            "type": "string",
+            "description": "The workspace to work in — a WORKSPACE@ code from workspaces_list."
+          }
+        },
+        "required": [
+          "workspace_code"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "default": "",
+            "type": "string"
+          },
+          "counters": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "default": {},
+            "type": "object"
+          },
+          "active": {
+            "default": false,
+            "type": "boolean"
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "title",
+          "note"
+        ],
+        "type": "object"
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "groups_list",
+      "description": "List the groups of the workspace this session works in.\n\nA group is a standing theme inside a workspace — billing, interface, infrastructure —\nand a task may sit in one or in none. Read the descriptions before filing a task: they\nsay where the boundary of each group runs, which the titles alone do not.\n\nTakes no workspace: the session is already bound to one. If it is not, this call tells\nyou so and names how to fix it.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "workspace": {
+            "type": "string"
+          },
+          "workspace_title": {
+            "type": "string"
+          },
+          "groups": {
+            "default": [],
+            "items": {
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "description": {
+                  "default": "",
+                  "type": "string"
+                },
+                "task_count": {
+                  "default": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "code",
+                "title"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "workspace",
+          "workspace_title"
+        ],
+        "type": "object"
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "group_create",
+      "description": "Create a group in the workspace this session works in — a standing theme.\n\nThe layout belongs to the person: make a group when they ask for one, not because the\nbacklog looks untidy to you. Three themes they recognise beat seven you invented, and a\ntask filed under a theme nobody uses is lost more thoroughly than one filed nowhere.\n\n`description` is not decoration. It is where the boundary of the theme is written — what\nbelongs here and what does not — and it is what you read later to decide where a new\ntask goes. A group with a name and nothing else makes that decision wrong every time,\nwhich is why this asks for it.\n\nA name already taken in this workspace is refused naming who holds it: two groups called\nthe same thing split the same work in half.\n\nThe answer is the whole layout, not a receipt — your own change moved it.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "The theme, short — \"billing\", \"interface\", \"infrastructure\"."
+          },
+          "description": {
+            "type": "string",
+            "description": "Where the boundary runs: what belongs here, and what goes elsewhere.\nOne line, up to 128 characters — it sits under the name in every list. A longer\none is refused with the count, and nothing is created."
+          },
+          "place_after": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "A TASKGROUP@ code to put this one directly below. Omit to add at the\nend."
+          },
+          "place_before": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "A TASKGROUP@ code to put this one directly above."
+          }
+        },
+        "required": [
+          "title",
+          "description"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "workspace": {
+            "type": "string"
+          },
+          "workspace_title": {
+            "type": "string"
+          },
+          "groups": {
+            "default": [],
+            "items": {
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "description": {
+                  "default": "",
+                  "type": "string"
+                },
+                "task_count": {
+                  "default": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "code",
+                "title"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "workspace",
+          "workspace_title"
+        ],
+        "type": "object"
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "group_update",
+      "description": "Update a group — only the fields you pass; anything you omit keeps its value.\n\nUse it when the person re-words a theme or redraws its boundary. Renaming moves no work:\ntasks are filed by code, and everything in this group stays in it.\n\nA group in the bin is not updated here — restoring it is the person's to do, and making\na replacement with the same name leaves them two. Say which one you meant instead.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "group_code": {
+            "type": "string",
+            "description": "The group to change — a TASKGROUP@ code from groups_list."
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The theme, short."
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Where the boundary runs: what belongs here, and what goes elsewhere.\nUp to 128 characters; a longer one is refused with the count, and nothing in\nthis call is applied."
+          },
+          "place_after": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "A TASKGROUP@ code to move this one directly below."
+          },
+          "place_before": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "A TASKGROUP@ code to move this one directly above."
+          }
+        },
+        "required": [
+          "group_code"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "workspace": {
+            "type": "string"
+          },
+          "workspace_title": {
+            "type": "string"
+          },
+          "groups": {
+            "default": [],
+            "items": {
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "description": {
+                  "default": "",
+                  "type": "string"
+                },
+                "task_count": {
+                  "default": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "code",
+                "title"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "workspace",
+          "workspace_title"
+        ],
+        "type": "object"
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "tasks_regroup",
+      "description": "File tasks under a group — one call, one intent.\n\nThis is the shape the person asks in: \"put these three under billing\" — the group first,\nthen the work that goes in it. task_update moves one task at a time and is fine for one;\na batch done that way is several writes, and a batch half-applied looks exactly like a\nbatch applied.\n\nEither every code lands or none does. A code from another workspace, a group in the bin,\na task that is not there — the call refuses before writing anything and names every code\nat fault, so you repeat it with the list corrected rather than wondering which half went\nthrough.\n\nFiling is not the tree. A group says what the work is ABOUT; a parent says what it is\nPART OF — and a part is about the same thing as the whole, so a subtask sits in its\nparent's group. Regrouping an epic takes its subtasks along; a subtask named without its\nparent is refused — file the parent instead.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "group_code": {
+            "type": "string",
+            "description": "A TASKGROUP@ code from groups_list, or an empty string to take these tasks\nout of any group at all."
+          },
+          "task_codes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "description": "The TASK@ codes to file there."
+          }
+        },
+        "required": [
+          "group_code",
+          "task_codes"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "workspace": {
+            "type": "string"
+          },
+          "workspace_title": {
+            "type": "string"
+          },
+          "groups": {
+            "default": [],
+            "items": {
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "description": {
+                  "default": "",
+                  "type": "string"
+                },
+                "task_count": {
+                  "default": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "code",
+                "title"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "moved": {
+            "default": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "workspace",
+          "workspace_title"
+        ],
+        "type": "object"
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "tasks_list",
+      "description": "Find tasks in the workspace this session works in — the scan layer, one line each.\n\nStart here when you do not know what exists. The answer carries no brief and no plan:\nthat is what task_get is for, and pulling it for a whole list would cost more than\nreading the list twice.\n\nBy default only unfinished work comes back — finished tasks are history, and they would\ncrowd out what is in flight. Subtasks come in the same flat list as their parents, each\ncarrying `parent_code`: a row with one is part of somebody else's work, not a job of its\nown. If `shown` is less than `total`, narrow with status, group_code or query rather\nthan asking again.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "default": "unfinished",
+            "type": "string",
+            "description": "unfinished (default — everything not done or canceled) / any / backlog /\nplanned / in_progress / in_test / in_review / done / canceled."
+          },
+          "group_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "A TASKGROUP@ code for one theme; an empty string for the tasks filed in no\ngroup at all; omit to see every group."
+          },
+          "query": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Case-insensitive substring of the title or the goal. Omit to filter only."
+          }
+        },
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "workspace": {
+            "type": "string"
+          },
+          "workspace_title": {
+            "type": "string"
+          },
+          "tasks": {
+            "default": [],
+            "items": {
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "description": {
+                  "default": "",
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "priority": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "group_code": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null
+                },
+                "parent_code": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null
+                },
+                "has_children": {
+                  "default": false,
+                  "type": "boolean"
+                },
+                "deadline_at": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null
+                }
+              },
+              "required": [
+                "code",
+                "title",
+                "status",
+                "priority",
+                "type"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "shown": {
+            "default": 0,
+            "type": "integer"
+          },
+          "total": {
+            "default": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "workspace",
+          "workspace_title"
+        ],
+        "type": "object"
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "task_get",
+      "description": "Read one task in full — the brief, your work, its stages, and what is still open.\n\nYour work comes in three fields: `plan` (the approach, written before the code changes),\n`progress` (the diary along the way), `result` (what came out, written at hand-over).\n\nThis is the working view: what you need before touching the work, and nothing you would\nhave to ask twice for. Read it before you start and after anyone else has been here —\nthe brief is the only place that says what \"done\" means here.\n\nClosed journal entries are not included, only their count: they answer \"how was this\ndecided\", which is a separate question — journal_list when you have it. The task's\n`notes` come by title and description only; task_note_get reads one whole.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "task_code": {
+            "type": "string",
+            "description": "The task to read — a TASK@ code from tasks_list."
+          }
+        },
+        "required": [
+          "task_code"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "workspace": {
+            "type": "string"
+          },
+          "workspace_title": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "default": "",
+            "type": "string"
+          },
+          "context": {
+            "default": "",
+            "type": "string"
+          },
+          "constraints": {
+            "default": "",
+            "type": "string"
+          },
+          "criteria": {
+            "default": "",
+            "type": "string"
+          },
+          "plan": {
+            "default": "",
+            "type": "string"
+          },
+          "progress": {
+            "default": "",
+            "type": "string"
+          },
+          "result": {
+            "default": "",
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "group_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "group_title": {
+            "default": "",
+            "type": "string"
+          },
+          "parent_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "parent_title": {
+            "default": "",
+            "type": "string"
+          },
+          "deadline_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "canceled_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "children": {
+            "default": [],
+            "items": {
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "description": {
+                  "default": "",
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "priority": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "group_code": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null
+                },
+                "parent_code": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null
+                },
+                "has_children": {
+                  "default": false,
+                  "type": "boolean"
+                },
+                "deadline_at": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null
+                }
+              },
+              "required": [
+                "code",
+                "title",
+                "status",
+                "priority",
+                "type"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "stages": {
+            "default": [],
+            "items": {
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "number": {
+                  "type": "integer"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "description": {
+                  "default": "",
+                  "type": "string"
+                },
+                "body": {
+                  "default": "",
+                  "type": "string"
+                },
+                "evidence": {
+                  "default": "",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "number",
+                "status",
+                "title"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "open_entries": {
+            "default": [],
+            "items": {
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "body": {
+                  "default": "",
+                  "type": "string"
+                },
+                "resolution": {
+                  "default": "",
+                  "type": "string"
+                },
+                "stage_code": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null
+                },
+                "created_at": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "type",
+                "title",
+                "created_at"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "closed_entries": {
+            "default": 0,
+            "type": "integer"
+          },
+          "unfinished_stages": {
+            "default": 0,
+            "type": "integer"
+          },
+          "notes": {
+            "default": [],
+            "items": {
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "description": {
+                  "default": "",
+                  "type": "string"
+                },
+                "updated_at": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "title",
+                "updated_at"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "workspace",
+          "workspace_title",
+          "code",
+          "title",
+          "status",
+          "priority",
+          "type",
+          "created_by"
+        ],
+        "type": "object"
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "task_create",
+      "description": "Create a task in the workspace this session works in.\n\nWrite the goal, not the steps: `description` says what becomes true when the work is\ndone, and whoever runs it picks the path. Steps belong in the plan — and the plan is\nwritten after the code has been read, which is why it cannot be set here.\n\nFor anything past a one-liner, fill the brief. `context` points at what the code does\nnot say. `constraints` says what must not be touched. `criteria` lists conditions that\ncan be checked one by one — without them, \"done\" gets decided by whoever ran the work.\n\nSubtask: pass `parent_code`. The tree is one level deep — the parent must be a top-level\ntask, and a subtask sits in its parent's group, so leave `group_code` out for one. File\na top-level task under a theme with `group_code` — groups_list says what the themes are\nand where their boundaries run. A new task starts in `backlog`; move it with\ntask_status when you actually pick it up.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Short name — the line this task is found by in a list."
+          },
+          "description": {
+            "type": "string",
+            "description": "The goal: what becomes true when the work is done. One paragraph, an\noutcome rather than a sequence of steps."
+          },
+          "context": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "What cannot be derived from the code — a decision and its reason, a\nreference implementation, a domain term. Markdown."
+          },
+          "constraints": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "What may change, what to ask about first, what must never be touched."
+          },
+          "criteria": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Checkable conditions of done, one per line, each with what proves it."
+          },
+          "type": {
+            "default": "simple",
+            "type": "string",
+            "description": "simple (a title, a goal and the context, nothing else) / standard (the full\nbrief, plan / progress / result, journal) / extended (all of that plus stages —\nthe plan broken into steps, each closed with its own evidence). Pick extended\nwhen the work outlasts one sitting; a standard task refuses stages and says so."
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "burning / high / normal / low / frozen. Default normal."
+          },
+          "group_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "A TASKGROUP@ code from groups_list; omit to leave it unfiled."
+          },
+          "parent_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "A TASK@ code of a top-level task to make this a subtask of it."
+          },
+          "deadline_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Hard deadline, `YYYY-MM-DD HH:MM:SS` in UTC."
+          }
+        },
+        "required": [
+          "title",
+          "description"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "workspace": {
+            "type": "string"
+          },
+          "workspace_title": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace",
+          "workspace_title",
+          "code"
+        ],
+        "type": "object"
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "task_update",
+      "description": "Update a task — only the fields you pass; anything you omit keeps its value.\n\nUse it to refile a task under another group, to move it under another parent or out to\nthe top level, to re-rank it, to raise its type when a one-liner turns out to need a\nplan, or to fill in or correct the brief.\n\nThe tree is one level deep: a subtask has no subtasks. So the new parent must be a\ntop-level task, and a task that has subtasks cannot become one — move its subtasks out\nfirst, then move it. A subtask sits in its parent's group: moving under a parent takes\nthat group, and a subtask's group is changed by refiling its parent, whose subtasks\nfollow. A move lands at the end of the new row; the order within a row is the person's.\n\nTwo things are not here. Your work — plan, progress, result — is content, and\ncontent_set and its neighbours own it; they also edit the brief's context, constraints\nand criteria in place, where this sets them whole. Status moves through task_status,\nwhich also stamps when the work started.\n\nThe brief — title, goal, context, constraints and criteria — is editable on any task,\nwhoever set it. On a task a person set, the brief is still their statement of what\n\"done\" means: when you change it, record what changed and why with\njournal_add(type=\"decision\"), so the change is visible rather than silent.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "task_code": {
+            "type": "string",
+            "description": "The task to change — a TASK@ code."
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "context": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "constraints": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "criteria": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "simple / standard / extended — raising it to extended is how a task that\nturned out to need steps gets them."
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "burning / high / normal / low / frozen."
+          },
+          "group_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "A TASKGROUP@ code, or an empty string to take it out of its group. With\nparent_code=\"\" it files the task as it leaves its branch — one call."
+          },
+          "parent_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "A TASK@ code of a live top-level task to move this under — an\nunfinished one, unless this task is finished too — or an empty string to make\nit a top-level task in the group it already had."
+          },
+          "deadline_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "`YYYY-MM-DD HH:MM:SS` in UTC."
+          }
+        },
+        "required": [
+          "task_code"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "default": "",
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "group_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "parent_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "has_children": {
+            "default": false,
+            "type": "boolean"
+          },
+          "deadline_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "code",
+          "title",
+          "status",
+          "priority",
+          "type"
+        ],
+        "type": "object"
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "task_status",
+      "description": "Move a task through its lifecycle — and stamp when that happened.\n\nbacklog → planned → in_progress → in_test → in_review. Hand the work over at in_review\nand stop there: whether it is accepted is the requester's call, and `done` is theirs to\nset. So is `canceled` — deciding that work will not happen is not a decision made from\ninside it.\n\nThe hand-over is not refused for what is still open — the answer counts it. Settle it\nbefore handing over, not after: an unresolved decision is an assumption nobody has\nchecked, and an unresolved remark is a request you have not answered. A finding is\ndifferent — it is about work outside this task, and a person triages it. Write what you\ndid in `result` before you hand over.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "task_code": {
+            "type": "string",
+            "description": "The task to move — a TASK@ code."
+          },
+          "status": {
+            "type": "string",
+            "description": "backlog / planned / in_progress / in_test / in_review."
+          }
+        },
+        "required": [
+          "task_code",
+          "status"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "workspace": {
+            "type": "string"
+          },
+          "workspace_title": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "open_entries": {
+            "default": 0,
+            "type": "integer"
+          },
+          "blocking_entries": {
+            "default": 0,
+            "type": "integer"
+          },
+          "unfinished_stages": {
+            "default": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "workspace",
+          "workspace_title",
+          "code",
+          "status"
+        ],
+        "type": "object"
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "stage_add",
+      "description": "Add a stage to a task's plan — one step, with its own state and its own proof.\n\nA stage is a unit of work done in one go. As soon as a step needs its own acceptance, it\nis not a stage but a subtask: create it with task_create(parent_code=…) instead.\n\nNumbers order the plan, they do not count it. Deleting a stage leaves a gap, and that is\nfine — do not renumber to close it: you refer to \"the third stage\" in the journal, and a\nsilent shift would make those references false.\n\nIts body stays editable on any status — content_set(code, \"body\", …) and its\nneighbours. Clarifying a step is fine; changing what a step behind you promised is a\ndecision in the journal and a new stage after it, not a re-worded one.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "task_code": {
+            "type": "string",
+            "description": "The task this stage belongs to — a TASK@ code. Stages belong to\n`extended` tasks only; anything else refuses and says so. A `standard` task\ncarries its plan as prose in `plan` — write it there, or raise the type if\nthe work really needs steps with their own evidence."
+          },
+          "title": {
+            "type": "string",
+            "description": "What this step is, one line."
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "What it is about, and whether the body needs reading at all."
+          },
+          "body": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The work in full, markdown."
+          },
+          "number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Position in the plan. Omit for next in line. A number already taken is\nrefused naming who holds it — move that one first, or leave numbering alone."
+          }
+        },
+        "required": [
+          "task_code",
+          "title"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "workspace": {
+            "type": "string"
+          },
+          "workspace_title": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "number": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "workspace",
+          "workspace_title",
+          "code",
+          "number"
+        ],
+        "type": "object"
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "stage_update",
+      "description": "Update a stage — only the fields you pass.\n\nTwo things are not here. The text of the stage is content — content_set(code, \"body\",\n…) and its neighbours own it. Closing is stage_close, which requires the proof. Status\nhere only moves it between planned and in_progress.\n\nStarting a stage does not start the task — they answer different questions, so the\nanswer tells you where the task itself stands and the two do not drift apart unnoticed.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "stage_code": {
+            "type": "string",
+            "description": "The stage to change — a STAGE@ code."
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "New one-line name."
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "New short \"what this is about\"."
+          },
+          "number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "New position. A number already taken is refused naming who holds it."
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "planned / in_progress."
+          }
+        },
+        "required": [
+          "stage_code"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "workspace": {
+            "type": "string"
+          },
+          "workspace_title": {
+            "type": "string"
+          },
+          "stage": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "number": {
+                "type": "integer"
+              },
+              "status": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "description": {
+                "default": "",
+                "type": "string"
+              },
+              "body": {
+                "default": "",
+                "type": "string"
+              },
+              "evidence": {
+                "default": "",
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "number",
+              "status",
+              "title"
+            ],
+            "type": "object"
+          },
+          "task_code": {
+            "type": "string"
+          },
+          "task_status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace",
+          "workspace_title",
+          "stage",
+          "task_code",
+          "task_status"
+        ],
+        "type": "object"
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "stage_close",
+      "description": "Close a stage — with the pointer to what proves it.\n\n`evidence` is a pointer, not a story: the command and its result, the path to what\nchanged, a summary of the diff. \"Done\" and \"it works now\" are exactly what this argument\nexists to prevent — a step marked finished with no trace makes every step after it\nreason on a claim nobody checked.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "stage_code": {
+            "type": "string",
+            "description": "The stage to close — a STAGE@ code."
+          },
+          "evidence": {
+            "type": "string",
+            "description": "The proof — a command and its outcome, a path, a diff summary. Kept short\non purpose: a command's full output does not belong here, a pointer to it does."
+          },
+          "outcome": {
+            "default": "done",
+            "type": "string",
+            "description": "done (default) or canceled. A canceled stage takes evidence too — why it\nwas abandoned is worth the same line."
+          }
+        },
+        "required": [
+          "stage_code",
+          "evidence"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "workspace": {
+            "type": "string"
+          },
+          "workspace_title": {
+            "type": "string"
+          },
+          "stage": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "number": {
+                "type": "integer"
+              },
+              "status": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "description": {
+                "default": "",
+                "type": "string"
+              },
+              "body": {
+                "default": "",
+                "type": "string"
+              },
+              "evidence": {
+                "default": "",
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "number",
+              "status",
+              "title"
+            ],
+            "type": "object"
+          },
+          "task_code": {
+            "type": "string"
+          },
+          "task_status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace",
+          "workspace_title",
+          "stage",
+          "task_code",
+          "task_status"
+        ],
+        "type": "object"
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "journal_add",
+      "description": "Record something in this task's journal — a decision, a finding or a fact.\n\nAn entry is never deleted, and its title and resolution are never rewritten; changing\nyour mind is a new entry. The body takes detail later through content_add(code, \"body\",\n…). Pick the kind by what the line IS:\n\n`decision` — a choice you made along the way, and what it rests on. Leave it open until\nit rests on something: an open decision is what an assumption looks like here, and being\nable to see them is the point.\n`finding` — something broken or owed that you noticed OUTSIDE this task. Without\nsomewhere to put it the moment you see it, it dies with the session and gets paid for\nagain next time. It is not counted against your hand-over — a person triages it.\n`fact` — a number, a path, an exact name, the reason something failed. Closed the moment\nit is written; it is waiting for nobody.\n\nA remark from the requester is theirs to write, not yours.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "task_code": {
+            "type": "string",
+            "description": "The task this belongs to — a TASK@ code. The task needs a journal:\na `simple` one refuses, and says to raise its type first."
+          },
+          "type": {
+            "type": "string",
+            "description": "decision / finding / fact."
+          },
+          "title": {
+            "type": "string",
+            "description": "The point in one line."
+          },
+          "body": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The detail — options weighed, what you saw, where."
+          },
+          "stage_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The STAGE@ this came up in, if it was one step and not the whole task."
+          }
+        },
+        "required": [
+          "task_code",
+          "type",
+          "title"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "workspace": {
+            "type": "string"
+          },
+          "workspace_title": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace",
+          "workspace_title",
+          "code"
+        ],
+        "type": "object"
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "journal_resolve",
+      "description": "Close a journal entry with what settled it.\n\nOnce only: a second call on a resolved entry is refused — a resolution rewritten after\nthe fact turns the history into a story about how it was always going to work. Changed\nyour mind — new entry.\n\nA decision is settled by what it now rests on: the requester's answer, or your own check\nwith the pointer to it. A remark is settled by how you took it into account.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "journal_code": {
+            "type": "string",
+            "description": "The entry to close — a JOURNAL@ code."
+          },
+          "resolution": {
+            "type": "string",
+            "description": "What was decided, how it was taken into account, or what the answer\nturned out to be."
+          }
+        },
+        "required": [
+          "journal_code",
+          "resolution"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "default": "",
+            "type": "string"
+          },
+          "resolution": {
+            "default": "",
+            "type": "string"
+          },
+          "stage_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "created_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "type",
+          "title",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "journal_list",
+      "description": "Read a task's journal, oldest first.\n\ntask_get already gives you what is still open; this is for the history behind it — why\nthe work is shaped the way it is, and what was tried and dropped.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "task_code": {
+            "type": "string",
+            "description": "The task whose journal to read — a TASK@ code."
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "decision / remark / finding / fact, to see one kind only."
+          },
+          "open_only": {
+            "default": false,
+            "type": "boolean",
+            "description": "Only the entries nothing has settled yet."
+          }
+        },
+        "required": [
+          "task_code"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "workspace": {
+            "type": "string"
+          },
+          "workspace_title": {
+            "type": "string"
+          },
+          "entries": {
+            "default": [],
+            "items": {
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "body": {
+                  "default": "",
+                  "type": "string"
+                },
+                "resolution": {
+                  "default": "",
+                  "type": "string"
+                },
+                "stage_code": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null
+                },
+                "created_at": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "type",
+                "title",
+                "created_at"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "workspace",
+          "workspace_title"
+        ],
+        "type": "object"
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "task_note_add",
+      "description": "Add a note to a task — planning material: what the plan rests on.\n\nA note is for what the plan cannot hold: a data schema, a comparison of options, a\nconcept, a table someone will come back to. The plan says how you will do the work and\nwhich files it touches; a note is the material behind it, and the task page shows it\nright under the plan. A note is a substantial document, not a few paragraphs: what three\nor four paragraphs cover goes into the plan or a journal entry instead.\n\nPlanning material, not a planning step: write one whenever the work needs it, at any\nstage — and always when the user asks for one. The note belongs to this task alone.\nWrite the text now or later with\ncontent_set(code, \"body\", …) and its neighbours; task_get lists the task's notes without\ntheir text, task_note_get reads one whole.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "task_code": {
+            "type": "string",
+            "description": "The task the note belongs to — a TASK@ code, of any type."
+          },
+          "title": {
+            "type": "string",
+            "description": "What the document is, one line."
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "What it is about and when to open it — the line a reader decides by."
+          },
+          "body": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The document, markdown — skill_get('markdown'). Over 65536 characters is\nrefused, not trimmed."
+          }
+        },
+        "required": [
+          "task_code",
+          "title"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "workspace": {
+            "type": "string"
+          },
+          "workspace_title": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace",
+          "workspace_title",
+          "code"
+        ],
+        "type": "object"
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "task_note_get",
+      "description": "Read one task note whole — its text and the task it belongs to.\n\ntask_get lists a task's notes by title and description only; open the one you need here.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "note_code": {
+            "type": "string",
+            "description": "The note to read — a NOTE@ code from task_get or task_note_add."
+          }
+        },
+        "required": [
+          "note_code"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "workspace": {
+            "type": "string"
+          },
+          "workspace_title": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "task_code": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "default": "",
+            "type": "string"
+          },
+          "body": {
+            "default": "",
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace",
+          "workspace_title",
+          "code",
+          "task_code",
+          "title",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "task_note_update",
+      "description": "Rename a task note or re-word what it is about — only the fields you pass.\n\nThe text is not here: it is content, edited in place by content_set / content_replace /\ncontent_set_section / content_add with the field \"body\".",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "note_code": {
+            "type": "string",
+            "description": "The note to change — a NOTE@ code."
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "New one-line name."
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "New \"what it is about and when to open it\"; an empty string clears it."
+          }
+        },
+        "required": [
+          "note_code"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "workspace": {
+            "type": "string"
+          },
+          "workspace_title": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "task_code": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "default": "",
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace",
+          "workspace_title",
+          "code",
+          "task_code",
+          "title",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "codex_index",
+      "description": "List the codexes mounted into this workspace — read it first, before any work.\n\nA codex is a set of development rules on one theme that does not depend on the project\n(«Python backend», «Vue frontend»): its root text holds the rules of working in that\narea, a tree of notes below it the details. The person mounts codexes into a workspace;\ntogether they are your canvas, and every path starts with a codex (`/python`).\n\nEach row: `description` — when to turn to the codex, the line to decide by; `records` —\nhow many notes it holds at every depth; `editable` — whether you may write notes in it\nhere. Next, for each codex the work in front of you touches, open its root with\ncodex_get — its `body` is the rules you follow — and codex_tree for its layout.\n\nAn empty list means nothing is mounted here: there are no rules to read, the call did\nnot fail.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "codexes": {
+            "default": [],
+            "items": {
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "segment": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "description": {
+                  "default": "",
+                  "type": "string"
+                },
+                "records": {
+                  "type": "integer"
+                },
+                "editable": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "code",
+                "path",
+                "segment",
+                "title",
+                "records",
+                "editable"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "codex_get",
+      "description": "Read codexes and notes whole, and see what lies directly under each.\n\nA codex's `body` is its rules of working in its area: read it before the work the codex\ncovers, then go down to the notes that bear on that work. A note's `body` is its text; a\nnote with children is a section, and its text sums up what lies below.\n\nEach node comes with its path and parent (a codex has none) and its children as a list\nto choose from — code, path, segment, title, description and how many children each has\n— without their text. Open the ones the work needs with the next codex_get, all of them\nin one call: the description says whether a child bears on your work, and a body runs up\nto 65 536 characters, so not every child. No `children` key means no children, not a cut\nanswer.\n\nAlways answers with a list, in the order asked, each node once. Either every item is\nfound or the call refuses and names every item at fault.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "targets": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "description": "Codexes and notes, mixed as you like — each a CODEX@ code or a path from\nthe canvas root (`/python`, `/python/test`)."
+          }
+        },
+        "required": [
+          "targets"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "nodes": {
+            "default": [],
+            "items": {
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "segment": {
+                  "type": "string"
+                },
+                "parent_code": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null
+                },
+                "title": {
+                  "type": "string"
+                },
+                "description": {
+                  "default": "",
+                  "type": "string"
+                },
+                "body": {
+                  "default": "",
+                  "type": "string"
+                },
+                "children": {
+                  "items": {
+                    "properties": {
+                      "code": {
+                        "type": "string"
+                      },
+                      "path": {
+                        "type": "string"
+                      },
+                      "segment": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "default": "",
+                        "type": "string"
+                      },
+                      "children": {
+                        "default": 0,
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "code",
+                      "path",
+                      "segment",
+                      "title"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "code",
+                "path",
+                "segment",
+                "title"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "codex_tree",
+      "description": "Show the tree down from a point — the quick way to find your bearings in the codexes.\n\nBy default the short structure: codes, paths, segments and titles, no text — enough to\nsee what a codex holds and where. `with_description=true` adds every node's\n`description`, the «when to read» line, for choosing what to open; the text itself is\ncodex_get's. From the root (`/` or empty) — every mounted codex. The tree is never cut: a\ncodex is at most four levels deep (codex / note / note / note). A node without\n`children` has none.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "target": {
+            "default": "",
+            "type": "string",
+            "description": "A CODEX@ code or a path; `/` or empty for the whole canvas."
+          },
+          "with_description": {
+            "default": false,
+            "type": "boolean",
+            "description": "False (default) — the structure only; true — with every node's\ndescription."
+          }
+        },
+        "type": "object"
+      },
+      "outputSchema": {
+        "$defs": {
+          "AgentCodexTreeNode": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              },
+              "segment": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "description": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "children": {
+                "items": {
+                  "$ref": "#/$defs/AgentCodexTreeNode"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "code",
+              "path",
+              "segment",
+              "title"
+            ],
+            "type": "object"
+          }
+        },
+        "properties": {
+          "root": {
+            "type": "string"
+          },
+          "nodes": {
+            "default": [],
+            "items": {
+              "$ref": "#/$defs/AgentCodexTreeNode"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "root"
+        ],
+        "type": "object"
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "codex_search",
+      "description": "Find codexes and notes whose title, description or text holds any of the variants —\nwhen you know the words but not the place.\n\nA variant is matched as a substring, case aside, with no morphology — so pass the forms\nyou expect yourself: `[\"сессия\", \"сессию\", \"сессии\", \"session\"]`. Each record comes once,\nin tree order, with its code, path, segment, title, description and a fragment around\nthe earliest variant in the first field that matched. Read a hit whole with codex_get.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "query": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "description": "The variants — words or phrases; a record matches if any of them occurs.\nBlank items are dropped; at least one must remain."
+          },
+          "within": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Search only this node's branch — the node itself and everything below it; a\nCODEX@ code or a path. Omit it (or `/`) for the whole canvas."
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "workspace": {
+            "type": "string"
+          },
+          "workspace_title": {
+            "type": "string"
+          },
+          "hits": {
+            "default": [],
+            "items": {
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "segment": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "description": {
+                  "default": "",
+                  "type": "string"
+                },
+                "fragment": {
+                  "default": "",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "path",
+                "segment",
+                "title"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "workspace",
+          "workspace_title"
+        ],
+        "type": "object"
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "codex_add",
+      "description": "Add a note to a codex — a note only: a codex itself is created by the person. Only in\na codex codex_index shows `editable`.\n\nBefore writing, read the codex's root with codex_get: its rules say what belongs in it\nand where. A note is for what holds beyond the task at hand — a rule, a convention, a\npitfall worth knowing next time; the course of the work and facts of one project belong\nin the task.\n\nA note with children is a section: its text sums up what lies below (`/python/test` —\nthe testing standard in brief; its children — the details). The tree is at most four\nlevels deep: codex / note / note / note. The note goes last among its siblings;\ncodex_update `after` moves it.\n\nThe answer carries the note's code and path. Refer to the note by its code: the code\nsurvives moves and renames, the path does not.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "parent": {
+            "type": "string",
+            "description": "The codex or note to add under — a CODEX@ code or a path (`/python/test`)."
+          },
+          "segment": {
+            "type": "string",
+            "description": "The note's path segment, up to 64 characters — a-z, 0-9, '_' and '-',\nstarting with a letter or a digit, free among its siblings."
+          },
+          "title": {
+            "type": "string",
+            "description": "What the note is — one line, up to 128 characters."
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "When to read it, up to 512 characters — the line a reader decides by\nwhether to open the note; the lists and the tree show it instead of the text.\nWithout it the note is found only by search."
+          },
+          "body": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The text, markdown — skill_get('markdown'), up to 65 536 characters; write it\nnow or later with content_set(code, \"body\", …)."
+          }
+        },
+        "required": [
+          "parent",
+          "segment",
+          "title"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "workspace": {
+            "type": "string"
+          },
+          "workspace_title": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "segment": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace",
+          "workspace_title",
+          "code",
+          "path",
+          "segment"
+        ],
+        "type": "object"
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "codex_update",
+      "description": "Change a note — its title, description, segment or place. Only what you pass changes;\na codex itself is the person's. Only in a codex codex_index shows `editable`.\n\nThe text is not here: it is content — content_set / content_replace /\ncontent_set_section / content_add with the field \"body\".\n\n`segment` renames the note's path and the paths of everything below it; the code stays,\nso a reference by code still holds. `parent` moves the note with its whole branch,\nwithin its codex, and the tree stays within four levels. `after` places it among its\nsiblings — the new ones, when it moves too.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "target": {
+            "type": "string",
+            "description": "The note — a CODEX@ code or a path."
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "New one-line name, up to 128 characters."
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "New «when to read it», up to 512 characters; an empty string clears it."
+          },
+          "segment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "New path segment, up to 64 characters — a-z, 0-9, '_' and '-', starting\nwith a letter or a digit."
+          },
+          "parent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Move under this codex or a note of it — a CODEX@ code or a path."
+          },
+          "after": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Place right after this sibling — a CODEX@ code or a path — or \"start\" to put\nit first."
+          }
+        },
+        "required": [
+          "target"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "workspace": {
+            "type": "string"
+          },
+          "workspace_title": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "segment": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace",
+          "workspace_title",
+          "code",
+          "path",
+          "segment"
+        ],
+        "type": "object"
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "content_set",
+      "description": "Replace a content field of a TASK@, STAGE@, JOURNAL@, NOTE@ or codex note (CODEX@) whole.\n\nThis is how a field is first written — a plan after reading the code, a result at\nhand-over. Naming the files you read and the files you will change is what separates a\nplan from a promise.\n\nReturns a receipt only — the new length, since the field is the text you just sent.\nWatch it against the limit: going over is refused, not trimmed. To amend part of a\nfield, use content_replace / content_set_section / content_add instead of rewriting it.\n\nA `simple` task has only its context: constraints, criteria, plan, progress and result\nare refused there by every content tool until the type is raised with task_update.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Whose field to replace — a TASK@, STAGE@, JOURNAL@, NOTE@ or CODEX@ code."
+          },
+          "field": {
+            "type": "string",
+            "description": "The field, by the name the answers show it under. TASK@: context,\nconstraints, criteria, plan, progress, result. STAGE@, JOURNAL@, NOTE@, CODEX@\n(a note, not a codex): body."
+          },
+          "text": {
+            "type": "string",
+            "description": "The new text — everything there now is discarded.\nMarkdown, rendered in the interface — skill_get('markdown')."
+          }
+        },
+        "required": [
+          "code",
+          "field",
+          "text"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "field": {
+            "type": "string"
+          },
+          "length": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "field",
+          "length"
+        ],
+        "type": "object"
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "content_replace",
+      "description": "Replace the exact string `find` with `text` in a content field.\n\n- `single` (default) — `find` must occur exactly once, or the call fails saying how many\n  times it occurs. Pass a longer fragment to single one out.\n- `all` — every occurrence. Absent in both modes is an error.\n\nReturns `edits`: one seam per occurrence in document order — 128 characters of the field\neither side of the edit, with `<text>` standing in for what you sent (`…` at an end marks\na window cut short mid-text). Read it: it is where a splice goes wrong.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Whose field to edit — a TASK@, STAGE@, JOURNAL@, NOTE@ or CODEX@ code."
+          },
+          "field": {
+            "type": "string",
+            "description": "TASK@: context, constraints, criteria, plan, progress, result.\nSTAGE@, JOURNAL@, NOTE@, CODEX@ (a note, not a codex): body."
+          },
+          "find": {
+            "type": "string",
+            "description": "The exact substring as it stands in the field."
+          },
+          "text": {
+            "type": "string",
+            "description": "What replaces it.\nMarkdown, rendered in the interface — skill_get('markdown')."
+          },
+          "mode": {
+            "default": "single",
+            "type": "string",
+            "description": "single (exactly one occurrence) or all (every one)."
+          }
+        },
+        "required": [
+          "code",
+          "field",
+          "find",
+          "text"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "field": {
+            "type": "string"
+          },
+          "replaced": {
+            "type": "integer"
+          },
+          "edits": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "code",
+          "field",
+          "replaced"
+        ],
+        "type": "object"
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "content_set_section",
+      "description": "Replace one heading section of a content field with `text`.\n\nThe section runs from its heading line down to the next heading of equal or higher\nlevel, so it takes its own subsections with it. A `#` line inside a ``` or ~~~ fence is\ncode, not a heading, and never ends a section.\n\n`heading` matches the heading line as a whole, level included, and must occur exactly\nonce; one that repeats is refused. Say which you mean with a path — `## Plan > ### Risks`\n— every segment carrying its own `#`.\n\nReturns what was CUT, not what you wrote: the boundary is computed here, so the reach of\nthe cut is the one thing you cannot predict. A section you thought was 500 characters\ncoming back as 4000 is a cut that ran past it — and the preview is all there is, the cut\ntext is stored nowhere.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Whose field to edit — a TASK@, STAGE@, JOURNAL@, NOTE@ or CODEX@ code."
+          },
+          "field": {
+            "type": "string",
+            "description": "TASK@: context, constraints, criteria, plan, progress, result.\nSTAGE@, JOURNAL@, NOTE@, CODEX@ (a note, not a codex): body."
+          },
+          "heading": {
+            "type": "string",
+            "description": "The heading line, or the path to it when it repeats."
+          },
+          "text": {
+            "type": "string",
+            "description": "The whole new section, normally starting with the heading again — leave it out\nand the heading goes too. Spliced in verbatim.\nMarkdown, rendered in the interface — skill_get('markdown')."
+          }
+        },
+        "required": [
+          "code",
+          "field",
+          "heading",
+          "text"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "field": {
+            "type": "string"
+          },
+          "removed": {
+            "type": "string"
+          },
+          "removed_length": {
+            "type": "integer"
+          },
+          "stopped_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "code",
+          "field",
+          "removed",
+          "removed_length"
+        ],
+        "type": "object"
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "content_add",
+      "description": "Add text to a content field — at an end, or next to an anchor.\n\n- `start` / `end` — prepend or append to the whole field. Appending is how a progress\n  entry is written, and how a file you had not read yet gets into a plan.\n- `before` / `after` — insert relative to `anchor`, a heading or any unique string.\n\nYour text is spliced in verbatim: no newline and no blank line is added around it at any\nposition. Carry the blank line you want at the start or end of `text` yourself, or the\naddition runs into the neighbouring paragraph.\n\nReturns the seam — 128 characters either side, with `<text>` standing in for what you\nsent. Read it: it shows exactly what your text ran into.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Whose field to add to — a TASK@, STAGE@, JOURNAL@, NOTE@ or CODEX@ code."
+          },
+          "field": {
+            "type": "string",
+            "description": "TASK@: context, constraints, criteria, plan, progress, result.\nSTAGE@, JOURNAL@, NOTE@, CODEX@ (a note, not a codex): body."
+          },
+          "text": {
+            "type": "string",
+            "description": "What to add, carrying its own leading/trailing blank lines.\nMarkdown, rendered in the interface — skill_get('markdown')."
+          },
+          "position": {
+            "type": "string",
+            "description": "start / end / before / after."
+          },
+          "anchor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The unique anchor string (required for before / after)."
+          }
+        },
+        "required": [
+          "code",
+          "field",
+          "text",
+          "position"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "field": {
+            "type": "string"
+          },
+          "edit": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "field",
+          "edit"
+        ],
+        "type": "object"
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "delete",
+      "description": "Delete one entity. The code decides what goes, and what goes with it.\n\nTASK@ — the task and the whole branch under it, reversibly: it goes to the bin, and a\nperson can bring it back. You cannot: restoring is theirs, so say so rather than\ncreating a replacement.\nSTAGE@ — removed outright. A plan has no hidden steps; a step you decided against is\nclosed with stage_close(outcome=\"canceled\"), which keeps why. Deleting leaves a gap in\nthe numbering, and that is fine — numbers order the plan, they do not count it.\nNOTE@ — the task note, reversibly: it leaves the task's list, and a person can bring it\nback.\nCODEX@ — a codex note, reversibly, and only alone: one with child notes is refused with\ntheir list — delete those first. Only where the mount lets you write; a codex itself is\nthe person's.\n\nA journal entry is not deletable, and neither is a group or a workspace.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "The entity to delete — a TASK@, STAGE@, NOTE@ or CODEX@ (a note) code."
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "type": "object",
+        "x-fastmcp-wrap-result": true
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "skills_list",
+      "description": "List the skills this server can teach you — name, when to use it, its sections.\n\nA skill is reference material kept here: how this app expects a brief, a plan or a\njournal to be written, and what its interface actually renders. It is the difference\nbetween output that works the way it looks and output that quietly does not.\n\nCheap to call — the catalogue carries no skill text, only names and the condition each\none is for. Read one with skill_get(skill_name).",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "items": {
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "sections": {
+                  "default": [],
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "name",
+                "description"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "type": "object",
+        "x-fastmcp-wrap-result": true
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "skill_get",
+      "description": "Return a skill — the whole guide, or one section of it.\n\nRead it BEFORE the work it covers, not after the result comes back wrong. Your own\nsense of how a task should be written is not the question: what matters is what THIS\napp does with it, and that is what the skill describes.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "skill_name": {
+            "type": "string",
+            "description": "The skill to read — a name from skills_list."
+          },
+          "section": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "One name from that skill's `sections`; omit for the whole guide."
+          }
+        },
+        "required": [
+          "skill_name"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "section": {
+            "default": "",
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "sections": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "text"
+        ],
+        "type": "object"
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "interface_open",
+      "description": "Open the page for a code in the user's browser and return its address.\n\nThis is how you SHOW something instead of describing it. Use it when the user asks to\nsee something, and when you have finished a piece of work worth looking at — it puts the\nthing on screen rather than a paragraph about it. Returning the address also lets you\npaste it into the conversation.\n\nA STAGE@ or a JOURNAL@ opens the task it belongs to: they live on its page and have none\nof their own. A NOTE@ opens its own page, inside its task's. A CODEX@ opens the codex\neditor on that codex or note. A WORKSPACE@ or a TASKGROUP@ opens the list it is a row in.\n\nIt acts on the user's machine, so do it when it was asked for or clearly helps, not\nafter every call.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "What to show — a TASK@, STAGE@, JOURNAL@, NOTE@, CODEX@, TASKGROUP@ or\nWORKSPACE@ code."
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "type": "object",
+        "x-fastmcp-wrap-result": true
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    }
+  ],
+  "dispatch_refusals": [
+    {
+      "tool": "delete",
+      "arguments": {
+        "code": "JOURNAL@0000000000"
+      },
+      "refusal": "Error calling tool 'delete': A journal entry is not deleted — it is the history of how the work went, and a gap in it answers nothing. Changed your mind: write a new entry pointing at the old one; detail to add goes to its body with content_add(code, \"body\", …)."
+    },
+    {
+      "tool": "delete",
+      "arguments": {
+        "code": "TASKGROUP@0000000000"
+      },
+      "refusal": "Error calling tool 'delete': Removing a group is the person's to do: it decides what happens to the tasks filed there — left without a group, moved to another, or binned with it — and bringing it back is theirs as well. Re-word the theme with group_update, or empty it with tasks_regroup(group_code=\"\", …) and leave the empty group for them to clear."
+    },
+    {
+      "tool": "delete",
+      "arguments": {
+        "code": "GROUP@0000000000"
+      },
+      "refusal": "Error calling tool 'delete': Removing a group is the person's to do: it decides what happens to the tasks filed there — left without a group, moved to another, or binned with it — and bringing it back is theirs as well. Re-word the theme with group_update, or empty it with tasks_regroup(group_code=\"\", …) and leave the empty group for them to clear."
+    },
+    {
+      "tool": "delete",
+      "arguments": {
+        "code": "WORKSPACE@0000000000"
+      },
+      "refusal": "Error calling tool 'delete': A workspace holds everything else here, and deleting it is the person's call. workspace_use switches the one you work in."
+    },
+    {
+      "tool": "delete",
+      "arguments": {
+        "code": "SOURCE@0000000000"
+      },
+      "refusal": "Error calling tool 'delete': 'SOURCE@0000000000' is not something this deletes — pass a TASK@ or STAGE@ or NOTE@ or CODEX@ code."
+    },
+    {
+      "tool": "interface_open",
+      "arguments": {
+        "code": "SOURCE@0000000000"
+      },
+      "refusal": "Error calling tool 'interface_open': 'SOURCE@0000000000' is not something with a page — pass a WORKSPACE@ / TASKGROUP@ / TASK@ / STAGE@ / JOURNAL@ / NOTE@ / CODEX@ code."
+    },
+    {
+      "tool": "content_set",
+      "arguments": {
+        "code": "SOURCE@0000000000",
+        "field": "body",
+        "text": "x"
+      },
+      "refusal": "Error calling tool 'content_set': 'SOURCE@0000000000' has no content to edit — content_* works on TASK@ / STAGE@ / JOURNAL@ / NOTE@ / CODEX@ codes."
+    },
+    {
+      "tool": "content_set",
+      "arguments": {
+        "code": "WORKSPACE@0000000000",
+        "field": "body",
+        "text": "x"
+      },
+      "refusal": "Error calling tool 'content_set': 'WORKSPACE@0000000000' has no content to edit — content_* works on TASK@ / STAGE@ / JOURNAL@ / NOTE@ / CODEX@ codes."
+    },
+    {
+      "tool": "content_set",
+      "arguments": {
+        "code": "TASK@0000000000",
+        "field": "title",
+        "text": "x"
+      },
+      "refusal": "Error calling tool 'content_set': 'title' of a TASK@ is not content — it is set with task_update. Content fields of a TASK@: context, constraints, criteria, plan, progress, result."
+    },
+    {
+      "tool": "content_set",
+      "arguments": {
+        "code": "TASK@0000000000",
+        "field": "evidence",
+        "text": "x"
+      },
+      "refusal": "Error calling tool 'content_set': A TASK@ has no content field 'evidence'. Its content fields: context, constraints, criteria, plan, progress, result."
+    },
+    {
+      "tool": "content_set",
+      "arguments": {
+        "code": "STAGE@0000000000",
+        "field": "evidence",
+        "text": "x"
+      },
+      "refusal": "Error calling tool 'content_set': 'evidence' of a STAGE@ is not content — it is set with stage_close, together with closing the stage. Content fields of a STAGE@: body."
+    },
+    {
+      "tool": "content_set",
+      "arguments": {
+        "code": "JOURNAL@0000000000",
+        "field": "resolution",
+        "text": "x"
+      },
+      "refusal": "Error calling tool 'content_set': 'resolution' of a JOURNAL@ is not content — it is set with journal_resolve, once, together with closing the entry. Content fields of a JOURNAL@: body."
+    },
+    {
+      "tool": "content_set",
+      "arguments": {
+        "code": "NOTE@0000000000",
+        "field": "title",
+        "text": "x"
+      },
+      "refusal": "Error calling tool 'content_set': 'title' of a NOTE@ is not content — it is set with task_note_update. Content fields of a NOTE@: body."
+    }
+  ]
+}

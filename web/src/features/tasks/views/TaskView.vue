@@ -24,7 +24,7 @@ import { computed, onActivated, onBeforeUnmount, onDeactivated, reactive, ref, w
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import {
-  IconArrowUp,
+  IconArrowsExchange,
   IconCalendarEvent,
   IconDotsVertical,
   IconFlame,
@@ -32,6 +32,7 @@ import {
   IconRefresh,
   IconRestore,
   IconTrash,
+  IconUnlink,
 } from '@tabler/icons-vue'
 
 import PageLayout from '@/layout/templates/PageLayout.vue'
@@ -53,6 +54,7 @@ import TaskFieldConflictDialog from '../components/TaskFieldConflictDialog.vue'
 import TaskFormDialog from '../components/TaskFormDialog.vue'
 import TaskJournal from '../components/TaskJournal.vue'
 import TaskNotes from '../components/TaskNotes.vue'
+import TaskParentDialog from '../components/TaskParentDialog.vue'
 import TaskPrioritySelect from '../components/TaskPrioritySelect.vue'
 import TaskStages from '../components/TaskStages.vue'
 import TaskStatusSelect from '../components/TaskStatusSelect.vue'
@@ -536,6 +538,7 @@ useChangeSubscription({
 
 const purgeOpen = ref(false)
 const formOpen = ref(false)
+const parentOpen = ref(false)
 const parent = ref<TaskDetail | TaskListRow | null>(null)
 const subtasks = ref<InstanceType<typeof TaskSubtasksPanel> | null>(null)
 
@@ -563,15 +566,26 @@ function addChild(under?: TaskListRow) {
 }
 
 /**
- * A newly created subtask opens right away — that is what it was created for. If the save was of
- * the task itself, it is re-read in place.
+ * A new subtask either opens, or stays here as a new row of the subtask panel — the person picked
+ * which with the dialog's button.
  */
-function onSaved(saved: string) {
-  if (saved !== code.value) {
-    void router.push(taskPath(saved))
+function onSaved(saved: string, openIt: boolean) {
+  if (openIt) {
+    goTask(saved)
     return
   }
-  void store.load(code.value)
+  void subtasks.value?.reload()
+}
+
+/** What was typed goes out first: the move answers with the whole card, which then merges into the draft. */
+async function detach() {
+  await commit()
+  await store.move(null)
+}
+
+async function changeParent(parentCode: string) {
+  await commit()
+  if (await store.move(parentCode)) parentOpen.value = false
 }
 
 async function remove() {
@@ -857,32 +871,24 @@ async function purge() {
 
           <!-- The branch under the task — in the same form as in the main list, its header inside
                its card; each row opens ITS OWN page. The tree is one level deep: a subtask cannot
-               have subtasks of its own. -->
+               have subtasks of its own, so its page has no branch to show. -->
           <TaskSubtasksPanel
+            v-if="!task.parent"
             ref="subtasks"
             :task-code="task.code"
             :workspace="task.workspace_code"
             :deleted="deleted"
-            :addable="!task.parent && !deleted"
+            :addable="!deleted"
             @open="goTask"
             @add="addChild()"
             @add-child="addChild"
           />
         </div>
 
-        <!-- The column holds cards by kind: where the task sits, then the fields the person sets,
+        <!-- The column holds cards by kind: the fields the person sets, then where the task sits,
              then what the task stamps on itself. It is pinned as a whole, so the cards move
              together. -->
         <aside class="task-page__side">
-          <!-- A link to the parent. A root task has none — nowhere to go up. -->
-          <VCard v-if="task.parent" variant="outlined" rounded="lg" class="task-page__panel">
-            <span class="task-page__label">{{ t('tasks.task.detail.parent') }}</span>
-            <button type="button" class="task-page__parent" @click="goTask(task.parent.code)">
-              <IconArrowUp :size="14" :stroke-width="1.6" class="task-page__parent-icon" />
-              {{ task.parent.title }}
-            </button>
-          </VCard>
-
           <VCard variant="outlined" rounded="lg" class="task-page__panel task-page__settings">
             <!-- The group is optional: a task without one lands in the "No group" section, not lost.
                  A workspace can have many groups, and they are recognised by look — an icon in the
@@ -1000,6 +1006,31 @@ async function purge() {
             </p>
           </VCard>
 
+          <!-- A link to the parent. A root task has none — nowhere to go up. The subtask's place
+               in the tree is changed right here, where it is shown: detached it becomes a task
+               of its own, and the subtask panel appears in place of this card. -->
+          <VCard v-if="task.parent" variant="outlined" rounded="lg" class="task-page__panel task-page__parent-card">
+            <span class="task-page__label">{{ t('tasks.task.detail.parent') }}</span>
+            <button type="button" class="task-page__parent" @click="goTask(task.parent.code)">
+              {{ task.parent.title }}
+            </button>
+            <div class="task-page__parent-actions">
+              <VBtn
+                variant="tonal"
+                size="small"
+                :disabled="deleted || store.busy"
+                @click="parentOpen = true"
+              >
+                <template #prepend><IconArrowsExchange :size="16" /></template>
+                {{ t('tasks.task.parent.change') }}
+              </VBtn>
+              <VBtn variant="tonal" size="small" :disabled="deleted || store.busy" @click="detach">
+                <template #prepend><IconUnlink :size="16" /></template>
+                {{ t('tasks.task.parent.detach') }}
+              </VBtn>
+            </div>
+          </VCard>
+
           <VCard v-if="marks.length" tag="dl" variant="outlined" rounded="lg" class="task-page__panel task-page__marks">
             <div v-for="mark in marks" :key="mark.key" class="task-page__mark">
               <dt class="task-page__mark-label">{{ mark.label }}</dt>
@@ -1014,10 +1045,17 @@ async function purge() {
          shows the database version, and what was typed is here so it can be copied. -->
     <TaskFieldConflictDialog v-model="conflictOpen" :items="conflictItems" />
 
+    <TaskParentDialog
+      v-model="parentOpen"
+      :task="task"
+      :groups="groups"
+      :loading="store.busy"
+      @confirm="changeParent"
+    />
+
     <TaskFormDialog
       v-model="formOpen"
       :workspace="task?.workspace_code ?? ''"
-      :task="null"
       :parent="parent"
       @saved="onSaved"
     />
@@ -1126,9 +1164,6 @@ async function purge() {
 /* The link up is a button, not a `RouterLink`: the page owns the URL, and the markup must not
    know how it is built. It still looks like a link — it is a navigation. */
 .task-page__parent {
-  display: flex;
-  align-items: flex-start;
-  gap: 4px;
   max-width: 100%;
   padding: 0;
   border: none;
@@ -1144,11 +1179,23 @@ async function purge() {
 
 .task-page__parent:hover { text-decoration: underline; }
 
-/* A long parent title wraps: the icon stays by its first line. */
-.task-page__parent-icon {
-  flex: none;
-  margin-top: 2px;
-  color: var(--text-muted);
+/* The label and the title read as one phrase — "subtask of: …" — so they sit closer than the
+   panel's usual step; the buttons keep their distance. */
+.task-page__parent-card {
+  gap: 2px;
+}
+
+/* The buttons share the row equally and wrap one under the other when the column is too narrow
+   for both labels. */
+.task-page__parent-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.task-page__parent-actions > .v-btn {
+  flex: 1 1 auto;
 }
 
 /* The header's text half shrinks to its content: for an ordinary title that is exactly its length,

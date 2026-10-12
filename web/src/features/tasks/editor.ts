@@ -5,15 +5,15 @@
 // the sets are declared here, while `components/markdown/editor/modes.ts` holds only the generic
 // `full` and `simple`.
 //
-// **No field has a drag handle, and that is forced.** The extension places the handle to the left
-// of the block and needs a 36px column for it — but the field sits inside a card with a section
-// heading, and that column would shift the text against the heading. Moving the handle into the
-// card's padding is not possible either: its 16px are not enough. Blocks in task fields are
-// rearranged by cut and paste, not by dragging.
+// **Every field with blocks has a drag handle** (the owner's call, 2026-10-12). The handle needs a
+// 20px column left of the text; in a card with a section heading that column shifts the text off
+// the heading, and the editor narrows the shift by borrowing 8px of the card's padding (see
+// `.editor--handled` in MarkdownEditor.vue). One-line fields (`mode="simple"`) have no blocks and
+// so no handle.
 import type { Feature } from '@/components/markdown/editor/modes'
 
 /**
- * Brief and plan — everything the editor can do, except the handle.
+ * Brief, plan, work, journal, a note's body — everything the editor can do.
  *
  * These hold reasoned prose: subsections, lists, code listings, diagrams, comparison tables,
  * references to neighbouring entities. There is nothing to restrict here — this is exactly the set
@@ -22,7 +22,7 @@ import type { Feature } from '@/components/markdown/editor/modes'
 export const TASK_DOCUMENT_FEATURES: readonly Feature[] = [
   'heading', 'list', 'quote', 'codeBlock', 'diagram', 'divider', 'table',
   'bold', 'italic', 'strike', 'code', 'link', 'entityRef',
-  'slash',
+  'slash', 'handle',
 ]
 
 /**
@@ -35,5 +35,5 @@ export const TASK_DOCUMENT_FEATURES: readonly Feature[] = [
 export const TASK_BRIEF_FEATURES: readonly Feature[] = [
   'list',
   'bold', 'italic', 'strike', 'code', 'link', 'entityRef',
-  'slash',
+  'slash', 'handle',
 ]

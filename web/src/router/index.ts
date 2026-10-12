@@ -6,6 +6,7 @@ import { setupRoutePrefetch } from './prefetch'
 import { setupChunkReload } from './reload'
 import { designSystemRoutes } from './design-system'
 import { aboutRoutes } from '../features/about/routes'
+import { codexRoutes } from '../features/codex/routes'
 import { coreMcpRoutes } from '../features/core_mcp/routes'
 import { coreMonitoringRoutes } from '../features/core_monitoring/routes'
 import { settingsRoutes } from '../features/settings/routes'
@@ -35,14 +36,11 @@ const router = createRouter({
     // `/tasks/:module/:code` — and the conflict is settled not by declaration order but by
     // vue-router's ranking: a static segment outweighs a param (see features/tasks/routes.ts).
     ...tasksRoutes,
+    ...codexRoutes,
     ...workspacesRoutes,
     ...settingsRoutes,
     ...setupRoutes,
     ...aboutRoutes,
-    // Research and web search (`features/research`, `features/web_search`) are the donor's domain:
-    // the feature code is kept, but their routes are not registered, and there is no backend
-    // behind them anymore. Integrations are gone entirely — with the `core_connectors` module and
-    // their feature.
     // Catch-all 404 — kept LAST so it can't shadow any route declared above it.
     // Renders the 404 inside the app shell.
     {

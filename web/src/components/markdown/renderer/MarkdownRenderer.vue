@@ -1,14 +1,21 @@
 <script setup lang="ts">
-import { computed, getCurrentInstance, h, nextTick, onBeforeUnmount, onMounted, ref, render, watch } from 'vue'
+import { computed, getCurrentInstance, h, nextTick, onBeforeUnmount, onMounted, ref, render, watch, watchEffect } from 'vue'
 import { useRouter } from 'vue-router'
 import CodeBlock from '@/components/CodeBlock.vue'
 import DiagramBlock from '@/components/DiagramBlock.vue'
 import { useAfterRouteTransition } from '@/composables/useRouteTransition'
+import { usePreviewStore } from '@/stores/preview'
 import { useSettingsStore } from '@/stores/settings'
+import EntityPreviewPopup from '../shared/EntityPreviewPopup.vue'
 import { renderMarkdown, type HeadingAnchor } from './render'
+
+// The body is the component's face, the hover card its sibling: attributes a parent sets (a class,
+// a style) belong on the body.
+defineOptions({ inheritAttrs: false })
 
 const router = useRouter()
 const settings = useSettingsStore()
+const previews = usePreviewStore()
 
 const props = defineProps<{
   text: string
@@ -22,12 +29,7 @@ const props = defineProps<{
   allowImages?: boolean
   // Treat single newlines as <br> — preserves line breaks of plain-text email bodies.
   breaks?: boolean
-  // Map `TYPE@hash` → entity title. When a reference pill's code resolves here, the pill
-  // shows the (truncated) title instead of the short hash.
-  refLabels?: Record<string, string>
 }>()
-
-const REF_LABEL_MAX = 48
 
 const emit = defineEmits<{
   imageClick: [src: string]
@@ -35,26 +37,6 @@ const emit = defineEmits<{
   // expose — the consumer (side navigation) needs a ready list, not access into the renderer.
   headings: [items: HeadingAnchor[]]
 }>()
-
-// Swap each reference pill's label from the short hash to the resolved entity title
-// (truncated). Runs on the already-sanitized HTML; textContent/setAttribute escape, so no
-// re-sanitize is needed. The href/code stay untouched. Key = `TYPE@hash` (last href segment).
-function withRefLabels(sanitized: string): string {
-  const labels = props.refLabels
-  if (!labels || typeof window === 'undefined') return sanitized
-  const doc = new DOMParser().parseFromString(sanitized, 'text/html')
-  let changed = false
-  doc.querySelectorAll('a.md-ref').forEach((a) => {
-    const code = (a.getAttribute('href') ?? '').split('/').pop() ?? ''
-    const title = labels[code]
-    const label = a.querySelector('.md-ref-label')
-    if (!title || !label) return
-    label.textContent = title.length > REF_LABEL_MAX ? title.slice(0, REF_LABEL_MAX) + '…' : title
-    a.setAttribute('title', title)
-    changed = true
-  })
-  return changed ? doc.body.innerHTML : sanitized
-}
 
 // Empty text while the transition runs is the deferral itself: parsing does not start, the
 // outline arrives together with the body, and no consumer learns anything about the wait beyond
@@ -68,7 +50,7 @@ const rendered = computed(() => renderMarkdown(source.value, {
   allowImages: props.allowImages ?? false,
 }))
 
-const html = computed(() => withRefLabels(rendered.value.html))
+const html = computed(() => rendered.value.html)
 
 watch(() => rendered.value.headings, (items) => emit('headings', items), { immediate: true })
 
@@ -133,6 +115,55 @@ watch([html, () => rendered.value.codeBlocks], () => {
 onMounted(mountCodeBlocks)
 onBeforeUnmount(unmountCodeBlocks)
 
+// The pills of a drawn body ask for their previews at once, all in one request, so the hover card
+// finds its record already there. The store sends only the codes it does not hold yet.
+const pillCodes = ref<string[]>([])
+
+function pills(): HTMLElement[] {
+  return [...(body.value?.querySelectorAll<HTMLElement>('.md-ref[data-ref]') ?? [])]
+}
+
+function askForPreviews() {
+  pillCodes.value = pills().map((pill) => pill.dataset.ref ?? '')
+  previews.ensure(pillCodes.value)
+}
+
+watch(html, () => nextTick(askForPreviews))
+onMounted(askForPreviews)
+
+// A pill takes its address and its state from its preview: the HTML carries only what the code
+// alone can tell — a stage or a note learns its task's page here, and a code that leads nowhere is
+// marked as such, once the preview comes.
+watchEffect(() => {
+  const records = new Map(pillCodes.value.map((code) => [code, previews.get(code)]))
+  for (const pill of pills()) {
+    const record = records.get(pill.dataset.ref ?? '')
+    if (record?.link) pill.setAttribute('href', record.link)
+    pill.classList.toggle('md-ref--missing', record?.error?.code === 'not_found')
+  }
+}, { flush: 'post' })
+
+// The pills are plain HTML, so the body keeps one hover card and points it at whichever pill the
+// pointer is on. `mouseover`/`mouseout` bubble, unlike `mouseenter`; moves between a pill and its
+// own label are not a leave.
+const popup = ref<InstanceType<typeof EntityPreviewPopup> | null>(null)
+
+function pillOf(target: EventTarget | null): HTMLElement | null {
+  return target instanceof Element ? target.closest<HTMLElement>('.md-ref[data-ref]') : null
+}
+
+// A pointer crossing a pill with a button held is selecting text, not asking what the pill is.
+function onPointerOver(event: MouseEvent) {
+  if (event.buttons) return
+  const pill = pillOf(event.target)
+  if (pill) popup.value?.hover(pill, pill.dataset.ref ?? '')
+}
+
+function onPointerOut(event: MouseEvent) {
+  const pill = pillOf(event.target)
+  if (pill && pill !== pillOf(event.relatedTarget)) popup.value?.leave()
+}
+
 function onClick(event: MouseEvent) {
   const anchor = (event.target as HTMLElement).closest('a')
   if (anchor) {
@@ -152,7 +183,17 @@ function onClick(event: MouseEvent) {
 </script>
 
 <template>
-  <div ref="body" class="md-body" :class="{ 'md-body--compact': compact }" v-html="html" @click="onClick" />
+  <div
+    ref="body"
+    v-bind="$attrs"
+    class="md-body"
+    :class="{ 'md-body--compact': compact }"
+    @click="onClick"
+    @mouseover="onPointerOver"
+    @mouseout="onPointerOut"
+    v-html="html"
+  />
+  <EntityPreviewPopup ref="popup" />
 </template>
 
 <!-- Body typography lives in the shared file and serves both zones — viewing and editing. The

@@ -38,7 +38,6 @@ def _dictionaries(locale: str) -> list[Path]:
         path
         for path in WEB_SRC.rglob(f"{locale}.json")
         if path.parent.name == "locales" or path.parent.parent.name == "locales"
-        if "research" not in path.parts and "web_search" not in path.parts
     )
 
 

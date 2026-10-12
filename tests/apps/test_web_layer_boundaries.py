@@ -20,8 +20,7 @@ levels and only down": a base reaching into an application module is an error of
 as before, and is caught right here.
 
 Composition is deliberately left unchecked, and that is not an oversight: ``plugins/i18n.ts``
-finds module dictionaries by glob, and the design-system showcase (``views/design-system``) still
-reaches into ``research`` — a separate piece of work, already split out on its own.
+finds module dictionaries by glob, and assembling modules together is exactly its job.
 
 The check lives in the Python tests for the same reason as the page frame (see
 ``test_web_page_header.py``): the frontend has no test runner, and the convention has to be

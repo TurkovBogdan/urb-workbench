@@ -610,6 +610,42 @@ a { color: var(--accent); text-decoration: none; &:hover { text-decoration: unde
 .v-input--density-compact     .v-field--variant-outlined .v-field__input,
 .v-input--density-compact     .v-field--variant-plain    .v-field__input { padding-top: 4px; }
 
+// VTextarea auto-grow: Vuetify measures the hidden sizer and writes the height into
+// `--v-textarea-control-height`, applied through the same min-height the density steps above
+// pin — and unlayered beats @layer, so without this the field never grows past its rows. The
+// sizer stays excluded: flooring it would stop its scrollHeight from shrinking, and the field
+// would grow on every keystroke and never come back down.
+.v-textarea--auto-grow .v-field__input:not(.v-textarea__sizer) {
+  min-height: var(--v-textarea-control-height);
+}
+
+// The measured height is floored at `max(rows × line-height + padding, --v-input-control-height)`,
+// both read from Vuetify's variables (16px paddings, 48–56px control) rather than the real
+// paddings above, so an empty field came out taller than its rows. For outlined/plain — the
+// variants whose paddings this file sets whole — the variables are restated with the real values.
+// Solo and filled keep Vuetify's floor: the chat composer is sized against it.
+.v-textarea--auto-grow .v-field--variant-outlined,
+.v-textarea--auto-grow .v-field--variant-plain {
+  --v-field-padding-top: 8px;
+  --v-input-padding-top: 0px;
+  --v-field-padding-bottom: 8px;
+  --v-input-control-height: 36px;
+}
+
+.v-input--density-comfortable.v-textarea--auto-grow .v-field--variant-outlined,
+.v-input--density-comfortable.v-textarea--auto-grow .v-field--variant-plain {
+  --v-field-padding-top: 6px;
+  --v-field-padding-bottom: 6px;
+  --v-input-control-height: 32px;
+}
+
+.v-input--density-compact.v-textarea--auto-grow .v-field--variant-outlined,
+.v-input--density-compact.v-textarea--auto-grow .v-field--variant-plain {
+  --v-field-padding-top: 4px;
+  --v-field-padding-bottom: 4px;
+  --v-input-control-height: 28px;
+}
+
 // VTextarea: Vuetify masks .v-field__input with a top gradient (fade 0→20px) so
 // scrolled text slides under the floating label. With our smaller font-size/padding
 // the first line at rest falls into the fade zone and looks washed out with white.

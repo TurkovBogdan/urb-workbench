@@ -16,7 +16,7 @@ import {
   type TaskListRow,
 } from '../api'
 import { isTerminal } from '../labels'
-import { byListOrder, childrenIndex, moveInRow, type MovePlace } from '../tree'
+import { byListOrder, canAdopt, childrenIndex, moveInRow, type MovePlace } from '../tree'
 import { anyScope, MIN_DEEP_QUERY_LENGTH, NO_SCOPES, type TaskSearchScopes } from '../search'
 import { useWorkspaceContextStore } from '@/features/workspace/stores/workspace-context.store'
 
@@ -153,6 +153,11 @@ export const useTasksStore = defineStore('tasks-tasks', () => {
   // and the marker is needed there as well. The rule that hides tooltips by it is in
   // `styles/main.scss`.
   watch(dragging, (on) => document.body.classList.toggle('tasks-dragging', on))
+
+  /** A branch takes the held task in (`TaskSubtree`'s `put`) only if the backend would. */
+  function adoptable(parentCode: string, childCode: string): boolean {
+    return canAdopt(items.value, parentCode, childCode)
+  }
 
   /**
    * Code of the group's last top-level task — a task dropped on the card header lands after it.
@@ -680,6 +685,7 @@ export const useTasksStore = defineStore('tasks-tasks', () => {
     roots, filtered, total, pageCount, pageItems,
     isEmpty, isFilteredOut, hasActiveFilters, finishedHidden, noWorkspace, sections,
     folded, isCollapsed, toggleCollapsed, dragging, lastRootOf,
+    adoptable,
     load, showDeleted, showFinished, resetPage, clearFilters, remove, restore, setStatus, reorder,
     reorderGroup, reloadForChanges,
   }

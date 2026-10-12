@@ -1,6 +1,7 @@
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 
+import { usePreviewStore } from '@/stores/preview'
 import { persisted, strCodec } from '@/shared/utils/persisted'
 
 import { listWorkspaces, type WorkspaceRow } from '../api'
@@ -40,6 +41,11 @@ export const useWorkspaceContextStore = defineStore('tasks-workspace-context', (
   // Codes went upper case; a selection saved before that would match nothing in the list and
   // `reconcile` would silently swap it for the first workspace. Fold it once, on load.
   current.value = current.value.toUpperCase()
+
+  // Code previews are narrowed by the workspace the person works in; the preview store lives in
+  // the foundation and cannot ask us, so we tell it — at once and on every switch.
+  const previews = usePreviewStore()
+  watch(current, (code) => previews.setWorkspace(code || null), { immediate: true })
 
   // One request for everyone: the sidebar and the page starting together await a shared one
   // rather than each sending its own.

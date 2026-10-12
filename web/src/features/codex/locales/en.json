@@ -1,0 +1,106 @@
+{
+  "nav_materials": "Knowledge base",
+  "nav_available": "Manage",
+  "filter": {
+    "query": "Title, code or description",
+    "deleted": "Deleted",
+    "total": "{shown} of {all}"
+  },
+  "list": {
+    "title": "Manage knowledge bases",
+    "description": "A knowledge base is a set of instructions and rules for working in a particular area — for example, rules for Python development or rules for interface design.",
+    "add": "Knowledge base",
+    "empty": "No knowledge bases yet",
+    "no_workspace": "No workspace selected — nothing to mount into.",
+    "nothing_found": "No knowledge base matches the filters",
+    "mounted": "Available",
+    "mounted_hint": "The knowledge base materials are available to the agent while working in this workspace",
+    "agent_writes": "Free writing",
+    "agent_writes_hint": "The agent may change the knowledge base records on its own",
+    "drag": "Drag the knowledge base",
+    "actions": "Knowledge base actions",
+    "open": "Open",
+    "edit": "Edit",
+    "delete": "Delete",
+    "restore": "Restore",
+    "deleted": "deleted",
+    "mount_title": "Mount into the workspace?",
+    "mount_text": "“{title}” is not mounted into the current workspace. The editor shows mounted knowledge bases — mount and open it?",
+    "mount_confirm": "Mount and open",
+    "delete_title": "Delete the knowledge base?",
+    "delete_text": "“{title}” leaves every workspace together with its notes. It can be restored."
+  },
+  "form": {
+    "create_title": "New knowledge base",
+    "edit_title": "Knowledge base",
+    "note_title": "New note",
+    "name": "Title",
+    "segment": "Code for the virtual path",
+    "description": "Description",
+    "description_hint": "A short summary of the contents for the agent. It should answer what is inside and when to load it.",
+    "look": "Icon and color"
+  },
+  "editor": {
+    "title": "Knowledge base",
+    "canvas": "Workspace canvas",
+    "canvas_hint": "The knowledge bases mounted into the current workspace and their notes — exactly what the agent sees.",
+    "resize_nav": "Navigation width",
+    "copy_path": "Copy path",
+    "tree_settings": "Tree settings",
+    "show_deleted": "Show deleted",
+    "search_content": "Search the contents too: description and text",
+    "new_note_failed": "Could not create the note: the new-… codes are taken — try again",
+    "segment_taken": "A sibling note “{title}” already has this code — a path must lead to one note",
+    "mount_more": "Mount more",
+    "add_note": "Note",
+    "add_note_hint": "Add a note inside the open record",
+    "depth_full": "No deeper than four levels",
+    "filter": "Find in the tree",
+    "filter_empty": "Nothing found",
+    "mount_hint": "How this knowledge base is mounted into the current workspace. The base itself is shared — an edit shows wherever it is mounted.",
+    "agent_can_edit": "The agent may edit",
+    "unmount": "Unmount from the workspace",
+    "trash": "Deleted",
+    "nothing_mounted": "No knowledge base is mounted into this workspace.",
+    "not_mounted": "This record's knowledge base is not mounted into the current workspace. Mount it under Manage to open it here.",
+    "to_list": "To managing knowledge bases",
+    "rules": "Rules of work",
+    "rules_hint": "How to read and keep this knowledge base. The agent gets them with codex_rules before work.",
+    "body": "Note",
+    "body_hint": "A note with nested ones is a section: the summary of what lies below."
+  },
+  "tree": {
+    "actions": "Record actions",
+    "expand": "Expand",
+    "collapse": "Collapse",
+    "add": "Add nested",
+    "up": "Up",
+    "down": "Down",
+    "move": "Move",
+    "move_title": "Move the codex note",
+    "move_to": "Parent note",
+    "move_search": "Title, path or code",
+    "delete": "Delete",
+    "delete_title": "Delete the note?",
+    "delete_text": "“{title}” goes to the deleted ones. It can be restored.",
+    "branch_title": "Delete with the nested ones?",
+    "branch_text": "The note has nested notes ({children}). Delete the whole branch? It can be restored.",
+    "branch_confirm": "Delete the branch"
+  },
+  "error": {
+    "codex": {
+      "not_found": "Knowledge base not found",
+      "deleted": "The knowledge base is deleted — restore it first",
+      "not_deleted": "The knowledge base is not deleted — nothing to restore"
+    },
+    "note": {
+      "not_found": "Knowledge base note not found",
+      "deleted": "The note is deleted — restore it first",
+      "not_deleted": "The note is not deleted — nothing to restore",
+      "has_children": "The note has nested notes ({children}) — delete them first or delete the whole branch"
+    },
+    "mount": {
+      "not_found": "The knowledge base is not mounted into this workspace"
+    }
+  }
+}

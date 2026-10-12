@@ -7,10 +7,11 @@
 // to reorder a subtask among its siblings with.
 //
 // THE GESTURE RULES ARE EXPRESSED BY THE SORTABLE GROUP, not by checks in the handler.
-// `put: false` — nothing can be dropped into a branch from outside: neither a root task (it must
-// not become a subtask by dragging) nor a subtask from another branch (changing the parent is
-// moving a branch, a separate conversation). Reordering among ITS OWN siblings does not consult
-// `put` and works.
+// `put` lets in from outside exactly what the backend would accept under this parent
+// (`tree.ts::canAdopt`): a root task without subtasks of its own, a subtask of another branch. It
+// lands at the place it was let go — the placeholder shows that place already indented. Anything
+// else is not let in, so a move bound to be refused is never offered. Reordering among ITS OWN
+// siblings does not consult `put` and works.
 //
 // `pull: true` is kept, though: pulling a subtask up into a group card's container is allowed —
 // that is detaching. The receiving side (`TaskRows`) decides whether to take it.
@@ -70,7 +71,14 @@ watch(
 )
 
 const sortable = useDraggable(container, codes, {
-  group: { name: 'tasks', pull: true, put: false },
+  group: {
+    name: 'tasks',
+    pull: true,
+    put: (_to, _from, dragged) => {
+      const code = (dragged as HTMLElement).dataset.code
+      return !!code && store.adoptable(props.parentCode, code)
+    },
+  },
   handle: '.drag-handle',
   draggable: '.task-drag',
   // A handle from a NESTED container belongs to it, not to us (see the same filter in `TaskRows`).
@@ -99,8 +107,13 @@ const sortable = useDraggable(container, codes, {
     // The SOURCE resolves the gesture, not the receiver: the library sends `onEnd` to the sortable
     // the drag started from — the receiver gets only `onAdd` and knows nothing of the source
     // branch. Hence the decision is made here: the subtask went into a root container (its markup
-    // carries a group tag) — so it was pulled out of the branch, and that is a detach.
+    // carries a group tag) — so it was pulled out of the branch, and that is a detach; into another
+    // branch (its container carries the parent) — it changes parents and lands at that place.
     if (to !== event.from) {
+      if (to.dataset.parent) {
+        emit('move', { code, after, parent: to.dataset.parent })
+        return
+      }
       if (to.dataset.group === undefined) return
       emit('move', { code, after, parent: null, group: to.dataset.group || null })
       return
@@ -207,4 +220,10 @@ function detach(code: string): void {
 .task-subtree > .task-subtree__item:first-child {
   border-top: 1px solid var(--border-soft);
 }
+
+/* A root task held over a branch arrives as its own wrapper, flush with the top level: its
+   placeholder is given the subtask's indent and divider, so the place reads as "a subtask here".
+   The row writes its depth inline, and only an important declaration outranks that. */
+.task-subtree > :deep(.task-branch.task-drag--ghost) { border-top: 1px solid var(--border-soft); }
+.task-subtree > :deep(.task-branch.task-drag--ghost > .task-row) { --row-depth: 1 !important; }
 </style>

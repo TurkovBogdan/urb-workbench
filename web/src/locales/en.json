@@ -55,9 +55,9 @@
   "nav": {
     "mcp": "MCP",
     "workspace": "Workspace",
-    "research": "Research",
     "data": "Data",
     "tasks": "Tasks",
+    "codex": "Knowledge base",
     "settings": "Settings",
     "about": "About",
     "development": "Development"
@@ -205,6 +205,10 @@
   "editor": {
     "placeholder": "Type / for commands…",
     "placeholder_plain": "Start typing…",
+    "code": {
+      "search_language": "Language or alias",
+      "no_highlighting": "no highlighting"
+    },
     "slash": {
       "paragraph": "Text",
       "h1": "Heading 1",
@@ -223,6 +227,16 @@
       "edit": "Edit",
       "done": "Done",
       "source": "Diagram source"
+    },
+    "ref": {
+      "preview": {
+        "not_found": "Not found",
+        "foreign_scope": "Belongs to another workspace",
+        "deleted": "Deleted",
+        "failed": "Could not load",
+        "open": "Open",
+        "open_new_tab": "Open in new tab"
+      }
     },
     "toolbar": {
       "block_type": "Block type",
@@ -283,9 +297,6 @@
     "NA": "N. America",
     "OC": "Oceania",
     "SA": "S. America"
-  },
-  "validation": {
-    "slug": "Only a-z, 0-9, hyphen and underscore"
   },
   "duration": {
     "ms": "{n} ms",

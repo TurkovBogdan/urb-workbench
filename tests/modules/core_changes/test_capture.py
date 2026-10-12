@@ -14,6 +14,7 @@ import pytest
 
 from src.core.config import Config
 from src.core.database import close_database, init_database
+from src.modules.codex.module import CHANGE_ENTITIES as CODEX_CHANGE_ENTITIES
 from src.modules.core_changes.bus import bus
 from src.modules.core_changes.capture import install
 from src.modules.core_changes.entities import clear_entities, register_entity
@@ -35,14 +36,16 @@ pytestmark = pytest.mark.db
 async def db(config: Config):
     engine = await init_database(config)
     from src.core.database.runtime import Base
+    import src.modules.codex.models  # noqa: F401 — the codex tables
     import src.modules.tasks.models  # noqa: F401 — the tasks tables
     import src.modules.workspace.models  # noqa: F401 — target of the ``workspace_code`` FK
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     clear_entities()
-    # A task note's document is the ``notes`` module's entity, declared by that module.
-    for entity in (*CHANGE_ENTITIES, *NOTES_CHANGE_ENTITIES):
+    # A task note's document is the ``notes`` module's entity, declared by that module; a codex
+    # note is the ``codex`` module's.
+    for entity in (*CHANGE_ENTITIES, *NOTES_CHANGE_ENTITIES, *CODEX_CHANGE_ENTITIES):
         register_entity(entity)
     install()
     try:
@@ -218,23 +221,34 @@ async def test_content_edits_reach_the_feed_for_every_field(workspace, feed):
     """An agent's content edit is what an open task page must redraw. The handlers write the
     ORM row directly, past CRUD — so the feed sees them only through flush capture, and that is
     pinned here per field rather than assumed."""
-    from src.modules.tasks.mcp.content.registry import MCP_CONTENT_HANDLERS
+    from src.modules.codex.crud.codex import codex_create
+    from src.modules.codex.crud.mount import mount_add
+    from src.modules.codex.crud.note import note_create as codex_note_create
+    from src.modules.workbench import session
+    from src.modules.workbench.content.registry import MCP_CONTENT_HANDLERS
 
     task = await task_create(workspace_code=workspace.code, title="Выпуск", type=TYPE_EXTENDED)
     stage = await stage_create(task_code=task.code, title="Сборка")
     entry = await journal_create(task_code=task.code, type="decision", title="Берём SSE")
     note = await task_note_add(task_code=task.code, title="Схема потока")
+    # A codex note is written only through a mount into the agent's active workspace.
+    codex = await codex_create(segment="python", title="Python")
+    await mount_add(codex.code, workspace.code)
+    codex_note = await codex_note_create(parent_code=codex.code, segment="feed", title="Лента")
+    await session.bind(workspace.code)
     codes = {
         "TASK": f"TASK@{task.code}",
         "STAGE": f"STAGE@{stage.code}",
         "JOURNAL": f"JOURNAL@{entry.code}",
         "NOTE": f"NOTE@{note.code}",
+        "CODEX": f"CODEX@{codex_note.code}",
     }
     entities = {
         "TASK": "tasks.task",
         "STAGE": "tasks.stage",
         "JOURNAL": "tasks.journal",
         "NOTE": "notes.note",
+        "CODEX": "codex.note",
     }
     await feed()
 
@@ -280,7 +294,7 @@ async def test_a_task_note_soft_delete_reaches_the_feed_as_the_document_only(wor
 
 
 async def test_a_refused_content_edit_publishes_nothing(workspace, feed):
-    from src.modules.tasks.mcp.content.task import McpTaskResultHandler
+    from src.modules.workbench.content.task import McpTaskResultHandler
 
     task = await task_create(workspace_code=workspace.code, title="Выпуск", type=TYPE_EXTENDED)
     await feed()

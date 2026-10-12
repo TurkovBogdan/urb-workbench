@@ -31,7 +31,7 @@ const TABLE_SAMPLE = `| Construct | Editable | Printed back |
 | Heading | yes | single line |
 | Table | yes | header, separator, rows |
 | Image | no |  |
-| Escaping | \`a \\| b\` | AREA@0123456789 |
+| Escaping | \`a \\| b\` | TASK@0123456789 |
 `
 
 const tableBody = ref(TABLE_SAMPLE)

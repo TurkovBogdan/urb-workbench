@@ -1,21 +1,13 @@
-// Markdown → sanitised HTML for research bodies: CommonMark + GFM (markdown-it) with the
+// Markdown → sanitised HTML for document bodies: CommonMark + GFM (markdown-it) with the
 // project's own rendering decisions on top — entity-reference pills, task-list checkboxes,
 // scrollable tables, external-link targets — and a DOMPurify pass as the closing step.
 import MarkdownIt from 'markdown-it'
 import type { Env, MarkdownIt as MarkdownParser, StateCore, Token } from 'markdown-it'
 import DOMPurify from 'dompurify'
-import { canonicalCode, REF_CODE, TASK_MARKER, WHOLE_CODE_SPAN } from '../shared/contracts'
+import { canonicalCode, REF_CODE, refPath, TASK_MARKER, WHOLE_CODE_SPAN } from '../shared/contracts'
 
-// What a code *is* — the vocabulary, its length, the patterns — is a contract shared with the
-// editor and lives in `shared/contracts`. Where a code leads is this file's business alone:
-// only the renderer builds hrefs, and the editor must not grow an opinion about routing.
-const REF_ROUTE: Record<string, string> = {
-  RESEARCH: 'researches',
-  AREA: 'areas',
-  NOTE: 'notes',
-  QUERY: 'queries',
-  SOURCE: 'sources',
-}
+// What a code *is* and where it leads — the vocabulary, its length, the patterns, the address —
+// is a contract shared with the editor and lives in `shared/contracts`.
 
 // Re-exported: the body view extracts the same codes to resolve their titles, and importing it
 // from here keeps every existing caller working without reaching past the renderer.
@@ -234,16 +226,20 @@ function createParser(breaks: boolean): MarkdownParser {
     return self.renderToken(tokens, idx, options)
   }
 
-  // The hash is opaque in prose — show a short prefix as the transient label, keep the
-  // full code in href (navigation) + title (tooltip); a resolved title replaces it later.
-  // Both parts of the code come from the regex above (fixed word + hex), so they need no escaping.
-  // The label sits in its own <span> so it can be the element that ellipsises when the pill is
-  // capped (inside a table cell) — `text-overflow` has no effect on the flex pill itself.
+  // The label is the full code: a hash prefix looked like a fragment, and what the entity is shows
+  // in the hover card (`data-ref` is what the body hands to it — no native `title`, which would
+  // pop up over the card). The type goes into a class, which picks the pill's glyph. Both parts of
+  // the code come from the regex above (fixed word + hex), so they need no escaping. The label sits
+  // in its own <span> so it can be the element that ellipsises when the pill is capped (inside a
+  // table cell) — `text-overflow` has no effect on the flex pill itself.
   md.renderer.rules.entity_ref = (tokens, idx) => {
     const { refType, hash } = tokens[idx].meta as { refType: string; hash: string }
     const code = `${refType}@${hash}`
-    const href = `/research/${REF_ROUTE[refType]}/${code}`
-    return `<a class="md-ref" href="${href}" title="${code}"><span class="md-ref-label">${hash.slice(0, 6)}</span></a>`
+    const typeClass = `md-ref--${refType.toLowerCase()}`
+    // A type whose page the code alone cannot tell gets its `href` from the preview, once it comes.
+    const path = refPath(code)
+    const href = path ? ` href="${path}"` : ''
+    return `<a class="md-ref ${typeClass}"${href} data-ref="${code}"><span class="md-ref-label">${code}</span></a>`
   }
 
   return md
@@ -269,7 +265,7 @@ const ALLOWED_TAGS = [
   'strong','em','s','a','br','input','span',
   'div','table','thead','tbody','tr','th','td',
 ]
-const ALLOWED_ATTR = ['class','href','target','rel','type','checked','disabled','title','id','data-code-index']
+const ALLOWED_ATTR = ['class','href','target','rel','type','checked','disabled','title','id','data-code-index','data-ref']
 const IMAGE_TAGS = ['img']
 const IMAGE_ATTR = ['src', 'alt']
 

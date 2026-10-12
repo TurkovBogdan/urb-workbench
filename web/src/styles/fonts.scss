@@ -72,6 +72,19 @@ $font-subsets: (
        url('../assets/fonts/onest/regular.woff')  format('woff');
 }
 
+// Onest's backtick (U+0060) has zero advance width — drawn as a combining accent — so ``` typed
+// in prose stacks into one mark. This face lends that one character from Golos Text, the closest
+// shipped grotesque. Declared after the main face, so it wins for U+0060; the weight range is
+// Onest's own, or a light weight would match only the main face and get the empty glyph back.
+@font-face {
+  font-family: 'Onest';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('../assets/fonts/golos-text/latin.woff2') format('woff2');
+  unicode-range: U+0060;
+}
+
 // JetBrains Mono — code, in prose and in the CodeBlock component (variable, wght 100–800).
 @font-face {
   font-family: 'JetBrains Mono';

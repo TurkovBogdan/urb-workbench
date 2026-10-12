@@ -6,13 +6,29 @@
 // accent colour of `ChartInfo`: it sits beside a title and must not compete with it.
 import { IconHelpCircle } from '@tabler/icons-vue'
 
-defineProps<{ text: string }>()
+withDefaults(defineProps<{
+  text: string
+  /**
+   * The "?" is a Tab stop of its own. Off where it stands between two fields filled in one go —
+   * a form dialog — and would break the walk from one field to the next. The text stays in
+   * `aria-label` and on hover.
+   */
+  tabbable?: boolean
+}>(), {
+  tabbable: true,
+})
 </script>
 
 <template>
   <VTooltip location="top" max-width="320">
     <template #activator="{ props: tooltip }">
-      <span v-bind="tooltip" class="help-hint" tabindex="0" role="img" :aria-label="text">
+      <span
+        v-bind="tooltip"
+        class="help-hint"
+        :tabindex="tabbable ? 0 : -1"
+        role="img"
+        :aria-label="text"
+      >
         <IconHelpCircle :size="15" :stroke-width="1.6" />
       </span>
     </template>

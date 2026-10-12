@@ -6,7 +6,7 @@
 // (`crud/link.py::link_reorder`): the numbers on screen must match the ones that arrive after
 // reconciliation, otherwise reconciliation redraws rows that are already in place.
 import type { TaskListRow } from './api'
-import { SORT_STEP } from './labels'
+import { isTerminal, SORT_STEP } from './labels'
 
 /** Row order as the backend returns it (`api.py::_rows`): higher `sort` first, then time and code. */
 export function byListOrder(left: TaskListRow, right: TaskListRow): number {
@@ -27,6 +27,24 @@ export function childrenIndex(items: TaskListRow[]): Map<string, TaskListRow[]> 
     else index.set(task.parent_code, [task])
   }
   return index
+}
+
+/**
+ * The task can be put under this parent — the backend's rules (`crud/link.py::_require_parent_for`)
+ * checked before the drop, so that a gesture bound to be refused is never offered.
+ *
+ * The tree is one level deep: the parent is a root, and a task with subtasks of its own cannot
+ * become one. Open work does not go under closed work. A task whose only subtasks are in the bin
+ * passes here and is refused by the backend: the list does not see the bin unless asked to.
+ */
+export function canAdopt(items: TaskListRow[], parentCode: string, childCode: string): boolean {
+  if (parentCode === childCode) return false
+  const parent = items.find((task) => task.code === parentCode)
+  const child = items.find((task) => task.code === childCode)
+  if (!parent || !child) return false
+  if (parent.parent_code !== null || parent.deleted_at || child.deleted_at) return false
+  if (child.has_children || items.some((task) => task.parent_code === childCode)) return false
+  return !(isTerminal(parent.status) && !isTerminal(child.status))
 }
 
 /** Where the task moves: key absent — field untouched, `null` — clear the group or parent. */
@@ -52,10 +70,14 @@ export function moveInRow(
 ): TaskListRow[] | null {
   const moved = items.find((task) => task.code === code)
   if (!moved) return null
+  // A subtask sits in its parent's group (`crud/link.py::link_move_in`): the parent's wins over
+  // whatever the gesture named.
+  const parent = place.parent ? items.find((task) => task.code === place.parent) : undefined
   const next: TaskListRow = {
     ...moved,
     ...('group' in place ? { group_code: place.group ?? null } : {}),
     ...('parent' in place ? { parent_code: place.parent ?? null } : {}),
+    ...(parent ? { group_code: parent.group_code } : {}),
   }
   const sibling = (task: TaskListRow) =>
     task.parent_code === next.parent_code &&

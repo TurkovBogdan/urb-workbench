@@ -6,6 +6,7 @@ import { errorText } from '@/api/errorText'
 import {
   deleteTask,
   getTask,
+  moveTask,
   patchTask,
   purgeTask,
   restoreTask,
@@ -113,6 +114,25 @@ export const useTaskDetailStore = defineStore('tasks-task-detail', () => {
     }
   }
 
+  /**
+   * A new place in the tree: under another parent, or `null` — out to the top level. The backend
+   * gives a subtask its new parent's group, so the returned card is taken whole.
+   */
+  async function move(parentCode: string | null): Promise<boolean> {
+    const code = task.value?.code
+    if (!code) return false
+    busy.value = true
+    try {
+      const moved = await moveTask(code, { parent_code: parentCode })
+      if (stillShowing(code)) task.value = moved
+      return true
+    } catch {
+      return false
+    } finally {
+      busy.value = false
+    }
+  }
+
   /** Soft delete — together with the branch. The task stays on screen: it can be restored here. */
   async function remove(): Promise<boolean> {
     const code = task.value?.code
@@ -165,6 +185,6 @@ export const useTaskDetailStore = defineStore('tasks-task-detail', () => {
 
   return {
     task, loading, error, busy, saving, saveError,
-    load, patch, changeStatus, remove, restore, purge,
+    load, patch, changeStatus, move, remove, restore, purge,
   }
 })

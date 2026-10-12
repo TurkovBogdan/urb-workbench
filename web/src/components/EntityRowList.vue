@@ -33,7 +33,12 @@ export interface EntityRowLabels {
 </script>
 
 <script setup lang="ts" generic="T extends EntityRow">
-// Entity rows, and the order they stand in — the workspaces page and the groups page.
+// Entity rows, and the order they stand in — the workspaces, groups and available codexes pages.
+//
+// The line is shared, the middle is the caller's: by default the counters and the last change,
+// and a page with other columns (the codexes' switches) puts its own into the `columns` slot,
+// dividers included. The menu and an extra row class follow the same rule — unset, a row offers
+// edit/delete or restore/purge. A click on a live row always edits it.
 //
 // A separate component from the page for one reason, the same as `TaskRows` in the task list: a
 // sortable is created on a container when it mounts, and on the page the list sits at the end of a
@@ -46,19 +51,19 @@ export interface EntityRowLabels {
 // The handle stands OUTSIDE the row, in the gutter to its left: the row itself is a click target
 // (it opens the edit dialog), and a grip inside it would compete with that click for the same
 // pixels.
-import { ref, watch } from 'vue'
+import { ref, watch, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useDraggable } from 'vue-draggable-plus'
 import {
   IconCheck,
   IconCopy,
-  IconDotsVertical,
   IconFlame,
   IconPencil,
   IconRestore,
   IconTrash,
 } from '@tabler/icons-vue'
 
+import ActionMenu, { type ActionMenuItem } from '@/components/ActionMenu.vue'
 import DragHandle from '@/components/DragHandle.vue'
 import { colorVarsByName } from '@/shared/colors'
 import { iconByName } from '@/shared/icons'
@@ -69,8 +74,15 @@ const props = defineProps<{
   items: T[]
   /** A narrowed or trash-mixed list cannot be reordered: a drop there names no real place. */
   reorderable: boolean
-  counters: (item: T) => EntityRowCounter[]
+  /** The default middle's numbers; unused when the caller fills the `columns` slot. */
+  counters?: (item: T) => EntityRowCounter[]
   labels: EntityRowLabels
+  /** The row menu; unset — edit/delete, or restore/purge on a deleted row. */
+  menu?: (item: T) => ActionMenuItem[]
+  /** An extra class on a row's card — a state of the entity the page draws itself. */
+  rowClass?: (item: T) => string | Record<string, boolean>
+  /** The badge icon when the entity has none chosen; unset — the registry's fallback. */
+  fallbackIcon?: Component
 }>()
 
 const emit = defineEmits<{
@@ -80,6 +92,17 @@ const emit = defineEmits<{
   purge: [item: T]
   move: [code: string, toIndex: number]
 }>()
+
+defineSlots<{
+  /** After the name, before the deleted mark — a secondary name such as a codex's code. */
+  'title-extra'?: (props: { item: T }) => unknown
+  /** Everything between the name block and the actions, its dividers included. */
+  columns?: (props: { item: T }) => unknown
+}>()
+
+function badgeIcon(item: T): Component {
+  return !item.icon && props.fallbackIcon ? props.fallbackIcon : iconByName(item.icon)
+}
 
 const { t } = useI18n()
 const { copy, isCopied } = useClipboard()
@@ -128,6 +151,43 @@ watch(
   (on) => { if (on) sortable.resume(); else sortable.pause() },
   { immediate: true },
 )
+
+// ── Row menu ──────────────────────────────────────────────────────────────────
+// Opens from the "⋯" and on a right click anywhere on the row, as a task row's does. Every row has
+// its own menu; the list keeps only whose is open, to mark that row.
+const openMenu = ref<string | null>(null)
+const menus = new Map<string, InstanceType<typeof ActionMenu>>()
+
+function setMenu(code: string, open: boolean) {
+  if (open) openMenu.value = code
+  else if (openMenu.value === code) openMenu.value = null
+}
+
+function bindMenu(code: string, menu: unknown) {
+  if (menu) menus.set(code, menu as InstanceType<typeof ActionMenu>)
+  else menus.delete(code)
+}
+
+// The action set depends on the state: a live one gets edit and soft delete, a deleted one gets
+// restore and purge. The backend refuses to edit a deleted one (409), and showing an item that is
+// bound to fail means lying with a button.
+//
+// The app's letters: E edits, D deletes — and on a row already in the trash D deletes for good.
+// Both deletions ask first, so a stray key costs a dialog, not a row. Restoring has no letter of
+// its own yet, so it has no key.
+function menuItems(item: T): ActionMenuItem[] {
+  if (props.menu) return props.menu(item)
+  if (item.deleted_at) {
+    return [
+      { key: 'restore', icon: IconRestore, label: props.labels.restore, run: () => emit('restore', item) },
+      { key: 'purge', icon: IconFlame, label: props.labels.purge, danger: true, hotkey: 'D', run: () => emit('purge', item) },
+    ]
+  }
+  return [
+    { key: 'edit', icon: IconPencil, label: props.labels.edit, hotkey: 'E', run: () => emit('edit', item) },
+    { key: 'delete', icon: IconTrash, label: props.labels.delete, danger: true, hotkey: 'D', run: () => emit('remove', item) },
+  ]
+}
 </script>
 
 <template>
@@ -156,17 +216,22 @@ watch(
       <VCard
         variant="flat"
         class="entity-row color-tones"
-        :class="{ 'entity-row--deleted': item.deleted_at }"
+        :class="[
+          { 'entity-row--deleted': item.deleted_at, 'entity-row--menu': openMenu === item.code },
+          rowClass?.(item),
+        ]"
         :style="colorVarsByName(item.color)"
         v-on="item.deleted_at ? {} : { click: () => emit('edit', item) }"
+        @contextmenu="menus.get(item.code)?.openAt($event)"
       >
         <span class="entity-row__icon">
-          <component :is="iconByName(item.icon)" :size="20" :stroke-width="1.6" />
+          <component :is="badgeIcon(item)" :size="20" :stroke-width="1.6" />
         </span>
 
         <div class="entity-row__main">
           <div class="entity-row__head">
             <h3 class="entity-row__title">{{ item.title }}</h3>
+            <slot name="title-extra" :item="item" />
             <!-- The deleted mark sits next to the name: it changes the meaning of the whole line,
                  and must be noticed before reaching the counters. -->
             <VChip v-if="item.deleted_at" color="error" variant="tonal" size="x-small">
@@ -176,25 +241,27 @@ watch(
           <p v-if="item.description" class="entity-row__desc">{{ item.description }}</p>
         </div>
 
-        <VDivider vertical class="entity-row__divider" />
+        <slot name="columns" :item="item">
+          <VDivider vertical class="entity-row__divider" />
 
-        <!-- The caller decides what is counted. With no counters at all the column stays empty
-             and keeps its width, so the dividers still line up. -->
-        <div class="entity-row__counts">
-          <span v-for="counter in counters(item)" :key="counter.key" class="entity-row__counter">
-            <span class="entity-row__count">{{ counter.count }}</span>
-            <span class="entity-row__count-label">{{ counter.label }}</span>
+          <!-- The caller decides what is counted. With no counters at all the column stays empty
+               and keeps its width, so the dividers still line up. -->
+          <div class="entity-row__counts">
+            <span v-for="counter in counters?.(item) ?? []" :key="counter.key" class="entity-row__counter">
+              <span class="entity-row__count">{{ counter.count }}</span>
+              <span class="entity-row__count-label">{{ counter.label }}</span>
+            </span>
+          </div>
+
+          <VDivider vertical class="entity-row__divider" />
+
+          <span class="entity-row__updated">
+            {{ fmtDateTime(item.updated_at) }}
+            <VTooltip activator="parent" location="top">
+              {{ labels.updatedAt }}
+            </VTooltip>
           </span>
-        </div>
-
-        <VDivider vertical class="entity-row__divider" />
-
-        <span class="entity-row__updated">
-          {{ fmtDateTime(item.updated_at) }}
-          <VTooltip activator="parent" location="top">
-            {{ labels.updatedAt }}
-          </VTooltip>
-        </span>
+        </slot>
 
         <div class="entity-row__actions">
           <!-- The code is how the entity is named to the agent, so copying is at hand, not only in
@@ -210,54 +277,15 @@ watch(
             <IconCopy v-else :size="16" :stroke-width="1.6" />
           </VBtn>
 
-          <VMenu location="bottom end" :offset="4">
-            <template #activator="{ props: menu }">
-              <VBtn
-                v-bind="menu"
-                icon
-                variant="text"
-                class="entity-row__action"
-                :title="labels.actions"
-                @click.stop
-              >
-                <IconDotsVertical :size="16" :stroke-width="1.6" />
-              </VBtn>
-            </template>
-
-            <!-- The action set depends on the state: a live one gets edit and soft delete, a
-                 deleted one gets restore and purge. The backend refuses to edit a deleted one
-                 (409), and showing an item that is bound to fail means lying with a button. -->
-            <VList density="compact">
-              <!-- Copying the code does not depend on state: a deleted entity keeps its code. -->
-              <VListItem :prepend-icon="IconCopy" @click="copy(item.code)">
-                <VListItemTitle>{{ t('common.action.copy_code') }}</VListItemTitle>
-              </VListItem>
-              <template v-if="!item.deleted_at">
-                <VListItem :prepend-icon="IconPencil" @click="emit('edit', item)">
-                  <VListItemTitle>{{ labels.edit }}</VListItemTitle>
-                </VListItem>
-                <VListItem
-                  :prepend-icon="IconTrash"
-                  class="entity-row__menu-danger"
-                  @click="emit('remove', item)"
-                >
-                  <VListItemTitle>{{ labels.delete }}</VListItemTitle>
-                </VListItem>
-              </template>
-              <template v-else>
-                <VListItem :prepend-icon="IconRestore" @click="emit('restore', item)">
-                  <VListItemTitle>{{ labels.restore }}</VListItemTitle>
-                </VListItem>
-                <VListItem
-                  :prepend-icon="IconFlame"
-                  class="entity-row__menu-danger"
-                  @click="emit('purge', item)"
-                >
-                  <VListItemTitle>{{ labels.purge }}</VListItemTitle>
-                </VListItem>
-              </template>
-            </VList>
-          </VMenu>
+          <ActionMenu
+            :ref="(menu) => bindMenu(item.code, menu)"
+            class="entity-row__menu"
+            :open="openMenu === item.code"
+            :items="menuItems(item)"
+            :code="item.code"
+            :label="labels.actions"
+            @update:open="setMenu(item.code, $event)"
+          />
         </div>
       </VCard>
     </div>
@@ -296,6 +324,14 @@ watch(
   opacity: 0.55;
 }
 
+/* While its menu is open the row stays as it looks under the pointer: the pointer has gone onto the
+   menu items, and without the mark nothing on screen says which row the actions will hit. The
+   border is the hover one from `.v-card--link` — a deleted row is not a link, so it is set here. */
+.entity-row--menu {
+  opacity: 1;
+  border-color: var(--gc-ink, var(--accent));
+}
+
 .entity-row--deleted:hover {
   opacity: 1;
 }
@@ -311,6 +347,8 @@ watch(
   color: var(--gc-ink, var(--accent));
   background: var(--gc-fill, var(--accent-soft));
   flex: none;
+  /* The badge belongs to its name: 12px to the text instead of the row's 16px between columns. */
+  margin-right: -4px;
 }
 
 /* Name and description take whatever the fixed columns leave; each is one line, cut with an
@@ -427,9 +465,15 @@ watch(
 
 .entity-row__action:hover { color: var(--text); }
 
-.entity-row__menu-danger :deep(.v-list-item-title) { color: var(--error); }
-.entity-row__menu-danger :deep(.v-list-item__prepend) { color: var(--error); }
+/* The "⋯" is the copy button's twin: same box, same quiet color. */
+.entity-row__menu { color: var(--text-faint); }
+.entity-row__menu:hover { color: var(--text); }
 
+.entity-row__menu :deep(.action-menu__button) {
+  width: 26px;
+  min-width: 26px;
+  height: 26px;
+}
 /* The place the row will land: its own outline, tinted — "it goes here". The handle is hidden on
    it, there is nothing to grab on a placeholder. */
 .entity-drag--ghost .entity-row {

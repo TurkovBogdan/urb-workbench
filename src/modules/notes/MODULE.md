@@ -35,7 +35,8 @@ entity of another module: an import from `src.modules.tasks`, a `task_code` colu
 "task" in a response.
 
 Not here yet, each its own piece of work: versions and protection against concurrent edits,
-search. The agent's tools belong to the consumers — `tasks` has `task_note_*`.
+search. The agent's tools belong to the agent surface, the `workbench` module — for a task's notes,
+`task_note_*`.
 
 ## Which way the dependency points
 

@@ -26,6 +26,7 @@ from src.modules.notes.crud import note as note_crud
 from src.modules.notes.dto import NoteRow
 from src.modules.notes.errors import NOTE_DELETED, NOTE_NOT_FOUND
 from src.modules.notes.models.note import Note
+from src.modules.notes.rules import note_accepts_edits
 
 router = APIRouter()
 
@@ -75,7 +76,7 @@ async def update_note(code: str, payload: NoteBody) -> NoteRow:
     """Save the whole document. A deleted one is not editable — 409: it exists, but not for this."""
     bare = _code(code)
     existing = await _require(bare)
-    if existing.deleted_at is not None:
+    if not note_accepts_edits(existing):
         raise ApiError.conflict("Note is deleted — restore it first", code=NOTE_DELETED)
     row = await note_crud.note_update(
         bare, title=payload.title, description=payload.description, body=payload.body

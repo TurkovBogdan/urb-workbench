@@ -13,6 +13,7 @@ const PAGES: Record<string, string> = {
   buttons:         'controls/ButtonsView',
   'button-group':  'controls/ButtonGroupView',
   'copy-chip':     'controls/CopyChipView',
+  'action-menu':   'controls/ActionMenuView',
   selects:         'controls/SelectsView',
   inputs:          'controls/InputsView',
   'invisible-field': 'controls/InvisibleFieldView',
@@ -47,6 +48,7 @@ const PAGES: Record<string, string> = {
   'code-block':    'content/CodeBlockView',
   markdown:        'content/MarkdownView',
   'markdown-editor': 'content/MarkdownEditorView',
+  'code-editor-lab': 'content/CodeEditorLabView',
   chat:            'content/ChatView',
   message:         'content/MessageContentView',
   dividers:        'structure/DividersView',
@@ -60,8 +62,6 @@ const PAGES: Record<string, string> = {
   kanban:          'interface/KanbanView',
   'edge-scroller': 'interface/EdgeScrollerView',
   'counter-button': 'special/CounterButtonView',
-  'research-card': 'project/ResearchCardView',
-  'group-select':  'project/GroupSelectView',
 }
 
 // A static glob: the view path is a variable, and the bundler needs a parseable pattern.

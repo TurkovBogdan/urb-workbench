@@ -142,12 +142,11 @@ defineExpose({ over })
   margin-bottom: calc(var(--v-field-padding-bottom) + 4px);
 }
 
-/* auto-grow computes its floor as `rows × line-height + padding`, but reads the padding from
-   Vuetify's own variables (0 + 16 + 16px here) and floors at `--v-input-control-height` (56px) —
-   not from the real paddings main.scss sets, so the empty field came out taller than its text.
-   The variables are restated with the real values per density (main.scss: 8/8, 6/6, 4/4 and
-   floors 36/32/28). The column holding the counter reads the same variables for its padding, so
-   its bottom lines up with the textarea's. */
+/* The column holding the counter reads Vuetify's padding variables, which hold Vuetify's own
+   values (0 + 16 + 16px here), not the real paddings main.scss sets. They are restated with the
+   real values per density (main.scss: 8/8, 6/6, 4/4 and floors 36/32/28) so its bottom lines up
+   with the textarea's. main.scss restates the same for auto-grow outlined/plain fields only — the
+   counter needs them on every multi-line field. */
 .limit-field--multiline :deep(.v-field) {
   --v-field-padding-top: 8px;
   --v-input-padding-top: 0px;
@@ -165,14 +164,5 @@ defineExpose({ over })
   --v-field-padding-top: 4px;
   --v-field-padding-bottom: 4px;
   --v-input-control-height: 28px;
-}
-
-/* auto-grow: Vuetify writes the measured height into `--v-textarea-control-height`, but the
-   global density floor (`min-height: 36px` in main.scss, unlayered) beats it and the field never
-   grows. Re-honor the measurement on the textarea only — flooring the sizer as well would stop
-   its scrollHeight from shrinking, and the field would grow on every keystroke and never come
-   back down. */
-.limit-field--multiline.v-textarea--auto-grow :deep(.v-field__input:not(.v-textarea__sizer)) {
-  min-height: var(--v-textarea-control-height);
 }
 </style>

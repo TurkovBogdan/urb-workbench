@@ -48,8 +48,7 @@ import vuetify from '@/plugins/vuetify'
 // and plugins/i18n.ts. State holds NORMAL typed values (real booleans / enums); the
 // codec translates each to/from its localStorage string (see shared/utils/persisted).
 //
-// This holds the person's CHOICES — what they once set up for themselves. Interface state
-// (which order they left in which list while working) is the neighbouring store `ui-state`.
+// This holds the person's CHOICES — what they once set up for themselves.
 //
 // The app's appearance is driven by `synced`: the source of truth is the database (the
 // `core_interface` module), and localStorage underneath stays a cache that paints the page before
@@ -83,6 +82,8 @@ export const useSettingsStore = defineStore('settings', () => {
 
   const ui = reactive({
     sidebarCollapsed: synced('interface_sidebar_collapsed', false, boolCodec),
+    codexNavWidth: synced('interface_codex_nav_width', 300, intCodec),
+    codexShowDeleted: synced('interface_codex_show_deleted', false, boolCodec),
   })
 
   const message = reactive({

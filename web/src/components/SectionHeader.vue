@@ -19,6 +19,8 @@ const props = withDefaults(defineProps<{
   count?: number
   /** An explanation behind a "?" right after the title — for what is read once, not every time. */
   hint?: string
+  /** The "?" is a Tab stop — see `HelpHint`'s `tabbable`. */
+  hintTabbable?: boolean
   /** Data is still loading — placeholders of their size stand in for the title and description. */
   loading?: boolean
 }>(), {
@@ -27,6 +29,7 @@ const props = withDefaults(defineProps<{
   level: 2,
   count: undefined,
   hint: undefined,
+  hintTabbable: true,
   loading: false,
 })
 
@@ -49,7 +52,7 @@ const tag = computed(() => `h${props.level}` as const)
           <component :is="tag" class="section-header__title">
             {{ title }}
             <span v-if="count !== undefined" class="section-header__count">{{ count }}</span>
-            <HelpHint v-if="hint" :text="hint" />
+            <HelpHint v-if="hint" :text="hint" :tabbable="hintTabbable" />
           </component>
         </slot>
         <p v-if="description || $slots.description" class="section-header__desc">

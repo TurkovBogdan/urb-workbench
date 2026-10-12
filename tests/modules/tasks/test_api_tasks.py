@@ -888,6 +888,85 @@ async def test_reorder_without_the_parent_key_keeps_the_branch(client):
     assert [item.task_code for item in row] == [second.code, first.code]
 
 
+async def test_reorder_puts_a_root_under_a_parent_at_the_place_it_was_dropped(client):
+    """A task let go among a branch's subtasks becomes one of them right there, not at the end.
+
+    It takes the parent's group with it: a subtask sits where its parent sits, whatever card the
+    task was dragged from.
+    """
+    workspace = await _workspace()
+    billing = await group_crud.group_create(workspace_code=workspace.code, title="Биллинг")
+    interface = await group_crud.group_create(workspace_code=workspace.code, title="Интерфейс")
+    parent = await task_crud.task_create(
+        workspace_code=workspace.code, title="Эпик", group_code=interface.code
+    )
+    first = await task_crud.task_create(
+        workspace_code=workspace.code, title="Первая", parent_code=parent.code
+    )
+    second = await task_crud.task_create(
+        workspace_code=workspace.code, title="Вторая", parent_code=parent.code
+    )
+    moved = await task_crud.task_create(
+        workspace_code=workspace.code, title="Тащат", group_code=billing.code
+    )
+
+    body = (
+        await client.post(
+            f"{TASKS}/{moved.code}/reorder",
+            json={"parent_code": f"TASK@{parent.code}", "after_code": f"TASK@{first.code}"},
+        )
+    ).json()
+
+    assert body["parent_code"] == f"TASK@{parent.code}"
+    assert body["group_code"] == f"TASKGROUP@{interface.code}"
+    row = await link_crud.link_list_by_parent(parent.code)
+    assert [item.task_code for item in row] == [first.code, moved.code, second.code]
+
+
+async def test_reorder_carries_a_subtask_into_another_branch_on_top(client):
+    """Let go onto another task's row: the subtask changes parents and stands first there."""
+    workspace = await _workspace()
+    old_parent = await task_crud.task_create(workspace_code=workspace.code, title="Старый эпик")
+    new_parent = await task_crud.task_create(workspace_code=workspace.code, title="Новый эпик")
+    resident = await task_crud.task_create(
+        workspace_code=workspace.code, title="Уже там", parent_code=new_parent.code
+    )
+    moved = await task_crud.task_create(
+        workspace_code=workspace.code, title="Тащат", parent_code=old_parent.code
+    )
+
+    response = await client.post(
+        f"{TASKS}/{moved.code}/reorder",
+        json={"parent_code": f"TASK@{new_parent.code}", "after_code": None},
+    )
+
+    assert response.status_code == 200
+    row = await link_crud.link_list_by_parent(new_parent.code)
+    assert [item.task_code for item in row] == [moved.code, resident.code]
+    assert await link_crud.link_list_by_parent(old_parent.code) == []
+
+
+async def test_reorder_refuses_to_put_a_task_with_subtasks_under_another(client):
+    """The tree is one level deep: the gesture is refused whole — parent and place stay as they were."""
+    workspace = await _workspace()
+    target = await task_crud.task_create(workspace_code=workspace.code, title="Цель")
+    moved = await task_crud.task_create(workspace_code=workspace.code, title="Со своей веткой")
+    await task_crud.task_create(
+        workspace_code=workspace.code, title="Подзадача", parent_code=moved.code
+    )
+    before = (await link_crud.link_get(moved.code)).sort
+
+    response = await client.post(
+        f"{TASKS}/{moved.code}/reorder",
+        json={"parent_code": f"TASK@{target.code}", "after_code": None},
+    )
+
+    assert response.status_code == 400
+    link = await link_crud.link_get(moved.code)
+    assert link.parent_code is None
+    assert link.sort == before
+
+
 async def test_reorder_refuses_to_hang_a_task_under_its_own_child(client):
     """A loop is a broken tree, not an odd layout: 400, and nothing is touched."""
     workspace = await _workspace()

@@ -80,6 +80,10 @@ SETTINGS: dict[str, Setting] = {
     "interface_diagram_align": Setting("left", options=("left", "center")),
     "interface_diagram_max_height": Setting(420, options=(280, 420, 560, 0)),
     "interface_sidebar_collapsed": Setting(False),
+    # The width of the codex materials' navigation in pixels — the person drags its edge.
+    "interface_codex_nav_width": Setting(300, check=lambda width: 200 <= width <= 640),
+    # The codex materials' tree shows deleted notes in their places, to restore one where it stood.
+    "interface_codex_show_deleted": Setting(False),
 }
 
 _KEY_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")

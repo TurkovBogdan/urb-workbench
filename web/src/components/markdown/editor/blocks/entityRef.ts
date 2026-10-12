@@ -2,8 +2,8 @@
 // layer a custom handler has to touch: schema, input rule, paste rule, command, node view and
 // both directions of the markdown bridge.
 //
-// It is an atom: a code has no editable interior, and treating it as one is what stops a
-// caret landing inside a hash and turning `AREA@1a2b3c4d5e` into a dead half-code.
+// It is an atom: the caret never lands inside a hash and turns `TASK@1a2b3c4d5e` into a dead
+// half-code. A pill is not edited in place — a wrong one is deleted whole and typed again.
 import { InputRule, Node, mergeAttributes, nodePasteRule } from '@tiptap/core'
 import { VueNodeViewRenderer } from '@tiptap/vue-3'
 import EntityRefView from './EntityRefView.vue'
@@ -62,8 +62,8 @@ export const EntityRef = Node.create({
   //
   // Written out rather than built with `nodeInputRule`: that helper treats a first capture
   // group as «the part to replace» and inserts the last typed character separately, and the
-  // shared REF_CODE pattern captures the type word. Through the helper `NOTE@1a2b3c4d5e`
-  // came back as `NOTE@1a2b3c4d5e@1a2b3c4d5e`. Replacing the matched range outright has no
+  // shared REF_CODE pattern captures the type word. Through the helper `TASK@1a2b3c4d5e`
+  // came back as `TASK@1a2b3c4d5e@1a2b3c4d5e`. Replacing the matched range outright has no
   // such convention to collide with.
   addInputRules() {
     return [

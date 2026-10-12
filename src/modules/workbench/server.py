@@ -1,0 +1,139 @@
+"""The ``workbench`` MCP server — one server per installation: workspaces and the work inside them.
+
+The whole server is this module's: every tool (``tools/``, ``content/``), the instructions below,
+the skills. It is assembled here, a level above every domain module it serves, so it can reach
+all of them and none of them has to know it exists.
+
+``mcp_server(ctx)`` is the builder (``McpServerBuilder``), placed in
+``WorkbenchModule.mcp_servers["workbench"]``. The ``make_mcp_server`` import (→ ``fastmcp``) is
+DEFERRED into the function body: the dict declaration in ``module.py`` references the function
+without calling it, → ``build_modules()`` does not pull in the fork. Tool files hold ``FastMCP``
+only under ``TYPE_CHECKING``.
+
+**The token resolver** is declared by this module (``auth.py``, a stub until there is an auth
+module): ``mount_mcp_servers._collect_resolver`` requires exactly one provider for the whole
+application. Declare a second one anywhere and mounting fails for everyone.
+
+**The active workspace.** The server tracks it per connection, not per process — how and why is
+in ``session.py``. For the author of a new tool the rule is short: a tool must not take a
+workspace argument; instead it calls ``require_active()``, or ``require_scope(prefix, bare)`` if
+the tool accepts an entity code that could belong to another workspace (``scope.py``).
+
+**The order of registration is the order of the tool list** a client sees — pinned with every
+schema in ``tests/modules/workbench/workbench_surface.json``.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from src.modules.workbench.content import register as _register_content
+from src.modules.workbench.tools.codex import register as _register_codex
+from src.modules.workbench.tools.delete import register as _register_delete
+from src.modules.workbench.tools.group import register as _register_group
+from src.modules.workbench.tools.interface import register as _register_interface
+from src.modules.workbench.tools.journal import register as _register_journal
+from src.modules.workbench.tools.skill import register as _register_skill
+from src.modules.workbench.tools.stage import register as _register_stage
+from src.modules.workbench.tools.task import register as _register_task
+from src.modules.workbench.tools.task_note import register as _register_task_note
+from src.modules.workbench.tools.workspace import register as _register_workspace
+
+if TYPE_CHECKING:
+    from fastmcp import FastMCP
+
+    from src.core.mcp import McpServerContext
+
+_INSTRUCTIONS = (
+    "Workbench MCP server — the developer's own workspaces and the work inside them.\n\n"
+    "WORKSPACE FIRST. Everything here lives inside a workspace, and nothing reads across "
+    "workspaces: it is what keeps work apart from personal, one client apart from another. This "
+    "session works in exactly one, and no tool takes it as an argument — you set it once. If a "
+    "tool answers that nothing is bound yet, call workspaces_list() to see what exists and "
+    "workspace_use(workspace_code) to pick one. Some connections are already configured with a "
+    "workspace; workspaces_list() marks the active one either way.\n"
+    "The binding is yours alone — a second agent working elsewhere does not move it, and it "
+    "lasts as long as this connection.\n"
+    "Once the workspace is set, read codex_index before any work: it lists the development "
+    "rules mounted here (CODEXES below).\n\n"
+    "CODES. Every entity has a code that says what it is — WORKSPACE@ (a workspace), TASKGROUP@ "
+    "(a standing theme inside one), TASK@, STAGE@ (a step of a task's plan), JOURNAL@ (a journal "
+    "entry), NOTE@ (a task note — a document written at a task), CODEX@ (a codex or a note in "
+    "one). Pass a code back whole, exactly as you received it; never invent one. A code from "
+    "another workspace is refused by name rather than acted on quietly — that refusal means you "
+    "are in the wrong workspace, not that the entity is missing.\n\n"
+    "ANSWERS ABOUT THE WORK NAME THEIR WORKSPACE. Read it. It is the only way to notice that "
+    "you are working in the wrong one: a list of someone else's tasks looks exactly like a list "
+    "of tasks. codex_index, codex_get and codex_tree do not name it — they read what is mounted "
+    "into the active one.\n\n"
+    "HOW WORK IS SHAPED. Three depths, and each adds one way of working. `simple` — a title, "
+    "a goal and the context, often a job for a person. `standard` — plus the rest of the brief "
+    "(constraints, criteria of done), your work in three fields — the plan you write after "
+    "reading the code, the progress diary you keep along the way, the result you write at "
+    "hand-over — and a journal of decisions, findings and facts. `extended` — plus STAGES: the "
+    "plan broken into "
+    "steps, each with its own state and its own evidence. Stages are what separates extended from "
+    "standard, and they earn their keep only when the work outlasts one sitting; a standard task "
+    "refuses them and says so.\n"
+    "The brief is yours to fill in and correct on any task, including one a person set — when you "
+    "change theirs, say what and why in a decision entry. The verdict on whether the work is "
+    "accepted is never yours: write what you did in `result`, then hand over at in_review.\n\n"
+    "THE LAYOUT IS THEIRS, THE HANDS ARE YOURS. Groups are how the person sees their own work, "
+    "and you can make and re-word them — on request. Make one when they ask for it, not because "
+    "the backlog looks untidy to you: three themes they recognise beat seven you invented. "
+    "Deleting a group stays theirs, because undoing it is theirs.\n\n"
+    "CODEXES. Development rules that do not depend on the project — «Python backend», «Vue "
+    "frontend». A codex's root text holds the rules of working in its area, a tree of notes "
+    "below it the details, at most four levels deep. The person mounts codexes into a "
+    "workspace; together they are one canvas, and a path starts with a codex segment: "
+    "/python/test/fixtures. The way through it: codex_index — each codex says when to turn to "
+    "it; before work a codex covers, its root with codex_get, and follow its rules; then the "
+    "notes that bear on the work — codex_tree to find your bearings, codex_search by words, "
+    "codex_get for the text. You write notes, never a codex, and only where codex_index shows "
+    "it editable — when the work settles something that holds beyond this task.\n\n"
+    "SKILLS. This server carries its own reference material — how it expects a brief, a plan "
+    "and a journal to be written, and what its interface actually renders. skills_list() names "
+    "what is available; skill_get(name, section?) returns it. Read skill_get('task-brief') "
+    "before writing a brief and skill_get('task-plan') before planning: those are conventions "
+    "of this app, not things to infer.\n\n"
+    "TOOLS. Space: workspaces_list, workspace_use. Layout: groups_list, group_create, "
+    "group_update, tasks_regroup. Work: tasks_list, task_get, "
+    "task_create, task_update, task_status. Plan: stage_add, stage_update, stage_close. "
+    "Journal: journal_add, journal_resolve, journal_list. Task notes — planning material: "
+    "schemas, option breakdowns, concepts the plan rests on, shown under the plan, on a task of "
+    "any type; substantial documents, never a few paragraphs (those go into the plan or the "
+    "journal); written at any stage of the work, and always when the user asks for one: "
+    "task_note_add, task_note_get, task_note_update; task_get lists them without text. "
+    "Codexes: codex_index, codex_get, codex_tree, codex_search, codex_add, codex_update. "
+    "CONTENT — the long markdown fields — is "
+    "edited by content_set / content_replace / content_set_section / content_add, addressed by "
+    "the entity code and the field: TASK@ context, and from `standard` up constraints, "
+    "criteria, plan, progress, result; STAGE@ body; JOURNAL@ body; NOTE@ body; CODEX@ (a note) "
+    "body. None of them "
+    "echoes the text you sent: content_replace "
+    "and content_add answer with the SEAM of the edit, content_set_section with what it CUT, "
+    "content_set with the new length. Plus delete(code), one door for every type, and "
+    "interface_open(code) to put something on the user's screen."
+)
+
+
+def mcp_server(ctx: "McpServerContext") -> "FastMCP":
+    """Build the ``workbench`` MCP server: workspaces (the module below) + the work inside them."""
+    from src.core.mcp import make_mcp_server
+
+    mcp = make_mcp_server("workbench", _INSTRUCTIONS, ctx)
+    _register_workspace(mcp)
+    _register_group(mcp)
+    _register_task(mcp)
+    _register_stage(mcp)
+    _register_journal(mcp)
+    _register_task_note(mcp)
+    _register_codex(mcp)
+    _register_content(mcp)
+    _register_delete(mcp)
+    _register_skill(mcp)
+    _register_interface(mcp)
+    return mcp
+
+
+__all__ = ["mcp_server"]

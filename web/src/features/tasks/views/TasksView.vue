@@ -146,12 +146,12 @@ function addChild(task: TaskDetail | TaskListRow) {
 }
 
 /**
- * Saving may have rearranged anything — group, status, body — so the list is re-read in full. A
- * newly created subtask opens right away: that is what it was created for.
+ * A new task may land in any section, so the list is re-read in full. Whether to open it is the
+ * person's choice — the dialog has a button for each.
  */
-function onSaved(code: string) {
+function onSaved(code: string, openIt: boolean) {
   void store.load()
-  if (parent.value) openTask(code)
+  if (openIt) openTask(code)
 }
 
 // ── Group form ────────────────────────────────────────────────────────────────
@@ -277,7 +277,6 @@ async function removeGroup(fate: { tasks?: GroupTaskDisposal; target?: string })
     <TaskFormDialog
       v-model="formOpen"
       :workspace="workspace"
-      :task="null"
       :parent="parent"
       :group="presetGroup"
       @saved="onSaved"

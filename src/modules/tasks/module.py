@@ -12,12 +12,11 @@ SQLite (dev) and PostgreSQL. It starts at ``tsm_001_group``: the module does not
 workspace table — it belongs to ``workspace``, and our first revision only declares
 ``depends_on`` on it, because an FK target must exist before the reference.
 
-Two surfaces sit on top of the data layer. HTTP in the ``internal`` zone (``api.py``, subprefix
-``/workbench``) — called by the UI, it takes the workspace as a parameter. The ``workbench`` MCP
-server (``mcp/``) — called by the agent, which picks the workspace once per connection, after
-which no tool accepts it. This module assembles the server, but the workspace's own tools come
-from ``workspace/mcp/``: there is one server per installation, and ownership of an entity does
-not move.
+The module's own surface is HTTP in the ``internal`` zone (``api.py``, subprefix
+``/workbench``) — called by the UI, it takes the workspace as a parameter. The agent reaches the
+same data through the ``workbench`` MCP server, which is not here: it is the ``workbench`` module
+one level up, built on this module's CRUD and on the rules in ``rules.py`` — the same rules the
+HTTP API applies, so the two surfaces cannot drift apart on what is allowed.
 
 **Counters for the workspace card are registered here.** How many groups and tasks a workspace
 holds is this module's knowledge, but the workspaces page is what must show it; so we put two
@@ -49,14 +48,16 @@ from fastapi import FastAPI
 from src.core.config import Config
 from src.core.module import Module
 from src.modules.core_changes import ChangeEntity, Code, register_entity
+from src.modules.core_lookup import LookupType, register_type
+from src.modules.tasks import lookup
 from src.modules.tasks import models  # noqa: F401 — registers the models in Base.metadata
 from src.modules.tasks.api import router
-from src.modules.tasks.mcp import mcp_server
 from src.modules.tasks.crud import group as group_crud
 from src.modules.tasks.crud import task as task_crud
 from src.modules.tasks.constants import (
     GROUP_CODE_PREFIX,
     JOURNAL_CODE_PREFIX,
+    LEGACY_CODE_PREFIXES,
     NOTE_CODE_PREFIX,
     STAGE_CODE_PREFIX,
     TASK_CODE_PREFIX,
@@ -111,6 +112,20 @@ CHANGE_ENTITIES = (
     ),
 )
 
+# The codes this module answers for in the lookup. ``NOTE@`` belongs to ``notes``, but only this
+# module knows which task holds a document — and with it the workspace and the page.
+LOOKUP_TYPES = (
+    LookupType(TASK_CODE_PREFIX, lookup.task_preview),
+    LookupType(
+        GROUP_CODE_PREFIX,
+        lookup.group_preview,
+        aliases=tuple(old for old, new in LEGACY_CODE_PREFIXES.items() if new == GROUP_CODE_PREFIX),
+    ),
+    LookupType(STAGE_CODE_PREFIX, lookup.stage_preview),
+    LookupType(JOURNAL_CODE_PREFIX, lookup.journal_preview),
+    LookupType(NOTE_CODE_PREFIX, lookup.note_preview),
+)
+
 _HERE = Path(__file__).resolve().parent
 
 
@@ -122,14 +137,11 @@ class TasksModule(Module):
     migrations_dir = _HERE / "migrations" / "versions"
     internal_router = router
     internal_router_prefix = "/workbench"
-    # The value is a FUNCTION, not a built server: the dict is declared at module import, and an
-    # instance here would drag ``fastmcp`` into every process, the worker included.
-    # ``mcp_token_resolver`` is deliberately NOT set — the ``mcp/__init__`` docstring says why.
-    mcp_servers = {"workbench": mcp_server}
 
     def configure(self, app: FastAPI, config: Config) -> None:
         """Tell the workspace what we keep in it — and how to count it; tell the change feed what
-        of it the frontend sees (``CHANGE_ENTITIES``).
+        of it the frontend sees (``CHANGE_ENTITIES``); answer for our codes in the lookup
+        (``LOOKUP_TYPES``).
 
         Groups come before tasks (``sort``): on the card the layout reads first, then what fills
         it. The label keys are ours — renaming "group" is edited where the entity lives, not in a
@@ -153,6 +165,8 @@ class TasksModule(Module):
         )
         for entity in CHANGE_ENTITIES:
             register_entity(entity)
+        for kind in LOOKUP_TYPES:
+            register_type(kind)
 
 
 __all__ = ["TasksModule"]

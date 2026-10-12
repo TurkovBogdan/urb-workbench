@@ -184,6 +184,20 @@ const scenarios = {
     ])
   },
 
+  a_subscriber_that_asks_gets_the_own_echo_too() {
+    const cache = []
+    const off = store.on('tasks.task', (change) => cache.push(change), { own: true })
+    store.connect()
+    last().hello()
+    last().send(changes(CLIENT_ID, 'TASK@1'))
+    last().send(changes('another-tab', 'TASK@2'))
+    assert.deepEqual(cache.map((change) => [change.ids[0], change.own]), [['TASK@1', true], ['TASK@2', false]])
+    assert.deepEqual(received.map((change) => change.ids[0]), ['TASK@2'], 'a screen still skips the echo')
+    off()
+    last().send(changes('another-tab', 'TASK@3'))
+    assert.equal(cache.length, 2, 'unsubscribed')
+  },
+
   resync_frame_reaches_resync_subscribers() {
     store.connect()
     last().hello()
