@@ -12,6 +12,8 @@ import pytest
 from fastapi import FastAPI
 from fastmcp.exceptions import ToolError
 
+from src.modules.codex.crud import codex as codex_crud
+from src.modules.codex.crud import mount as mount_crud
 from src.modules.tasks import TasksModule
 from src.modules.tasks.crud import group as group_crud
 from src.modules.tasks.crud import task as task_crud
@@ -75,6 +77,29 @@ async def test_use_tells_how_long_the_choice_lasts(call, workspace):
 
     assert "MCP_WORKSPACE" in bound["note"]
     assert f"WORKSPACE@{workspace.code}" in bound["note"]
+
+
+async def test_use_names_the_way_to_the_codexes_mounted_there(call, workspace):
+    """The binding is the one answer every session reads — it says codexes are there to read."""
+    python = await codex_crud.codex_create(segment="python", title="Python")
+    vue = await codex_crud.codex_create(segment="vue", title="Vue")
+    off = await codex_crud.codex_create(segment="sql", title="SQL")
+    for codex in (python, vue, off):
+        await mount_crud.mount_add(codex.code, workspace.code)
+    await mount_crud.mount_remove(off.code, workspace.code)
+
+    note = (await call("workspace_use", workspace_code=workspace.code))["note"]
+
+    assert "Codexes mounted here: 2" in note
+    assert "codex_index" in note and "codex_get" in note
+
+
+async def test_use_is_silent_about_codexes_where_none_is_mounted(call, workspace):
+    await codex_crud.codex_create(segment="python", title="Python")
+
+    note = (await call("workspace_use", workspace_code=workspace.code))["note"]
+
+    assert "codex" not in note.casefold()
 
 
 async def test_use_refuses_a_workspace_that_is_not_there(call, db):

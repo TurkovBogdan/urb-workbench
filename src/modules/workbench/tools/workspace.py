@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from src.modules.codex.crud import mount as mount_crud
 from src.modules.workbench import session
 from src.modules.workbench.dto import AgentWorkspaceBound, AgentWorkspaceRow
 from src.modules.workspace import stats
@@ -26,6 +27,12 @@ _BIND_NOTE = (
     "Bound for this connection only — a fresh connection starts unbound and you pick again. "
     "To make a project always open in this workspace, set MCP_WORKSPACE to this code in the "
     "env block of its MCP client config."
+)
+# The answer to the binding is read fresh, which a description or the server instructions are not
+# guaranteed to be — so the way to the codexes is named here, and only where there are some.
+_CODEX_NOTE = (
+    " Codexes mounted here: {count} — the development rules you work by. Read codex_index "
+    "before the work, then open the root of each codex the work touches with codex_get."
 )
 
 
@@ -68,6 +75,9 @@ def register(mcp: "FastMCP") -> None:
         The binding belongs to this connection: a second agent working in another workspace does
         not move yours, and yours does not move theirs.
 
+        The answer's `note` says what comes next — among it, whether codexes (development rules)
+        are mounted here and how to read them.
+
         Args:
             workspace_code: The workspace to work in — a WORKSPACE@ code from workspaces_list.
         """
@@ -83,13 +93,16 @@ def register(mcp: "FastMCP") -> None:
         # scheduler job on it would mean growing an organ with nothing to feed it.
         await session.prune()
         counted = await stats.counts_for([row.code])
+        note = _BIND_NOTE.replace("this code", str(tagged(WORKSPACE_CODE_PREFIX, row.code)))
+        if mounted := len(await mount_crud.mount_list(row.code)):
+            note += _CODEX_NOTE.format(count=mounted)
         return AgentWorkspaceBound(
             code=row.code,
             title=row.title,
             description=row.description,
             counters=counted.get(row.code, {}),
             active=True,
-            note=_BIND_NOTE.replace("this code", str(tagged(WORKSPACE_CODE_PREFIX, row.code))),
+            note=note,
         )
 
 

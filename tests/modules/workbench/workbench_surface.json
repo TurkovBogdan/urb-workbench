@@ -1,5 +1,5 @@
 {
-  "instructions": "Workbench MCP server — the developer's own workspaces and the work inside them.\n\nWORKSPACE FIRST. Everything here lives inside a workspace, and nothing reads across workspaces: it is what keeps work apart from personal, one client apart from another. This session works in exactly one, and no tool takes it as an argument — you set it once. If a tool answers that nothing is bound yet, call workspaces_list() to see what exists and workspace_use(workspace_code) to pick one. Some connections are already configured with a workspace; workspaces_list() marks the active one either way.\nThe binding is yours alone — a second agent working elsewhere does not move it, and it lasts as long as this connection.\n\nCODES. Every entity has a code that says what it is — WORKSPACE@ (a workspace), TASKGROUP@ (a standing theme inside one), TASK@, STAGE@ (a step of a task's plan), JOURNAL@ (a journal entry), NOTE@ (a task note — a document written at a task), CODEX@ (a codex or a note in one). Pass a code back whole, exactly as you received it; never invent one. A code from another workspace is refused by name rather than acted on quietly — that refusal means you are in the wrong workspace, not that the entity is missing.\n\nEVERY ANSWER NAMES ITS WORKSPACE. Read it. It is the only way to notice that you are working in the wrong one: a list of someone else's tasks looks exactly like a list of tasks.\n\nHOW WORK IS SHAPED. Three depths, and each adds one way of working. `simple` — a title, a goal and the context, often a job for a person. `standard` — plus the rest of the brief (constraints, criteria of done), your work in three fields — the plan you write after reading the code, the progress diary you keep along the way, the result you write at hand-over — and a journal of decisions, findings and facts. `extended` — plus STAGES: the plan broken into steps, each with its own state and its own evidence. Stages are what separates extended from standard, and they earn their keep only when the work outlasts one sitting; a standard task refuses them and says so.\nThe brief is yours to fill in and correct on any task, including one a person set — when you change theirs, say what and why in a decision entry. The verdict on whether the work is accepted is never yours: write what you did in `result`, then hand over at in_review.\n\nTHE LAYOUT IS THEIRS, THE HANDS ARE YOURS. Groups are how the person sees their own work, and you can make and re-word them — on request. Make one when they ask for it, not because the backlog looks untidy to you: three themes they recognise beat seven you invented. Deleting a group stays theirs, because undoing it is theirs.\n\nCODEXES. Development rules that do not depend on the project — «Python backend», «Vue frontend» — each a codex with a tree of notes, at most four levels deep. The person mounts codexes into a workspace; together they are one canvas, and a path starts with a codex slug: python/test/fixtures. Before work a codex covers, read codex_index and that codex's codex_rules, then the notes you need. You write notes — never a codex — and only where the mount allows it (agent_can_edit); keep them current when the work teaches you something the rules should say.\n\nSKILLS. This server carries its own reference material — how it expects a brief, a plan and a journal to be written, and what its interface actually renders. skills_list() names what is available; skill_get(name, section?) returns it. Read skill_get('task-brief') before writing a brief and skill_get('task-plan') before planning: those are conventions of this app, not things to infer.\n\nTOOLS. Space: workspaces_list, workspace_use. Layout: groups_list, group_create, group_update, tasks_regroup. Work: tasks_list, task_get, task_create, task_update, task_status. Plan: stage_add, stage_update, stage_close. Journal: journal_add, journal_resolve, journal_list. Task notes — planning material: schemas, option breakdowns, concepts the plan rests on, shown under the plan, on a task of any type; substantial documents, never a few paragraphs (those go into the plan or the journal); written at any stage of the work, and always when the user asks for one: task_note_add, task_note_get, task_note_update; task_get lists them without text. Codexes: codex_index, codex_rules, codex_get, codex_tree, codex_search, codex_add, codex_update. CONTENT — the long markdown fields — is edited by content_set / content_replace / content_set_section / content_add, addressed by the entity code and the field: TASK@ context, and from `standard` up constraints, criteria, plan, progress, result; STAGE@ body; JOURNAL@ body; NOTE@ body; CODEX@ (a note) body. None of them echoes the text you sent: content_replace and content_add answer with the SEAM of the edit, content_set_section with what it CUT, content_set with the new length. Plus delete(code), one door for every type, and interface_open(code) to put something on the user's screen.",
+  "instructions": "Workbench MCP server — the developer's own workspaces and the work inside them.\n\nWORKSPACE FIRST. Everything here lives inside a workspace, and nothing reads across workspaces: it is what keeps work apart from personal, one client apart from another. This session works in exactly one, and no tool takes it as an argument — you set it once. If a tool answers that nothing is bound yet, call workspaces_list() to see what exists and workspace_use(workspace_code) to pick one. Some connections are already configured with a workspace; workspaces_list() marks the active one either way.\nThe binding is yours alone — a second agent working elsewhere does not move it, and it lasts as long as this connection.\nOnce the workspace is set, read codex_index before any work: it lists the development rules mounted here (CODEXES below).\n\nCODES. Every entity has a code that says what it is — WORKSPACE@ (a workspace), TASKGROUP@ (a standing theme inside one), TASK@, STAGE@ (a step of a task's plan), JOURNAL@ (a journal entry), NOTE@ (a task note — a document written at a task), CODEX@ (a codex or a note in one). Pass a code back whole, exactly as you received it; never invent one. A code from another workspace is refused by name rather than acted on quietly — that refusal means you are in the wrong workspace, not that the entity is missing.\n\nANSWERS ABOUT THE WORK NAME THEIR WORKSPACE. Read it. It is the only way to notice that you are working in the wrong one: a list of someone else's tasks looks exactly like a list of tasks. codex_index, codex_get and codex_tree do not name it — they read what is mounted into the active one.\n\nHOW WORK IS SHAPED. Three depths, and each adds one way of working. `simple` — a title, a goal and the context, often a job for a person. `standard` — plus the rest of the brief (constraints, criteria of done), your work in three fields — the plan you write after reading the code, the progress diary you keep along the way, the result you write at hand-over — and a journal of decisions, findings and facts. `extended` — plus STAGES: the plan broken into steps, each with its own state and its own evidence. Stages are what separates extended from standard, and they earn their keep only when the work outlasts one sitting; a standard task refuses them and says so.\nThe brief is yours to fill in and correct on any task, including one a person set — when you change theirs, say what and why in a decision entry. The verdict on whether the work is accepted is never yours: write what you did in `result`, then hand over at in_review.\n\nTHE LAYOUT IS THEIRS, THE HANDS ARE YOURS. Groups are how the person sees their own work, and you can make and re-word them — on request. Make one when they ask for it, not because the backlog looks untidy to you: three themes they recognise beat seven you invented. Deleting a group stays theirs, because undoing it is theirs.\n\nCODEXES. Development rules that do not depend on the project — «Python backend», «Vue frontend». A codex's root text holds the rules of working in its area, a tree of notes below it the details, at most four levels deep. The person mounts codexes into a workspace; together they are one canvas, and a path starts with a codex segment: /python/test/fixtures. The way through it: codex_index — each codex says when to turn to it; before work a codex covers, its root with codex_get, and follow its rules; then the notes that bear on the work — codex_tree to find your bearings, codex_search by words, codex_get for the text. You write notes, never a codex, and only where codex_index shows it editable — when the work settles something that holds beyond this task.\n\nSKILLS. This server carries its own reference material — how it expects a brief, a plan and a journal to be written, and what its interface actually renders. skills_list() names what is available; skill_get(name, section?) returns it. Read skill_get('task-brief') before writing a brief and skill_get('task-plan') before planning: those are conventions of this app, not things to infer.\n\nTOOLS. Space: workspaces_list, workspace_use. Layout: groups_list, group_create, group_update, tasks_regroup. Work: tasks_list, task_get, task_create, task_update, task_status. Plan: stage_add, stage_update, stage_close. Journal: journal_add, journal_resolve, journal_list. Task notes — planning material: schemas, option breakdowns, concepts the plan rests on, shown under the plan, on a task of any type; substantial documents, never a few paragraphs (those go into the plan or the journal); written at any stage of the work, and always when the user asks for one: task_note_add, task_note_get, task_note_update; task_get lists them without text. Codexes: codex_index, codex_get, codex_tree, codex_search, codex_add, codex_update. CONTENT — the long markdown fields — is edited by content_set / content_replace / content_set_section / content_add, addressed by the entity code and the field: TASK@ context, and from `standard` up constraints, criteria, plan, progress, result; STAGE@ body; JOURNAL@ body; NOTE@ body; CODEX@ (a note) body. None of them echoes the text you sent: content_replace and content_add answer with the SEAM of the edit, content_set_section with what it CUT, content_set with the new length. Plus delete(code), one door for every type, and interface_open(code) to put something on the user's screen.",
   "tools": [
     {
       "name": "workspaces_list",
@@ -59,7 +59,7 @@
     },
     {
       "name": "workspace_use",
-      "description": "Bind this session to a workspace — after this, no tool takes a workspace argument.\n\nThis is the first call of a session unless the connection was configured with one. Every\nworkspace-scoped tool then works inside what you picked, and a code from any other\nworkspace is refused by name rather than silently acted on.\n\nThe binding belongs to this connection: a second agent working in another workspace does\nnot move yours, and yours does not move theirs.",
+      "description": "Bind this session to a workspace — after this, no tool takes a workspace argument.\n\nThis is the first call of a session unless the connection was configured with one. Every\nworkspace-scoped tool then works inside what you picked, and a code from any other\nworkspace is refused by name rather than silently acted on.\n\nThe binding belongs to this connection: a second agent working in another workspace does\nnot move yours, and yours does not move theirs.\n\nThe answer's `note` says what comes next — among it, whether codexes (development rules)\nare mounted here and how to read them.",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {
@@ -2112,7 +2112,7 @@
     },
     {
       "name": "codex_index",
-      "description": "List the codexes mounted into this workspace — the development rules you work by.\n\nA codex is a set of rules on one theme that does not depend on the project («Python\nbackend», «Vue frontend»), with a tree of notes inside. The person mounts codexes into a\nworkspace; together they are your canvas, and every path starts with a codex slug.\n`description` says when to turn to a codex; `agent_can_edit` — whether you may write\nnotes in it here. Read a codex's rules with codex_rules before working by it.",
+      "description": "List the codexes mounted into this workspace — read it first, before any work.\n\nA codex is a set of development rules on one theme that does not depend on the project\n(«Python backend», «Vue frontend»): its root text holds the rules of working in that\narea, a tree of notes below it the details. The person mounts codexes into a workspace;\ntogether they are your canvas, and every path starts with a codex (`/python`).\n\nEach row: `description` — when to turn to the codex, the line to decide by; `records` —\nhow many notes it holds at every depth; `editable` — whether you may write notes in it\nhere. Next, for each codex the work in front of you touches, open its root with\ncodex_get — its `body` is the rules you follow — and codex_tree for its layout.\n\nAn empty list means nothing is mounted here: there are no rules to read, the call did\nnot fail.",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {},
@@ -2120,12 +2120,6 @@
       },
       "outputSchema": {
         "properties": {
-          "workspace": {
-            "type": "string"
-          },
-          "workspace_title": {
-            "type": "string"
-          },
           "codexes": {
             "default": [],
             "items": {
@@ -2133,7 +2127,10 @@
                 "code": {
                   "type": "string"
                 },
-                "slug": {
+                "path": {
+                  "type": "string"
+                },
+                "segment": {
                   "type": "string"
                 },
                 "title": {
@@ -2143,78 +2140,26 @@
                   "default": "",
                   "type": "string"
                 },
-                "agent_can_edit": {
+                "records": {
+                  "type": "integer"
+                },
+                "editable": {
                   "type": "boolean"
                 }
               },
               "required": [
                 "code",
-                "slug",
+                "path",
+                "segment",
                 "title",
-                "agent_can_edit"
+                "records",
+                "editable"
               ],
               "type": "object"
             },
             "type": "array"
           }
         },
-        "required": [
-          "workspace",
-          "workspace_title"
-        ],
-        "type": "object"
-      },
-      "meta": {
-        "fastmcp": {
-          "tags": []
-        }
-      }
-    },
-    {
-      "name": "codex_rules",
-      "description": "Read the rules of working in one codex — how its notes are meant to be read and kept.",
-      "inputSchema": {
-        "additionalProperties": false,
-        "properties": {
-          "codex": {
-            "type": "string",
-            "description": "The codex — its CODEX@ code or its slug, as codex_index lists it."
-          }
-        },
-        "required": [
-          "codex"
-        ],
-        "type": "object"
-      },
-      "outputSchema": {
-        "properties": {
-          "workspace": {
-            "type": "string"
-          },
-          "workspace_title": {
-            "type": "string"
-          },
-          "code": {
-            "type": "string"
-          },
-          "slug": {
-            "type": "string"
-          },
-          "title": {
-            "type": "string"
-          },
-          "rules": {
-            "default": "",
-            "type": "string"
-          }
-        },
-        "required": [
-          "workspace",
-          "workspace_title",
-          "code",
-          "slug",
-          "title"
-        ],
         "type": "object"
       },
       "meta": {
@@ -2225,74 +2170,48 @@
     },
     {
       "name": "codex_get",
-      "description": "Read one codex or note and see what lies directly under it.\n\nA note comes whole — its text, path and parent. A codex comes as its title and\ndescription (its rules: codex_rules). The children come as a list to choose from — code,\nslug, title, description and how many children each has — without their text: open the\none you need with another codex_get.",
+      "description": "Read codexes and notes whole, and see what lies directly under each.\n\nA codex's `body` is its rules of working in its area: read it before the work the codex\ncovers, then go down to the notes that bear on that work. A note's `body` is its text; a\nnote with children is a section, and its text sums up what lies below.\n\nEach node comes with its path and parent (a codex has none) and its children as a list\nto choose from — code, path, segment, title, description and how many children each has\n— without their text. Open the ones the work needs with the next codex_get, all of them\nin one call: the description says whether a child bears on your work, and a body runs up\nto 65 536 characters, so not every child. No `children` key means no children, not a cut\nanswer.\n\nAlways answers with a list, in the order asked, each node once. Either every item is\nfound or the call refuses and names every item at fault.",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {
-          "target": {
-            "type": "string",
-            "description": "A CODEX@ code, or a path from the canvas root — `python/test`."
+          "targets": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "description": "Codexes and notes, mixed as you like — each a CODEX@ code or a path from\nthe canvas root (`/python`, `/python/test`)."
           }
         },
         "required": [
-          "target"
+          "targets"
         ],
         "type": "object"
       },
       "outputSchema": {
         "properties": {
-          "workspace": {
-            "type": "string"
-          },
-          "workspace_title": {
-            "type": "string"
-          },
-          "code": {
-            "type": "string"
-          },
-          "kind": {
-            "type": "string"
-          },
-          "path": {
-            "type": "string"
-          },
-          "codex_code": {
-            "type": "string"
-          },
-          "parent_code": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null
-          },
-          "title": {
-            "type": "string"
-          },
-          "description": {
-            "default": "",
-            "type": "string"
-          },
-          "body": {
-            "default": "",
-            "type": "string"
-          },
-          "writable": {
-            "type": "boolean"
-          },
-          "children": {
+          "nodes": {
             "default": [],
             "items": {
               "properties": {
                 "code": {
                   "type": "string"
                 },
-                "slug": {
+                "path": {
                   "type": "string"
+                },
+                "segment": {
+                  "type": "string"
+                },
+                "parent_code": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null
                 },
                 "title": {
                   "type": "string"
@@ -2301,14 +2220,49 @@
                   "default": "",
                   "type": "string"
                 },
+                "body": {
+                  "default": "",
+                  "type": "string"
+                },
                 "children": {
-                  "default": 0,
-                  "type": "integer"
+                  "items": {
+                    "properties": {
+                      "code": {
+                        "type": "string"
+                      },
+                      "path": {
+                        "type": "string"
+                      },
+                      "segment": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "default": "",
+                        "type": "string"
+                      },
+                      "children": {
+                        "default": 0,
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "code",
+                      "path",
+                      "segment",
+                      "title"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
                 }
               },
               "required": [
                 "code",
-                "slug",
+                "path",
+                "segment",
                 "title"
               ],
               "type": "object"
@@ -2316,16 +2270,6 @@
             "type": "array"
           }
         },
-        "required": [
-          "workspace",
-          "workspace_title",
-          "code",
-          "kind",
-          "path",
-          "codex_code",
-          "title",
-          "writable"
-        ],
         "type": "object"
       },
       "meta": {
@@ -2336,7 +2280,7 @@
     },
     {
       "name": "codex_tree",
-      "description": "Show the tree down from a point — codes, slugs and titles, no descriptions or text.\n\nFrom the root (`/` or empty) — every mounted codex. The tree is never cut: the codexes\nare at most four levels deep (codex / note / note / note).",
+      "description": "Show the tree down from a point — the quick way to find your bearings in the codexes.\n\nBy default the short structure: codes, paths, segments and titles, no text — enough to\nsee what a codex holds and where. `with_description=true` adds every node's\n`description`, the «when to read» line, for choosing what to open; the text itself is\ncodex_get's. From the root (`/` or empty) — every mounted codex. The tree is never cut: a\ncodex is at most four levels deep (codex / note / note / note). A node without\n`children` has none.",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {
@@ -2344,6 +2288,11 @@
             "default": "",
             "type": "string",
             "description": "A CODEX@ code or a path; `/` or empty for the whole canvas."
+          },
+          "with_description": {
+            "default": false,
+            "type": "boolean",
+            "description": "False (default) — the structure only; true — with every node's\ndescription."
           }
         },
         "type": "object"
@@ -2355,14 +2304,27 @@
               "code": {
                 "type": "string"
               },
-              "slug": {
+              "path": {
+                "type": "string"
+              },
+              "segment": {
                 "type": "string"
               },
               "title": {
                 "type": "string"
               },
+              "description": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
               "children": {
-                "default": [],
                 "items": {
                   "$ref": "#/$defs/AgentCodexTreeNode"
                 },
@@ -2371,19 +2333,14 @@
             },
             "required": [
               "code",
-              "slug",
+              "path",
+              "segment",
               "title"
             ],
             "type": "object"
           }
         },
         "properties": {
-          "workspace": {
-            "type": "string"
-          },
-          "workspace_title": {
-            "type": "string"
-          },
           "root": {
             "type": "string"
           },
@@ -2396,8 +2353,6 @@
           }
         },
         "required": [
-          "workspace",
-          "workspace_title",
           "root"
         ],
         "type": "object"
@@ -2410,15 +2365,18 @@
     },
     {
       "name": "codex_search",
-      "description": "Find codexes and notes whose title, description or text holds `query`, any case.\n\nEach hit carries its code, path, title, description and a fragment around the match.",
+      "description": "Find codexes and notes whose title, description or text holds any of the variants —\nwhen you know the words but not the place.\n\nA variant is matched as a substring, case aside, with no morphology — so pass the forms\nyou expect yourself: `[\"сессия\", \"сессию\", \"сессии\", \"session\"]`. Each record comes once,\nin tree order, with its code, path, segment, title, description and a fragment around\nthe earliest variant in the first field that matched. Read a hit whole with codex_get.",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {
           "query": {
-            "type": "string",
-            "description": "What to look for — a word or a phrase, matched as written, case aside."
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "description": "The variants — words or phrases; a record matches if any of them occurs.\nBlank items are dropped; at least one must remain."
           },
-          "path": {
+          "within": {
             "anyOf": [
               {
                 "type": "string"
@@ -2428,7 +2386,7 @@
               }
             ],
             "default": null,
-            "description": "Search only this branch — a CODEX@ code or a path; omit for the whole canvas."
+            "description": "Search only this node's branch — the node itself and everything below it; a\nCODEX@ code or a path. Omit it (or `/`) for the whole canvas."
           }
         },
         "required": [
@@ -2454,6 +2412,9 @@
                 "path": {
                   "type": "string"
                 },
+                "segment": {
+                  "type": "string"
+                },
                 "title": {
                   "type": "string"
                 },
@@ -2469,6 +2430,7 @@
               "required": [
                 "code",
                 "path",
+                "segment",
                 "title"
               ],
               "type": "object"
@@ -2490,21 +2452,21 @@
     },
     {
       "name": "codex_add",
-      "description": "Add a note under a codex or a note — where the mount lets you write.\n\nA note with children is a section: its text is the summary of what lies below\n(`python/test` — the testing standard in brief; its children — the details). The tree\nis at most four levels deep: codex / note / note / note.",
+      "description": "Add a note to a codex — a note only: a codex itself is created by the person. Only in\na codex codex_index shows `editable`.\n\nBefore writing, read the codex's root with codex_get: its rules say what belongs in it\nand where. A note is for what holds beyond the task at hand — a rule, a convention, a\npitfall worth knowing next time; the course of the work and facts of one project belong\nin the task.\n\nA note with children is a section: its text sums up what lies below (`/python/test` —\nthe testing standard in brief; its children — the details). The tree is at most four\nlevels deep: codex / note / note / note. The note goes last among its siblings;\ncodex_update `after` moves it.\n\nThe answer carries the note's code and path. Refer to the note by its code: the code\nsurvives moves and renames, the path does not.",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {
           "parent": {
             "type": "string",
-            "description": "The codex or note to add under — a CODEX@ code or a path."
+            "description": "The codex or note to add under — a CODEX@ code or a path (`/python/test`)."
           },
-          "slug": {
+          "segment": {
             "type": "string",
-            "description": "The note's path segment — a-z, 0-9 and '-', free among its siblings."
+            "description": "The note's path segment, up to 64 characters — a-z, 0-9, '_' and '-',\nstarting with a letter or a digit, free among its siblings."
           },
           "title": {
             "type": "string",
-            "description": "What the note is, one line."
+            "description": "What the note is — one line, up to 128 characters."
           },
           "description": {
             "anyOf": [
@@ -2516,7 +2478,7 @@
               }
             ],
             "default": null,
-            "description": "When to read it — the line a reader decides by whether to open it."
+            "description": "When to read it, up to 512 characters — the line a reader decides by\nwhether to open the note; the lists and the tree show it instead of the text.\nWithout it the note is found only by search."
           },
           "body": {
             "anyOf": [
@@ -2528,12 +2490,12 @@
               }
             ],
             "default": null,
-            "description": "The text, markdown — skill_get('markdown'); write it now or later with\ncontent_set(code, \"body\", …)."
+            "description": "The text, markdown — skill_get('markdown'), up to 65 536 characters; write it\nnow or later with content_set(code, \"body\", …)."
           }
         },
         "required": [
           "parent",
-          "slug",
+          "segment",
           "title"
         ],
         "type": "object"
@@ -2551,13 +2513,17 @@
           },
           "path": {
             "type": "string"
+          },
+          "segment": {
+            "type": "string"
           }
         },
         "required": [
           "workspace",
           "workspace_title",
           "code",
-          "path"
+          "path",
+          "segment"
         ],
         "type": "object"
       },
@@ -2569,13 +2535,13 @@
     },
     {
       "name": "codex_update",
-      "description": "Change a note — its fields, its slug, its place. Only what you pass changes.\n\nMoving is `parent`: the note goes with its whole branch, within its codex, and the tree\nstays within four levels. `after` places it among its siblings. The text is content —\ncontent_set / content_replace / content_set_section / content_add with the field \"body\".",
+      "description": "Change a note — its title, description, segment or place. Only what you pass changes;\na codex itself is the person's. Only in a codex codex_index shows `editable`.\n\nThe text is not here: it is content — content_set / content_replace /\ncontent_set_section / content_add with the field \"body\".\n\n`segment` renames the note's path and the paths of everything below it; the code stays,\nso a reference by code still holds. `parent` moves the note with its whole branch,\nwithin its codex, and the tree stays within four levels. `after` places it among its\nsiblings — the new ones, when it moves too.",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {
           "target": {
             "type": "string",
-            "description": "The note — a CODEX@ code or a path. A codex itself is the person's."
+            "description": "The note — a CODEX@ code or a path."
           },
           "title": {
             "anyOf": [
@@ -2587,7 +2553,7 @@
               }
             ],
             "default": null,
-            "description": "New one-line name."
+            "description": "New one-line name, up to 128 characters."
           },
           "description": {
             "anyOf": [
@@ -2599,9 +2565,9 @@
               }
             ],
             "default": null,
-            "description": "New \"when to read it\"; an empty string clears it."
+            "description": "New «when to read it», up to 512 characters; an empty string clears it."
           },
-          "slug": {
+          "segment": {
             "anyOf": [
               {
                 "type": "string"
@@ -2611,7 +2577,7 @@
               }
             ],
             "default": null,
-            "description": "New path segment — renames the path of everything below it too."
+            "description": "New path segment, up to 64 characters — a-z, 0-9, '_' and '-', starting\nwith a letter or a digit."
           },
           "parent": {
             "anyOf": [
@@ -2623,7 +2589,7 @@
               }
             ],
             "default": null,
-            "description": "Move under this codex or note — a CODEX@ code or a path."
+            "description": "Move under this codex or a note of it — a CODEX@ code or a path."
           },
           "after": {
             "anyOf": [
@@ -2656,13 +2622,17 @@
           },
           "path": {
             "type": "string"
+          },
+          "segment": {
+            "type": "string"
           }
         },
         "required": [
           "workspace",
           "workspace_title",
           "code",
-          "path"
+          "path",
+          "segment"
         ],
         "type": "object"
       },
@@ -3078,13 +3048,13 @@
     },
     {
       "name": "interface_open",
-      "description": "Open the page for a code in the user's browser and return its address.\n\nThis is how you SHOW something instead of describing it. Use it when the user asks to\nsee something, and when you have finished a piece of work worth looking at — it puts the\nthing on screen rather than a paragraph about it. Returning the address also lets you\npaste it into the conversation.\n\nA STAGE@ or a JOURNAL@ opens the task it belongs to: they live on its page and have none\nof their own. A NOTE@ opens its own page, inside its task's. A WORKSPACE@ or a TASKGROUP@\nopens the list it is a row in.\n\nIt acts on the user's machine, so do it when it was asked for or clearly helps, not\nafter every call.",
+      "description": "Open the page for a code in the user's browser and return its address.\n\nThis is how you SHOW something instead of describing it. Use it when the user asks to\nsee something, and when you have finished a piece of work worth looking at — it puts the\nthing on screen rather than a paragraph about it. Returning the address also lets you\npaste it into the conversation.\n\nA STAGE@ or a JOURNAL@ opens the task it belongs to: they live on its page and have none\nof their own. A NOTE@ opens its own page, inside its task's. A CODEX@ opens the codex\neditor on that codex or note. A WORKSPACE@ or a TASKGROUP@ opens the list it is a row in.\n\nIt acts on the user's machine, so do it when it was asked for or clearly helps, not\nafter every call.",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {
           "code": {
             "type": "string",
-            "description": "What to show — a TASK@, STAGE@, JOURNAL@, NOTE@, TASKGROUP@ or WORKSPACE@ code."
+            "description": "What to show — a TASK@, STAGE@, JOURNAL@, NOTE@, CODEX@, TASKGROUP@ or\nWORKSPACE@ code."
           }
         },
         "required": [
@@ -3152,7 +3122,7 @@
       "arguments": {
         "code": "SOURCE@0000000000"
       },
-      "refusal": "Error calling tool 'interface_open': 'SOURCE@0000000000' is not something with a page — pass a WORKSPACE@ / TASKGROUP@ / TASK@ / STAGE@ / JOURNAL@ / NOTE@ code."
+      "refusal": "Error calling tool 'interface_open': 'SOURCE@0000000000' is not something with a page — pass a WORKSPACE@ / TASKGROUP@ / TASK@ / STAGE@ / JOURNAL@ / NOTE@ / CODEX@ code."
     },
     {
       "tool": "content_set",

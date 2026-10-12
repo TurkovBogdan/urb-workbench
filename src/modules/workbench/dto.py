@@ -19,7 +19,7 @@ returns it.
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from src.core.utils.date import DatetimeUTCStr
 from src.modules.codex.dto import CodexCode
@@ -28,7 +28,9 @@ from src.modules.workspace.dto import WorkspaceCode
 
 
 # ── workspace ─────────────────────────────────────────────────────────────────
-# The workspace the call ran in — goes into EVERY response of a bound tool. Not a service field
+# The workspace the call ran in — goes into every response about the work (``codex_index``,
+# ``codex_get`` and ``codex_tree`` aside: they read what is mounted into the active one). Not a
+# service field
 # and not debugging: the agent has no other way to notice it is working in the wrong context — a
 # list of someone else's tasks looks like a list of tasks, and an empty one like "no work". A
 # named workspace turns this mistake from invisible into obvious from the first response, and it
@@ -302,60 +304,94 @@ class AgentContentSectionSet(BaseModel):
 
 
 # ── codex ─────────────────────────────────────────────────────────────────────
+# Every ``path`` here is the full one from the canvas root with a leading slash (``/python``,
+# ``/python/test``): one form in every answer, so a path read anywhere can be passed back as is.
+# Every codex or note row opens with the same trio — ``code``, ``path``, ``segment`` (the row's own
+# last path part; for a codex, its first): together they say where a record lives.
+#
 # A mounted codex as the index shows it: the line the agent decides by (``description`` — when to
-# turn to it) and whether it may write there. The rules themselves are a separate read.
+# turn to it) and whether it may write there. The rules themselves are a separate read. No
+# workspace fields: the index is always of the active one. ``records`` — the live notes of the
+# codex at every depth, as codex_tree shows them; named neutrally because "notes" means several
+# things here (task notes ``NOTE@``, codex notes), and the person speaks of documentation. Unlike
+# ``children``, a zero stays: it says the codex is empty.
 class AgentCodexRow(BaseModel):
     code: CodexCode
-    slug: str
+    path: str
+    segment: str
     title: str
     description: str = ""
-    agent_can_edit: bool
+    records: int
+    editable: bool
 
 
-class AgentCodexIndex(AgentScope):
+class AgentCodexIndex(BaseModel):
     codexes: list[AgentCodexRow] = []
 
 
-class AgentCodexRules(AgentScope):
+# A codex's rules of keeping its notes — its own shape, not a row of the index: the rules are one
+# field today and are meant to split into several (editing, base structure, what belongs there).
+# The answer of ``codex_rules``, which stays off the server until then (``tools/codex.py``).
+class AgentCodexRules(BaseModel):
     code: CodexCode
-    slug: str
+    path: str
+    segment: str
     title: str
     rules: str = ""
 
 
+# Always a list, also for one codex, in the order asked; no workspace fields, as in the index.
+class AgentCodexRulesList(BaseModel):
+    nodes: list[AgentCodexRules] = []
+
+
 # A child is listed to be chosen, not read: no text, and ``children`` is how many it holds itself.
+# Across the codex answers an empty ``children`` (list or count) is left out rather than sent as
+# ``[]`` / ``0``: a leaf costs no tokens, and the docstrings say a missing key means "none".
 class AgentCodexChild(BaseModel):
     code: CodexCode
-    slug: str
+    path: str
+    segment: str
     title: str
     description: str = ""
-    children: int = 0
+    children: int = Field(default=0, exclude_if=lambda v: not v)
 
 
-# A codex or a note, by code or path. ``kind`` says which; a codex carries no ``body`` here — its
-# rules come from codex_rules. ``parent_code`` is the parent note, or the codex for a top-level
-# note; ``writable`` — whether the agent may write notes of this codex in this workspace.
-class AgentCodexNode(AgentScope):
+# A codex or a note, by code or path; a codex is the one with no ``parent_code`` and a one-segment
+# path. ``body`` is the text — for a codex, its rules of working in its area.
+# ``parent_code`` is the parent note, or the codex for a top-level note. No codex code and no write
+# right: the codex is the first path segment, and the right is per codex — codex_index carries it.
+class AgentCodexNode(BaseModel):
     code: CodexCode
-    kind: str
     path: str
-    codex_code: CodexCode
+    segment: str
     parent_code: CodexCode | None = None
     title: str
     description: str = ""
     body: str = ""
-    writable: bool
-    children: list[AgentCodexChild] = []
+    children: list[AgentCodexChild] = Field(default_factory=list, exclude_if=lambda v: not v)
 
 
+# Always a list, also for one node, in the order asked; no workspace fields, as in the index. A
+# named list rather than ``-> list[...]``: MCP structured content must be an object, so the fork
+# wraps a bare list as ``{"result": [...]}`` anyway.
+class AgentCodexNodeList(BaseModel):
+    nodes: list[AgentCodexNode] = []
+
+
+# ``description`` only in the long form (``with_description=true``): ``None`` is left out, while
+# an empty "when to read" in the long form still comes as ``""``.
 class AgentCodexTreeNode(BaseModel):
     code: CodexCode
-    slug: str
+    path: str
+    segment: str
     title: str
-    children: list[AgentCodexTreeNode] = []
+    description: str | None = Field(default=None, exclude_if=lambda v: v is None)
+    children: list[AgentCodexTreeNode] = Field(default_factory=list, exclude_if=lambda v: not v)
 
 
-class AgentCodexTree(AgentScope):
+# No workspace fields, as in the other codex reads.
+class AgentCodexTree(BaseModel):
     root: str
     nodes: list[AgentCodexTreeNode] = []
 
@@ -363,6 +399,7 @@ class AgentCodexTree(AgentScope):
 class AgentCodexHit(BaseModel):
     code: CodexCode
     path: str
+    segment: str
     title: str
     description: str = ""
     fragment: str = ""
@@ -376,6 +413,7 @@ class AgentCodexSearch(AgentScope):
 class AgentCodexNoteWritten(AgentScope):
     code: CodexCode
     path: str
+    segment: str
 
 
 __all__ = [
@@ -383,9 +421,11 @@ __all__ = [
     "AgentCodexHit",
     "AgentCodexIndex",
     "AgentCodexNode",
+    "AgentCodexNodeList",
     "AgentCodexNoteWritten",
     "AgentCodexRow",
     "AgentCodexRules",
+    "AgentCodexRulesList",
     "AgentCodexSearch",
     "AgentCodexTree",
     "AgentCodexTreeNode",
