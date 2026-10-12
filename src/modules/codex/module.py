@@ -24,7 +24,9 @@ from src.core.module import Module
 from src.modules.codex import models
 from src.modules.codex.api import router
 from src.modules.codex.constants import CODEX_CODE_PREFIX
+from src.modules.codex.lookup import codex_preview
 from src.modules.core_changes import ChangeEntity, Code, register_entity
+from src.modules.core_lookup import LookupType, register_type
 from src.modules.workspace.constants import WORKSPACE_CODE_PREFIX
 
 # What the change feed sees of this module. The names are a public contract with the frontend;
@@ -58,9 +60,11 @@ class CodexModule(Module):
     internal_router_prefix = "/codex"
 
     def configure(self, app: FastAPI, config: Config) -> None:
-        """Tell the change feed about codexes, notes and mounts."""
+        """Tell the change feed about codexes, notes and mounts; answer for ``CODEX@`` in the
+        lookup."""
         for entity in CHANGE_ENTITIES:
             register_entity(entity)
+        register_type(LookupType(CODEX_CODE_PREFIX, codex_preview))
 
 
 __all__ = ["CHANGE_ENTITIES", "CodexModule"]

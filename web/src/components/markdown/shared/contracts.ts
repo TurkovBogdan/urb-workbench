@@ -6,25 +6,32 @@
 // a body where a pill renders but cannot be typed (or the reverse) is the failure this file
 // exists to prevent.
 
-// Entity cross-references: a `TYPE@<hash>` code in a body is a typed link to that entity.
-// The vocabulary holds only types whose page can be addressed from the code alone. A stage, a
-// journal entry or a note lives on its owner's page, and the owner is not in the code — those
-// types wait for a resolver on the backend rather than leading to a guessed address.
-export const REF_TYPES = ['TASK'] as const
+// Entity cross-references: a `TYPE@<hash>` code in a body is a typed link to that entity — every
+// type the backend lookup answers for (`core_lookup`). The order is free: `TASK` inside
+// `TASKGROUP@…` fails on the `@` and the alternation backtracks to the whole word.
+export const REF_TYPES = ['TASKGROUP', 'TASK', 'STAGE', 'JOURNAL', 'NOTE', 'WORKSPACE', 'CODEX'] as const
 
 export type RefType = (typeof REF_TYPES)[number]
 
-// Where a code leads. Part of the contract because both zones navigate: the viewer through its
-// link, the editor through its pill — one address for both, or a pill opens a different page
-// depending on whether the field is being edited.
-const REF_PATH: Record<RefType, (code: string) => string> = {
+// Where a code leads before its preview has arrived. The preview's `link` is the address; this is
+// the part of it the code alone can tell, so a pill is a link from the first paint. A stage, a
+// journal entry and a task note live on their task's page, and the task is not in the code — they
+// wait for the preview rather than lead to a guessed address. Part of the contract because both
+// zones navigate: one address for both.
+const REF_PATH: Record<RefType, ((code: string) => string) | null> = {
   TASK: (code) => `/tasks/task/${code}`,
+  TASKGROUP: () => '/tasks/groups',
+  WORKSPACE: () => '/workspaces',
+  CODEX: (code) => `/codex/materials/${code}`,
+  STAGE: null,
+  JOURNAL: null,
+  NOTE: null,
 }
 
-/** The app address of a canonical code whose type is in the vocabulary. */
-export function refPath(code: string): string {
+/** The address a canonical code leads to without its preview; `null` — only the preview knows. */
+export function refPath(code: string): string | null {
   const type = code.split('@')[0] as RefType
-  return REF_PATH[type](code)
+  return REF_PATH[type]?.(code) ?? null
 }
 
 // Codes are exactly this many hex chars; the negative lookahead rejects a longer hex run, so a

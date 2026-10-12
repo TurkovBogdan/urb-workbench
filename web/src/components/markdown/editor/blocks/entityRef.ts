@@ -3,17 +3,11 @@
 // both directions of the markdown bridge.
 //
 // It is an atom: the caret never lands inside a hash and turns `TASK@1a2b3c4d5e` into a dead
-// half-code. The code is still replaceable — through the pill's own edit field (`EntityRefView`),
-// which swaps the whole code at once and refuses anything that is not one.
+// half-code. A pill is not edited in place — a wrong one is deleted whole and typed again.
 import { InputRule, Node, mergeAttributes, nodePasteRule } from '@tiptap/core'
-import { NodeSelection } from '@tiptap/pm/state'
 import { VueNodeViewRenderer } from '@tiptap/vue-3'
 import EntityRefView from './EntityRefView.vue'
 import { canonicalCode, REF_CODE } from '../../shared/contracts'
-
-// Enter on a selected pill opens its edit field. The keymap sees the selection, the node view owns
-// the field, so the request travels as a DOM event on the pill itself.
-export const REF_EDIT_EVENT = 'md-ref-edit'
 
 // One definition of «what is a code» for the renderer, the parser and the editor. A second
 // pattern here would mean a body where a pill renders but cannot be typed, or the reverse.
@@ -30,9 +24,6 @@ declare module '@tiptap/core' {
 
 export const EntityRef = Node.create({
   name: 'entityRef',
-  // Above the default 100: Enter on a selected pill must reach this keymap before the one that
-  // splits the paragraph.
-  priority: 101,
   group: 'inline',
   inline: true,
   atom: true,
@@ -63,17 +54,6 @@ export const EntityRef = Node.create({
   addCommands() {
     return {
       insertEntityRef: (code) => ({ commands }) => commands.insertContent({ type: this.name, attrs: { code } }),
-    }
-  },
-
-  addKeyboardShortcuts() {
-    return {
-      Enter: ({ editor }) => {
-        const { selection } = editor.state
-        if (!(selection instanceof NodeSelection) || selection.node.type.name !== this.name) return false
-        editor.view.nodeDOM(selection.from)?.dispatchEvent(new CustomEvent(REF_EDIT_EVENT))
-        return true
-      },
     }
   },
 

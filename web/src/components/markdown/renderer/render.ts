@@ -226,17 +226,20 @@ function createParser(breaks: boolean): MarkdownParser {
     return self.renderToken(tokens, idx, options)
   }
 
-  // The label is the full code until a resolved title replaces it (`refLabels`): a hash prefix
-  // looked like a fragment, and the code is the only name the entity has here so far. The type
-  // goes into a class, which picks the pill's glyph. Both parts of the code come from the regex
-  // above (fixed word + hex), so they need no escaping. The label sits in its own <span> so it can
-  // be the element that ellipsises when the pill is capped (inside a table cell) — `text-overflow`
-  // has no effect on the flex pill itself.
+  // The label is the full code: a hash prefix looked like a fragment, and what the entity is shows
+  // in the hover card (`data-ref` is what the body hands to it — no native `title`, which would
+  // pop up over the card). The type goes into a class, which picks the pill's glyph. Both parts of
+  // the code come from the regex above (fixed word + hex), so they need no escaping. The label sits
+  // in its own <span> so it can be the element that ellipsises when the pill is capped (inside a
+  // table cell) — `text-overflow` has no effect on the flex pill itself.
   md.renderer.rules.entity_ref = (tokens, idx) => {
     const { refType, hash } = tokens[idx].meta as { refType: string; hash: string }
     const code = `${refType}@${hash}`
     const typeClass = `md-ref--${refType.toLowerCase()}`
-    return `<a class="md-ref ${typeClass}" href="${refPath(code)}" title="${code}"><span class="md-ref-label">${code}</span></a>`
+    // A type whose page the code alone cannot tell gets its `href` from the preview, once it comes.
+    const path = refPath(code)
+    const href = path ? ` href="${path}"` : ''
+    return `<a class="md-ref ${typeClass}"${href} data-ref="${code}"><span class="md-ref-label">${code}</span></a>`
   }
 
   return md
@@ -262,7 +265,7 @@ const ALLOWED_TAGS = [
   'strong','em','s','a','br','input','span',
   'div','table','thead','tbody','tr','th','td',
 ]
-const ALLOWED_ATTR = ['class','href','target','rel','type','checked','disabled','title','id','data-code-index']
+const ALLOWED_ATTR = ['class','href','target','rel','type','checked','disabled','title','id','data-code-index','data-ref']
 const IMAGE_TAGS = ['img']
 const IMAGE_ATTR = ['src', 'alt']
 

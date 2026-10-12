@@ -16,7 +16,9 @@ import { CLIENT_ID } from '@/api/client/client-id'
 // response (the backend sends it right after the commit): hand it to a subscriber and the task
 // page would see "the field changed in the database while I have it edited" and raise a false
 // conflict on its own edit. The corner indicator does show our own — it is about "what was
-// updated", not "what to reload".
+// updated", not "what to reload". So does a subscriber that asks for it (`{ own: true }`): a cache
+// shared by the whole tab (`stores/preview.ts`) did not save anything itself, and the tab's own
+// rename of a task is news to the pill of that task in another panel.
 //
 // One connection for the whole app: a WebSocket the backend sends into which declared entities
 // were created, updated or deleted. WebSocket and not SSE because an SSE stream holds one of the
@@ -62,6 +64,11 @@ interface ChangesMessage {
 }
 
 export type ChangeHandler = (change: Change) => void
+
+export interface SubscribeOptions {
+  /** Receive the echo of this tab's own edits too. Screens never do — see the file header. */
+  own?: boolean
+}
 
 /** A feed occurrence: a change or — with `change: null` — "reload everything" (reconnect, lag). */
 export interface ChangeSignal {
@@ -111,7 +118,7 @@ export const useChangesStore = defineStore('changes', () => {
   const latest = ref<ChangeSignal | null>(null)
   let seq = 0
 
-  const handlers = new Map<string, Set<ChangeHandler>>()
+  const handlers = new Map<string, Map<ChangeHandler, SubscribeOptions>>()
   const resyncHandlers = new Set<() => void>()
 
   // `wanted` — the app asked for the feed and has not let it go: a drop is repaired only then.
@@ -214,9 +221,10 @@ export const useChangesStore = defineStore('changes', () => {
   function dispatch(change: Change): void {
     recent.value = [change, ...recent.value].slice(0, RECENT_LIMIT)
     latest.value = { seq: ++seq, change }
-    if (change.own) return
     for (const key of [change.entity, ANY_ENTITY]) {
-      for (const handler of handlers.get(key) ?? []) handler(change)
+      for (const [handler, options] of handlers.get(key) ?? []) {
+        if (!change.own || options.own) handler(change)
+      }
     }
   }
 
@@ -229,10 +237,10 @@ export const useChangesStore = defineStore('changes', () => {
    * Subscribe to changes of an entity (`tasks.task`) or of all at once (`ANY_ENTITY`). Returns the
    * unsubscribe — call it when the subscriber unmounts, otherwise the handler outlives its screen.
    */
-  function on(entity: string, handler: ChangeHandler): () => void {
+  function on(entity: string, handler: ChangeHandler, options: SubscribeOptions = {}): () => void {
     let bucket = handlers.get(entity)
-    if (!bucket) handlers.set(entity, (bucket = new Set()))
-    bucket.add(handler)
+    if (!bucket) handlers.set(entity, (bucket = new Map()))
+    bucket.set(handler, options)
     return () => bucket.delete(handler)
   }
 

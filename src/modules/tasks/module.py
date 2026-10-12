@@ -48,6 +48,8 @@ from fastapi import FastAPI
 from src.core.config import Config
 from src.core.module import Module
 from src.modules.core_changes import ChangeEntity, Code, register_entity
+from src.modules.core_lookup import LookupType, register_type
+from src.modules.tasks import lookup
 from src.modules.tasks import models  # noqa: F401 — registers the models in Base.metadata
 from src.modules.tasks.api import router
 from src.modules.tasks.crud import group as group_crud
@@ -55,6 +57,7 @@ from src.modules.tasks.crud import task as task_crud
 from src.modules.tasks.constants import (
     GROUP_CODE_PREFIX,
     JOURNAL_CODE_PREFIX,
+    LEGACY_CODE_PREFIXES,
     NOTE_CODE_PREFIX,
     STAGE_CODE_PREFIX,
     TASK_CODE_PREFIX,
@@ -109,6 +112,20 @@ CHANGE_ENTITIES = (
     ),
 )
 
+# The codes this module answers for in the lookup. ``NOTE@`` belongs to ``notes``, but only this
+# module knows which task holds a document — and with it the workspace and the page.
+LOOKUP_TYPES = (
+    LookupType(TASK_CODE_PREFIX, lookup.task_preview),
+    LookupType(
+        GROUP_CODE_PREFIX,
+        lookup.group_preview,
+        aliases=tuple(old for old, new in LEGACY_CODE_PREFIXES.items() if new == GROUP_CODE_PREFIX),
+    ),
+    LookupType(STAGE_CODE_PREFIX, lookup.stage_preview),
+    LookupType(JOURNAL_CODE_PREFIX, lookup.journal_preview),
+    LookupType(NOTE_CODE_PREFIX, lookup.note_preview),
+)
+
 _HERE = Path(__file__).resolve().parent
 
 
@@ -123,7 +140,8 @@ class TasksModule(Module):
 
     def configure(self, app: FastAPI, config: Config) -> None:
         """Tell the workspace what we keep in it — and how to count it; tell the change feed what
-        of it the frontend sees (``CHANGE_ENTITIES``).
+        of it the frontend sees (``CHANGE_ENTITIES``); answer for our codes in the lookup
+        (``LOOKUP_TYPES``).
 
         Groups come before tasks (``sort``): on the card the layout reads first, then what fills
         it. The label keys are ours — renaming "group" is edited where the entity lives, not in a
@@ -147,6 +165,8 @@ class TasksModule(Module):
         )
         for entity in CHANGE_ENTITIES:
             register_entity(entity)
+        for kind in LOOKUP_TYPES:
+            register_type(kind)
 
 
 __all__ = ["TasksModule"]

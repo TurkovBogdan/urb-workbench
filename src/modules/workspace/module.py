@@ -27,9 +27,15 @@ from __future__ import annotations
 from pathlib import Path
 from typing import ClassVar
 
+from fastapi import FastAPI
+
+from src.core.config import Config
 from src.core.module import Module
+from src.modules.core_lookup import LookupType, register_type
 from src.modules.workspace import models  # noqa: F401 — registers the models in Base.metadata
 from src.modules.workspace.api import router
+from src.modules.workspace.constants import WORKSPACE_CODE_PREFIX
+from src.modules.workspace.lookup import workspace_preview
 
 _HERE = Path(__file__).resolve().parent
 
@@ -42,6 +48,10 @@ class WorkspaceModule(Module):
     migrations_dir = _HERE / "migrations" / "versions"
     internal_router = router
     internal_router_prefix = "/workspace"
+
+    def configure(self, app: FastAPI, config: Config) -> None:
+        """Answer for ``WORKSPACE@`` codes in the lookup."""
+        register_type(LookupType(WORKSPACE_CODE_PREFIX, workspace_preview))
 
 
 __all__ = ["WorkspaceModule"]

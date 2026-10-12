@@ -11,6 +11,7 @@ from src.core.module import Module
 from src.modules.codex import CodexModule
 from src.modules.core_changes import CoreChangesModule
 from src.modules.core_interface import CoreInterfaceModule
+from src.modules.core_lookup import CoreLookupModule
 from src.modules.core_mcp import CoreMcpModule
 from src.modules.core_monitoring import CoreMonitoringModule
 from src.modules.core_setup import CoreSetupModule
@@ -29,7 +30,7 @@ def build_modules() -> list[Module]:
     document and diagram styling), ``core_monitoring`` — the jobs section (list +
     runs + logs, read-only), ``core_mcp`` — introspection of the modules mounted as MCP servers
     (read-only), ``core_changes`` — the data change feed behind the interface's live updates,
-    ``workspace`` — workspaces (the shared data isolation level), ``notes`` — markdown documents
+    ``core_lookup`` — what an entity code stands for, for codes of any module, ``workspace`` — workspaces (the shared data isolation level), ``notes`` — markdown documents
     with no owner, which the modules above link to,
     ``tasks`` — the task store inside a workspace (groups, task tree, plan and journal),
     ``codex`` — development rules shared across projects, mounted into workspaces, and
@@ -50,6 +51,8 @@ def build_modules() -> list[Module]:
         CoreMcpModule(),
         # Before the data modules: they declare their entities in it from their ``configure()``.
         CoreChangesModule(),
+        # Before the data modules too: they register their code prefixes in it.
+        CoreLookupModule(),
         WorkspaceModule(),
         NotesModule(),
         TasksModule(),
