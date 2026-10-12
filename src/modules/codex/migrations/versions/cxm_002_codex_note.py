@@ -4,11 +4,11 @@ Creates ``codex_note`` — a record of a codex's tree, an adjacency list: ``code
 and ``parent_code`` → codex_note.code, both ``ON DELETE CASCADE`` (a hard delete takes the branch
 below). ``parent_code`` is ``NULL`` on the codex's top level. The path is not stored.
 
-A slug is unique among live siblings, and that takes two partial unique indexes: a plain
-``UNIQUE (parent_code, slug)`` does not compare ``NULL`` with ``NULL`` on SQLite or PostgreSQL, so
-the top level is indexed by ``codex_code`` instead. ``ck_codex_note_not_own_parent`` is the one
-cycle the schema can see; longer cycles, the depth limit and "the parent is in the same codex"
-are the service's.
+A segment is unique among live siblings, and that takes two partial unique indexes: a plain
+``UNIQUE (parent_code, segment)`` does not compare ``NULL`` with ``NULL`` on SQLite or
+PostgreSQL, so the top level is indexed by ``codex_code`` instead.
+``ck_codex_note_not_own_parent`` is the one cycle the schema can see; longer cycles, the depth
+limit and "the parent is in the same codex" are the service's.
 
 Revision ID: cxm_002_codex_note
 Revises: cxm_001_codex
@@ -39,7 +39,7 @@ def upgrade() -> None:
         sa.Column("code", sa.String(length=10), primary_key=True, nullable=False),
         sa.Column("codex_code", sa.String(length=10), nullable=False),
         sa.Column("parent_code", sa.String(length=10), nullable=True),
-        sa.Column("slug", sa.String(length=64), nullable=False),
+        sa.Column("segment", sa.String(length=64), nullable=False),
         sa.Column("title", sa.String(length=128), nullable=False),
         sa.Column("description", sa.String(length=512), nullable=False, server_default=sa.text("''")),
         sa.Column("body", sa.String(length=65536), nullable=False, server_default=sa.text("''")),
@@ -59,17 +59,17 @@ def upgrade() -> None:
         sa.CheckConstraint("code <> parent_code", name="ck_codex_note_not_own_parent"),
     )
     op.create_index(
-        "ux_codex_note_parent_slug",
+        "ux_codex_note_parent_segment",
         "codex_note",
-        ["parent_code", "slug"],
+        ["parent_code", "segment"],
         unique=True,
         sqlite_where=_LIVE_CHILD,
         postgresql_where=_LIVE_CHILD,
     )
     op.create_index(
-        "ux_codex_note_top_slug",
+        "ux_codex_note_top_segment",
         "codex_note",
-        ["codex_code", "slug"],
+        ["codex_code", "segment"],
         unique=True,
         sqlite_where=_LIVE_TOP,
         postgresql_where=_LIVE_TOP,
@@ -83,6 +83,6 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_index("ix_codex_note_codex_sort", table_name="codex_note")
     op.drop_index("ix_codex_note_parent_sort", table_name="codex_note")
-    op.drop_index("ux_codex_note_top_slug", table_name="codex_note")
-    op.drop_index("ux_codex_note_parent_slug", table_name="codex_note")
+    op.drop_index("ux_codex_note_top_segment", table_name="codex_note")
+    op.drop_index("ux_codex_note_parent_segment", table_name="codex_note")
     op.drop_table("codex_note")

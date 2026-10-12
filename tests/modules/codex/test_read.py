@@ -31,18 +31,18 @@ pytestmark = pytest.mark.db
 
 @pytest.fixture
 async def canvas(workspace):
-    python = await codex_create(slug="python", title="Python", body="Правила Python")
-    vue = await codex_create(slug="vue", title="Vue")
-    sql = await codex_create(slug="sql", title="SQL")
+    python = await codex_create(segment="python", title="Python", body="Правила Python")
+    vue = await codex_create(segment="vue", title="Vue")
+    sql = await codex_create(segment="sql", title="SQL")
     test = await note_create(
-        parent_code=python.code, slug="test", title="Тесты", description="Стандарт тестирования"
+        parent_code=python.code, segment="test", title="Тесты", description="Стандарт тестирования"
     )
     fixtures = await note_create(
-        parent_code=test.code, slug="fixtures", title="Фикстуры pytest", body="Фикстура — это…"
+        parent_code=test.code, segment="fixtures", title="Фикстуры pytest", body="Фикстура — это…"
     )
-    lint = await note_create(parent_code=python.code, slug="lint", title="Линтер")
-    vue_test = await note_create(parent_code=vue.code, slug="test", title="Тесты Vue")
-    joins = await note_create(parent_code=sql.code, slug="joins", title="Соединения")
+    lint = await note_create(parent_code=python.code, segment="lint", title="Линтер")
+    vue_test = await note_create(parent_code=vue.code, segment="test", title="Тесты Vue")
+    joins = await note_create(parent_code=sql.code, segment="joins", title="Соединения")
     for codex in (python, vue):
         await mount_add(codex.code, workspace.code)
     return {
@@ -83,7 +83,7 @@ async def test_a_codex_resolves_as_the_root_of_its_paths(canvas):
     assert (by_code.path, by_code.depth) == ("python", 1)
 
 
-async def test_one_slug_in_two_codexes_is_two_nodes(canvas):
+async def test_one_segment_in_two_codexes_is_two_nodes(canvas):
     assert (await resolve(canvas["ws"], "vue/test")).code == canvas["vue_test"].code
     assert (await resolve(canvas["ws"], "python/test")).code == canvas["test"].code
 
@@ -102,7 +102,7 @@ async def test_a_codex_mounted_only_elsewhere_stays_unseen_here(canvas):
     await mount_add(canvas["sql"].code, elsewhere.code)
 
     assert await resolve(canvas["ws"], "sql/joins") is None
-    assert await search(canvas["ws"], "соединения") == []
+    assert await search(canvas["ws"], ["соединения"]) == []
     assert (await resolve(elsewhere.code, "sql/joins")).code == canvas["joins"].code
 
 
@@ -113,7 +113,7 @@ async def test_a_note_whose_ancestor_was_deleted_past_the_service_is_cut_off(can
         (await s.get(CodexNote, canvas["test"].code)).deleted_at = utc_now()
 
     assert await resolve(canvas["ws"], f"CODEX@{canvas['fixtures'].code}") is None
-    assert [h.node.path for h in await search(canvas["ws"], "pytest")] == []
+    assert [h.node.path for h in await search(canvas["ws"], ["pytest"])] == []
     assert (await resolve(canvas["ws"], "python/lint")) is not None
 
 
@@ -135,7 +135,7 @@ async def test_a_foreign_code_is_a_wrong_argument(canvas):
 
 async def test_a_path_follows_a_move_and_a_rename(canvas):
     await note_update(canvas["fixtures"].code, parent_code=canvas["lint"].code)
-    await codex_update(canvas["python"].code, slug="py")
+    await codex_update(canvas["python"].code, segment="py")
 
     node = await resolve(canvas["ws"], f"CODEX@{canvas['fixtures'].code}")
     assert node.path == "py/lint/fixtures"
@@ -189,30 +189,37 @@ async def test_the_tree_from_a_note_is_its_branch(canvas):
 
 
 async def test_search_matches_cyrillic_in_any_case(canvas):
-    hits = await search(canvas["ws"], "ТЕСТИРОВАНИЯ")
+    hits = await search(canvas["ws"], ["ТЕСТИРОВАНИЯ"])
 
     assert [h.node.path for h in hits] == ["python/test"]
     assert "Стандарт тестирования" in hits[0].fragment
 
 
 async def test_search_reaches_titles_texts_and_codexes(canvas):
-    hits = await search(canvas["ws"], "pytest")
+    hits = await search(canvas["ws"], ["pytest"])
     assert [h.node.path for h in hits] == ["python/test/fixtures"]
 
-    rules = await search(canvas["ws"], "правила python")
+    rules = await search(canvas["ws"], ["правила python"])
     assert [h.node.path for h in rules] == ["python"]
 
 
 async def test_search_stays_within_the_canvas_and_the_branch(canvas):
-    assert await search(canvas["ws"], "соединения") == []
-    assert [h.node.path for h in await search(canvas["ws"], "тесты")] == [
+    assert await search(canvas["ws"], ["соединения"]) == []
+    assert [h.node.path for h in await search(canvas["ws"], ["тесты"])] == [
         "python/test",
         "vue/test",
     ]
-    assert [h.node.path for h in await search(canvas["ws"], "тесты", under="vue")] == ["vue/test"]
-    assert await search(canvas["ws"], "тесты", under="sql") is None
+    assert [h.node.path for h in await search(canvas["ws"], ["тесты"], under="vue")] == ["vue/test"]
+    assert await search(canvas["ws"], ["тесты"], under="sql") is None
 
 
-async def test_an_empty_query_is_refused(canvas):
+async def test_any_variant_matches_and_each_record_comes_once(canvas):
+    hits = await search(canvas["ws"], ["pytest", "фикстур", "нет-такого"])
+
+    assert [h.node.path for h in hits] == ["python/test/fixtures"]
+
+
+@pytest.mark.parametrize("queries", [[], ["  "], ["", " \t"]])
+async def test_an_empty_query_is_refused(canvas, queries):
     with pytest.raises(ValueError, match="query is empty"):
-        await search(canvas["ws"], "  ")
+        await search(canvas["ws"], queries)

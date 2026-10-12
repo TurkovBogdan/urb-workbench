@@ -24,8 +24,13 @@ DESCRIPTION_MAX = 512
 BODY_MAX = 65536
 
 # A path segment: ``python``, ``test``. The path itself is never stored — it is assembled from the
-# parents' slugs on read, so a rename or a move rewrites one row.
-SLUG_MAX = 64
+# parents' segments on read, so a rename or a move rewrites one row.
+SEGMENT_MAX = 64
+
+# A codex's look — names from the frontend's palettes, the same widths as a workspace's and a task
+# group's. Only the codex root has one: a note is a page inside it, not an object of its own.
+COLOR_MAX = 32
+ICON_MAX = 64
 
 # Higher ``sort`` = higher up, the same convention as ``tasks``: a non-zero start lets the first
 # row move both ways, and a step of 5 leaves room for four insertions between neighbours.
@@ -37,8 +42,10 @@ __all__ = [
     "BODY_MAX",
     "CODE_LEN",
     "CODEX_CODE_PREFIX",
+    "COLOR_MAX",
     "DESCRIPTION_MAX",
-    "SLUG_MAX",
+    "ICON_MAX",
+    "SEGMENT_MAX",
     "SORT_DEFAULT",
     "SORT_STEP",
     "TITLE_MAX",

@@ -4,7 +4,8 @@ The rules belong to the data, not to whoever writes it (the same split as ``task
 decision lives here, the wording of a refusal at each surface. The services in ``crud/`` enforce
 them; ``workbench`` asks them before it writes for the agent.
 
-- **A slug** is a path segment: lower-case Latin letters, digits and hyphens, starting with a
+- **A segment** is one step of a path: lower-case Latin letters, digits, hyphens and underscores —
+  the set of the app's shared validator (`web/src/shared/utils/validators.ts`) — starting with a
   letter or digit. It is typed into paths by hand, so nothing needs escaping or quoting.
 - **Depth** is at most four levels, the codex itself counted: ``codex / note / note / note``. Past
   that a tree stops being browsable from an index, and a deeper split is a sign the codex wants
@@ -16,26 +17,26 @@ from __future__ import annotations
 
 import re
 
-from src.modules.codex.constants import SLUG_MAX
+from src.modules.codex.constants import SEGMENT_MAX
 from src.modules.codex.models import CodexMount
 
-SLUG_PATTERN = re.compile(r"[a-z0-9][a-z0-9-]*")
+SEGMENT_PATTERN = re.compile(r"[a-z0-9][a-z0-9_-]*")
 
 # The codex is level 1, a top-level note level 2.
 DEPTH_MAX = 4
 TOP_NOTE_DEPTH = 2
 
 
-def slug_problem(slug: str) -> str | None:
-    """Why ``slug`` cannot be a path segment, or ``None`` when it can."""
-    if not slug:
-        return "the slug is empty"
-    if len(slug) > SLUG_MAX:
-        return f"the slug is {len(slug)} characters long, the limit is {SLUG_MAX}"
-    if not SLUG_PATTERN.fullmatch(slug):
+def segment_problem(segment: str) -> str | None:
+    """Why ``segment`` cannot be a path segment, or ``None`` when it can."""
+    if not segment:
+        return "the segment is empty"
+    if len(segment) > SEGMENT_MAX:
+        return f"the segment is {len(segment)} characters long, the limit is {SEGMENT_MAX}"
+    if not SEGMENT_PATTERN.fullmatch(segment):
         return (
-            f"the slug {slug!r} may hold only a-z, 0-9 and '-', and must start with a letter "
-            "or a digit"
+            f"the segment {segment!r} may hold only a-z, 0-9, '_' and '-', and must start with a "
+            "letter or a digit"
         )
     return None
 
@@ -61,9 +62,9 @@ def agent_may_write(mount: CodexMount | None) -> bool:
 
 __all__ = [
     "DEPTH_MAX",
-    "SLUG_PATTERN",
+    "SEGMENT_PATTERN",
     "TOP_NOTE_DEPTH",
     "agent_may_write",
     "depth_problem",
-    "slug_problem",
+    "segment_problem",
 ]

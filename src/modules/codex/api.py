@@ -25,15 +25,25 @@ from src.modules.codex.codes import bare_code
 from src.modules.codex.constants import (
     BODY_MAX,
     CODEX_CODE_PREFIX,
+    COLOR_MAX,
     DESCRIPTION_MAX,
-    SLUG_MAX,
+    ICON_MAX,
+    SEGMENT_MAX,
     TITLE_MAX,
 )
 from src.modules.codex.crud import codex as codex_crud
 from src.modules.codex.crud import mount as mount_crud
 from src.modules.codex.crud import note as note_crud
-from src.modules.codex.crud.read import codex_branch, note_node
-from src.modules.codex.dto import CodexRow, CodexSummaryRow, MountRow, NoteRow, TreeNode
+from src.modules.codex.crud.read import codex_branch, note_node, search, subtree
+from src.modules.codex.dto import (
+    CodexCode,
+    CodexRow,
+    CodexSummaryRow,
+    MountRow,
+    NoteRow,
+    TreeNode,
+    WorkspaceCodexRow,
+)
 from src.modules.codex.errors import (
     CODEX_DELETED,
     CODEX_NOT_DELETED,
@@ -55,7 +65,7 @@ router = APIRouter()
 Title = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=TITLE_MAX)]
 Description = Annotated[str, StringConstraints(strip_whitespace=True, max_length=DESCRIPTION_MAX)]
 Body = Annotated[str, StringConstraints(max_length=BODY_MAX)]
-Slug = Annotated[str, StringConstraints(strip_whitespace=True, max_length=SLUG_MAX)]
+Segment = Annotated[str, StringConstraints(strip_whitespace=True, max_length=SEGMENT_MAX)]
 
 
 class _Body(BaseModel):
@@ -63,17 +73,24 @@ class _Body(BaseModel):
 
 
 class CodexBody(_Body):
-    """The whole codex as its page saves it."""
+    """The whole codex as its page saves it.
 
-    slug: Slug
+    The look is the one exception to "whole": the material page saves the text and does not carry
+    the look, so ``None`` leaves it as it is. Colour and icon names are not checked against the
+    palettes — only the frontend knows how to draw them, as with a workspace.
+    """
+
+    segment: Segment
     title: Title
     description: Description = ""
     body: Body = ""
+    color: Annotated[str, StringConstraints(max_length=COLOR_MAX)] | None = None
+    icon: Annotated[str, StringConstraints(max_length=ICON_MAX)] | None = None
 
 
 class NoteCreateBody(_Body):
     parent_code: str
-    slug: Slug
+    segment: Segment
     title: Title
     description: Description = ""
     body: Body = ""
@@ -82,7 +99,7 @@ class NoteCreateBody(_Body):
 class NoteBody(_Body):
     """The whole note as its page saves it; its place changes through ``/move``."""
 
-    slug: Slug
+    segment: Segment
     title: Title
     description: Description = ""
     body: Body = ""
@@ -155,10 +172,19 @@ async def _note_row(row: CodexNote) -> NoteRow:
 # ── codexes ───────────────────────────────────────────────────────────────────
 
 
+async def _codex_row(row: Codex) -> CodexRow:
+    count = (await mount_crud.mount_counts()).get(row.code, 0)
+    return CodexRow.model_validate(row).model_copy(update={"mount_count": count})
+
+
 @router.get("/codexes")
 async def list_codexes(include_deleted: bool = False) -> list[CodexSummaryRow]:
     rows = await codex_crud.codex_list(include_deleted=include_deleted)
-    return [CodexSummaryRow.model_validate(row) for row in rows]
+    counts = await mount_crud.mount_counts()
+    return [
+        CodexSummaryRow.model_validate(row).model_copy(update={"mount_count": counts.get(row.code, 0)})
+        for row in rows
+    ]
 
 
 @router.post("/codexes", status_code=201)
@@ -173,7 +199,7 @@ async def create_codex(payload: CodexBody) -> CodexRow:
 @router.get("/codexes/{code}")
 async def get_codex(code: str) -> CodexRow:
     """One codex whole — a deleted one too: its state shows in ``deleted_at``."""
-    return CodexRow.model_validate(await _require_codex(_code(code)))
+    return await _codex_row(await _require_codex(_code(code)))
 
 
 @router.put("/codexes/{code}")
@@ -187,7 +213,7 @@ async def update_codex(code: str, payload: CodexBody) -> CodexRow:
         raise _refused(error) from error
     if row is None:
         raise ApiError.not_found("Codex not found", code=CODEX_NOT_FOUND)
-    return CodexRow.model_validate(row)
+    return await _codex_row(row)
 
 
 @router.delete("/codexes/{code}", status_code=204)
@@ -207,7 +233,16 @@ async def restore_codex(code: str) -> CodexRow:
         await codex_crud.codex_restore(bare)
     except ValueError as error:
         raise _refused(error) from error
-    return CodexRow.model_validate(await _require_codex(bare))
+    return await _codex_row(await _require_codex(bare))
+
+
+@router.get("/codexes/{code}/trash")
+async def get_codex_trash(code: str) -> list[NoteRow]:
+    """The codex's deleted notes — each deletion once, by the note it started at; restoring it
+    brings back the branch that left with it."""
+    bare = _code(code)
+    await _require_codex(bare)
+    return [await _note_row(row) for row in await note_crud.note_deleted_roots(bare)]
 
 
 @router.get("/codexes/{code}/tree")
@@ -287,7 +322,7 @@ async def delete_note(code: str, branch: bool = False) -> Response:
             code=NOTE_HAS_CHILDREN,
             params={
                 "count": len(error.children),
-                "children": ", ".join(slug for _, slug in error.children),
+                "children": ", ".join(segment for _, segment in error.children),
             },
         ) from error
     if not existed:
@@ -311,9 +346,12 @@ async def restore_note(code: str) -> NoteRow:
 
 
 async def _mount_rows(workspace_code: str) -> list[MountRow]:
+    counts = await mount_crud.mount_counts()
     return [
         MountRow(
-            codex=CodexSummaryRow.model_validate(codex),
+            codex=CodexSummaryRow.model_validate(codex).model_copy(
+                update={"mount_count": counts.get(codex.code, 0)}
+            ),
             workspace_code=mount.workspace_code,
             sort=mount.sort,
             agent_can_edit=mount.agent_can_edit,
@@ -328,6 +366,28 @@ async def _mount_row(workspace_code: str, codex_code: str) -> MountRow:
     if not found:
         raise ApiError.not_found("Codex is not mounted here", code=MOUNT_NOT_FOUND)
     return found[0]
+
+
+@router.get("/workspaces/{workspace}/tree")
+async def get_canvas_tree(workspace: str, include_deleted: bool = False) -> list[TreeNode]:
+    """The workspace's canvas as one tree — every mounted codex and its notes, as the agent sees it;
+    ``include_deleted`` adds the deleted notes in their places, marked ``deleted``."""
+    bare = _workspace_code(workspace)
+    await _require_workspace(bare)
+    branches = await subtree(bare, include_deleted=include_deleted)
+    return [TreeNode.of(branch) for branch in branches or []]
+
+
+@router.get("/workspaces/{workspace}/search")
+async def search_canvas(workspace: str, query: str) -> list[CodexCode]:
+    """Codes of the canvas records whose title, description or text holds ``query`` in any case —
+    the tree's "search the contents too". The tree itself carries no texts, so the depth is
+    asked here; the same search the agent's ``codex_search`` runs. An empty query finds nothing."""
+    bare = _workspace_code(workspace)
+    await _require_workspace(bare)
+    if not query.strip():
+        return []
+    return [hit.node.code for hit in await search(bare, [query]) or []]
 
 
 @router.get("/workspaces/{workspace}/mounts")
@@ -358,9 +418,42 @@ async def patch_mount(workspace: str, code: str, payload: MountPatchBody) -> Mou
     return await _mount_row(bare, codex)
 
 
-@router.post("/workspaces/{workspace}/mounts/{code}/reorder")
-async def reorder_mount(workspace: str, code: str, payload: MountReorderBody) -> list[MountRow]:
+async def _workspace_codex_rows(
+    workspace_code: str, *, include_deleted: bool = False
+) -> list[WorkspaceCodexRow]:
+    counts = await mount_crud.mount_counts()
+    return [
+        WorkspaceCodexRow(
+            codex=CodexSummaryRow.model_validate(codex).model_copy(
+                update={"mount_count": counts.get(codex.code, 0)}
+            ),
+            mounted=bool(row and row.enabled),
+            agent_can_edit=bool(row and row.enabled and row.agent_can_edit),
+        )
+        for codex, row in await mount_crud.workspace_codexes(
+            workspace_code, include_deleted=include_deleted
+        )
+    ]
+
+
+@router.get("/workspaces/{workspace}/codexes")
+async def list_workspace_codexes(
+    workspace: str, include_deleted: bool = False
+) -> list[WorkspaceCodexRow]:
+    """Every codex in this workspace's order, switched on or not — the order a switch never moves."""
+    bare = _workspace_code(workspace)
+    await _require_workspace(bare)
+    return await _workspace_codex_rows(bare, include_deleted=include_deleted)
+
+
+@router.post("/workspaces/{workspace}/codexes/{code}/reorder")
+async def reorder_workspace_codex(
+    workspace: str, code: str, payload: MountReorderBody
+) -> list[WorkspaceCodexRow]:
+    """Place a codex right after ``after_code`` in this workspace's order (``null`` — first),
+    switched on or not."""
     bare, codex = _workspace_code(workspace), _code(code)
+    await _require_workspace(bare)
     try:
         order = await mount_crud.mount_reorder(
             codex, bare, after_code=_code(payload.after_code) if payload.after_code else None
@@ -368,8 +461,8 @@ async def reorder_mount(workspace: str, code: str, payload: MountReorderBody) ->
     except ValueError as error:
         raise ApiError.bad_request(str(error)) from error
     if order is None:
-        raise ApiError.not_found("Codex is not mounted here", code=MOUNT_NOT_FOUND)
-    return await _mount_rows(bare)
+        raise ApiError.not_found("Codex not found", code=CODEX_NOT_FOUND)
+    return await _workspace_codex_rows(bare)
 
 
 @router.delete("/workspaces/{workspace}/mounts/{code}", status_code=204)

@@ -10,9 +10,9 @@ child counts then come from dictionaries. Case is folded in Python (``casefold``
 SQLite's ``lower()`` folds ASCII only, so a Cyrillic query would match on PostgreSQL and miss on
 SQLite.
 
-A target is either a code (``CODEX@…`` — the prefix is required, since a ten-character slug of hex
-letters would read as a bare code) or a path from the canvas root: ``python/test``, slashes at the
-ends ignored. ``""`` and ``"/"`` are the root itself, which is not a node.
+A target is either a code (``CODEX@…`` — the prefix is required, since a ten-character segment of
+hex letters would read as a bare code) or a path from the canvas root: ``python/test``, slashes at
+the ends ignored. ``""`` and ``"/"`` are the root itself, which is not a node.
 """
 
 from __future__ import annotations
@@ -78,27 +78,27 @@ class _Canvas:
     def __init__(self, codexes: list[Codex], notes: list[CodexNote]) -> None:
         self.codexes = codexes
         self.codex_by_code = {c.code: c for c in codexes}
-        self.codex_by_slug = {c.slug: c for c in codexes}
+        self.codex_by_segment = {c.segment: c for c in codexes}
         self.note_by_code = {n.code: n for n in notes}
         self.children: dict[tuple[str, str | None], list[CodexNote]] = defaultdict(list)
         for note in sorted(notes, key=lambda n: (-n.sort, n.code)):
             self.children[(note.codex_code, note.parent_code)].append(note)
 
     def node_of_codex(self, codex: Codex) -> Node:
-        return Node(codex=codex, note=None, path=codex.slug, depth=1)
+        return Node(codex=codex, note=None, path=codex.segment, depth=1)
 
     def node_of_note(self, note: CodexNote) -> Node:
-        slugs = [note.slug]
+        segments = [note.segment]
         current = note
         while current.parent_code is not None:
             current = self.note_by_code[current.parent_code]
-            slugs.append(current.slug)
+            segments.append(current.segment)
         codex = self.codex_by_code[note.codex_code]
         return Node(
             codex=codex,
             note=note,
-            path="/".join([codex.slug, *reversed(slugs)]),
-            depth=len(slugs) + 1,
+            path="/".join([codex.segment, *reversed(segments)]),
+            depth=len(segments) + 1,
         )
 
     def kids(self, node: Node) -> list[CodexNote]:
@@ -112,12 +112,12 @@ class _Canvas:
 
     def by_path(self, path: str) -> Node | None:
         head, *rest = path.strip("/").split("/")
-        codex = self.codex_by_slug.get(head)
+        codex = self.codex_by_segment.get(head)
         if codex is None:
             return None
         node = self.node_of_codex(codex)
-        for slug in rest:
-            match = next((n for n in self.kids(node) if n.slug == slug), None)
+        for segment in rest:
+            match = next((n for n in self.kids(node) if n.segment == segment), None)
             if match is None:
                 return None
             node = self.node_of_note(match)
@@ -135,40 +135,40 @@ class _Canvas:
         )
 
 
-async def _canvas(workspace_code: str) -> _Canvas:
-    """The canvas of a workspace: its live mounted codexes in the person's order."""
+async def _canvas(workspace_code: str, *, include_deleted: bool = False) -> _Canvas:
+    """The canvas of a workspace: its live mounted codexes in the person's order.
+
+    ``include_deleted`` — the deleted notes too, in their places: only the person's tree view asks
+    for them (to restore one where it stood); every agent read stays on live notes.
+    """
     return await _load(
         select(Codex)
         .join(CodexMount, CodexMount.codex_code == Codex.code)
-        .where(CodexMount.workspace_code == workspace_code, Codex.deleted_at.is_(None))
-        .order_by(CodexMount.sort.desc(), Codex.code.asc())
+        .where(
+            CodexMount.workspace_code == workspace_code,
+            CodexMount.enabled.is_(True),
+            Codex.deleted_at.is_(None),
+        )
+        .order_by(CodexMount.sort.desc(), Codex.code.asc()),
+        include_deleted=include_deleted,
     )
 
 
-async def _load(codexes_stmt) -> _Canvas:
+async def _load(codexes_stmt, *, include_deleted: bool = False) -> _Canvas:
     """One read: the codexes the statement selects and their live notes — two queries, whatever
     the tree's size.
 
     A note whose ancestor is deleted is cut off with it — a soft delete of a branch marks every
     row, but an ancestor deleted alone (its children moved away first) must not leave an orphan
-    path behind, so the walk keeps only notes whose parents are all in the set.
+    path behind, so the walk keeps only notes whose parents are all in the set. With
+    ``include_deleted`` every note is in the set, so a deleted branch stays whole under its parent.
     """
     async with session_scope() as s:
         codexes = list((await s.scalars(codexes_stmt)).all())
-        notes = (
-            list(
-                (
-                    await s.scalars(
-                        select(CodexNote).where(
-                            CodexNote.codex_code.in_([c.code for c in codexes]),
-                            CodexNote.deleted_at.is_(None),
-                        )
-                    )
-                ).all()
-            )
-            if codexes
-            else []
-        )
+        notes_stmt = select(CodexNote).where(CodexNote.codex_code.in_([c.code for c in codexes]))
+        if not include_deleted:
+            notes_stmt = notes_stmt.where(CodexNote.deleted_at.is_(None))
+        notes = list((await s.scalars(notes_stmt)).all()) if codexes else []
     live = {n.code: n for n in notes}
 
     def reachable(note: CodexNote) -> bool:
@@ -235,33 +235,44 @@ async def children_of(workspace_code: str, target: str) -> list[Child] | None:
     ]
 
 
-async def subtree(workspace_code: str, target: str | None = None) -> list[Branch] | None:
+async def subtree(
+    workspace_code: str, target: str | None = None, *, include_deleted: bool = False
+) -> list[Branch] | None:
     """The tree below ``target`` whole — the depth limit keeps it small; from the root, every
-    codex of the canvas. ``None`` — the target is not in the canvas."""
-    canvas = await _canvas(workspace_code)
+    codex of the canvas. ``None`` — the target is not in the canvas. ``include_deleted`` — with
+    the deleted notes in their places (the person's tree view only)."""
+    canvas = await _canvas(workspace_code, include_deleted=include_deleted)
     if is_root(target):
         return [canvas.branch(canvas.node_of_codex(c)) for c in canvas.codexes]
     node = canvas.resolve(target)
     return None if node is None else [canvas.branch(node)]
 
 
-def _fragment(text: str, needle: str) -> str:
-    at = text.casefold().find(needle)
-    if at < 0:
-        return ""
+def _fragment(text: str, needles: list[str]) -> str | None:
+    """The text around the earliest occurrence of any needle; ``None`` — none occurs."""
+    folded = text.casefold()
+    found = [(at, needle) for needle in needles if (at := folded.find(needle)) >= 0]
+    if not found:
+        return None
+    at, needle = min(found)
     start = max(0, at - _FRAGMENT_RADIUS)
     end = min(len(text), at + len(needle) + _FRAGMENT_RADIUS)
     return ("…" if start else "") + text[start:end] + ("…" if end < len(text) else "")
 
 
-async def search(workspace_code: str, query: str, under: str | None = None) -> list[Hit] | None:
-    """Codexes and notes of the canvas whose title, description or text holds ``query`` in any
-    case; within ``under``'s branch when given (``None`` — that branch is not in the canvas).
+async def search(
+    workspace_code: str, queries: list[str], under: str | None = None
+) -> list[Hit] | None:
+    """Codexes and notes of the canvas whose title, description or text holds any of ``queries``
+    in any case — the variants a caller expects (word forms, synonyms), since there is no
+    morphology; within ``under``'s branch when given (``None`` — that branch is not in the canvas).
 
-    The fragment comes from the first field that matched, in the order title, description, text.
+    Each record comes once. The fragment comes from the first field that matched, in the order
+    title, description, text, around the earliest variant in it. Blank variants are dropped;
+    none left is a ``ValueError``.
     """
-    needle = query.strip().casefold()
-    if not needle:
+    needles = [query.strip().casefold() for query in queries if query.strip()]
+    if not needles:
         raise ValueError("The search query is empty.")
     canvas = await _canvas(workspace_code)
     if is_root(under):
@@ -278,8 +289,9 @@ async def search(workspace_code: str, query: str, under: str | None = None) -> l
         branch = stack.pop()
         row = branch.node.note or branch.node.codex
         for value in (row.title, row.description, row.body):
-            if value and needle in value.casefold():
-                hits.append(Hit(node=branch.node, fragment=_fragment(value, needle)))
+            fragment = _fragment(value, needles) if value else None
+            if fragment is not None:
+                hits.append(Hit(node=branch.node, fragment=fragment))
                 break
         stack.extend(reversed(branch.children))
     return hits

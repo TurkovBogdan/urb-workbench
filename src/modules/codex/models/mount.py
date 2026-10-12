@@ -7,8 +7,12 @@ canvas and nothing else. There is no codex "for every workspace" — only an exp
 the project that maintains it and read-only in the projects that follow it. It defaults to
 ``true`` — a person who mounts a codex is assumed to want the agent to keep it current.
 
-A mount is a link, not a record with a history: unmounting deletes the row, and so does a hard
-delete of either side.
+The row is the codex's entry in the workspace, and ``enabled`` says whether it is mounted right now.
+Switching a codex off keeps the row — and with it the codex's place in the workspace's order — so
+switching it back on puts it where it stood: the person arranges every codex of the workspace,
+the ones in use and the ones set aside, and a switch must not reshuffle that. A codex never placed
+in a workspace has no row and stands after the placed ones. A hard delete of either side takes the
+row along.
 """
 
 from __future__ import annotations
@@ -43,6 +47,7 @@ class CodexMount(Base):
     sort: Mapped[int] = mapped_column(
         Integer, default=SORT_DEFAULT, server_default=text(str(SORT_DEFAULT))
     )
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
     agent_can_edit: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
     created_at: Mapped[datetime] = mapped_column(timestamp(), default=utc_now)
 

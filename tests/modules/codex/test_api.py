@@ -16,15 +16,15 @@ pytestmark = pytest.mark.db
 API = "/internal/codex"
 
 
-async def _codex(client, slug="python", **extra):
-    response = await client.post(f"{API}/codexes", json={"slug": slug, "title": slug, **extra})
+async def _codex(client, segment="python", **extra):
+    response = await client.post(f"{API}/codexes", json={"segment": segment, "title": segment, **extra})
     assert response.status_code == 201, response.text
     return response.json()
 
 
-async def _note(client, parent, slug, **extra):
+async def _note(client, parent, segment, **extra):
     response = await client.post(
-        f"{API}/notes", json={"parent_code": parent, "slug": slug, "title": slug, **extra}
+        f"{API}/notes", json={"parent_code": parent, "segment": segment, "title": segment, **extra}
     )
     assert response.status_code == 201, response.text
     return response.json()
@@ -52,23 +52,23 @@ async def test_a_codex_is_created_read_and_listed_with_its_prefix(client):
 
     assert created["code"].startswith("CODEX@")
     got = (await client.get(f"{API}/codexes/{created['code'].lower()}")).json()
-    assert (got["slug"], got["body"]) == ("python", "Правила")
+    assert (got["segment"], got["body"]) == ("python", "Правила")
     listed = (await client.get(f"{API}/codexes")).json()
-    assert [c["slug"] for c in listed] == ["python"]
+    assert [c["segment"] for c in listed] == ["python"]
     assert "body" not in listed[0]
 
 
-async def test_a_taken_slug_is_409_and_writes_nothing(client):
+async def test_a_taken_segment_is_409_and_writes_nothing(client):
     await _codex(client)
 
-    response = await client.post(f"{API}/codexes", json={"slug": "python", "title": "Ещё"})
+    response = await client.post(f"{API}/codexes", json={"segment": "python", "title": "Ещё"})
     assert response.status_code == 409
     assert "taken by the codex" in response.json()["error"]
     assert len((await client.get(f"{API}/codexes")).json()) == 1
 
 
 async def test_an_unknown_field_is_refused(client):
-    response = await client.post(f"{API}/codexes", json={"slug": "a", "title": "A", "name": "x"})
+    response = await client.post(f"{API}/codexes", json={"segment": "a", "title": "A", "name": "x"})
 
     assert response.status_code == 422
     assert (await client.get(f"{API}/codexes")).json() == []
@@ -86,17 +86,33 @@ async def test_a_codex_is_updated_whole(client):
     code = (await _codex(client))["code"]
 
     response = await client.put(
-        f"{API}/codexes/{code}", json={"slug": "py", "title": "Python", "body": "Новые"}
+        f"{API}/codexes/{code}", json={"segment": "py", "title": "Python", "body": "Новые"}
     )
     assert response.status_code == 200
-    assert (response.json()["slug"], response.json()["description"]) == ("py", "")
+    assert (response.json()["segment"], response.json()["description"]) == ("py", "")
+
+
+async def test_the_look_is_kept_by_a_save_that_does_not_carry_it(client):
+    created = await client.post(
+        f"{API}/codexes", json={"segment": "python", "title": "Python", "color": "teal", "icon": "brand-python"}
+    )
+    code = created.json()["code"]
+    assert (created.json()["color"], created.json()["icon"]) == ("teal", "brand-python")
+
+    text_only = await client.put(f"{API}/codexes/{code}", json={"segment": "python", "title": "Python", "body": "Правила"})
+    assert (text_only.json()["color"], text_only.json()["icon"]) == ("teal", "brand-python")
+
+    cleared = await client.put(
+        f"{API}/codexes/{code}", json={"segment": "python", "title": "Python", "color": "", "icon": ""}
+    )
+    assert (cleared.json()["color"], cleared.json()["icon"]) == ("", "")
 
 
 async def test_a_deleted_codex_takes_no_edits_and_comes_back(client):
     code = (await _codex(client))["code"]
 
     assert (await client.delete(f"{API}/codexes/{code}")).status_code == 204
-    put = await client.put(f"{API}/codexes/{code}", json={"slug": "python", "title": "X"})
+    put = await client.put(f"{API}/codexes/{code}", json={"segment": "python", "title": "X"})
     assert (put.status_code, put.json()["code"]) == (409, "codex.codex.deleted")
     assert (await client.get(f"{API}/codexes/{code}")).json()["title"] == "python"
 
@@ -106,7 +122,7 @@ async def test_a_deleted_codex_takes_no_edits_and_comes_back(client):
     assert (again.status_code, again.json()["code"]) == (409, "codex.codex.not_deleted")
 
 
-async def test_a_restore_refused_by_a_taken_slug_is_409(client):
+async def test_a_restore_refused_by_a_taken_segment_is_409(client):
     old = (await _codex(client))["code"]
     await client.delete(f"{API}/codexes/{old}")
     await _codex(client)
@@ -147,7 +163,7 @@ async def test_a_rule_refusal_is_409_with_the_service_text(client):
     await _note(client, codex, "test")
 
     response = await client.post(
-        f"{API}/notes", json={"parent_code": codex, "slug": "test", "title": "Ещё"}
+        f"{API}/notes", json={"parent_code": codex, "segment": "test", "title": "Ещё"}
     )
     assert response.status_code == 409
     assert "taken under the codex 'python'" in response.json()["error"]
@@ -158,14 +174,14 @@ async def test_a_note_is_updated_whole_and_a_deleted_one_refuses(client):
     codex = (await _codex(client))["code"]
     code = (await _note(client, codex, "test"))["code"]
 
-    put = await client.put(f"{API}/notes/{code}", json={"slug": "tests", "title": "Тесты"})
+    put = await client.put(f"{API}/notes/{code}", json={"segment": "tests", "title": "Тесты"})
     assert (put.status_code, put.json()["path"]) == (200, "python/tests")
 
     await client.delete(f"{API}/notes/{code}")
-    refused = await client.put(f"{API}/notes/{code}", json={"slug": "x", "title": "X"})
+    refused = await client.put(f"{API}/notes/{code}", json={"segment": "x", "title": "X"})
     assert (refused.status_code, refused.json()["code"]) == (409, "codex.note.deleted")
     got = (await client.get(f"{API}/notes/{code}")).json()
-    assert (got["slug"], got["path"]) == ("tests", "")
+    assert (got["segment"], got["path"]) == ("tests", "")
 
 
 async def test_move_and_place(client):
@@ -179,7 +195,7 @@ async def test_move_and_place(client):
 
     await client.post(f"{API}/notes/{lint}/move", json={"after_code": None})
     tree = (await client.get(f"{API}/codexes/{codex}/tree")).json()
-    assert [c["slug"] for c in tree["children"]] == ["lint", "test"]
+    assert [c["segment"] for c in tree["children"]] == ["lint", "test"]
 
     loop = await client.post(f"{API}/notes/{lint}/move", json={"parent_code": fixtures})
     assert loop.status_code == 409
@@ -194,7 +210,7 @@ async def test_a_move_without_after_keeps_the_place(client):
 
     await client.post(f"{API}/notes/{lint}/move", json={})
     tree = (await client.get(f"{API}/codexes/{codex}/tree")).json()
-    assert [c["slug"] for c in tree["children"]] == ["lint", "test"]
+    assert [c["segment"] for c in tree["children"]] == ["lint", "test"]
 
 
 async def test_a_note_with_children_is_409_naming_them_and_goes_with_its_branch(client):
@@ -235,13 +251,13 @@ async def test_mounting_and_the_canvas(client, workspace):
 
     first = await client.post(f"{API}/workspaces/{ws}/mounts", json={"codex_code": python})
     assert first.status_code == 201
-    assert (first.json()["codex"]["slug"], first.json()["agent_can_edit"]) == ("python", True)
+    assert (first.json()["codex"]["segment"], first.json()["agent_can_edit"]) == ("python", True)
     await client.post(
         f"{API}/workspaces/{ws}/mounts", json={"codex_code": vue, "agent_can_edit": False}
     )
 
     canvas = (await client.get(f"{API}/workspaces/{ws}/mounts")).json()
-    assert [(m["codex"]["slug"], m["agent_can_edit"]) for m in canvas] == [
+    assert [(m["codex"]["segment"], m["agent_can_edit"]) for m in canvas] == [
         ("python", True),
         ("vue", False),
     ]
@@ -280,10 +296,16 @@ async def test_the_agent_right_reorder_and_unmount(client, workspace):
     )
     assert (patched.status_code, patched.json()["agent_can_edit"]) == (200, False)
 
-    order = await client.post(f"{API}/workspaces/{ws}/mounts/{vue}/reorder", json={"after_code": None})
-    assert [m["codex"]["slug"] for m in order.json()] == ["vue", "python"]
+    order = await client.post(f"{API}/workspaces/{ws}/codexes/{vue}/reorder", json={"after_code": None})
+    assert [m["codex"]["segment"] for m in order.json()] == ["vue", "python"]
 
     assert (await client.delete(f"{API}/workspaces/{ws}/mounts/{vue}")).status_code == 204
+    # Switched off, still in its place — and listed as off, its right reading false.
+    listed = (await client.get(f"{API}/workspaces/{ws}/codexes")).json()
+    assert [(m["codex"]["segment"], m["mounted"], m["agent_can_edit"]) for m in listed] == [
+        ("vue", False, False),
+        ("python", True, False),
+    ]
     missing = await client.delete(f"{API}/workspaces/{ws}/mounts/{vue}")
     assert (missing.status_code, missing.json()["code"]) == (404, "codex.mount.not_found")
     unmounted = await client.patch(

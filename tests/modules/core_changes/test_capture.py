@@ -232,9 +232,9 @@ async def test_content_edits_reach_the_feed_for_every_field(workspace, feed):
     entry = await journal_create(task_code=task.code, type="decision", title="Берём SSE")
     note = await task_note_add(task_code=task.code, title="Схема потока")
     # A codex note is written only through a mount into the agent's active workspace.
-    codex = await codex_create(slug="python", title="Python")
+    codex = await codex_create(segment="python", title="Python")
     await mount_add(codex.code, workspace.code)
-    codex_note = await codex_note_create(parent_code=codex.code, slug="feed", title="Лента")
+    codex_note = await codex_note_create(parent_code=codex.code, segment="feed", title="Лента")
     await session.bind(workspace.code)
     codes = {
         "TASK": f"TASK@{task.code}",

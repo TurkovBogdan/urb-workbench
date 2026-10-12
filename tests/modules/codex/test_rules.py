@@ -1,4 +1,4 @@
-"""The codex rules as pure answers: a slug that fits a path, a depth that fits the limit."""
+"""The codex rules as pure answers: a segment that fits a path, a depth that fits the limit."""
 
 from __future__ import annotations
 
@@ -6,30 +6,31 @@ from types import SimpleNamespace
 
 import pytest
 
-from src.modules.codex.rules import DEPTH_MAX, agent_may_write, depth_problem, slug_problem
+from src.modules.codex.rules import DEPTH_MAX, agent_may_write, depth_problem, segment_problem
 
 pytestmark = pytest.mark.pure
 
 
-@pytest.mark.parametrize("slug", ["python", "vue-3", "2fa", "a" * 64])
-def test_a_path_segment_is_a_slug(slug):
-    assert slug_problem(slug) is None
+@pytest.mark.parametrize("segment", ["python", "vue-3", "2fa", "unit_tests", "a" * 64])
+def test_what_can_be_a_path_segment_has_no_problem(segment):
+    assert segment_problem(segment) is None
 
 
 @pytest.mark.parametrize(
-    ("slug", "says"),
+    ("segment", "says"),
     [
         ("", "empty"),
         ("a" * 65, "65 characters long, the limit is 64"),
         ("Python", "only a-z"),
         ("-python", "must start"),
+        ("_python", "must start"),
         ("py thon", "only a-z"),
         ("тесты", "only a-z"),
         ("py/thon", "only a-z"),
     ],
 )
-def test_what_cannot_be_a_path_segment_says_why(slug, says):
-    assert says in slug_problem(slug)
+def test_what_cannot_be_a_path_segment_says_why(segment, says):
+    assert says in segment_problem(segment)
 
 
 def test_the_fourth_level_fits_and_the_fifth_does_not():

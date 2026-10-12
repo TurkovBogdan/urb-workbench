@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING
 from src.core.config import get_config
 from src.modules.workbench.codes import bare_code, code_prefix
 from src.modules.workbench.contracts import Openable, by_prefix
+from src.modules.workbench.entities.codex import CodexPage
 from src.modules.workbench.entities.tasks import (
     GroupPage,
     JournalPage,
@@ -48,6 +49,7 @@ OPENABLE: dict[str, Openable] = by_prefix(
     StagePage(),
     JournalPage(),
     NotePage(),
+    CodexPage(),
 )
 
 
@@ -69,14 +71,15 @@ def register(mcp: "FastMCP") -> None:
         paste it into the conversation.
 
         A STAGE@ or a JOURNAL@ opens the task it belongs to: they live on its page and have none
-        of their own. A NOTE@ opens its own page, inside its task's. A WORKSPACE@ or a TASKGROUP@
-        opens the list it is a row in.
+        of their own. A NOTE@ opens its own page, inside its task's. A CODEX@ opens the codex
+        editor on that codex or note. A WORKSPACE@ or a TASKGROUP@ opens the list it is a row in.
 
         It acts on the user's machine, so do it when it was asked for or clearly helps, not
         after every call.
 
         Args:
-            code: What to show — a TASK@, STAGE@, JOURNAL@, NOTE@, TASKGROUP@ or WORKSPACE@ code.
+            code: What to show — a TASK@, STAGE@, JOURNAL@, NOTE@, CODEX@, TASKGROUP@ or
+                WORKSPACE@ code.
         """
         prefix = code_prefix(code)
         handler = OPENABLE.get(prefix)

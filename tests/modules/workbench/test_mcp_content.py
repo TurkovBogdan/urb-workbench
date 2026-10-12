@@ -88,9 +88,9 @@ async def note(task):
 @pytest.fixture
 async def codex_note(workspace):
     """A note of a codex mounted into the workspace with the agent's right to write."""
-    codex = await codex_crud.codex_create(slug="python", title="Python")
+    codex = await codex_crud.codex_create(segment="python", title="Python")
     await mount_crud.mount_add(codex.code, workspace.code)
-    return await codex_note_crud.note_create(parent_code=codex.code, slug="test", title="Тесты")
+    return await codex_note_crud.note_create(parent_code=codex.code, segment="test", title="Тесты")
 
 
 @pytest.fixture

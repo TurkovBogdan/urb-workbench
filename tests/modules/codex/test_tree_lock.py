@@ -38,9 +38,9 @@ async def pg_schema(config: Config):
 
 
 async def test_a_structural_write_waits_for_the_tree_lock(pg_schema):
-    python = await codex_create(slug="python", title="Python")
+    python = await codex_create(segment="python", title="Python")
     await asyncio.wait_for(
-        note_create(parent_code=python.code, slug="free", title="Без блокировки"), timeout=5
+        note_create(parent_code=python.code, segment="free", title="Без блокировки"), timeout=5
     )
 
     async with get_engine().connect() as holder:
@@ -48,7 +48,7 @@ async def test_a_structural_write_waits_for_the_tree_lock(pg_schema):
         await holder.execute(text("SELECT pg_advisory_xact_lock(:k)"), {"k": _TREE_LOCK_KEY})
 
         waiting = asyncio.create_task(
-            note_create(parent_code=python.code, slug="held", title="Под блокировкой")
+            note_create(parent_code=python.code, segment="held", title="Под блокировкой")
         )
         await asyncio.sleep(1)
         assert not waiting.done()
@@ -56,4 +56,4 @@ async def test_a_structural_write_waits_for_the_tree_lock(pg_schema):
         await holder.rollback()
 
     created = await asyncio.wait_for(waiting, timeout=5)
-    assert created.slug == "held"
+    assert created.segment == "held"

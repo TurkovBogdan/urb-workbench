@@ -5,7 +5,7 @@ rule is a ``ValueError`` naming the rule and the numbers, raised before anything
 
 **What the service holds that the schema cannot.** The parent is alive and in the same codex; a
 move does not put a note under itself; the tree stays within ``DEPTH_MAX`` levels, a moved
-subtree counted whole; a slug is free among live siblings (the partial index is the safety net,
+subtree counted whole; a segment is free among live siblings (the partial index is the safety net,
 this is the refusal that names the sibling). Depth is found by climbing to the root — the tree is
 at most four levels, so the climb is at most three reads.
 
@@ -35,7 +35,7 @@ from src.core.utils.date import utc_now
 from src.modules.codex.constants import BODY_MAX, DESCRIPTION_MAX, SORT_DEFAULT, SORT_STEP, TITLE_MAX
 from src.modules.codex.crud.code import codex_new_code
 from src.modules.codex.models import Codex, CodexNote
-from src.modules.codex.rules import TOP_NOTE_DEPTH, depth_problem, slug_problem
+from src.modules.codex.rules import TOP_NOTE_DEPTH, depth_problem, segment_problem
 from src.modules.codex.text import fit
 
 # ``"codex"`` in ASCII — one key for the whole tree: structure changes are rare and short, and a
@@ -51,14 +51,14 @@ class NoteHasChildren(ValueError):
     the sentence: the interface asks the person what to do with them, the agent is told which to
     delete first.
 
-    ``children`` holds ``(code, slug)`` pairs, not rows: the refusal rolls the session back, and a
-    row read after that is detached and expired.
+    ``children`` holds ``(code, segment)`` pairs, not rows: the refusal rolls the session back, and
+    a row read after that is detached and expired.
     """
 
     def __init__(self, code: str, children: list[CodexNote]) -> None:
         self.code = code
-        self.children = [(c.code, c.slug) for c in children]
-        listed = ", ".join(f"CODEX@{c} ({slug})" for c, slug in self.children)
+        self.children = [(c.code, c.segment) for c in children]
+        listed = ", ".join(f"CODEX@{c} ({segment})" for c, segment in self.children)
         super().__init__(
             f"CODEX@{code} has {len(children)} live child note(s): {listed} — delete them "
             "first, or delete the whole branch."
@@ -80,7 +80,7 @@ class _Parent:
 
     @property
     def name(self) -> str:
-        return f"note {self.note.slug!r}" if self.note else f"codex {self.codex.slug!r}"
+        return f"note {self.note.segment!r}" if self.note else f"codex {self.codex.segment!r}"
 
 
 async def _lock_tree(s) -> None:
@@ -88,10 +88,10 @@ async def _lock_tree(s) -> None:
         await s.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": _TREE_LOCK_KEY})
 
 
-def _slug(value: str) -> str:
-    problem = slug_problem(value)
+def _segment(value: str) -> str:
+    problem = segment_problem(value)
     if problem:
-        raise ValueError(f"Note slug refused: {problem}.")
+        raise ValueError(f"Note segment refused: {problem}.")
     return value
 
 
@@ -175,18 +175,19 @@ def _siblings(stmt, codex_code: str, parent_code: str | None):
     return stmt.where(CodexNote.parent_code == parent_code)
 
 
-async def _require_slug_free(
-    s, parent: _Parent, slug: str, *, own_code: str | None = None
+async def _require_segment_free(
+    s, parent: _Parent, segment: str, *, own_code: str | None = None
 ) -> None:
     holder = await s.scalar(
         _siblings(select(CodexNote), parent.codex.code, parent.note_code).where(
-            CodexNote.slug == slug, CodexNote.deleted_at.is_(None)
+            CodexNote.segment == segment, CodexNote.deleted_at.is_(None)
         )
     )
     if holder is not None and holder.code != own_code:
         raise ValueError(
-            f"The slug {slug!r} is taken under the {parent.name} by the note {holder.title!r} "
-            f"(CODEX@{holder.code}) — a path must lead to one note. Pick another slug."
+            f"The segment {segment!r} is taken under the {parent.name} by the note "
+            f"{holder.title!r} (CODEX@{holder.code}) — a path must lead to one note. Pick another "
+            "segment."
         )
 
 
@@ -228,14 +229,14 @@ async def _place_after(s, note: CodexNote, after_code: str | None) -> None:
 async def note_create(
     *,
     parent_code: str,
-    slug: str,
+    segment: str,
     title: str,
     description: str | None = None,
     body: str | None = None,
 ) -> CodexNote:
     """A new note under a codex (its top level) or under a note, at the end of that row."""
     values = {
-        "slug": _slug(slug),
+        "segment": _segment(segment),
         "title": _title(title),
         "description": fit(description, DESCRIPTION_MAX, "Note description"),
         "body": fit(body, BODY_MAX, "Note body"),
@@ -246,7 +247,7 @@ async def note_create(
         problem = depth_problem(parent.depth)
         if problem:
             raise ValueError(f"A note cannot go under the {parent.name}: {problem}.")
-        await _require_slug_free(s, parent, values["slug"])
+        await _require_segment_free(s, parent, values["segment"])
         row = CodexNote(
             code=await codex_new_code(s),
             codex_code=parent.codex.code,
@@ -258,6 +259,24 @@ async def note_create(
         await s.flush()
         await s.refresh(row)
     return row
+
+
+async def note_deleted_roots(codex_code: str) -> list[CodexNote]:
+    """The codex's trash: every deletion once, by the note it started at — the branch that left
+    with it comes back with its restore, so listing those too would offer to restore one twice.
+    Newest deletion first."""
+    async with session_scope() as s:
+        deleted = list(
+            (
+                await s.scalars(
+                    select(CodexNote)
+                    .where(CodexNote.codex_code == codex_code, CodexNote.deleted_at.is_not(None))
+                    .order_by(CodexNote.deleted_at.desc(), CodexNote.code.asc())
+                )
+            ).all()
+        )
+    marks = {note.code: note.deleted_at for note in deleted}
+    return [note for note in deleted if marks.get(note.parent_code) != note.deleted_at]
 
 
 async def note_get(code: str, *, include_deleted: bool = False) -> CodexNote | None:
@@ -274,16 +293,17 @@ async def note_update(
     title: str | None = None,
     description: str | None = None,
     body: str | None = None,
-    slug: str | None = None,
+    segment: str | None = None,
     parent_code: str | None = None,
     after_code: str | None | object = KEEP,
 ) -> CodexNote | None:
     """Edit fields, rename, move and place — one call, all checked before anything is written.
 
-    ``parent_code`` — move under that codex (its top level) or note, in the same codex only;
-    ``after_code`` — place right after that sibling, ``None`` — first in the row; left out, a
-    moved note goes to the end of its new row and an unmoved one stays put. ``None`` in the
-    result — no such live note.
+    ``parent_code`` — move under that codex (its top level) or note, this codex or another one:
+    a note crossing into another codex takes its whole branch along, the deleted rows of it too,
+    so a later restore finds them in the same codex; ``after_code`` — place right after that
+    sibling, ``None`` — first in the row; left out, a moved note goes to the end of its new row and
+    an unmoved one stays put. ``None`` in the result — no such live note.
     """
     values: dict[str, str] = {}
     if title is not None:
@@ -292,9 +312,9 @@ async def note_update(
         values["description"] = fit(description, DESCRIPTION_MAX, "Note description")
     if body is not None:
         values["body"] = fit(body, BODY_MAX, "Note body")
-    if slug is not None:
-        values["slug"] = _slug(slug)
-    structural = "slug" in values or parent_code is not None or after_code is not KEEP
+    if segment is not None:
+        values["segment"] = _segment(segment)
+    structural = "segment" in values or parent_code is not None or after_code is not KEEP
 
     async with write_scope() as s:
         if structural:
@@ -307,11 +327,6 @@ async def note_update(
 
         if parent_code is not None:
             target = await _parent(s, parent_code)
-            if target.codex.code != row.codex_code:
-                raise ValueError(
-                    f"CODEX@{code} belongs to the codex {current.codex.slug!r}; a note moves "
-                    f"only within its codex, not into {target.codex.slug!r}."
-                )
             if target.note is not None and (
                 target.note.code == code
                 or code in {a.code for a in await _ancestors(s, target.note)}
@@ -324,12 +339,18 @@ async def note_update(
             if problem:
                 raise ValueError(f"CODEX@{code} cannot move under the {target.name}: {problem}.")
 
-        moved = target.note_code != row.parent_code
-        if moved or "slug" in values:
-            await _require_slug_free(s, target, values.get("slug", row.slug), own_code=code)
+        crossing = target.codex.code != row.codex_code
+        moved = crossing or target.note_code != row.parent_code
+        if moved or "segment" in values:
+            await _require_segment_free(
+                s, target, values.get("segment", row.segment), own_code=code
+            )
 
         for field, value in values.items():
             setattr(row, field, value)
+        if crossing:
+            for note in (row, *await _descendants(s, code, live_only=False)):
+                note.codex_code = target.codex.code
         if moved:
             row.parent_code = target.note_code
             if after_code is KEEP:
@@ -396,7 +417,7 @@ async def note_restore(code: str) -> bool:
     """Bring a deleted note back with what left with it. ``True`` — it was deleted and is back.
 
     Refused while the parent or the codex is deleted (restore that first), while a live sibling
-    holds the slug, or when the branch would no longer fit the depth limit.
+    holds the segment, or when the branch would no longer fit the depth limit.
     """
     async with write_scope() as s:
         await _lock_tree(s)
@@ -411,7 +432,7 @@ async def note_restore(code: str) -> bool:
                     "restore that one first."
                 )
         parent = await _parent(s, row.parent_code or row.codex_code)
-        await _require_slug_free(s, parent, row.slug, own_code=code)
+        await _require_segment_free(s, parent, row.segment, own_code=code)
 
         stamp = row.deleted_at
         branch = [row] + [
@@ -444,6 +465,7 @@ __all__ = [
     "NoteHasChildren",
     "note_create",
     "note_delete",
+    "note_deleted_roots",
     "note_get",
     "note_restore",
     "note_update",

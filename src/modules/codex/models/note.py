@@ -5,19 +5,19 @@ summary of what lies below — ``python/test`` holds the testing standard in bri
 ``fixtures`` and ``factories`` the details. An empty ``body`` is a note that only groups.
 
 The tree is an adjacency list: ``parent_code`` points at the parent note, ``NULL`` — the top level
-of the codex. The path (``python/test/factories``) is not stored; it is assembled from the slugs
-on read, so moving a branch rewrites one row instead of every path below it. ``codex_code`` is
-kept on every row, not only on the top level: "every note of this codex" is one indexed query,
+of the codex. The path (``python/test/factories``) is not stored; it is assembled from the
+segments on read, so moving a branch rewrites one row instead of every path below it.
+``codex_code`` is kept on every row, not only on the top level: "every note of this codex" is one indexed query,
 and the codex a code belongs to is known without climbing.
 
 What the schema cannot hold is held by the service: the parent is in the same codex, there is no
 cycle through several rows, the depth is at most four levels. The schema holds what it can: a note
-is not its own parent, and a slug is unique among live siblings. That uniqueness needs two partial
-indexes, because a plain ``UNIQUE (parent_code, slug)`` does not compare ``NULL`` with ``NULL`` on
-either provider — two top-level notes with one slug would both pass.
+is not its own parent, and a segment is unique among live siblings. That uniqueness needs two
+partial indexes, because a plain ``UNIQUE (parent_code, segment)`` does not compare ``NULL`` with
+``NULL`` on either provider — two top-level notes with one segment would both pass.
 
-Deletion is soft by default (``deleted_at``), and a deleted note frees its slug. A hard delete of a
-codex or a note takes the whole branch below through ``ON DELETE CASCADE``.
+Deletion is soft by default (``deleted_at``), and a deleted note frees its segment. A hard delete
+of a codex or a note takes the whole branch below through ``ON DELETE CASCADE``.
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ from src.modules.codex.constants import (
     BODY_MAX,
     CODE_LEN,
     DESCRIPTION_MAX,
-    SLUG_MAX,
+    SEGMENT_MAX,
     SORT_DEFAULT,
     TITLE_MAX,
 )
@@ -49,17 +49,17 @@ class CodexNote(SoftDeleteMixin, Base):
     __table_args__ = (
         CheckConstraint("code <> parent_code", name="ck_codex_note_not_own_parent"),
         Index(
-            "ux_codex_note_parent_slug",
+            "ux_codex_note_parent_segment",
             "parent_code",
-            "slug",
+            "segment",
             unique=True,
             sqlite_where=_LIVE_CHILD,
             postgresql_where=_LIVE_CHILD,
         ),
         Index(
-            "ux_codex_note_top_slug",
+            "ux_codex_note_top_segment",
             "codex_code",
-            "slug",
+            "segment",
             unique=True,
             sqlite_where=_LIVE_TOP,
             postgresql_where=_LIVE_TOP,
@@ -80,7 +80,7 @@ class CodexNote(SoftDeleteMixin, Base):
         ForeignKey("codex_note.code", name="fk_codex_note_parent_code", ondelete="CASCADE"),
         nullable=True,
     )
-    slug: Mapped[str] = mapped_column(String(SLUG_MAX))
+    segment: Mapped[str] = mapped_column(String(SEGMENT_MAX))
     title: Mapped[str] = mapped_column(String(TITLE_MAX))
     description: Mapped[str] = mapped_column(
         String(DESCRIPTION_MAX), default="", server_default=text("''")

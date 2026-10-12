@@ -80,6 +80,11 @@ def register(mcp: "FastMCP") -> None:
         if refusal is not None:
             raise ValueError(refusal)
         handler = DELETABLE.get(prefix)
+        if handler is None and not prefix and "/" in code:
+            raise ValueError(
+                f"{code!r} looks like a codex path — delete takes the note's CODEX@ code; "
+                f"codex_get([{code!r}]) returns it."
+            )
         if handler is None:
             raise ValueError(
                 f"{code!r} is not something this deletes — pass a "

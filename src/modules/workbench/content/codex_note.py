@@ -3,7 +3,7 @@
 The handler serves the whole ``CODEX@`` prefix — a codex and a note share it — and a codex code is
 refused: a codex's rules are the person's. A note is written only through a mount that lets the
 agent write (``entities/codex.py``); the check reads the active workspace inside the edit.
-``title``, ``description`` and ``slug`` are not content — ``codex_update`` sets them.
+``title``, ``description`` and ``segment`` are not content — ``codex_update`` sets them.
 """
 
 from __future__ import annotations

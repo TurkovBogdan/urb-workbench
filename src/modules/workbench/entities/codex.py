@@ -6,7 +6,7 @@ ownership: a codex belongs to no workspace and is mounted into several, so "visi
 "its codex is mounted into the active workspace" — not ``OwnedFence``.
 
 **Writing** is the agent's only on notes, and only through a mount that allows it
-(``codex.rules.agent_may_write``). The codex itself — its title, slug and rules — is the
+(``codex.rules.agent_may_write``). The codex itself — its title, segment and rules — is the
 person's: every write tool refuses a codex code and says so.
 """
 
@@ -20,7 +20,7 @@ from src.modules.codex.crud import note as note_crud
 from src.modules.codex.models import Codex, CodexNote
 from src.modules.codex.rules import agent_may_write
 from src.modules.workbench import session
-from src.modules.workbench.contracts import Deletable, Fence
+from src.modules.workbench.contracts import Deletable, Fence, Openable
 from src.modules.workspace.models.workspace import Workspace
 
 
@@ -38,8 +38,8 @@ async def codex_of(bare: str) -> str | None:
 
 def codex_is_the_persons(bare: str) -> str:
     return (
-        f"{code_of(bare)} is a codex, not a note — a codex (its title, slug and rules) is edited "
-        "by the person in the interface. You write the notes inside it."
+        f"{code_of(bare)} is a codex, not a note — a codex (its title, segment and rules) is "
+        "edited by the person in the interface. You write the notes inside it."
     )
 
 
@@ -60,10 +60,11 @@ async def require_writable_codex(codex_code: str, active: Workspace) -> Codex:
     if codex is None or mount is None:
         raise ValueError(not_mounted(codex_code, active))
     if not agent_may_write(mount):
+        named = f"{'/' + codex.segment!r} ({code_of(codex.code)})"
         raise ValueError(
-            f"The codex {codex.slug!r} ({code_of(codex.code)}) is read-only for you in "
-            f"{active.title!r} — the person allows writing in the mount settings. Tell them "
-            "what you wanted to change instead."
+            f"The codex {named} is not editable for you in {active.title!r} — writing is "
+            f"switched off in its mount. Tell the user the codex {named} is read-only for you "
+            "and what you wanted to change."
         )
     return codex
 
@@ -86,6 +87,15 @@ class CodexFence(Fence):
             raise ValueError(not_mounted(bare, active))
 
 
+class CodexPage(CodexFence, Openable):
+    async def page(self, bare: str) -> str:
+        """The codex materials, opened on this node — one address for a codex and a note alike
+        (`web/src/features/codex/paths.ts`)."""
+        if await codex_of(bare) is None:
+            raise ValueError(f"{code_of(bare)} does not exist (or is deleted) — no page to show.")
+        return f"/codex/materials/{code_of(bare)}"
+
+
 class CodexDeletion(CodexFence, Deletable):
     async def delete(self, bare: str) -> bool:
         """A note, to the bin, alone — one with live children is refused with their list."""
@@ -94,7 +104,9 @@ class CodexDeletion(CodexFence, Deletable):
         try:
             return await note_crud.note_delete(bare)
         except note_crud.NoteHasChildren as error:
-            listed = ", ".join(f"{code_of(code)} ({slug})" for code, slug in error.children)
+            listed = ", ".join(
+                f"{code_of(code)} ({segment})" for code, segment in error.children
+            )
             raise ValueError(
                 f"{code_of(bare)} has live child notes: {listed}. Delete them first, one by one; "
                 "removing a whole branch at once is the person's."
@@ -104,6 +116,7 @@ class CodexDeletion(CodexFence, Deletable):
 __all__ = [
     "CodexDeletion",
     "CodexFence",
+    "CodexPage",
     "code_of",
     "codex_is_the_persons",
     "codex_of",

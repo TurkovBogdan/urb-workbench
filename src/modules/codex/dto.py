@@ -23,10 +23,14 @@ class CodexSummaryRow(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     code: CodexCode
-    slug: str
+    segment: str
     title: str
     description: str = ""
+    color: str = ""
+    icon: str = ""
     sort: int
+    # How many live workspaces see this codex — the codex is shared, and an edit lands in all.
+    mount_count: int = 0
     created_at: DatetimeUTCStr
     updated_at: DatetimeUTCStr
     deleted_at: DatetimeUTCStr | None = None
@@ -50,7 +54,7 @@ class NoteRow(BaseModel):
     code: CodexCode
     codex_code: CodexCode
     parent_code: CodexCode | None = None
-    slug: str
+    segment: str
     title: str
     description: str = ""
     body: str = ""
@@ -65,23 +69,41 @@ class TreeNode(BaseModel):
     """One node of a tree view: enough to draw and to open it, no text."""
 
     code: CodexCode
-    slug: str
+    segment: str
     title: str
     description: str = ""
+    # The codex's look on its root; a note has none and leaves both empty.
+    color: str = ""
+    icon: str = ""
     path: str
+    # A deleted note — present only in a tree read with its deleted notes; a codex is never one.
+    deleted: bool = False
     children: list[TreeNode] = []
 
     @classmethod
     def of(cls, branch: Branch) -> TreeNode:
-        row = branch.node.note or branch.node.codex
+        note, codex = branch.node.note, branch.node.codex
+        row = note or codex
         return cls(
             code=branch.node.code,
-            slug=row.slug,
+            segment=row.segment,
             title=row.title,
             description=row.description,
+            color="" if note else codex.color,
+            icon="" if note else codex.icon,
             path=branch.node.path,
+            deleted=note is not None and note.deleted_at is not None,
             children=[cls.of(child) for child in branch.children],
         )
+
+
+class WorkspaceCodexRow(BaseModel):
+    """A codex as a workspace orders it: switched on there or not, and the agent's right (false
+    while off). The list of these is in the workspace's order, the same for both states."""
+
+    codex: CodexSummaryRow
+    mounted: bool
+    agent_can_edit: bool
 
 
 class MountRow(BaseModel):
@@ -94,4 +116,12 @@ class MountRow(BaseModel):
     created_at: DatetimeUTCStr
 
 
-__all__ = ["CodexCode", "CodexRow", "CodexSummaryRow", "MountRow", "NoteRow", "TreeNode"]
+__all__ = [
+    "CodexCode",
+    "CodexRow",
+    "CodexSummaryRow",
+    "MountRow",
+    "NoteRow",
+    "TreeNode",
+    "WorkspaceCodexRow",
+]

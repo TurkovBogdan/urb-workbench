@@ -64,7 +64,7 @@ _SET_ELSEWHERE = {
     (NOTE_CODE_PREFIX, "description"): "task_note_update",
     (CODEX_CODE_PREFIX, "title"): "codex_update",
     (CODEX_CODE_PREFIX, "description"): "codex_update",
-    (CODEX_CODE_PREFIX, "slug"): "codex_update",
+    (CODEX_CODE_PREFIX, "segment"): "codex_update",
 }
 
 def content_prefixes() -> tuple[str, ...]:
@@ -81,6 +81,13 @@ def handler_for(code: str, field: str) -> McpContentHandler:
     """The handler of ``field`` on the entity ``code`` names, or a refusal saying what to pass."""
     prefix = code_prefix(code)
     prefixes = content_prefixes()
+    # A codex path (`vue/components`) is how notes are found, not how they are edited: a path moves
+    # with every rename, a code does not.
+    if not prefix and "/" in code:
+        raise ValueError(
+            f"{code!r} looks like a codex path — content_* takes the note's CODEX@ code; "
+            f"codex_get([{code!r}]) returns it."
+        )
     if prefix not in prefixes:
         raise ValueError(
             f"{code!r} has no content to edit — content_* works on "

@@ -14,13 +14,13 @@ Three entities:
 
 | Entity | Table | Code | What it is |
 | --- | --- | --- | --- |
-| Codex | `codex` | `CODEX@` | the root: `slug`, `title`, `description` («when to turn to it»), `body` (the rules of working in it) |
+| Codex | `codex` | `CODEX@` | the root: `segment`, `title`, `description` («when to turn to it»), `body` (the rules of working in it) |
 | Codex note | `codex_note` | `CODEX@` | a record of the tree: text and children, like a page in Notion; no folder/document flag |
-| Mount | `codex_mount` | — | which workspace sees which codex, its place there, and `agent_can_edit` |
+| Mount | `codex_mount` | — | a codex's entry in a workspace: its place in the workspace's order, `enabled` (switched on), `agent_can_edit` |
 
 A codex and a note share one prefix: the agent reaches both by one code, and a fresh code is
-checked against both tables (`crud/code.py`). A path (`python/test/factories`) is the codex slug
-plus the notes' slugs; it is never stored, so a rename or a move rewrites one row.
+checked against both tables (`crud/code.py`). A path (`python/test/factories`) is the codex segment
+plus the notes' segments; it is never stored, so a rename or a move rewrites one row.
 
 ## The service
 
@@ -30,15 +30,17 @@ missing row is `None` / `False`.
 
 | File | Operations |
 | --- | --- |
-| `crud/codex.py` | `codex_create` / `get` / `get_by_slug` / `list` / `update` / `delete` / `restore` — a slug unique among live codexes; a restore is refused while the slug is taken |
-| `crud/mount.py` | `mount_add` / `remove` / `set_agent_can_edit` / `reorder` / `get` / `list` — live codex into live workspace, once; `mount_get` is the visibility check, `mount_list` the canvas |
-| `crud/note.py` | `note_create` / `get` / `update` (fields, slug, `parent_code` move, `after_code` place) / `delete` (`with_branch`) / `restore` |
+| `crud/codex.py` | `codex_create` / `get` / `get_by_segment` / `list` / `update` / `delete` / `restore` — a segment unique among live codexes; a restore is refused while the segment is taken |
+| `crud/mount.py` | `mount_add` / `remove` (switch on / off — the row and its place stay) / `set_agent_can_edit` / `reorder` / `get` / `list` / `workspace_codexes` — the workspace's order covers every codex, switched on or not, and a switch never moves one; `mount_get` is the visibility check, `mount_list` the canvas |
+| `crud/note.py` | `note_create` / `get` / `update` (fields, segment, `parent_code` move, `after_code` place) / `delete` (`with_branch`) / `restore` |
 | `crud/read.py` | `resolve` (code or path in a workspace's canvas), `children_of` (with counts), `subtree`, `search` |
-| `rules.py` | the slug format, the depth limit, `agent_may_write` — one answer for both surfaces |
+| `rules.py` | the segment format, the depth limit, `agent_may_write` — one answer for both surfaces |
 
-The tree rules the service holds: the parent is live and in the same codex; a move never puts a
-note under its own branch; four levels at most (`codex / note / note / note`), a moved branch
-counted whole; a slug free among live siblings. A note with live children is deleted only with
+The tree rules the service holds: the parent is live and in the same codex; a move into another
+codex carries the whole branch over, its deleted rows too, so their restore lands there (the
+person's move — the agent's `codex_update` stays within one codex); a move never puts a note
+under its own branch; four levels at most (`codex / note / note / note`), a moved branch
+counted whole; a segment free among live siblings. A note with live children is deleted only with
 its branch, under one mark that its restore follows. Structural writes serialise: `BEGIN
 IMMEDIATE` on SQLite, plus one `pg_advisory_xact_lock` on PostgreSQL.
 
@@ -83,13 +85,13 @@ workspace and is designed separately.
 
 | Table | Keys and indexes | Revision |
 | --- | --- | --- |
-| `codex` | PK `code`; `ux_codex_slug` — unique among live rows | `cxm_001_codex` |
-| `codex_note` | PK `code`; FK `codex_code`, `parent_code` (both `CASCADE`); `ck_codex_note_not_own_parent`; `ux_codex_note_parent_slug`, `ux_codex_note_top_slug` — a slug unique among live siblings; `ix_codex_note_parent_sort`, `ix_codex_note_codex_sort` | `cxm_002_codex_note` |
-| `codex_mount` | PK (`codex_code`, `workspace_code`), both FK `CASCADE`; `ix_codex_mount_workspace_sort` | `cxm_003_codex_mount` |
+| `codex` | PK `code`; `ux_codex_segment` — unique among live rows | `cxm_001_codex` |
+| `codex_note` | PK `code`; FK `codex_code`, `parent_code` (both `CASCADE`); `ck_codex_note_not_own_parent`; `ux_codex_note_parent_segment`, `ux_codex_note_top_segment` — a segment unique among live siblings; `ix_codex_note_parent_sort`, `ix_codex_note_codex_sort` | `cxm_002_codex_note` |
+| `codex_mount` | PK (`codex_code`, `workspace_code`), both FK `CASCADE`; `ix_codex_mount_workspace_sort`; `enabled` | `cxm_003_codex_mount`, `cxm_004_codex_mount_enabled` |
 
-Slug uniqueness among siblings takes two partial indexes: a plain `UNIQUE (parent_code, slug)`
-does not compare `NULL` with `NULL` on either provider, so the top level gets its own index by
-codex. A soft-deleted row frees its slug.
+Segment uniqueness among siblings takes two partial indexes: a plain
+`UNIQUE (parent_code, segment)` does not compare `NULL` with `NULL` on either provider, so the top
+level gets its own index by codex. A soft-deleted row frees its segment.
 
 `cxm_003_codex_mount` depends on `wkm_001_workspaces` — the revision creating the FK target, not
 the head of its chain: a dependency on a head breaks the overlap check.

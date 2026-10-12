@@ -31,13 +31,15 @@ async def _count(model) -> int:
         return await s.scalar(select(func.count()).select_from(model))
 
 
-def _codex(code: str = "C000000001", slug: str = "python", **kw) -> Codex:
-    return Codex(code=code, slug=slug, title=slug.capitalize(), **kw)
+def _codex(code: str = "C000000001", segment: str = "python", **kw) -> Codex:
+    return Codex(code=code, segment=segment, title=segment.capitalize(), **kw)
 
 
-def _note(code: str, slug: str, *, parent: str | None = None, codex: str = "C000000001", **kw):
+def _note(
+    code: str, segment: str, *, parent: str | None = None, codex: str = "C000000001", **kw
+):
     return CodexNote(
-        code=code, codex_code=codex, parent_code=parent, slug=slug, title=slug, **kw
+        code=code, codex_code=codex, parent_code=parent, segment=segment, title=segment, **kw
     )
 
 
@@ -46,10 +48,10 @@ async def python(db):
     await _add(_codex(), _note("N000000001", "test"))
 
 
-# ── codex slug ────────────────────────────────────────────────────────────────
+# ── codex segment ─────────────────────────────────────────────────────────────
 
 
-async def test_two_live_codexes_cannot_share_a_slug(db):
+async def test_two_live_codexes_cannot_share_a_segment(db):
     await _add(_codex())
 
     with pytest.raises(IntegrityError, match="UNIQUE"):
@@ -57,29 +59,29 @@ async def test_two_live_codexes_cannot_share_a_slug(db):
     await _add(_codex("C000000002", "vue"))
 
 
-async def test_a_deleted_codex_frees_its_slug(db):
+async def test_a_deleted_codex_frees_its_segment(db):
     await _add(_codex(deleted_at=datetime.now(UTC)))
 
     await _add(_codex("C000000002", "python"))
     assert await _count(Codex) == 2
 
 
-# ── note slug among siblings ──────────────────────────────────────────────────
+# ── note segment among siblings ───────────────────────────────────────────────
 
 
-async def test_two_top_level_notes_of_one_codex_cannot_share_a_slug(python):
+async def test_two_top_level_notes_of_one_codex_cannot_share_a_segment(python):
     with pytest.raises(IntegrityError, match="UNIQUE"):
         await _add(_note("N000000002", "test"))
     await _add(_note("N000000002", "lint"))
 
 
-async def test_the_same_top_slug_in_another_codex_is_fine(python):
+async def test_the_same_top_segment_in_another_codex_is_fine(python):
     await _add(_codex("C000000002", "vue"), _note("N000000002", "test", codex="C000000002"))
 
     assert await _count(CodexNote) == 2
 
 
-async def test_two_children_of_one_parent_cannot_share_a_slug(python):
+async def test_two_children_of_one_parent_cannot_share_a_segment(python):
     await _add(_note("N000000002", "fixtures", parent="N000000001"))
 
     with pytest.raises(IntegrityError, match="UNIQUE"):
@@ -87,14 +89,14 @@ async def test_two_children_of_one_parent_cannot_share_a_slug(python):
     await _add(_note("N000000003", "factories", parent="N000000001"))
 
 
-async def test_a_child_may_repeat_a_top_level_slug(python):
+async def test_a_child_may_repeat_a_top_level_segment(python):
     """The top-level index and the child index are separate namespaces per level."""
     await _add(_note("N000000002", "test", parent="N000000001"))
 
     assert await _count(CodexNote) == 2
 
 
-async def test_a_deleted_note_frees_its_slug(python):
+async def test_a_deleted_note_frees_its_segment(python):
     await _add(
         _note("N000000002", "fixtures", parent="N000000001", deleted_at=datetime.now(UTC))
     )
