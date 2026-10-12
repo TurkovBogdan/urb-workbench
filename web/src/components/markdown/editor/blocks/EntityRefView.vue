@@ -25,6 +25,7 @@ const code = computed(() => String(props.node.attrs.code ?? ''))
 const typeClass = computed(() => `md-ref--${code.value.split('@')[0].toLowerCase()}`)
 // The preview knows every type's page; before it comes, what the code alone can tell (or nothing).
 const href = computed(() => previews.get(code.value)?.link || refPath(code.value) || undefined)
+const missing = computed(() => previews.get(code.value)?.error?.code === 'not_found')
 
 // Every pill of a document mounts in the same tick, so the store gathers them into one request.
 watch(code, (value) => previews.ensure([value]), { immediate: true })
@@ -61,7 +62,7 @@ function open(event: MouseEvent): void {
     ref="wrapper"
     as="span"
     class="md-ref md-ref--editable"
-    :class="[typeClass, { 'md-ref--selected': props.selected }]"
+    :class="[typeClass, { 'md-ref--selected': props.selected, 'md-ref--missing': missing }]"
     @mouseenter="onPointerEnter"
     @mouseleave="onPointerLeave"
   >

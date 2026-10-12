@@ -58,7 +58,7 @@ defineExpose({ hover, leave })
     content-class="ref-preview-menu"
   >
     <VCard variant="outlined" rounded="lg" class="ref-preview-menu__card" @mouseenter="stay" @mouseleave="leave">
-      <EntityPreviewCard :code="code" />
+      <EntityPreviewCard :code="code" @opened="open = false" />
     </VCard>
   </VMenu>
 </template>

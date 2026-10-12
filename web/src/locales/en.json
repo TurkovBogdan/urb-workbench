@@ -228,7 +228,9 @@
         "not_found": "Not found",
         "foreign_scope": "Belongs to another workspace",
         "deleted": "Deleted",
-        "failed": "Could not load"
+        "failed": "Could not load",
+        "open": "Open",
+        "open_new_tab": "Open in new tab"
       }
     },
     "toolbar": {

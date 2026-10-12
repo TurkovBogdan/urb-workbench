@@ -131,13 +131,15 @@ function askForPreviews() {
 watch(html, () => nextTick(askForPreviews))
 onMounted(askForPreviews)
 
-// A pill takes its address from its preview: the HTML carries only what the code alone can tell,
-// and a stage or a note learns its task's page here, once the preview comes.
+// A pill takes its address and its state from its preview: the HTML carries only what the code
+// alone can tell — a stage or a note learns its task's page here, and a code that leads nowhere is
+// marked as such, once the preview comes.
 watchEffect(() => {
-  const links = new Map(pillCodes.value.map((code) => [code, previews.get(code)?.link]))
+  const records = new Map(pillCodes.value.map((code) => [code, previews.get(code)]))
   for (const pill of pills()) {
-    const link = links.get(pill.dataset.ref ?? '')
-    if (link) pill.setAttribute('href', link)
+    const record = records.get(pill.dataset.ref ?? '')
+    if (record?.link) pill.setAttribute('href', record.link)
+    pill.classList.toggle('md-ref--missing', record?.error?.code === 'not_found')
   }
 }, { flush: 'post' })
 
