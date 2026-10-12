@@ -171,16 +171,6 @@ function onKeydown(event: KeyboardEvent) {
   min-width: 0;
 }
 
-/* Vuetify measures the auto-grow height into --v-textarea-control-height, but the app's global
-   density rules pin .v-field__input to a fixed min-height (unlayered CSS beats Vuetify's @layer),
-   so the field never grows past one row. Re-honor the measured height here, scoped to the composer.
-   The :not(.v-textarea__sizer) is critical: the hidden sizer Vuetify measures is also a
-   .v-field__input — flooring its min-height would stop its scrollHeight from shrinking, so the
-   height would ratchet up and never come back down. Leave the sizer free to grow AND shrink. */
-.chat-composer :deep(.v-textarea .v-field__input:not(.v-textarea__sizer)) {
-  min-height: var(--v-textarea-control-height);
-}
-
 .chat-composer__quick {
   display: flex;
   flex-wrap: wrap;
