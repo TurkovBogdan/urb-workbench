@@ -48,6 +48,7 @@ const PAGES: Record<string, string> = {
   'code-block':    'content/CodeBlockView',
   markdown:        'content/MarkdownView',
   'markdown-editor': 'content/MarkdownEditorView',
+  'code-editor-lab': 'content/CodeEditorLabView',
   chat:            'content/ChatView',
   message:         'content/MessageContentView',
   dividers:        'structure/DividersView',
