@@ -21,7 +21,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useDraggable } from 'vue-draggable-plus'
-import { IconExternalLink, IconFileText, IconTrash } from '@tabler/icons-vue'
+import { IconArrowBack, IconArrowForward, IconExternalLink, IconFileText, IconTrash } from '@tabler/icons-vue'
 
 import ActionMenu, { type ActionMenuItem } from '@/components/ActionMenu.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
@@ -88,6 +88,18 @@ async function saveOrder(): Promise<void> {
   }
 }
 
+/** Moving without a mouse: one place back or forward in the grid, saved the way a drop is. */
+function shift(code: string, step: -1 | 1): void {
+  const from = items.value.findIndex((note) => note.code === code)
+  const to = from + step
+  if (from < 0 || to < 0 || to >= items.value.length) return
+  const next = [...items.value]
+  const [note] = next.splice(from, 1)
+  next.splice(to, 0, note)
+  items.value = next
+  void saveOrder()
+}
+
 // ── Add ───────────────────────────────────────────────────────────────────────
 const adding = ref(false)
 
@@ -150,14 +162,19 @@ function openInNewTab(note: TaskNoteRow): void {
 }
 
 function menuItems(note: TaskNoteRow): ActionMenuItem[] {
-  const items: ActionMenuItem[] = [
-    { key: 'open-tab', icon: IconExternalLink, label: t('tasks.note.open_new_tab'), hotkey: 'T', run: () => openInNewTab(note) },
+  const menu: ActionMenuItem[] = [
     { key: 'open', icon: IconFileText, label: t('tasks.note.open'), hotkey: 'E', run: () => emit('open', note.code) },
+    { key: 'open-tab', icon: IconExternalLink, label: t('tasks.note.open_new_tab'), hotkey: 'T', run: () => openInNewTab(note) },
   ]
-  if (!props.disabled) {
-    items.push({ key: 'delete', icon: IconTrash, label: t('tasks.note.delete'), danger: true, hotkey: 'D', divider: true, run: () => ask(note) })
-  }
-  return items
+  if (props.disabled) return menu
+  // W and S move, as on a task row; in a grid "up" is the place before, "down" the place after.
+  const at = items.value.findIndex((candidate) => candidate.code === note.code)
+  menu.push(
+    { key: 'delete', icon: IconTrash, label: t('tasks.note.delete'), danger: true, hotkey: 'D', divider: true, run: () => ask(note) },
+    { key: 'back', icon: IconArrowBack, label: t('tasks.note.move_back'), hotkey: 'W', divider: true, disabled: at === 0, run: () => shift(note.code, -1) },
+    { key: 'forward', icon: IconArrowForward, label: t('tasks.note.move_forward'), hotkey: 'S', disabled: at === items.value.length - 1, run: () => shift(note.code, 1) },
+  )
+  return menu
 }
 </script>
 
@@ -186,8 +203,14 @@ function menuItems(note: TaskNoteRow): ActionMenuItem[] {
       @click="emit('open', note.code)"
       @contextmenu="menus.get(note.code)?.openAt($event)"
     >
-      <DragHandle v-if="!props.disabled" class="task-note__handle" :label="t('tasks.note.drag')" @click.stop />
       <div class="task-note__head">
+        <DragHandle
+          class="task-note__handle"
+          :class="{ 'task-note__handle--off': props.disabled }"
+          :label="t('tasks.note.drag')"
+          always
+          @click.stop
+        />
         <span class="task-note__title" :title="note.title">{{ note.title }}</span>
         <ActionMenu
           :ref="(menu) => bindMenu(note.code, menu)"
@@ -228,25 +251,23 @@ function menuItems(note: TaskNoteRow): ActionMenuItem[] {
   .task-notes { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* 16px on the left, as in the cards above: the note's title stands on the line of theirs. The right
-   side is tighter — the "⋯" button's own box makes up the rest. */
+/* Both sides are tight: the handle's box on the left and the "⋯" button's on the right make up the
+   rest of the padding. The gap is small because the title line is already taller than its text —
+   the handle and the "⋯" stretch it to 28px. */
 .task-note {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 2px;
   min-height: 72px;
-  padding: 12px 8px 12px 16px;
+  padding: 12px 8px;
 }
 
-/* The handle sits in the card's left padding, level with the title line, out of the flow: the title
-   keeps its 16px whether the handle is shown or not. The glyph is centred in its box, so a box
-   shifted 2px past the edge still ends before the title starts. */
-.task-note__handle {
-  position: absolute;
-  top: 12px;
-  left: -2px;
-}
+/* The handle leads the title line, centred on its first line — the head aligns to the top, and the
+   handle's box is as tall as the title's line with its padding. It is always shown, not only under
+   the pointer: a gap before every title would read as a broken indent. On a deleted task's note,
+   which cannot be moved, it keeps its place unseen, so the title stands where it does elsewhere. */
+.task-note__handle--off { visibility: hidden; }
 
 /* While its menu is open the card stays as it looks under the pointer: the pointer has gone onto
    the items, and only this mark says which note they will act on. */
@@ -277,8 +298,11 @@ function menuItems(note: TaskNoteRow): ActionMenuItem[] {
 
 /* Three lines at most: the description says what the note is and when to open it, and a card
    taller than its neighbours breaks the row. */
+/* Exactly under the title: on the left past the handle (its 20px box plus the head's 4px gap), on
+   the right short of the "⋯" column (its 28px box plus the same gap) — the text forms one block
+   with the title instead of running under the button. */
 .task-note__description {
-  margin: 0 8px 0 0;
+  margin: 0 32px 0 24px;
   font-size: 13px;
   line-height: 1.45;
   color: var(--text-muted);

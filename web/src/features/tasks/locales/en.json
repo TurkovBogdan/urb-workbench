@@ -80,7 +80,8 @@
       "deadline_at": "Deadline",
       "has_children": "Has subtasks",
       "deleted": "Deleted",
-      "edit": "Edit",
+      "open": "Open",
+      "open_new_tab": "Open in new tab",
       "add_child": "Subtask",
       "add_subtask": "Add subtask",
       "mark_done": "Done",
@@ -159,8 +160,18 @@
       "completed_at": "Completed",
       "canceled_at": "Canceled",
       "updated_at": "Updated",
-      "parent": "Parent task",
+      "parent": "Subtask of:",
       "deleted_note": "The task was deleted together with its branch. While it is in the bin, it can't be edited and its status can't be changed."
+    },
+    "parent": {
+      "change": "Change parent",
+      "detach": "Detach",
+      "title": "Change parent task",
+      "target": "New parent task",
+      "search": "Find a task",
+      "empty": "No matching tasks",
+      "note": "Only unfinished top-level tasks are listed. The subtask moves to the new parent's group.",
+      "confirm": "Move"
     },
     "purge": {
       "title": "Delete forever",
@@ -210,6 +221,8 @@
     "actions": "Actions",
     "open": "Open",
     "open_new_tab": "Open in new tab",
+    "move_back": "Move back",
+    "move_forward": "Move forward",
     "delete": "Delete",
     "delete_confirm": {
       "title": "Delete the note?",

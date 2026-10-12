@@ -24,7 +24,7 @@ const props = defineProps<{
   workspace: string
   /** The task is in the trash: its branch was deleted with it and is visible only with deleted. */
   deleted: boolean
-  /** A subtask may be added here: the task is live and not a subtask itself (the tree is one level deep). */
+  /** A subtask may be added here: the task is live. A subtask's page never shows the panel at all. */
   addable: boolean
 }>()
 

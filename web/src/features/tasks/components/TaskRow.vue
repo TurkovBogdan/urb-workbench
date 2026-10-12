@@ -18,10 +18,12 @@
 // So there is no description or body here — the task is opened for those.
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import {
   IconArrowDown,
   IconArrowUp,
-  IconPencil,
+  IconExternalLink,
+  IconFileText,
   IconRestore,
   IconSubtask,
   IconTrash,
@@ -74,6 +76,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const router = useRouter()
 const store = useTasksStore()
 
 // Branch collapse state lives in the store next to group card collapse state — one map for both:
@@ -140,12 +143,19 @@ function setStatus(status: string) {
   emit('status', { code: props.task.code, status })
 }
 
+/** The page stays where it is: the row only knows the address, the new tab does the rest. */
+function openInNewTab(code: string) {
+  const { href } = router.resolve({ name: 'tasks-task', params: { code } })
+  window.open(href, '_blank', 'noopener')
+}
+
 // The action set depends on state: a live task gets edit, closing, delete and reorder, a deleted
 // one gets only restore. The backend refuses to edit a deleted task (409), and an item bound to
 // fail would make the button lie. Order is by frequency: working on the task, then ending it, then
 // moving it.
 //
-// Edit, delete and cancel take their letters, E, D and C, as everywhere in the app. The status
+// Open and delete take their letters, E and D, as everywhere in the app, and T opens in a new tab;
+// cancel has no key — C belongs to the menu's own "Copy code". The status
 // items that bring work back keep the digits they were given explicitly: 1 closes the work, or
 // brings it back (done, deleted); 2 brings a canceled one back to work. The status the task
 // already has is not offered again; a closed task gets the way back to work in its place.
@@ -162,9 +172,10 @@ const menuItems = computed<ActionMenuItem[]>(() => {
   }
 
   // A task is edited on its page, where every field lives; a form here would be a second, smaller
-  // copy of it.
+  // copy of it. So the menu opens the page rather than editing, and the ways to open lead it.
   const items: ActionMenuItem[] = [
-    { key: 'edit', icon: IconPencil, label: t('tasks.task.card.edit'), hotkey: 'E', run: () => emit('open', task.code) },
+    { key: 'open', icon: IconFileText, label: t('tasks.task.card.open'), hotkey: 'E', run: () => emit('open', task.code) },
+    { key: 'open-tab', icon: IconExternalLink, label: t('tasks.task.card.open_new_tab'), hotkey: 'T', run: () => openInNewTab(task.code) },
   ]
   // The tree is one level deep: the backend refuses a subtask under a subtask.
   if (task.parent_code === null) {
@@ -172,6 +183,7 @@ const menuItems = computed<ActionMenuItem[]>(() => {
       key: 'add-child',
       icon: IconSubtask,
       label: t('tasks.task.card.add_subtask'),
+      divider: true,
       run: () => emit('addChild', task),
     })
   }
@@ -182,7 +194,7 @@ const menuItems = computed<ActionMenuItem[]>(() => {
       : { key: 'close', icon: statusIcon('done'), label: t('tasks.task.card.mark_done'), hotkey: '1', divider: true, run: () => setStatus('done') },
     task.status === 'canceled'
       ? { key: 'cancel', icon: statusIcon('in_progress'), label: t('tasks.task.card.reopen'), hotkey: '2', run: () => setStatus('in_progress') }
-      : { key: 'cancel', icon: statusIcon('canceled'), label: t('tasks.task.card.mark_canceled'), hotkey: 'C', run: () => ask('cancel') },
+      : { key: 'cancel', icon: statusIcon('canceled'), label: t('tasks.task.card.mark_canceled'), run: () => ask('cancel') },
     { key: 'delete', icon: IconTrash, label: t('tasks.task.card.delete'), danger: true, hotkey: 'D', run: () => ask('delete') },
   )
 
