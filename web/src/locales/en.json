@@ -57,6 +57,7 @@
     "workspace": "Workspace",
     "data": "Data",
     "tasks": "Tasks",
+    "codex": "Knowledge base",
     "settings": "Settings",
     "about": "About",
     "development": "Development"
@@ -296,9 +297,6 @@
     "NA": "N. America",
     "OC": "Oceania",
     "SA": "S. America"
-  },
-  "validation": {
-    "slug": "Only a-z, 0-9, hyphen and underscore"
   },
   "duration": {
     "ms": "{n} ms",

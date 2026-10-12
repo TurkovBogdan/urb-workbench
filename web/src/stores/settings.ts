@@ -82,6 +82,8 @@ export const useSettingsStore = defineStore('settings', () => {
 
   const ui = reactive({
     sidebarCollapsed: synced('interface_sidebar_collapsed', false, boolCodec),
+    codexNavWidth: synced('interface_codex_nav_width', 300, intCodec),
+    codexShowDeleted: synced('interface_codex_show_deleted', false, boolCodec),
   })
 
   const message = reactive({

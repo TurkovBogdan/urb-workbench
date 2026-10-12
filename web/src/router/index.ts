@@ -6,6 +6,7 @@ import { setupRoutePrefetch } from './prefetch'
 import { setupChunkReload } from './reload'
 import { designSystemRoutes } from './design-system'
 import { aboutRoutes } from '../features/about/routes'
+import { codexRoutes } from '../features/codex/routes'
 import { coreMcpRoutes } from '../features/core_mcp/routes'
 import { coreMonitoringRoutes } from '../features/core_monitoring/routes'
 import { settingsRoutes } from '../features/settings/routes'
@@ -35,6 +36,7 @@ const router = createRouter({
     // `/tasks/:module/:code` — and the conflict is settled not by declaration order but by
     // vue-router's ranking: a static segment outweighs a param (see features/tasks/routes.ts).
     ...tasksRoutes,
+    ...codexRoutes,
     ...workspacesRoutes,
     ...settingsRoutes,
     ...setupRoutes,

@@ -1,12 +1,9 @@
-import { i18n } from '@/plugins/i18n'
-
-type Rule = (v: unknown) => true | string
-
-/** Lowercase Latin letters, digits, hyphen and underscore. No spaces. */
-export function isSlug(message?: string): Rule {
-  return (v) => {
-    const s = v == null ? '' : String(v)
-    if (s === '') return true
-    return /^[a-z0-9_-]+$/.test(s) || (message ?? i18n.global.t('common.validation.slug'))
-  }
+/**
+ * What a path segment field lets through as it is typed: lowercase Latin letters, digits, hyphen
+ * and underscore. Upper case is folded rather than dropped — "Python" typed becomes "python";
+ * anything else (Cyrillic, spaces, punctuation) never reaches the field, so there is nothing to
+ * correct after the fact.
+ */
+export function keepSegmentChars(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9_-]/g, '')
 }

@@ -9,7 +9,7 @@ import { useLayoutStore } from '../store'
 import { useSettingsStore } from '@/stores/settings'
 import { useAppStore } from '@/stores/app'
 import { isGroup, isSection, type NavEntry, type NavLink, type NavSection, type NavSectionEntry } from '@/shared/nav'
-import { IconPalette, IconServerCog, IconClock, IconServerBolt, IconTypography, IconInfoCircle, IconChecklist, IconSitemap } from '@tabler/icons-vue'
+import { IconPalette, IconServerCog, IconClock, IconServerBolt, IconTypography, IconInfoCircle, IconChecklist, IconSitemap, IconBook2, IconAdjustments } from '@tabler/icons-vue'
 
 const layout = useLayoutStore()
 const settings = useSettingsStore()
@@ -39,6 +39,9 @@ function navLabel(entry: { label: string; labelKey?: string }): string {
 
 const navSections: NavSection[] = [
   { kind: 'section', code: 'tasks', labelKey: 'common.nav.tasks', order: 20 },
+  // The codex section, called "knowledge base" in the interface — a test implementation
+  // (TASK@8EAB179834).
+  { kind: 'section', code: 'codex', labelKey: 'common.nav.codex', order: 25 },
   { kind: 'section', code: 'mcp', labelKey: 'common.nav.mcp', order: 30 },
   { kind: 'section', code: 'settings', labelKey: 'common.nav.settings', order: 50 },
   { kind: 'section', code: 'about', labelKey: 'common.nav.about', order: 60 },
@@ -49,6 +52,10 @@ const navEntries: NavSectionEntry[] = [
   // The task page is part of the tasks section, even though its address isn't under `/tasks/list`.
   { section: 'tasks', order: 10, path: '/tasks/list', activeOn: ['/tasks/task'], label: 'Tasks', labelKey: 'tasks.nav_tasks', icon: IconChecklist },
   { section: 'tasks', order: 20, path: '/tasks/groups', label: 'Groups', labelKey: 'tasks.nav_groups', icon: IconSitemap },
+  // Materials — the canvas editor, its node pages under the same prefix; available — every codex
+  // and its mount. The prefixes do not nest (`features/codex/paths.ts`).
+  { section: 'codex', order: 10, path: '/codex/materials', label: 'Knowledge base', labelKey: 'codex.nav_materials', icon: IconBook2 },
+  { section: 'codex', order: 20, path: '/codex/available', label: 'Manage', labelKey: 'codex.nav_available', icon: IconAdjustments },
   { section: 'mcp', order: 10, path: '/mcp-servers', label: 'MCP servers', labelKey: 'core_mcp.nav', icon: IconServerBolt },
   { section: 'settings', order: 10, path: '/settings/interface', label: 'Interface', labelKey: 'settings.interface.nav', icon: IconTypography },
   { section: 'settings', order: 40, path: '/monitoring', label: 'Job monitoring', labelKey: 'core_monitoring.nav', icon: IconClock },

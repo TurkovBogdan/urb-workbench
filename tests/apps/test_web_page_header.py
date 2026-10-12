@@ -28,10 +28,13 @@ pytestmark = pytest.mark.pure
 WEB_SRC = Path(__file__).resolve().parents[2] / "web" / "src"
 
 # Pages without a header are only those with no page frame at all:
-# home (a full-screen welcome showcase) and the "not found" screen (it draws itself).
+# home (a full-screen welcome showcase) and the "not found" screen (it draws itself). The codex
+# materials run their tree navigation from the top of the page, and the record's heading opens the
+# column beside it rather than the page — a layout decided for that page alone.
 EXEMPT = {
     "views/HomeView.vue",
     "views/errors/NotFoundView.vue",
+    "features/codex/views/CodexEditorView.vue",
 }
 
 PAGE_FRAME = "<PageHeader"
