@@ -42,7 +42,8 @@ declare module '@tiptap/core' {
 // because after a move the eye loses the object among its neighbours: the block has settled, but
 // the user is not sure it settled where intended.
 const FLASH_MS = 700
-const FLASH = new PluginKey<number | null>('blockMoveFlash')
+/** Set to the landed block's position to flash it. A drop with the mouse (`dropSlot.ts`) uses it too. */
+export const FLASH = new PluginKey<number | null>('blockMoveFlash')
 
 // ── Command ───────────────────────────────────────────────────────────────────
 

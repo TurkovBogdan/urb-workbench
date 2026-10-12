@@ -18,15 +18,23 @@ import { useI18n } from 'vue-i18n'
 import { EditorContent, useEditor } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import { Placeholder } from '@tiptap/extension-placeholder'
-import DragHandle from '@tiptap/extension-drag-handle-vue-3'
+import {
+  DragHandlePlugin,
+  defaultComputePositionConfig,
+  dragHandlePluginDefaultKey,
+  normalizeNestedOptions,
+} from '@tiptap/extension-drag-handle'
 import { IconGripVertical } from '@tabler/icons-vue'
-import { Diagram, EntityRef, FlatBlocks } from './blocks'
+import { CodeBlock, Diagram, EntityRef, FlatBlocks } from './blocks'
 import {
   BlockMoves,
   DragSource,
+  DropSlot,
   LENGTH_LIMIT_BYPASS,
   LengthLimit,
   MarkdownPaste,
+  handleTop,
+  useBlockMarks,
   useDragPreview,
 } from './behavior'
 import {
@@ -166,6 +174,17 @@ const editor = useEditor({
       // assistive technology is taken from it too, so it need not be passed twice.
       ...(props.ariaLabel ?? props.label ? { 'aria-label': props.ariaLabel ?? props.label ?? '' } : {}),
     },
+    // Blocks move by the handle only. ProseMirror's own drag of a selection — a few words torn out
+    // of a paragraph, a pill, a stretch of code — went around everything the handle draws (source
+    // mark, insertion line, preview) and read as a glitch. The handle sits outside the editable
+    // root, so its drag never reaches this handler; text still moves by cut and paste, and a drop
+    // from outside is a `drop`, not a `dragstart`, so it is left alone.
+    handleDOMEvents: {
+      dragstart: (_view, event) => {
+        event.preventDefault()
+        return true
+      },
+    },
   },
   extensions: [
     StarterKit.configure({
@@ -175,7 +194,8 @@ const editor = useEditor({
       // `false` disables a node or mark ENTIRELY — it is absent from the schema, not hidden from
       // the toolbar.
       heading: has('heading') ? undefined : false,
-      codeBlock: has('codeBlock') ? undefined : false,
+      // Always off: the code block is our own (blocks/codeBlock.ts), added below under the same name.
+      codeBlock: false,
       horizontalRule: has('divider') ? undefined : false,
       bold: has('bold') ? undefined : false,
       italic: has('italic') ? undefined : false,
@@ -198,6 +218,7 @@ const editor = useEditor({
       dropcursor: { width: 2, color: false, class: 'editor__dropcursor' },
     }),
     FlatBlocks.configure({ quote: has('quote'), list: has('list'), table: has('table') }),
+    ...(has('codeBlock') ? [CodeBlock] : []),
     // The placeholder on an empty line — wherever the caret is (`showOnlyCurrent` by default),
     // not only in an empty document. The text is a function, not a string: that way it is taken
     // from the dictionary on every render and survives a language switch instead of freezing on
@@ -219,6 +240,7 @@ const editor = useEditor({
     ...(has('handle')
       ? [
           DragSource,
+          DropSlot,
           BlockMoves.configure({
             onAnnounce: (position, total) => {
               announcement.value = t('common.editor.move.announce', { position, total })
@@ -254,6 +276,30 @@ watch(() => props.readonly, (value) => editor.value?.setEditable(!value))
 
 const drag = useDragPreview(editor, handlePos)
 
+/** The handle's box, see `.editor__grip`. The resting marks are laid out with it. */
+const GRIP_SIZE = { width: 20, height: 26 }
+
+// The frame both the live handle and the resting marks are positioned against (`.editor`).
+const frame = ref<HTMLElement | null>(null)
+const marks = useBlockMarks(editor, frame, computed(() => has('handle') && !props.readonly), tick, GRIP_SIZE)
+
+// One glyph per block, never two. At rest a block shows its mark, and the live handle on top of it
+// is an empty grab area; the handle draws its own glyph only while it is the thing being used —
+// under the pointer, focused from the keyboard, its menu open, a drag running — and the mark under
+// it steps aside. Two glyphs stacked on the same pixels read as one bolder icon.
+const gripHovered = ref(false)
+const gripFocused = ref(false)
+// While a block is being dragged nothing under the pointer answers it — not the handle, not a
+// block's mark: a highlight then reads as "drop here", and the drop place is the slot's to show.
+// The pointer's hover flag is also stale by then: a drag delivers no `mouseleave`.
+const gripLit = computed(() =>
+  !drag.dragging.value && (gripHovered.value || gripFocused.value || moveMenu.value))
+
+// The block under the pointer brings its mark up to full strength: the handle the pointer is
+// heading for stands out of the faint column. `handlePos` already follows the pointer from block
+// to block; this says whether the pointer is in the zone at all.
+const zoneHovered = ref(false)
+
 watch(() => props.modelValue, (value) => {
   if (value === mine || !editor.value) return
   syncing = true
@@ -264,15 +310,43 @@ watch(() => props.modelValue, (value) => {
   chars.value = value.length
 })
 
+// The live handle's plugin, registered here rather than through `extension-drag-handle-vue-3`:
+// that wrapper does not pass `dragImageProperties` on. Left unset, the plugin builds the native
+// drag image by cloning the block and copying EVERY computed CSS property onto every element of
+// the clone — on a code block, hundreds of tokens plus the language list's hidden <select> with
+// its 230 options: 888ms frozen at the start of each drag. The native image is thrown away anyway
+// (`useDragPreview` swaps in a transparent pixel and draws its own card), so nothing is copied.
+const grip = ref<HTMLElement | null>(null)
+let gripPlugin: ReturnType<typeof DragHandlePlugin> | null = null
+
+watch([editor, grip], ([current, element]) => {
+  if (gripPlugin || !current || current.isDestroyed || !element) return
+  element.style.visibility = 'hidden'
+  gripPlugin = DragHandlePlugin({
+    editor: current,
+    element,
+    pluginKey: dragHandlePluginDefaultKey,
+    computePositionConfig: { ...defaultComputePositionConfig, ...gripPosition },
+    onNodeChange: onHandleNode,
+    nestedOptions: normalizeNestedOptions(false),
+    dragImageProperties: [],
+  })
+  current.registerPlugin(gripPlugin.plugin)
+}, { flush: 'post' })
+
 onBeforeUnmount(() => {
+  if (gripPlugin && editor.value && !editor.value.isDestroyed) {
+    editor.value.unregisterPlugin(dragHandlePluginDefaultKey)
+  }
+  gripPlugin?.unbind()
+  gripPlugin = null
   drag.dispose()
   editor.value?.destroy()
 })
 
-// Only a drag that starts on the handle is a block drag with our own card and source marking. Any
-// other drag in the zone — selected text pulled across the document — is ProseMirror's own, with
-// the browser's preview; in a field without a handle it is the only kind there is, and the
-// marking command does not even exist there (DragSource comes with the handle).
+// Only a drag that starts on the handle is a block drag with our own card and source marking; a drag
+// starting in the text is cancelled before it begins (`handleDOMEvents.dragstart` above), so the
+// guard here is what keeps a drop from outside out of the block-drag bookkeeping.
 function onDragStart(event: DragEvent): void {
   // A layer anchored to the entity is supposed to close when a drag starts.
   moveMenu.value = false
@@ -280,8 +354,29 @@ function onDragStart(event: DragEvent): void {
   drag.start(event)
 }
 
+// The block under the pointer, kept for the positioning step below. The extension reports the
+// node before it positions the handle, so the element is current by the time it is measured.
+let handleBlock: HTMLElement | null = null
+
 function onHandleNode({ pos }: { pos: number }): void {
   handlePos.value = pos
+  const dom = editor.value?.view.nodeDOM(pos)
+  handleBlock = dom instanceof HTMLElement ? dom : null
+}
+
+// The extension pins the handle to the block's top edge (`left-start`), and blocks start their
+// first line at different depths: a heading's line is taller than the handle, a code block opens
+// with a header, a diagram with its picture. Measured, the icon sat 5.5px off a heading's line and
+// 6.6px off a code header. This step moves the handle to where `handleTop` puts it — the same
+// point the resting marks below are drawn at.
+const gripPosition = {
+  middleware: [
+    {
+      name: 'firstLine',
+      fn: ({ y, rects }: { y: number; rects: { floating: { height: number } } }) =>
+        handleBlock ? { y: y + handleTop(handleBlock, rects.floating.height) } : {},
+    },
+  ],
 }
 
 // A click on the handle opens the menu of outcomes. This is the SC 2.5.7 alternative: the same
@@ -305,6 +400,7 @@ function move(target: 'up' | 'down' | 'start' | 'end'): void {
     <span v-if="props.label" class="editor-field__label">{{ props.label }}</span>
 
     <div
+      ref="frame"
       class="editor"
       :class="[
         `editor--${props.variant}`,
@@ -312,30 +408,59 @@ function move(target: 'up' | 'down' | 'start' | 'end'): void {
           'is-dragging': drag.dragging.value,
           'editor--readonly': props.readonly,
           'editor--limited': props.maxLength !== undefined,
+          'editor--handled': has('handle'),
         },
       ]"
       @dragstart="onDragStart"
       @dragend="drag.end"
       @drop="drag.end"
+      @mouseenter="zoneHovered = true"
+      @mouseleave="zoneHovered = false"
     >
+      <!-- A resting handle beside every block, drawn where the live one lands on it. Inert: the
+           pointer passes through to the block, and the live handle that then appears on top is
+           the one that drags. Decoration for the eye, so hidden from assistive technology — the
+           live handle carries the name and the menu. -->
+      <div v-if="marks.length" class="editor__marks" aria-hidden="true">
+        <span
+          v-for="mark in marks"
+          :key="mark.pos"
+          class="editor__mark"
+          :class="{
+            'editor__mark--active': zoneHovered && !drag.dragging.value && mark.pos === handlePos,
+            'editor__mark--covered': gripLit && mark.pos === handlePos,
+          }"
+          :style="{ top: `${mark.top}px`, left: `${mark.left}px` }"
+        >
+          <IconGripVertical :size="14" :stroke-width="1.8" />
+        </span>
+      </div>
+
       <!-- The drag handle is an open extension in Tiptap 3 — it renders nothing by itself, so
-           the grip below is ours and follows the block under the pointer. -->
-      <DragHandle
+           the grip below is ours; the plugin bound to it (`gripPlugin`) moves it to the block
+           under the pointer and starts the drag from it. -->
+      <div
         v-if="editor && has('handle')"
-        :editor="editor"
+        ref="grip"
         class="editor__grip"
+        :class="{ 'editor__grip--lit': gripLit }"
+        style="position: absolute"
+        data-dragging="false"
         role="button"
         tabindex="0"
         aria-haspopup="menu"
         :aria-label="t('common.editor.move.handle')"
         :aria-expanded="moveMenu"
-        :on-node-change="onHandleNode"
         @click="openMoveMenu"
+        @mouseenter="gripHovered = true"
+        @mouseleave="gripHovered = false"
+        @focusin="gripFocused = true"
+        @focusout="gripFocused = false"
         @keydown.enter.prevent="openMoveMenu"
         @keydown.space.prevent="openMoveMenu"
       >
-        <IconGripVertical :size="16" />
-      </DragHandle>
+        <IconGripVertical :size="14" :stroke-width="1.8" />
+      </div>
 
       <VMenu v-if="has('handle')" v-model="moveMenu" :target="moveAt" location="bottom start">
         <VList density="compact" nav>
@@ -359,7 +484,7 @@ function move(target: 'up' | 'down' | 'start' | 'end'): void {
           minHeight: props.minHeight,
           // The handle column is needed only where there is a handle: without block constructs
           // it would be an empty strip pushing the text away from the edge for nothing.
-          '--editor-rail': has('handle') ? '24px' : '0px',
+          '--editor-rail': has('handle') ? '20px' : '0px',
         }"
       />
 
@@ -417,6 +542,18 @@ function move(target: 'up' | 'down' | 'start' | 'end'): void {
 .editor {
   /* Reference frame for the length counter: it sits in the bottom padding strip, not in the flow. */
   position: relative;
+
+  /* The look of a block drag, as the editor's own variables. The values are the task list's
+     (TaskRows / EntityRowList: placeholder, source, preview), so the gesture reads the same across
+     the app; they are named here so the editor can be tuned without touching the lists. */
+  --editor-drop-slot-bg: var(--accent-soft);
+  --editor-drop-slot-radius: var(--radius-sm);
+  --editor-drop-slot-max-height: 48px;
+  --editor-drag-source-bg: var(--accent-soft);
+  --editor-drag-source-opacity: 0.4;
+  --editor-drag-preview-border: var(--border);
+  --editor-drag-preview-radius: var(--radius-sm);
+  --editor-drag-preview-shadow: 0 12px 32px rgb(0 0 0 / 0.28);
 }
 
 .editor--outlined {
@@ -436,11 +573,12 @@ function move(target: 'up' | 'down' | 'start' | 'end'): void {
   padding: 2px 0;
 }
 
-/* While a drag is in progress the zone says so itself: an accent border with a soft halo. A
-   background fill would be a mistake here — it is reserved for when there are several drop zones
-   and the question is "which one", while we have a single container. */
-.editor--outlined.is-dragging {
-  border-color: color-mix(in srgb, rgb(var(--v-theme-primary)) 35%, var(--border-soft));
+/* With handles, though, the text cannot sit on the heading's line: the handle column (`--editor-
+   rail`, 20px) comes first. The field borrows 8px of the card's padding for it, so the text sits
+   12px right of the heading and the handles stand partly in the padding, still clear of the
+   card's edge. Every card that hosts a plain field pads it by 16px — task, note, codex. */
+.editor--plain.editor--handled {
+  margin-left: -8px;
 }
 
 /* Editing is unavailable — the cursor says so. The text must not be dimmed: it is being read, and
@@ -449,8 +587,11 @@ function move(target: 'up' | 'down' | 'start' | 'end'): void {
   cursor: default;
 }
 
-/* The handle is the only grab area, so it is at least 24×24 CSS pixels: SC 2.5.8 Target Size
-   (AA). The visible icon is smaller; the hit area is made up by the size of the handle itself.
+/* The handle is the app's other handle in size and look (components/DragHandle.vue, the task
+   list): a 20px-wide box around the same 14px glyph, faint at rest, full text colour under the
+   pointer, no plate behind it. 20px is under SC 2.5.8's 24, and passes by its spacing exception:
+   there is one live handle, and nothing else to hit within 24px of it. It is 26px tall so it spans
+   a line of text. Every pixel of width is a pixel the text moves right of its section heading.
    `touch-action: none` is the only lever against page scrolling: browsers no longer let
    preventDefault cancel panning, and the property must be set on the smallest possible area, or
    a finger will stop scrolling the list. */
@@ -458,12 +599,12 @@ function move(target: 'up' | 'down' | 'start' | 'end'): void {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 26px;
-  min-height: 26px;
+  width: 20px;
+  height: 26px;
   border-radius: 4px;
   color: var(--text-faint);
   cursor: grab;
-  opacity: 0.75;
+  transition: color 0.12s ease;
   touch-action: none;
 }
 
@@ -471,16 +612,65 @@ function move(target: 'up' | 'down' | 'start' | 'end'): void {
 .editor__grip:focus-visible {
   outline: 2px solid rgb(var(--v-theme-primary));
   outline-offset: 2px;
-  opacity: 1;
 }
 
 .editor__grip:hover {
-  background: color-mix(in srgb, rgb(var(--v-theme-on-surface)) 8%, transparent);
-  opacity: 1;
+  color: var(--text);
 }
 
 .editor__grip:active {
   cursor: grabbing;
+}
+
+/* At rest the live handle is an empty grab area over its block's mark; its glyph shows only while
+   it is in use (`--lit`, see `gripLit`), and the mark under it fades out for that time — a
+   cross-fade, both on the same 150ms, so the glyph never dips to nothing in between. */
+.editor__grip :deep(svg) {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.editor__grip--lit :deep(svg) {
+  opacity: 1;
+}
+
+/* The resting marks: the live handle's box and glyph at rest, and nothing to the pointer — a mark
+   that took the hover would hide the live handle it stands in for. Fainter than the handle in use:
+   one per block runs down the whole document, and at full strength the column competes with the
+   text. */
+.editor__marks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.editor__mark {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 26px;
+  color: var(--text-faint);
+  opacity: 0.55;
+  transition: opacity 0.15s ease;
+}
+
+/* The block under the pointer: its mark at full strength, the handle's own resting colour. */
+.editor__mark--active {
+  opacity: 1;
+}
+
+/* Declared after `--active`: a mark can be both, and covered wins. */
+.editor__mark--covered {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .editor__mark,
+  .editor__grip :deep(svg) {
+    transition: none;
+  }
 }
 
 /* `position: relative` is not cosmetic here: prosemirror-dropcursor attaches the insertion line to
@@ -492,13 +682,12 @@ function move(target: 'up' | 'down' | 'start' | 'end'): void {
      coincide with the text column, not be fitted to it by hand.
      `--editor-rail` comes from the template: without a drag handle there is no need for its
      column, and the text starts right after the zone's padding. The value here is a fallback.
-     The sum of these two is NOT arbitrary. The extension places the handle at the block's left
-     edge with its own 10px gap; with a 26px handle (24 minimum per SC 2.5.8 Target Size) it
-     needs 36px to the left of the text. Less, and the handle slides past the zone's edge where
-     `overflow: hidden` clips it: the icon stays visible while the hit area silently loses a few
-     pixels — breaking exactly what the size was chosen for. */
+     The rail is NOT arbitrary: it is the handle's width. The extension places the handle flush
+     against the block's left edge, so a rail as wide as the handle keeps it inside `.ProseMirror`
+     (see the next rule). Narrower, and the handle pokes out into the gutter — where an outlined
+     zone's `overflow: hidden` clips its hit area while the icon still shows. */
   --editor-gutter: 14px;
-  --editor-rail: 24px;
+  --editor-rail: 20px;
 
   position: relative;
   padding: 16px var(--editor-gutter) 28px;
@@ -540,8 +729,10 @@ function move(target: 'up' | 'down' | 'start' | 'end'): void {
    restyle the source — the card under the pointer already shows what is moving, and the document
    beneath must stay unchanged so it shows where to aim.
    Top-level blocks only: `ProseMirror-selectednode` is also put on a selected atom — the entity
-   pill — which has its own highlight, and two on top of one small chip turn into mush. */
-.editor:not(.is-dragging) .editor__body :deep(.ProseMirror > .ProseMirror-selectednode) {
+   pill — which has its own highlight, and two on top of one small chip turn into mush.
+   Not a diagram either: a plain click selects it, so the wash would land on every diagram looked
+   at; it marks its selection with its own quiet frame (DiagramView.vue). */
+.editor:not(.is-dragging) .editor__body :deep(.ProseMirror > .ProseMirror-selectednode:not(.diagram-node)) {
   background: color-mix(in srgb, rgb(var(--v-theme-primary)) 9%, transparent);
 }
 
@@ -575,14 +766,32 @@ function move(target: 'up' | 'down' | 'start' | 'end'): void {
 
 /* ── Source during a drag ────────────────────────────────── */
 
-/* Dimmed but kept in place: it shows where the thing was taken from and where it returns if no
-   drop target is chosen. Removing the block from the flow during a drag is not allowed — the list
-   would collapse, the neighbours would jump, and the point of reference would be lost. The 0.4
-   value comes from the canon.
+/* Dimmed but kept in place, on the task list's placeholder tint: it shows where the thing was
+   taken from and where it returns if no drop target is chosen. Removing the block from the flow
+   during a drag is not allowed — the list would collapse, the neighbours would jump, and the point
+   of reference would be lost.
    The `.is-dragging` condition guards against a stuck class: without a drag there is nothing to
    dim. */
 .editor.is-dragging .editor__body :deep(.is-drag-source) {
-  opacity: 0.4;
+  opacity: var(--editor-drag-source-opacity);
+  background: var(--editor-drag-source-bg);
+  border-radius: var(--editor-drop-slot-radius);
+}
+
+/* The place the block will land, tinted — the task list's placeholder (dropSlot.ts). Its height is
+   the dragged blocks' own, set inline, up to a cap: a code listing or a long table opened a gap a
+   screen tall, and the document lurched under the hand on every boundary the pointer crossed. */
+.editor__body :deep(.editor__drop-slot) {
+  margin: 0.75em 0;
+  max-height: var(--editor-drop-slot-max-height);
+  background: var(--editor-drop-slot-bg);
+  border-radius: var(--editor-drop-slot-radius);
+  pointer-events: none;
+}
+
+/* During a block drag the slot is the indicator; the drop line stays for drags from outside. */
+.editor.is-dragging .editor__body :deep(.editor__dropcursor) {
+  display: none;
 }
 
 .editor__body :deep(.is-drag-source) {
@@ -613,19 +822,17 @@ function move(target: 'up' | 'down' | 'start' | 'end'): void {
 
 .editor__body :deep(.editor__preview-card) {
   background: var(--surface);
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius);
+  border: 1px solid var(--editor-drag-preview-border);
+  border-radius: var(--editor-drag-preview-radius);
   /* The card's padding is not part of the inner document's width: the width is carried by the
      `preview-doc` layer and must not be altered by padding — line breaks depend on it. */
   padding: 14px 18px;
   width: fit-content;
   /* Neither width nor height is clipped: a clipped card lies about what is moving. */
-  /* The shadow is set explicitly: Vuetify's elevation utilities do not make it into this build,
-     and the snapshot is taken from the actually rendered element — a class that does not exist
-     would not show up. Two shadows: the far one gives height, the near one outlines the edge. */
-  box-shadow:
-    0 14px 30px -10px rgb(0 0 0 / 0.32),
-    0 4px 10px -4px rgb(0 0 0 / 0.18);
+  /* "Picked up", the task card's lift. Set explicitly: Vuetify's elevation utilities do not make
+     it into this build. */
+  box-shadow: var(--editor-drag-preview-shadow);
+  cursor: grabbing;
 }
 
 /* A clone of the editable document, not of a viewer body: the shared file removes `pre-wrap` from

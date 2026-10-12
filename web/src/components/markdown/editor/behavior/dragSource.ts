@@ -12,7 +12,8 @@ import { Extension } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 
-const DRAG_SOURCE = new PluginKey<number[]>('dragSource')
+/** Start positions of the blocks being dragged; empty — no block drag. Read by `dropSlot.ts`. */
+export const DRAG_SOURCE = new PluginKey<number[]>('dragSource')
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {

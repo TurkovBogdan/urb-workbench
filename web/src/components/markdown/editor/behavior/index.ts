@@ -4,8 +4,10 @@
 // The line with `controls/` is drawn by visibility: there is not a single button or menu here —
 // only reactions to keys, paste and drag. Anything visible on screen lives either as a decoration
 // (the drag source highlight, the flash after a move) or in `controls/`.
+export { handleTop, useBlockMarks, type BlockMark } from './blockMarks'
 export { BlockMoves, type MoveTarget } from './blockMoves'
 export { DragSource } from './dragSource'
+export { DropSlot } from './dropSlot'
 export { LENGTH_LIMIT_BYPASS, LengthLimit } from './lengthLimit'
 export { MarkdownPaste } from './markdownPaste'
 export { useDragPreview, type DragPreview } from './useDragPreview'
