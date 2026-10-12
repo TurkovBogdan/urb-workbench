@@ -291,9 +291,10 @@
   margin-bottom: 0;
 }
 
-/* EDITING: a code block is a `<pre>` with editable content, not a mounted `CodeBlock`. Border,
-   header, size and margins mirror the viewer component — there is no highlighting and cannot be,
-   only non-editable text can be highlighted. */
+/* A bare `pre` in a body. Neither zone draws one any more — the viewer mounts `CodeBlock`, the
+   editor its own node view (editor/blocks/CodeBlockView.vue), and both restate these properties
+   with more specific rules — but the listing inside the viewer's block still takes `tab-size` and
+   `white-space` from here, so the rules stay as the body's baseline. */
 .md-body pre {
   font-family: var(--font-mono);
   font-size: var(--reading-code-size, 12px);
@@ -304,19 +305,6 @@
   border: 1px solid var(--border-soft);
   border-radius: var(--radius-sm);
   overflow: hidden;
-}
-
-/* The language header — a block without a language has none at all. */
-.md-body pre[data-language]:not([data-language=""])::before {
-  content: attr(data-language);
-  display: block;
-  padding: 6px 10px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border-soft);
-  color: var(--text-muted);
-  font-size: 11px;
-  text-transform: lowercase;
-  user-select: none;
 }
 
 /* The app's global style paints ANY `code` in the accent colour with an outline — inside `pre`

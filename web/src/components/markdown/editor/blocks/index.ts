@@ -20,7 +20,6 @@ import { Extension } from '@tiptap/core'
 import { Quote } from './quote'
 import { List, ListItem } from './list'
 import { Table, TableBody, TableCell, TableHead, TableRow } from './table'
-import { codeLanguages } from './codeLanguage'
 
 export { Quote } from './quote'
 export { List, ListItem, type ListKind } from './list'
@@ -31,6 +30,7 @@ export {
 } from './table'
 export { EntityRef } from './entityRef'
 export { Diagram } from './diagram'
+export { CodeBlock } from './codeBlock'
 
 /** Which of our nodes to enable. A disabled node is NOT in the schema — it is not a hidden button. */
 export interface FlatBlocksOptions {
@@ -53,9 +53,5 @@ export const FlatBlocks = Extension.create<FlatBlocksOptions>({
     if (this.options.list) nodes.push(List, ListItem)
     if (this.options.table) nodes.push(Table, TableHead, TableBody, TableRow, TableCell)
     return nodes
-  },
-
-  addProseMirrorPlugins() {
-    return [codeLanguages()]
   },
 })

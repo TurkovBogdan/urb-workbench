@@ -204,6 +204,10 @@
   "editor": {
     "placeholder": "Введите / для команд…",
     "placeholder_plain": "Введите текст…",
+    "code": {
+      "search_language": "Язык или сокращение",
+      "no_highlighting": "нет подсветки"
+    },
     "slash": {
       "paragraph": "Текст",
       "h1": "Заголовок 1",

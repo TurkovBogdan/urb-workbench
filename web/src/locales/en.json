@@ -204,6 +204,10 @@
   "editor": {
     "placeholder": "Type / for commands…",
     "placeholder_plain": "Start typing…",
+    "code": {
+      "search_language": "Language or alias",
+      "no_highlighting": "no highlighting"
+    },
     "slash": {
       "paragraph": "Text",
       "h1": "Heading 1",
