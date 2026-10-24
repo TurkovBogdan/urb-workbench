@@ -11,9 +11,11 @@ drift apart at the first rename.
 Yet there is one backend for everyone — shared by every agent connection and by the browser
 with the UI. So "who is calling" can only arrive from outside, and this is where it arrives.
 
-- ``MCP_SESSION_HEADER`` — a random identifier the shim makes up for itself at startup and sends
-  unchanged until it dies. The shim is one process per MCP client connection, so this key IS the
-  session boundary: the backend keys the active workspace on it.
+- ``MCP_SESSION_HEADER`` — the conversation's identifier, sent unchanged until the shim dies. The
+  shim takes it from the client's environment when the client names its conversation there, so
+  a shim the client restarts mid-conversation comes back under the same key; otherwise it makes
+  up a random one per process. This key IS the session boundary: the backend keys the active
+  workspace on it.
 - ``MCP_WORKSPACE_HEADER`` — the workspace from the launch config. It is the connection's
   DEFAULT, not a binding: a session that has not been assigned a workspace works in this one;
   once assigned, the agent's choice overrides the config and does not touch the file.

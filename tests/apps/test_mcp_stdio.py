@@ -34,6 +34,15 @@ def no_maintenance_flag(monkeypatch):
     monkeypatch.setattr(mcp_stdio.maintenance, "active", lambda: None)
 
 
+@pytest.fixture(autouse=True)
+def no_client_session_env(monkeypatch):
+    """The suite is often run from inside an agent's own session, which puts its conversation id
+    in the environment — and every connection in a test would share it. The tests of that source
+    set the variable themselves."""
+    for name in mcp_stdio._SESSION_ID_ENV:
+        monkeypatch.delenv(name, raising=False)
+
+
 @pytest.mark.pure
 def test_resolve_code_prefers_config():
     assert mcp_stdio._resolve_code(_cfg(mcp_stdio_code="explicit")) == "explicit"
@@ -99,6 +108,58 @@ def test_each_connection_gets_its_own_session_id():
     from src.core.mcp_headers import MCP_SESSION_HEADER
 
     assert first[MCP_SESSION_HEADER] != second[MCP_SESSION_HEADER]
+
+
+@pytest.mark.pure
+def test_a_restarted_shim_keeps_the_conversation_key(monkeypatch):
+    """The PyCharm plugin starts a new shim between user turns: the binding survives only if the
+    next shim of the same conversation comes back under the same key."""
+    from src.core.mcp_headers import MCP_SESSION_HEADER
+
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "4aebbef3-0bd3-43b8-9a5e-1d556e4b04c3")
+    first = mcp_stdio._session_headers(_cfg())
+    second = mcp_stdio._session_headers(_cfg())
+
+    assert first[MCP_SESSION_HEADER] == "4aebbef3-0bd3-43b8-9a5e-1d556e4b04c3"
+    assert second[MCP_SESSION_HEADER] == first[MCP_SESSION_HEADER]
+
+
+@pytest.mark.pure
+def test_different_conversations_stay_apart(monkeypatch):
+    from src.core.mcp_headers import MCP_SESSION_HEADER
+
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "first-conversation")
+    first = mcp_stdio._session_headers(_cfg())
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "second-conversation")
+    second = mcp_stdio._session_headers(_cfg())
+
+    assert first[MCP_SESSION_HEADER] != second[MCP_SESSION_HEADER]
+
+
+@pytest.mark.pure
+def test_a_blank_conversation_id_falls_back_to_a_random_key(monkeypatch):
+    """An empty or whitespace value is "not named", not a key every such client would share."""
+    from src.core.mcp_headers import MCP_SESSION_HEADER
+
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "  ")
+    first = mcp_stdio._session_headers(_cfg())
+    second = mcp_stdio._session_headers(_cfg())
+
+    assert first[MCP_SESSION_HEADER].strip()
+    assert first[MCP_SESSION_HEADER] != second[MCP_SESSION_HEADER]
+
+
+@pytest.mark.pure
+def test_the_first_named_source_wins(monkeypatch):
+    """The list is ordered: with several clients' variables set, the earlier one is the key."""
+    from src.core.mcp_headers import MCP_SESSION_HEADER
+
+    monkeypatch.setattr(mcp_stdio, "_SESSION_ID_ENV", ("PRIMARY_ID", "SECONDARY_ID"))
+    monkeypatch.setenv("SECONDARY_ID", "secondary")
+    assert mcp_stdio._session_headers(_cfg())[MCP_SESSION_HEADER] == "secondary"
+
+    monkeypatch.setenv("PRIMARY_ID", "primary")
+    assert mcp_stdio._session_headers(_cfg())[MCP_SESSION_HEADER] == "primary"
 
 
 @pytest.mark.pure

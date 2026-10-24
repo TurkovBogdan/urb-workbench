@@ -4,8 +4,8 @@
 to a shared backend, and the backend is mounted ``stateless_http`` — it keeps no sessions and
 serves all connections and the browser at once. So the "active workspace" can be kept neither in
 a process variable (there is one for everyone, and a neighbouring session would overwrite it)
-nor in the MCP session (there is none here). The only thing that tells one connection from
-another is the header the shim made up for itself at startup (``core/mcp_headers``).
+nor in the MCP session (there is none here). The only thing that tells one conversation from
+another is the header the shim sends with every call (``core/mcp_headers``).
 
 **Where the binding is kept.** In ``core_modules_state`` under the session key, in the
 ``workspace`` module's namespace (see ``_STORE``) — i.e. in the

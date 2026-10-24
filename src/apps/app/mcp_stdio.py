@@ -15,7 +15,7 @@ The "nothing runs at rest" model: the MCP client launches this process over stdi
    a second tab).
 3. Acts as a stdio ↔ HTTP-MCP backend bridge (``fastmcp`` proxy): calls go to
    ``/mcp/<code>`` on the live server and come back to the client. Every such call carries
-   a header with THIS connection's identifier — the backend uses it to tell one agent
+   a header with THIS conversation's identifier — the backend uses it to tell one agent
    session from another and keeps the active workspace keyed by it
    (``core/mcp_headers``).
 
@@ -29,6 +29,7 @@ does not pull in the fork (like the rest of the MCP infra).
 
 from __future__ import annotations
 
+import os
 import sys
 import webbrowser
 from pathlib import Path
@@ -46,6 +47,13 @@ from src.core.loggers import get_logger
 from src.core.mcp_headers import MCP_SESSION_HEADER, MCP_WORKSPACE_HEADER
 
 _LOG = get_logger("mcp")
+
+# Where an MCP client puts the id of the conversation it runs, checked in order. A client restarts
+# the shim whenever it likes — the PyCharm plugin does it between user turns — so a key that lives
+# only as long as the process takes the workspace binding with it. Only a variable the client
+# itself overwrites belongs here: one merely inherited from a parent process would glue a nested
+# agent's conversation to its parent's.
+_SESSION_ID_ENV = ("CLAUDE_CODE_SESSION_ID",)
 
 
 def _use_file_only_logging(config: Config) -> None:
@@ -145,19 +153,31 @@ def _ensure_backend(config: Config) -> None:
     _open_home(config)
 
 
+def _session_id() -> str:
+    """The conversation's id from the client's environment; a fresh ``uuid4`` when it names none.
+
+    The fallback keeps a client that tells nothing where it was: one key per shim process, so its
+    binding lasts exactly as long as the client keeps this process alive.
+    """
+    for name in _SESSION_ID_ENV:
+        if value := os.environ.get(name, "").strip():
+            return value
+    return str(uuid4())
+
+
 def _session_headers(config: Config) -> dict[str, str]:
     """How the shim introduces itself to the backend: who calls, and in which default workspace.
 
-    The identifier is born here and lives exactly as long as the connection: the shim is one
-    process per MCP client. The backend keeps no sessions at all (the servers are mounted
-    ``stateless_http``) and serves every connection at once, so the only way it can tell a call
-    from this conversation from one in the next is this key — and it keeps the active workspace
-    keyed by it too.
+    The backend keeps no sessions at all (the servers are mounted ``stateless_http``) and serves
+    every connection at once, so the only way it can tell a call from this conversation from one
+    in the next is this key — and it keeps the active workspace keyed by it too. The key is
+    resolved here, never on the backend: the backend inherits the environment of whichever shim
+    spawned it and would read that one conversation's id forever.
 
     The workspace from the config travels alongside in a separate header and stays the default:
     the meaning and cost of both are in ``core/mcp_headers``.
     """
-    headers = {MCP_SESSION_HEADER: str(uuid4())}
+    headers = {MCP_SESSION_HEADER: _session_id()}
     if config.mcp_workspace:
         headers[MCP_WORKSPACE_HEADER] = config.mcp_workspace
     return headers
