@@ -322,6 +322,53 @@
       "tasks": "task | tasks"
     }
   },
+  "transfer": {
+    "export": "Export",
+    "import": "Import a task",
+    "section_menu": "More section actions",
+    "title": "Import a task",
+    "description": "The task comes from a .utsk file with its subtasks, stages, journal, notes and files",
+    "group": "Group",
+    "no_group": "No group",
+    "drop_lead": "a .utsk task file",
+    "origin": "from the workspace \"{workspace}\"",
+    "summary": {
+      "subtasks": "no subtasks | {n} subtask | {n} subtasks",
+      "stages": "no stages | {n} stage | {n} stages",
+      "journal": "no journal entries | {n} journal entry | {n} journal entries",
+      "notes": "no notes | {n} note | {n} notes",
+      "files": "no files | {n} file | {n} files"
+    },
+    "entity": {
+      "task": "Task",
+      "subtask": "Subtask",
+      "note": "Note",
+      "file": "File",
+      "stage": "Stage",
+      "journal": "Journal entry"
+    },
+    "reason": {
+      "task_other_workspace": "A task with this code lives in the workspace \"{workspace}\", and tasks do not move between workspaces — a new one comes in",
+      "note_other_task": "A note with this code belongs to the task \"{title}\" — a new one comes in",
+      "file_other_content": "Another file holds this code here; files are never overwritten, the archive's comes in as a new one",
+      "parent_replaced": "The root task comes in as a new one — so does the subtask",
+      "task_has_subtasks": "The task here has subtasks of its own and cannot become a subtask — a new one comes in"
+    },
+    "local": {
+      "task": "Here: the task \"{title}\" in the workspace \"{workspace}\"",
+      "note": "Here: the note \"{title}\" of the task \"{task}\"",
+      "note_alone": "Here: the note \"{title}\" of no task",
+      "file": "Here: another file, {size}",
+      "deleted": "(in the bin)"
+    },
+    "notice": {
+      "recoded": "Codes that change",
+      "dangling": "References outside the archive",
+      "new_code": "a new code"
+    },
+    "no_conflicts": "No code is taken — the task comes in with its own codes.",
+    "done": "The task \"{title}\" is imported"
+  },
   "error": {
     "group": {
       "not_found": "Group not found",

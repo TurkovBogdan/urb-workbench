@@ -73,7 +73,7 @@ def layout_of(config: Config, stores: Sequence[str]) -> StorageLayout:
 
 class CoreStorageModule(Module):
     name: ClassVar[str] = "core_storage"
-    version: ClassVar[str] = "2.5.0"
+    version: ClassVar[str] = "2.6.0"
     description: ClassVar[str] = (
         "File storage: registration, dedup by content, ownership, soft deletion, cleanup and "
         "the reconciliation of the base with the disk."

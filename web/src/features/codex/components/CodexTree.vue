@@ -30,6 +30,7 @@ import {
   IconCheck,
   IconChevronRight,
   IconCopy,
+  IconFileExport,
   IconFileText,
   IconFolder,
   IconFolderOpen,
@@ -39,12 +40,13 @@ import {
 } from '@tabler/icons-vue'
 
 import ActionMenu, { type ActionMenuItem } from '@/components/ActionMenu.vue'
+import { startDownload } from '@/components/files/download'
 import IconSwatch from '@/components/IconSwatch.vue'
 import { useClipboard } from '@/composables/useClipboard'
 import { colorVarsByName } from '@/shared/colors'
 
 import CodexDropZone from './CodexDropZone.vue'
-import type { TreeNode } from '../api'
+import { codexExportUrl, type TreeNode } from '../api'
 import { anchorAfterDrop, type NoteDrop } from '../drag'
 import { CODEX_DEPTH_MAX } from '../labels'
 
@@ -184,7 +186,17 @@ function items(node: TreeNode): ActionMenuItem[] {
   if (props.depth < CODEX_DEPTH_MAX) {
     list.push({ key: 'add', icon: IconPlus, label: t('codex.tree.add'), hotkey: 'N', run: () => emit('add', node) })
   }
-  if (props.depth === 1) return list
+  // A codex row: its archive is the whole codex; the browser takes it, the server names the file.
+  if (props.depth === 1) {
+    list.push({
+      key: 'export',
+      icon: IconFileExport,
+      label: t('codex.transfer.export'),
+      divider: true,
+      run: () => startDownload(codexExportUrl(node.code), ''),
+    })
+    return list
+  }
   const at = liveNodes.value.indexOf(node)
   list.push(
     { key: 'up', icon: IconArrowUp, label: t('codex.tree.up'), disabled: at === 0, run: () => emit('up', node) },

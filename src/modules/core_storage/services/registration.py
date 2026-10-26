@@ -20,6 +20,11 @@ code ours; a failed move takes the row back out.
 
 The same content brought again heals a file whose bytes were lost: the dedup finds the row, and
 when its bytes are missing or of another size, the ones brought now take their place.
+
+``preferred_code`` is for a file coming back from elsewhere under the code it had there — a
+transfer between installations keeps the references in its texts that way. It is the first code
+tried, nothing more: taken or malformed, the random ones follow, and the dedup still comes first,
+so the same content answers with the code it has here. The caller reads ``StoredFile.code``.
 """
 
 from __future__ import annotations
@@ -27,7 +32,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import os
-from collections.abc import AsyncIterable, AsyncIterator
+from collections.abc import AsyncIterable, AsyncIterator, Iterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import BinaryIO
@@ -36,7 +41,7 @@ from sqlalchemy.exc import IntegrityError
 
 from src.core.database import write_scope
 from src.core.loggers import get_logger
-from src.modules.core_storage.codes import new_code
+from src.modules.core_storage.codes import new_code, parse_code
 from src.modules.core_storage.constants import (
     CHUNK_SIZE,
     CODE_ATTEMPTS,
@@ -87,6 +92,7 @@ async def file_register_path(
     owner: Owner,
     filename: str | None = None,
     move: bool = False,
+    preferred_code: str | None = None,
 ) -> StoredFile:
     """Register the file at ``path``.
 
@@ -108,7 +114,9 @@ async def file_register_path(
     given = source.name if filename is None else filename
     name = _brought(given)
     prepared = await _inspect(source) if move else await _spool(_chunks_of_file(source))
-    return await _register(prepared, store=store, owner=owner, filename=given, name=name)
+    return await _register(
+        prepared, store=store, owner=owner, filename=given, name=name, preferred_code=preferred_code
+    )
 
 
 @asynccontextmanager
@@ -129,7 +137,12 @@ async def file_spool(chunks: AsyncIterable[bytes]) -> AsyncIterator[SpooledFile]
 
 
 async def file_register_spooled(
-    spooled: SpooledFile, *, store: str, owner: Owner, filename: str = ""
+    spooled: SpooledFile,
+    *,
+    store: str,
+    owner: Owner,
+    filename: str = "",
+    preferred_code: str | None = None,
 ) -> StoredFile:
     """Register a file ``file_spool`` wrote, by the counts it made: the file is handed over — moved
     into place, or deleted when the content is already stored — and its bytes are not read again."""
@@ -139,7 +152,9 @@ async def file_register_spooled(
     if spooled.path.parent.resolve() != layout.tmp.resolve() or not spooled.path.is_file():
         raise SourceNotFound(spooled.path)
     name = _brought(filename)
-    return await _register(spooled, store=store, owner=owner, filename=filename, name=name)
+    return await _register(
+        spooled, store=store, owner=owner, filename=filename, name=name, preferred_code=preferred_code
+    )
 
 
 def _brought(filename: str) -> OriginalName | None:
@@ -214,14 +229,27 @@ async def _inspect(path: Path) -> SpooledFile:
 
 
 async def _register(
-    prepared: SpooledFile, *, store: str, owner: Owner, filename: str, name: OriginalName | None
+    prepared: SpooledFile,
+    *,
+    store: str,
+    owner: Owner,
+    filename: str,
+    name: OriginalName | None,
+    preferred_code: str | None = None,
 ) -> StoredFile:
     """``filename`` is the type hint for ``detect``; ``name`` is what the owner's row keeps."""
     try:
         existing = await _take_existing(prepared, store, owner, name)
         if existing is not None:
             return existing
-        return await _store_new(prepared, store=store, owner=owner, filename=filename, name=name)
+        return await _store_new(
+            prepared,
+            store=store,
+            owner=owner,
+            filename=filename,
+            name=name,
+            preferred_code=preferred_code,
+        )
     finally:
         # After a move the file is no longer at this path; in every other outcome it is a spare copy.
         prepared.path.unlink(missing_ok=True)
@@ -265,13 +293,28 @@ async def _bring_back_bytes(prepared: SpooledFile, row: CoreStorageFile) -> None
     _LOG.warning("core_storage: the bytes of %s were gone and are back from a new upload", row.code)
 
 
+def _candidate_codes(preferred_code: str | None) -> Iterator[str]:
+    """The preferred code first, when it is a code at all, then the random tries — the preferred
+    one does not use up an attempt of its own."""
+    preferred = parse_code(preferred_code) if preferred_code else None
+    if preferred is not None:
+        yield preferred
+    for _ in range(CODE_ATTEMPTS):
+        yield new_code()
+
+
 async def _store_new(
-    prepared: SpooledFile, *, store: str, owner: Owner, filename: str, name: OriginalName | None
+    prepared: SpooledFile,
+    *,
+    store: str,
+    owner: Owner,
+    filename: str,
+    name: OriginalName | None,
+    preferred_code: str | None = None,
 ) -> StoredFile:
     detected = detect(prepared.head, filename)
     layout = get_layout()
-    for _ in range(CODE_ATTEMPTS):
-        code = new_code()
+    for code in _candidate_codes(preferred_code):
         try:
             async with write_scope() as s:
                 row = await file_crud.file_insert(

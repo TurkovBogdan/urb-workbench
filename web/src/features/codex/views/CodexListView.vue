@@ -11,7 +11,17 @@
 import { computed, onActivated, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { IconBook2, IconPencil, IconPlus, IconRefresh, IconRestore, IconTrash } from '@tabler/icons-vue'
+import {
+  IconBook2,
+  IconDotsVertical,
+  IconFileExport,
+  IconFileImport,
+  IconPencil,
+  IconPlus,
+  IconRefresh,
+  IconRestore,
+  IconTrash,
+} from '@tabler/icons-vue'
 
 import PageLayout from '@/layout/templates/PageLayout.vue'
 import PageHeader from '@/layout/components/PageHeader.vue'
@@ -19,12 +29,15 @@ import type { ActionMenuItem } from '@/components/ActionMenu.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import EntityRowList, { type EntityRowLabels } from '@/components/EntityRowList.vue'
 import SectionError from '@/components/SectionError.vue'
+import { startDownload } from '@/components/files/download'
 import { errorText } from '@/api/errorText'
 import { pushToast } from '@/composables/useToasts'
 import { useChangeSubscription } from '@/composables/useChangeSubscription'
 
+import { codexExportUrl } from '../api'
 import CodexEntryDialog from '../components/CodexEntryDialog.vue'
 import CodexFilters from '../components/CodexFilters.vue'
+import CodexImportDialog from '../components/CodexImportDialog.vue'
 import CodexRowSettings from '../components/CodexRowSettings.vue'
 import { codexNodePath, displayPath } from '../paths'
 import { useCodexListStore, type CodexListItem } from '../stores/codex-list.store'
@@ -59,15 +72,37 @@ const labels = computed<EntityRowLabels>(() => ({
   purge: '',
 }))
 
+// The archive is the whole codex — its bin too — so a deleted one is exported as well. The browser
+// takes it itself, the server names the file. No key letter until the interface's author names one.
+function exportItem(item: CodexListItem): ActionMenuItem {
+  return { key: 'export', icon: IconFileExport, label: t('codex.transfer.export'), run: () => startDownload(codexExportUrl(item.code), '') }
+}
+
 function menu(item: CodexListItem): ActionMenuItem[] {
   if (item.deleted_at) {
-    return [{ key: 'restore', icon: IconRestore, label: t('codex.list.restore'), run: () => act(() => store.restore(item.code)) }]
+    return [
+      { key: 'restore', icon: IconRestore, label: t('codex.list.restore'), run: () => act(() => store.restore(item.code)) },
+      exportItem(item),
+    ]
   }
   return [
     { key: 'open', icon: IconBook2, label: t('codex.list.open'), hotkey: 'O', run: () => openEditor(item) },
     { key: 'edit', icon: IconPencil, label: t('codex.list.edit'), hotkey: 'E', run: () => edit(item) },
-    { key: 'delete', icon: IconTrash, label: t('codex.list.delete'), danger: true, hotkey: 'D', run: () => askRemove(item) },
+    exportItem(item),
+    { key: 'delete', icon: IconTrash, label: t('codex.list.delete'), danger: true, hotkey: 'D', divider: true, run: () => askRemove(item) },
   ]
+}
+
+// ── Import from an archive ────────────────────────────────────────────────────
+const importOpen = ref(false)
+
+// A mounted codex opens in the materials at once; one mounted nowhere stays in this list.
+function onImported(report: { code: string; mounted: boolean }) {
+  if (report.mounted) {
+    goTo(report.code)
+    return
+  }
+  void store.load()
 }
 
 // Not available here: a grey, recessed plate — drawn by this page, below.
@@ -165,6 +200,20 @@ async function onCreated(row: { code: string }) {
           <template #prepend><IconPlus :size="16" /></template>
           {{ t('codex.list.add') }}
         </VBtn>
+
+        <!-- The rare actions of the section — bringing a knowledge base in from an archive. -->
+        <VMenu location="bottom end" :offset="4">
+          <template #activator="{ props: menuProps }">
+            <VBtn v-bind="menuProps" icon variant="text" :title="t('codex.transfer.section_menu')">
+              <IconDotsVertical :size="18" />
+            </VBtn>
+          </template>
+          <VList density="compact">
+            <VListItem :prepend-icon="IconFileImport" @click="importOpen = true">
+              <VListItemTitle>{{ t('codex.transfer.import') }}</VListItemTitle>
+            </VListItem>
+          </VList>
+        </VMenu>
       </template>
     </PageHeader>
 
@@ -212,6 +261,7 @@ async function onCreated(row: { code: string }) {
     </EntityRowList>
 
     <CodexEntryDialog v-model="formOpen" :codex="editing" @saved="onCreated" />
+    <CodexImportDialog v-model="importOpen" :workspace="store.workspace" @imported="onImported" />
     <ConfirmDialog
       v-model="mountAskOpen"
       :title="t('codex.list.mount_title')"

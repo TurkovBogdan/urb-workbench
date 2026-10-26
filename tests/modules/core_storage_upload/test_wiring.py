@@ -43,7 +43,17 @@ def test_the_assembled_app_takes_uploads_at_one_address_and_nowhere_else():
     routes = {(route.path, method) for route in app.routes for method in getattr(route, "methods", ())}
     assert ("/storage/upload", "POST") in routes
     assert ("/storage/upload", "PUT") in routes
-    uploads = sorted(path for path, method in routes if method in ("POST", "PUT") and "upload" in path)
+    # An import's archive is not a stored file: it waits in ``tmp/transfer`` for its plan, and its
+    # files reach the storage only when the import is applied (``core_transfer``). Those routes are
+    # named here one by one, so that any other upload address still fails this test.
+    transfer = {
+        f"/internal/{zone}/transfer/{step}"
+        for zone in ("workbench", "codex")
+        for step in ("upload", "{upload_id}/analyze", "{upload_id}/apply")
+    }
+    uploads = sorted(
+        path for path, method in routes if method in ("POST", "PUT") and "upload" in path and path not in transfer
+    )
     assert uploads == ["/storage/upload", "/storage/upload"]
     assert not any(path.endswith("/files") and method == "POST" for path, method in routes)
 

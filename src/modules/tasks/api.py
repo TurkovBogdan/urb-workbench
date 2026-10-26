@@ -116,6 +116,7 @@ from src.modules.tasks.dto import (
     TaskRow,
 )
 from src.modules.tasks.models.task import TasksTask
+from src.modules.tasks.transfer.api import router as transfer_router
 from src.modules.workspace.constants import WORKSPACE_CODE_PREFIX
 from src.modules.workspace.crud import workspace as workspace_crud
 from src.modules.workspace.errors import WORKSPACE_NOT_FOUND
@@ -1347,6 +1348,11 @@ async def detach_task_file(code: str, file: str) -> Response:
     if not await task_files.task_file_detach(bare, _file_code(file)):
         raise ApiError.not_found("The file is not in this task", code=FILE_NOT_FOUND)
     return Response(status_code=204)
+
+
+# ── transfer between installations ─────────────────────────────────────────────
+# Last, so that ``/tasks/{code}/export`` is only reached once nothing above has claimed the path.
+router.include_router(transfer_router)
 
 
 __all__ = [

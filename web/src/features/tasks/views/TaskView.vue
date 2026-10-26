@@ -27,6 +27,7 @@ import {
   IconArrowsExchange,
   IconCalendarEvent,
   IconDotsVertical,
+  IconFileExport,
   IconFlame,
   IconPlus,
   IconRefresh,
@@ -39,6 +40,7 @@ import PageLayout from '@/layout/templates/PageLayout.vue'
 import PageHeader from '@/layout/components/PageHeader.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import CopyChip from '@/components/CopyChip.vue'
+import { startDownload } from '@/components/files/download'
 import { FILE_BINDING_EDITOR } from '@/components/files/fileBinding'
 import { MarkdownEditor } from '@/components/markdown/editor'
 import SectionError from '@/components/SectionError.vue'
@@ -62,7 +64,7 @@ import TaskPrioritySelect from '../components/TaskPrioritySelect.vue'
 import TaskStages from '../components/TaskStages.vue'
 import TaskStatusSelect from '../components/TaskStatusSelect.vue'
 import TaskSubtasksPanel from '../components/TaskSubtasksPanel.vue'
-import { listGroups, type GroupRow, type TaskDetail, type TaskListRow, type TaskUpdateBody } from '../api'
+import { listGroups, taskExportUrl, type GroupRow, type TaskDetail, type TaskListRow, type TaskUpdateBody } from '../api'
 import { deadlineDay, formatDay, formatDeadline, parseDay } from '../dates'
 import { TASK_BRIEF_FEATURES, TASK_DOCUMENT_FEATURES } from '../editor'
 import { taskFileAttach, taskFileEditor, taskFileRefuse } from '../fileAttach'
@@ -668,6 +670,13 @@ async function purge() {
             </VBtn>
           </template>
           <VList density="compact">
+            <!-- The archive of the task with its subtasks, notes and files; the server names the file. -->
+            <template v-if="!deleted">
+              <VListItem :prepend-icon="IconFileExport" @click="startDownload(taskExportUrl(task.code), '')">
+                <VListItemTitle>{{ t('tasks.transfer.export') }}</VListItemTitle>
+              </VListItem>
+              <VDivider class="my-1" />
+            </template>
             <VListItem v-if="!deleted" :prepend-icon="IconTrash" :disabled="store.busy" @click="remove">
               <VListItemTitle>{{ t('tasks.task.card.delete') }}</VListItemTitle>
             </VListItem>

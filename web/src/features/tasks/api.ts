@@ -19,8 +19,9 @@
  * Dates are in SQL format (dto.py::DatetimeUTCStr), formatted by shared/utils/date.
  */
 
-import { internalApi, type RequestOptions } from '@/api/client/internal'
+import { internalApi, internalUpload, internalUrl, type RequestOptions } from '@/api/client/internal'
 import { uploadFile, type UploadOptions } from '@/api/upload'
+import type { TransferChoice, TransferPlanBase, TransferRecoded, TransferUpload } from '@/components/transfer/types'
 
 const BASE = '/workbench'
 
@@ -660,4 +661,67 @@ export function updateTaskFile(
 /** Take the file out of the task; the file itself goes once nothing else holds it. */
 export async function detachTaskFile(task: string, file: string, opts?: RequestOptions): Promise<void> {
   await internalApi.del<void>(`${BASE}/tasks/${seg(task)}/files/${seg(file)}`, undefined, opts)
+}
+
+// ── Transfer between installations (.utsk) ────────────────────────────────────
+// The export is fetched by the browser itself, not by the client: the answer is a file, and only
+// the server knows its name (a title in Cyrillic, `filename*=UTF-8''…`).
+
+/** Where the browser downloads a task's archive from. */
+export function taskExportUrl(code: string): string {
+  return internalUrl(`${BASE}/tasks/${seg(code)}/export`)
+}
+
+// Reading and applying go through the whole archive: a task with many files does not fit the
+// zone's general timeout, and a request cut by it would look like the backend's refusal.
+const TRANSFER_TIMEOUT_MS = 10 * 60 * 1000
+
+export interface TaskImportPlan extends TransferPlanBase {
+  archive: TransferPlanBase['archive'] & { source_workspace: string }
+  root: { code: string; title: string; subtasks: number }
+  counts: { tasks: number; stages: number; journal: number; notes: number; files: number }
+}
+
+export interface TaskImportReport {
+  task: { code: string; title: string }
+  counts: { created: Record<string, number>; updated: Record<string, number> }
+  recoded: TransferRecoded[]
+  renumbered: { code: string; title: string; from: number; to: number }[]
+  truncated: { entity: string; code: string; field: string }[]
+  refs_rewritten: number
+  dangling_refs: string[]
+}
+
+export function uploadTaskArchive(
+  file: File,
+  onProgress: (loaded: number, total: number) => void,
+  signal?: AbortSignal,
+): Promise<TransferUpload> {
+  return internalUpload<TransferUpload>(`${BASE}/transfer/upload`, file, {
+    query: { filename: file.name },
+    onProgress,
+    signal,
+  })
+}
+
+export function analyzeTaskImport(uploadId: string, workspace: string): Promise<TaskImportPlan> {
+  return internalApi.post<TaskImportPlan>(`${BASE}/transfer/${seg(uploadId)}/analyze`, { workspace }, {
+    report: false,
+    timeoutMs: TRANSFER_TIMEOUT_MS,
+  })
+}
+
+export function applyTaskImport(
+  uploadId: string,
+  body: { workspace: string; group_code: string | null; decisions: Record<string, TransferChoice>; plan_token: string },
+): Promise<TaskImportReport> {
+  return internalApi.post<TaskImportReport>(`${BASE}/transfer/${seg(uploadId)}/apply`, body, {
+    report: false,
+    timeoutMs: TRANSFER_TIMEOUT_MS,
+  })
+}
+
+/** Give the uploaded archive back without importing it. */
+export async function cancelTaskImport(uploadId: string): Promise<void> {
+  await internalApi.del<void>(`${BASE}/transfer/${seg(uploadId)}`, undefined, { report: false })
 }

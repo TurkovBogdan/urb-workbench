@@ -115,7 +115,21 @@
     "route_closed": "The route is closed",
     "origin_refused": "The request came from a page of another site",
     "validation_error": "The data didn't pass validation",
-    "internal_error": "Internal server error"
+    "internal_error": "Internal server error",
+    "transfer_not_archive": "This is not a transfer archive: the file is damaged or of another kind",
+    "transfer_foreign_format": "This is an archive of another kind ({format}) — it is not imported here",
+    "transfer_newer_format": "The archive was made by a newer version of the app (format {version}, this one reads up to {supported}) — update the app",
+    "transfer_manifest_invalid": "The archive's description is damaged or unreadable",
+    "transfer_entry_not_allowed": "The archive holds an extra file \"{name}\" — such an archive is not accepted",
+    "transfer_inventory_mismatch": "The archive's contents differ from its description (missing: {missing}; extra: {extra})",
+    "transfer_entry_damaged": "The file \"{name}\" in the archive is damaged",
+    "transfer_archive_too_large": "The archive is over the limit: {limit_mb} MB",
+    "transfer_archive_inconsistent": "The archive contradicts itself: {detail}",
+    "transfer_file_too_large": "The file \"{name}\" is over this installation's storage limit — {limit_mb} MB",
+    "transfer_upload_not_found": "The uploaded archive is not found — choose the file again",
+    "transfer_plan_changed": "The data changed while the options were being chosen — check the conflicts again",
+    "transfer_decision_invalid": "No valid option is chosen for {id}",
+    "transfer_depth_exceeded": "With these options the record {record} would lie deeper than {levels} levels — choose \"Replace\" for the knowledge base or \"Update\" for the records above it"
   },
   "task_status": {
     "button": "Task status",
@@ -388,5 +402,42 @@
     "ms": "{n} ms",
     "sec": "{n} s",
     "min_sec": "{min} min {sec} s"
+  },
+  "transfer": {
+    "drop": {
+      "lead": "Drop {what} here",
+      "hint": "or click to choose it on your computer",
+      "choose": "Choose a file",
+      "one_file": "Drop one file: archives are imported one at a time",
+      "wrong_extension": "This is not a {ext} archive — choose a file with that extension"
+    },
+    "step": {
+      "upload": "Uploading the archive — {percent}%",
+      "analyze": "Reading the archive and checking its codes against this installation…"
+    },
+    "passport": {
+      "same_install": "Exported from this installation",
+      "other_install": "Exported from another installation",
+      "created_at": "exported {at}",
+      "version": "version {version}"
+    },
+    "conflict": {
+      "count": "No codes are taken | {n} code is taken — choose what to do with it | {n} codes are taken — choose what to do with them",
+      "update_all": "Update all",
+      "replace_all": "Replace all",
+      "here": "Here",
+      "archive": "In the archive",
+      "changed": "changed {at}",
+      "appeared": "appeared {at}",
+      "no_date": "date unknown",
+      "follows": "Can be updated only together with {code}"
+    },
+    "choice": {
+      "update": "Update",
+      "replace": "Replace"
+    },
+    "plan_changed": "While the window was open, the data in this installation changed. Check the conflicts again.",
+    "another_file": "Choose another file",
+    "import": "Import"
   }
 }

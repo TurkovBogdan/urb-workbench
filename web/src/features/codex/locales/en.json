@@ -92,6 +92,49 @@
     "branch_text": "The note has nested notes ({children}). Delete the whole branch? It can be restored.",
     "branch_confirm": "Delete the branch"
   },
+  "transfer": {
+    "export": "Export",
+    "import": "Import a knowledge base",
+    "section_menu": "More section actions",
+    "title": "Import a knowledge base",
+    "description": "The knowledge base comes from a .ucdx file whole: its rules, every record, the bin and the files",
+    "mount": "Mount into the workspace \"{workspace}\"",
+    "no_workspace": "No workspace is chosen — the knowledge base comes in unmounted",
+    "drop_lead": "a .ucdx knowledge base file",
+    "summary": {
+      "notes": "no records | {n} record | {n} records",
+      "deleted": "the bin is empty | {n} in the bin | {n} in the bin",
+      "files": "no files | {n} file | {n} files"
+    },
+    "entity": {
+      "codex": "Knowledge base",
+      "record": "Record",
+      "file": "File"
+    },
+    "reason": {
+      "code_is_record": "A knowledge base record holds this code here — a new one comes in",
+      "code_is_codex": "A knowledge base holds this code here — a new record comes in",
+      "record_other_codex": "A record with this code lies in the knowledge base \"{codex}\" — a new one comes in",
+      "parent_replaced": "The knowledge base comes in as a new one — so does the record",
+      "depth_exceeded": "Merging with the archive would push records here deeper than four levels ({records}) — a new one comes in",
+      "file_other_content": "Another file holds this code here; files are never overwritten, the archive's comes in as a new one"
+    },
+    "local": {
+      "codex": "Here: the knowledge base \"{title}\", path {path}",
+      "record": "Here: the record \"{title}\" of the knowledge base \"{codex}\"",
+      "record_alone": "Here: the record \"{title}\"",
+      "file": "Here: another file, {size}",
+      "deleted": "(in the bin)"
+    },
+    "notice": {
+      "repathed": "Paths that change",
+      "recoded": "Codes that change",
+      "dangling": "References outside the archive",
+      "free_path": "a free path"
+    },
+    "no_conflicts": "No code is taken — the knowledge base comes in with its own codes.",
+    "done": "The knowledge base \"{title}\" is imported"
+  },
   "error": {
     "codex": {
       "not_found": "Knowledge base not found",
