@@ -6,29 +6,14 @@
 // one, so a theme switch costs nothing here.
 //
 // Per keystroke the set is rebuilt, never patched: `DecorationSet.remove` / `add` on a block of
-// thousands of tokens cost seconds (measured on `/design-system/code-editor-lab`). Untouched blocks
-// take their decorations from the
-// previous set mapped through the transaction; a touched block is re-tokenized at once if it is
-// small, and if it is large keeps its mapped colours until typing pauses — tokenizing a thousand
-// lines takes ~300 ms, which a keystroke cannot afford.
+// thousands of tokens cost seconds. Untouched blocks take their decorations from the previous set
+// mapped through the transaction; a touched block is re-tokenized at once if it is small, and if it
+// is large keeps its mapped colours until typing pauses — tokenizing a thousand lines takes
+// ~300 ms, which a keystroke cannot afford.
 import { Plugin, PluginKey, type EditorState, type Transaction } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import { onLanguageReady, tokensFor } from '@/composables/useHighlighter'
-
-export interface HighlightStats {
-  /** Duration of the last pass, ms. */
-  lastMs: number
-  /** The slowest pass since load, ms. */
-  maxMs: number
-  /** Blocks re-tokenized by the last pass. */
-  blocks: number
-  /** Decorations in the document after the last pass. */
-  decorations: number
-  full: boolean
-  /** Blocks waiting for a pause in typing. */
-  deferred: number
-}
 
 interface HighlightState {
   set: DecorationSet
@@ -76,40 +61,30 @@ function touchedBlocks(tr: Transaction): Set<number> {
   return touched
 }
 
-interface Pass {
-  state: HighlightState
-  blocks: number
-}
-
 /**
  * One walk over the code blocks. `retokenize` says which blocks get fresh tokens; every other
  * block keeps what `kept` holds for its range.
  */
-function pass(doc: PMNode, kept: DecorationSet | null, retokenize: (node: PMNode, pos: number) => boolean, stale: number[]): Pass {
+function pass(doc: PMNode, kept: DecorationSet | null, retokenize: (node: PMNode, pos: number) => boolean, stale: number[]): HighlightState {
   const decorations: Decoration[] = []
-  let blocks = 0
   doc.descendants((node, pos) => {
     if (node.type.name !== 'codeBlock') return true
-    if (!kept || retokenize(node, pos)) {
-      blocks++
-      decorations.push(...blockDecorations(node, pos))
-    } else {
-      decorations.push(...kept.find(pos, pos + node.nodeSize))
-    }
+    if (!kept || retokenize(node, pos)) decorations.push(...blockDecorations(node, pos))
+    else decorations.push(...kept.find(pos, pos + node.nodeSize))
     return false
   })
-  return { state: { set: DecorationSet.create(doc, decorations), stale }, blocks }
+  return { set: DecorationSet.create(doc, decorations), stale }
 }
 
-function fullPass(doc: PMNode): Pass {
+function fullPass(doc: PMNode): HighlightState {
   return pass(doc, null, () => true, [])
 }
 
-function editPass(tr: Transaction, previous: HighlightState): Pass {
+function editPass(tr: Transaction, previous: HighlightState): HighlightState {
   const mapped = previous.set.map(tr.mapping, tr.doc)
   const stale = previous.stale.map((pos) => tr.mapping.map(pos))
   const touched = touchedBlocks(tr)
-  if (!touched.size) return { state: { set: mapped, stale }, blocks: 0 }
+  if (!touched.size) return { set: mapped, stale }
   return pass(tr.doc, mapped, (node, pos) => {
     if (!touched.has(pos)) return false
     if (node.textContent.length <= SYNC_LIMIT) return true
@@ -118,33 +93,22 @@ function editPass(tr: Transaction, previous: HighlightState): Pass {
   }, stale)
 }
 
-function settlePass(doc: PMNode, previous: HighlightState): Pass {
+function settlePass(doc: PMNode, previous: HighlightState): HighlightState {
   const waiting = new Set(previous.stale)
   return pass(doc, previous.set, (_node, pos) => waiting.has(pos), [])
 }
 
-export function codeHighlight(onStats?: (stats: HighlightStats) => void): Plugin {
-  let maxMs = 0
-
-  function measure(full: boolean, run: () => Pass): HighlightState {
-    const started = performance.now()
-    const { state, blocks } = run()
-    const lastMs = performance.now() - started
-    maxMs = Math.max(maxMs, lastMs)
-    onStats?.({ lastMs, maxMs, blocks, decorations: state.set.find().length, full, deferred: state.stale.length })
-    return state
-  }
-
+export function codeHighlight(): Plugin {
   return new Plugin<HighlightState>({
     key: highlightKey,
     state: {
-      init: (_config, state: EditorState) => measure(true, () => fullPass(state.doc)),
+      init: (_config, state: EditorState) => fullPass(state.doc),
       apply(tr, previous) {
         const meta = tr.getMeta(highlightKey)
-        if (meta === REFRESH) return measure(true, () => fullPass(tr.doc))
-        if (meta === SETTLE) return measure(false, () => settlePass(tr.doc, previous))
+        if (meta === REFRESH) return fullPass(tr.doc)
+        if (meta === SETTLE) return settlePass(tr.doc, previous)
         if (!tr.docChanged) return previous
-        return measure(false, () => editPass(tr, previous))
+        return editPass(tr, previous)
       },
     },
     props: {

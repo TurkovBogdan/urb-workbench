@@ -9,7 +9,7 @@ import { Node, mergeAttributes, textblockTypeInputRule, type Editor } from '@tip
 import { VueNodeViewRenderer } from '@tiptap/vue-3'
 import { exitCode } from '@tiptap/pm/commands'
 import CodeBlockView from './CodeBlockView.vue'
-import { codeHighlight, type HighlightStats } from './codeHighlight'
+import { codeHighlight } from './codeHighlight'
 import { DIAGRAM_LANGUAGE } from '../../shared/contracts'
 
 const INDENT = '  '
@@ -54,22 +54,13 @@ function shiftLines(editor: Editor, direction: 'in' | 'out'): boolean {
   return true
 }
 
-export interface CodeBlockOptions {
-  /** Timing of each highlight pass — read by the diagnostics stand, unset everywhere else. */
-  onStats?: (stats: HighlightStats) => void
-}
-
-export const CodeBlock = Node.create<CodeBlockOptions>({
+export const CodeBlock = Node.create({
   name: 'codeBlock',
   group: 'block',
   content: 'text*',
   marks: '',
   code: true,
   defining: true,
-
-  addOptions() {
-    return { onStats: undefined }
-  },
 
   addAttributes() {
     return {
@@ -170,6 +161,6 @@ export const CodeBlock = Node.create<CodeBlockOptions>({
   },
 
   addProseMirrorPlugins() {
-    return [codeHighlight(this.options.onStats)]
+    return [codeHighlight()]
   },
 })
