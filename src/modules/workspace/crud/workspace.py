@@ -25,6 +25,7 @@ from src.modules.workspace.constants import (
     TITLE_MAX,
 )
 from src.modules.workspace.models.workspace import Workspace
+from src.modules.workspace.purge import AfterPurge, collect_before_purge, run_after_purge
 from src.modules.workspace.text import clip, fit
 
 
@@ -191,13 +192,17 @@ async def workspace_delete(code: str, *, hard: bool = False) -> bool:
     """Delete a workspace: softly (the default) or physically. ``True`` — the row existed.
 
     ``hard=True`` takes away, by FK cascade, everything the modules above kept in this workspace
-    — no timestamp remains afterwards, there is nothing to restore.
+    — no timestamp remains afterwards, there is nothing to restore. The modules' hooks
+    (``purge.py``) collect what they hold outside the database in the same transaction, before
+    the row goes, and let it go after the commit.
     """
+    after_purge: list[tuple[str, AfterPurge]] = []
     async with write_scope() as s:
         row = await s.get(Workspace, code)
         if row is None:
             return False
         if hard:
+            after_purge = await collect_before_purge(s, code)
             await s.execute(
                 sa_delete(Workspace).where(Workspace.code == code)
             )
@@ -207,6 +212,7 @@ async def workspace_delete(code: str, *, hard: bool = False) -> bool:
                 .where(Workspace.code == code, Workspace.deleted_at.is_(None))
                 .values(deleted_at=utc_now())
             )
+    await run_after_purge(code, after_purge)
     return True
 
 

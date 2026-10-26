@@ -14,7 +14,8 @@ be buried under the next one (``wkm_002`` with the list index).
 
 What lives inside a workspace the module does not know and must not know. Content counters for
 the card are declared by the modules above — via ``stats.register_counter`` in their
-``configure()``.
+``configure()``; so is what a final deletion must let go of outside the database — via
+``purge.register_purge_hook``.
 
 The HTTP API lives in the ``internal`` zone under the ``/workspace`` sub-prefix (``api.py``).
 The sub-prefix is set explicitly rather than derived from ``name``: the module name is a Python
