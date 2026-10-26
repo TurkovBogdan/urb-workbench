@@ -34,6 +34,8 @@ from src.core.database import session_scope, write_scope
 from src.core.utils.date import utc_now
 from src.modules.codex.constants import BODY_MAX, DESCRIPTION_MAX, SORT_DEFAULT, SORT_STEP, TITLE_MAX
 from src.modules.codex.crud.code import codex_new_code
+from src.modules.codex.crud.file import codex_files_take
+from src.modules.codex.file_owner import release_notes_everywhere
 from src.modules.codex.models import Codex, CodexNote
 from src.modules.codex.rules import TOP_NOTE_DEPTH, depth_problem, segment_problem
 from src.modules.codex.text import fit
@@ -386,7 +388,13 @@ async def note_delete(code: str, *, with_branch: bool = False, hard: bool = Fals
 
     Live children refuse the delete unless ``with_branch``; then the whole branch goes under one
     mark (soft) or physically (hard).
+
+    A soft delete keeps the notes' files: the note comes back with them. The hard one is no
+    surface's — the codex has no final deletion — but it still lets the files go properly: the
+    binding rows leave with the branch, and its notes are released from the storage after the
+    commit, which the FK cascade could not do.
     """
+    gone: list[str] = []
     async with write_scope() as s:
         await _lock_tree(s)
         row = await s.get(CodexNote, code)
@@ -396,20 +404,23 @@ async def note_delete(code: str, *, with_branch: bool = False, hard: bool = Fals
         if live_below and not with_branch:
             raise NoteHasChildren(code, [c for c in live_below if c.parent_code == code])
         if hard:
+            below_all = await _descendants(s, code, live_only=False)
+            gone = [code, *(note.code for note in below_all)]
+            await codex_files_take(s, gone)
             # Leaves first: the FK cascade would otherwise remove a child the session still
             # means to delete, and the change feed would never hear of it.
-            for below in reversed(await _descendants(s, code, live_only=False)):
+            for below in reversed(below_all):
                 await s.delete(below)
                 await s.flush()
             await s.delete(row)
-            return True
-        if row.deleted_at is None:
+        elif row.deleted_at is None:
             # The mark is checked against the whole branch, the already deleted included: those
             # are exactly the rows whose own mark it must not repeat.
             whole = [code, *(n.code for n in await _descendants(s, code, live_only=False))]
             stamp = await _branch_stamp(s, whole)
             for note in (row, *live_below):
                 note.deleted_at = stamp
+    await release_notes_everywhere(gone)
     return True
 
 

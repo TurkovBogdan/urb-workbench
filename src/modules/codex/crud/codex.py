@@ -23,7 +23,9 @@ from src.modules.codex.constants import (
     TITLE_MAX,
 )
 from src.modules.codex.crud.code import codex_new_code
-from src.modules.codex.models import Codex
+from src.modules.codex.crud.file import codex_files_take
+from src.modules.codex.file_owner import release_notes_everywhere
+from src.modules.codex.models import Codex, CodexNote
 from src.modules.codex.rules import segment_problem
 from src.modules.codex.text import fit
 
@@ -148,15 +150,25 @@ async def codex_update(
 
 
 async def codex_delete(code: str, *, hard: bool = False) -> bool:
-    """Delete a codex: softly (the default) or with its notes and mounts. ``True`` — it existed."""
+    """Delete a codex: softly (the default) or with its notes and mounts. ``True`` — it existed.
+
+    The hard path is no surface's, but it lets the notes' files go properly: their binding rows
+    leave with the codex, and every note is released from the storage after the commit.
+    """
+    gone: list[str] = []
     async with write_scope() as s:
         row = await s.get(Codex, code)
         if row is None:
             return False
         if hard:
+            gone = list(
+                (await s.scalars(select(CodexNote.code).where(CodexNote.codex_code == code))).all()
+            )
+            await codex_files_take(s, gone)
             await s.delete(row)
         elif row.deleted_at is None:
             row.deleted_at = utc_now()
+    await release_notes_everywhere(gone)
     return True
 
 

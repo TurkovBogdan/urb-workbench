@@ -8,6 +8,8 @@ models with the schema. A drift would surface only on PostgreSQL: SQLite does no
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 # One type word for both entities. A codex and a codex note are found by the same code, and the
 # tools that take one take the other: the agent reads a codex as the root of its tree, and two
 # words for one tree would be a choice it has to get right on every call.
@@ -37,6 +39,21 @@ ICON_MAX = 64
 SORT_DEFAULT = 500
 SORT_STEP = 5
 
+# A file of ``core_storage``, as it is written in a text and sent to the change feed; the storage
+# hands out bare codes and leaves the type word to its consumers.
+FILE_CODE_PREFIX = "FILE"
+# A file's title in the note (not its name — the name the file came under is the storage's) and
+# what is inside it; the same as a task file's.
+FILE_TITLE_MAX = 256
+FILE_DESCRIPTION_MAX = 256
+# The ``core_storage`` store codex files go to — the tasks' store: one image in a task and in a
+# codex note is one file on disk.
+FILE_STORE = "public"
+# The reconciliation releases only owners taken longer ago than this — the tasks' rule
+# (``tasks.constants.FILE_OWNER_GRACE``): in another process the note's file lock does not hold
+# an attach in flight off, the owner's age does.
+FILE_OWNER_GRACE = timedelta(minutes=10)
+
 
 __all__ = [
     "BODY_MAX",
@@ -44,6 +61,11 @@ __all__ = [
     "CODEX_CODE_PREFIX",
     "COLOR_MAX",
     "DESCRIPTION_MAX",
+    "FILE_CODE_PREFIX",
+    "FILE_DESCRIPTION_MAX",
+    "FILE_OWNER_GRACE",
+    "FILE_STORE",
+    "FILE_TITLE_MAX",
     "ICON_MAX",
     "SEGMENT_MAX",
     "SORT_DEFAULT",
