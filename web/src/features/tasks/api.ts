@@ -20,6 +20,7 @@
  */
 
 import { internalApi, type RequestOptions } from '@/api/client/internal'
+import { uploadFile, type UploadOptions } from '@/api/upload'
 
 const BASE = '/workbench'
 
@@ -577,4 +578,86 @@ export async function reorderTaskNotes(
   opts?: RequestOptions,
 ): Promise<TaskNoteRow[]> {
   return internalApi.put<TaskNoteRow[]>(`${BASE}/tasks/${seg(task)}/notes/order`, { codes }, opts)
+}
+
+// ── Task files ────────────────────────────────────────────────────────────────
+// The list holds the files of the task's notes and stages too: a file is in the task once, and
+// `note_code` / `stage_code` say where in it the file was attached.
+
+export interface TaskFileRow {
+  /** `FILE@…` */
+  code: string
+  task_code: string
+  note_code: string | null
+  stage_code: string | null
+  /** Empty — the file goes by `original_filename + original_extension`. */
+  title: string
+  description: string
+  original_filename: string
+  original_extension: string
+  mime: string
+  /** `core_storage`'s kind of file: `image`, `document`, … */
+  type: string
+  size: number
+  sort: number
+  created_at: string
+  updated_at: string
+}
+
+export async function listTaskFiles(task: string, opts?: RequestOptions): Promise<TaskFileRow[]> {
+  return internalApi.get<TaskFileRow[]>(`${BASE}/tasks/${seg(task)}/files`, opts)
+}
+
+/** Where in the task an uploaded file is attached; neither — the task as a whole. */
+export interface TaskFilePlace {
+  note_code?: string
+  stage_code?: string
+}
+
+/** A code with its type word, whichever form the caller holds it in. */
+const tagged = (word: string, code: string) => (code.includes('@') ? code : `${word}@${code}`)
+
+/**
+ * Send one file into the task, at the end of its files — through the file upload module, the
+ * holder named by the place: the note's or the stage's code puts it there, the task's the task as
+ * a whole. The body is the file itself; a refusal is an `ApiError` the caller shows —
+ * `tasks.file.already_attached` carries the file the task holds (`params.file`, `params.name`,
+ * `params.type`), `core_storage_upload.file.too_large` the ceiling.
+ */
+export async function uploadTaskFile(
+  task: string,
+  file: File,
+  opts: Omit<UploadOptions, 'query'> & { place?: TaskFilePlace } = {},
+): Promise<TaskFileRow> {
+  const { place, ...rest } = opts
+  const holder = place?.note_code
+    ? tagged('NOTE', place.note_code)
+    : place?.stage_code
+      ? tagged('STAGE', place.stage_code)
+      : tagged('TASK', task)
+  return uploadFile<TaskFileRow>(holder, file, rest)
+}
+
+/** The whole order, top to bottom, as the person left it. */
+export async function reorderTaskFiles(
+  task: string,
+  codes: string[],
+  opts?: RequestOptions,
+): Promise<TaskFileRow[]> {
+  return internalApi.put<TaskFileRow[]>(`${BASE}/tasks/${seg(task)}/files/order`, { codes }, opts)
+}
+
+/** What the task calls the file and says is in it; a field left out stays as it is. */
+export function updateTaskFile(
+  task: string,
+  file: string,
+  body: { title?: string; description?: string },
+  opts?: RequestOptions,
+): Promise<TaskFileRow> {
+  return internalApi.patch<TaskFileRow>(`${BASE}/tasks/${seg(task)}/files/${seg(file)}`, body, opts)
+}
+
+/** Take the file out of the task; the file itself goes once nothing else holds it. */
+export async function detachTaskFile(task: string, file: string, opts?: RequestOptions): Promise<void> {
+  await internalApi.del<void>(`${BASE}/tasks/${seg(task)}/files/${seg(file)}`, undefined, opts)
 }

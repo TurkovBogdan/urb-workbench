@@ -20,7 +20,7 @@
 // The frame is the shared `PageLayout` with the shared page header; there is no navigation column
 // like on the research detail pages: a task has no long document worth navigating by section with
 // a table of contents, and the way up is the "back" button in the header.
-import { computed, onActivated, onBeforeUnmount, onDeactivated, reactive, ref, watch } from 'vue'
+import { computed, onActivated, onBeforeUnmount, onDeactivated, provide, reactive, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import {
@@ -39,6 +39,7 @@ import PageLayout from '@/layout/templates/PageLayout.vue'
 import PageHeader from '@/layout/components/PageHeader.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import CopyChip from '@/components/CopyChip.vue'
+import { FILE_BINDING_EDITOR } from '@/components/files/fileBinding'
 import { MarkdownEditor } from '@/components/markdown/editor'
 import SectionError from '@/components/SectionError.vue'
 import SectionHeader from '@/components/SectionHeader.vue'
@@ -49,8 +50,10 @@ import VSelectSearch from '@/components/VSelectSearch.vue'
 import { useChangeSubscription } from '@/composables/useChangeSubscription'
 import { fmtDateTime, fmtRelative } from '@/shared/utils/date'
 import type { Change } from '@/stores/changes'
+import { providePreviewWorkspace } from '@/stores/preview'
 
 import TaskFieldConflictDialog from '../components/TaskFieldConflictDialog.vue'
+import TaskFiles from '../components/TaskFiles.vue'
 import TaskFormDialog from '../components/TaskFormDialog.vue'
 import TaskJournal from '../components/TaskJournal.vue'
 import TaskNotes from '../components/TaskNotes.vue'
@@ -62,6 +65,7 @@ import TaskSubtasksPanel from '../components/TaskSubtasksPanel.vue'
 import { listGroups, type GroupRow, type TaskDetail, type TaskListRow, type TaskUpdateBody } from '../api'
 import { deadlineDay, formatDay, formatDeadline, parseDay } from '../dates'
 import { TASK_BRIEF_FEATURES, TASK_DOCUMENT_FEATURES } from '../editor'
+import { taskFileAttach, taskFileEditor, taskFileRefuse } from '../fileAttach'
 import {
   TASK_CONSTRAINTS_MAX,
   TASK_CONTEXT_MAX,
@@ -92,6 +96,22 @@ const store = useTaskDetailStore()
 const code = computed(() => String(route.params.code ?? '').toUpperCase())
 const task = computed(() => store.task)
 const deleted = computed(() => Boolean(task.value?.deleted_at))
+// A file pasted or dropped into a field of the brief or the work is the task's. One function per
+// task code, not per read of the task: the editor tells a holder change by a new function, and
+// cancels an insertion still uploading (`behavior/fileAttach.ts`).
+const attachHolder = computed(() => task.value?.code)
+const attachToTask = computed(() => (attachHolder.value ? taskFileAttach(attachHolder.value) : undefined))
+
+// The codes in the task's texts are read in the task's own workspace, not the one selected in the
+// sidebar: a task opened by a link from another workspace would show every pill as foreign. A file
+// is named as this task names it. The previous task, still in the store while the next one loads,
+// does not lend its workspace.
+providePreviewWorkspace(
+  () => (task.value?.code === code.value ? task.value.workspace_code : undefined),
+  code,
+)
+// A picture of the task shown full screen: its title and description are the task's to edit.
+provide(FILE_BINDING_EDITOR, taskFileEditor(() => code.value, () => deleted.value))
 
 // The page lives in KeepAlive, and `onActivated` fires both on first display and on every return
 // (the task may have been edited from the list while the page sat in the cache). A second call
@@ -722,6 +742,8 @@ async function purge() {
               :max-length="TASK_CONTEXT_MAX"
               :readonly="deleted"
               :features="TASK_DOCUMENT_FEATURES"
+              :attach="attachToTask"
+              :refuse="taskFileRefuse"
               variant="plain"
               min-height="0"
               @update:model-value="(value) => { draft.context = value; schedule() }"
@@ -740,6 +762,15 @@ async function purge() {
             @changed="reloadTask"
           />
 
+          <!-- Files follow the notes: both are material the work rests on, not the work itself. -->
+          <TaskFiles
+            v-if="!layout.plan"
+            :task-code="task.code"
+            :notes="task.notes"
+            :stages="task.stages"
+            :disabled="deleted"
+          />
+
           <!-- Constraints and acceptance criteria are the brief of a standard task. A simple one has
                none: there is nothing to deliver against criteria, and empty fields would only take
                up the screen. -->
@@ -754,6 +785,8 @@ async function purge() {
               :max-length="TASK_CONSTRAINTS_MAX"
               :readonly="deleted"
               :features="TASK_BRIEF_FEATURES"
+              :attach="attachToTask"
+              :refuse="taskFileRefuse"
               variant="plain"
               min-height="0"
               @update:model-value="(value) => { draft.constraints = value; schedule() }"
@@ -772,6 +805,8 @@ async function purge() {
               :max-length="TASK_CRITERIA_MAX"
               :readonly="deleted"
               :features="TASK_BRIEF_FEATURES"
+              :attach="attachToTask"
+              :refuse="taskFileRefuse"
               variant="plain"
               min-height="0"
               @update:model-value="(value) => { draft.criteria = value; schedule() }"
@@ -794,6 +829,8 @@ async function purge() {
               :max-length="TASK_PLAN_MAX"
               :readonly="deleted"
               :features="TASK_DOCUMENT_FEATURES"
+              :attach="attachToTask"
+              :refuse="taskFileRefuse"
               variant="plain"
               min-height="0"
               @update:model-value="(value) => { draft.plan = value; schedule() }"
@@ -808,6 +845,14 @@ async function purge() {
             :disabled="deleted"
             @open="openNote"
             @changed="reloadTask"
+          />
+
+          <TaskFiles
+            v-if="layout.plan"
+            :task-code="task.code"
+            :notes="task.notes"
+            :stages="task.stages"
+            :disabled="deleted"
           />
 
           <!-- Stages are the plan broken into steps, so they follow the plan and its notes and come
@@ -834,6 +879,8 @@ async function purge() {
               :max-length="TASK_PROGRESS_MAX"
               :readonly="deleted"
               :features="TASK_DOCUMENT_FEATURES"
+              :attach="attachToTask"
+              :refuse="taskFileRefuse"
               variant="plain"
               min-height="0"
               @update:model-value="(value) => { draft.progress = value; schedule() }"
@@ -852,6 +899,8 @@ async function purge() {
               :max-length="TASK_RESULT_MAX"
               :readonly="deleted"
               :features="TASK_DOCUMENT_FEATURES"
+              :attach="attachToTask"
+              :refuse="taskFileRefuse"
               variant="plain"
               min-height="0"
               @update:model-value="(value) => { draft.result = value; schedule() }"

@@ -19,6 +19,7 @@ import { fmtDateTime } from '@/shared/utils/date'
 
 import { createJournalEntry, resolveJournalEntry, type JournalRow } from '../api'
 import { TASK_DOCUMENT_FEATURES } from '../editor'
+import { taskFileAttach, taskFileRefuse } from '../fileAttach'
 import CollectionHeader from './CollectionHeader.vue'
 import {
   JOURNAL_BODY_MAX,
@@ -39,6 +40,9 @@ const props = defineProps<{
 const emit = defineEmits<{ changed: [] }>()
 
 const { t } = useI18n()
+
+// A journal entry holds no files: one pasted or dropped into an entry's text is the task's.
+const attachToTask = computed(() => taskFileAttach(props.taskCode))
 
 const openOnly = ref(false)
 const busy = ref(false)
@@ -165,6 +169,8 @@ async function resolve(entry: JournalRow, value: string) {
         :label="t('tasks.journal.body')"
         :max-length="JOURNAL_BODY_MAX"
         :features="TASK_DOCUMENT_FEATURES"
+        :attach="attachToTask"
+        :refuse="taskFileRefuse"
         min-height="0"
       />
       <div class="journal__form-actions">

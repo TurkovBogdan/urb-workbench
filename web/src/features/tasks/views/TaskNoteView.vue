@@ -11,7 +11,7 @@
 // the page keeps its own draft and the version it was taken from, merges what the agent writes
 // meanwhile, and on a clash lets the database win and hands back what the person typed. Only the
 // fields that changed are sent.
-import { computed, onActivated, onBeforeUnmount, onDeactivated, reactive, ref, watch } from 'vue'
+import { computed, onActivated, onBeforeUnmount, onDeactivated, provide, reactive, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { IconRefresh } from '@tabler/icons-vue'
@@ -19,6 +19,7 @@ import { IconRefresh } from '@tabler/icons-vue'
 import PageLayout from '@/layout/templates/PageLayout.vue'
 import PageHeader from '@/layout/components/PageHeader.vue'
 import CopyChip from '@/components/CopyChip.vue'
+import { FILE_BINDING_EDITOR } from '@/components/files/fileBinding'
 import InvisibleField from '@/components/InvisibleField.vue'
 import { MarkdownEditor } from '@/components/markdown/editor'
 import SectionError from '@/components/SectionError.vue'
@@ -26,11 +27,14 @@ import SectionHeader from '@/components/SectionHeader.vue'
 import { errorText } from '@/api/errorText'
 import { useChangeSubscription } from '@/composables/useChangeSubscription'
 import type { Change } from '@/stores/changes'
+import { providePreviewWorkspace } from '@/stores/preview'
+import { useStorageStore } from '@/stores/storage'
 import { NOTE_BODY_MAX, NOTE_DESCRIPTION_MAX, NOTE_TITLE_MAX } from '@/features/notes/labels'
 
 import TaskFieldConflictDialog from '../components/TaskFieldConflictDialog.vue'
 import { getTask, getTaskNote, patchTaskNote, type TaskDetail, type TaskNoteDetail, type TaskNotePatch } from '../api'
 import { TASK_DOCUMENT_FEATURES } from '../editor'
+import { taskFileAttach, taskFileEditor, taskFileRefuse } from '../fileAttach'
 
 /** Silence in a field after which the typed text is sent — the same pause as on the task page. */
 const TYPING_PAUSE = 700
@@ -51,6 +55,22 @@ const saveError = ref<string | null>(null)
 
 /** Read, not written: the task is in the trash, and the backend refuses its notes' edits. */
 const readonly = computed(() => Boolean(task.value?.deleted_at))
+
+// A file pasted or dropped into the note's text is the task's, attached to this note. The page has
+// no files card, so it reads the storage's ceiling itself, for `taskFileRefuse`.
+useStorageStore()
+const attachToNote = computed(() =>
+  taskCode.value && noteCode.value ? taskFileAttach(taskCode.value, { note_code: noteCode.value }) : undefined,
+)
+
+// The codes in the note are read in its task's workspace and its files named as the task names
+// them, as on the task page.
+providePreviewWorkspace(
+  () => (task.value?.code === taskCode.value ? task.value.workspace_code : undefined),
+  taskCode,
+)
+// The note's files are the task's: a picture shown full screen is named as the task names it.
+provide(FILE_BINDING_EDITOR, taskFileEditor(() => taskCode.value, () => readonly.value))
 const taskPath = computed(() => `/tasks/task/${encodeURIComponent(taskCode.value)}`)
 
 // ── Loading ───────────────────────────────────────────────────────────────────
@@ -308,6 +328,8 @@ async function refresh(): Promise<void> {
               :max-length="NOTE_BODY_MAX"
               :readonly="readonly"
               :features="TASK_DOCUMENT_FEATURES"
+              :attach="attachToNote"
+              :refuse="taskFileRefuse"
               variant="plain"
               min-height="240px"
               @update:model-value="(value) => { draft.body = value; schedule() }"
