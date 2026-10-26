@@ -3,11 +3,11 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } 
 import { useI18n } from 'vue-i18n'
 import {
   IconArrowsMinimize,
+  IconFocusCentered,
   IconMaximize,
   IconX,
   IconZoomIn,
   IconZoomOut,
-  IconZoomReset,
 } from '@tabler/icons-vue'
 
 import type { DiagramColors } from 'beautiful-mermaid'
@@ -355,7 +355,7 @@ onBeforeUnmount(() => {
           <IconArrowsMinimize :size="17" stroke-width="1.8" />
         </button>
         <button class="viewer__btn" :title="t('common.diagram.actual_size')" @click="actualSize">
-          <IconZoomReset :size="17" stroke-width="1.8" />
+          <IconFocusCentered :size="17" stroke-width="1.8" />
         </button>
       </div>
 
@@ -450,7 +450,10 @@ onBeforeUnmount(() => {
   /* dvh, not vh: on mobile 100vh is taller than the screen while the address bar shows, and the
      bottom of the viewer — its controls included — would sit under it. */
   height: 100dvh;
-  background: var(--bg);
+  /* A sheet a touch below the card toward the page: nearly white in the light theme, the raised dark
+     in the night one. The system palette draws no background of its own, so the drawing lies on
+     this sheet directly. */
+  background: color-mix(in srgb, var(--surface) 70%, var(--bg));
 }
 
 .viewer__stage {
@@ -552,7 +555,7 @@ onBeforeUnmount(() => {
 .viewer__legend {
   position: absolute;
   left: 16px;
-  bottom: 24px;
+  bottom: 10px;
   margin: 0;
   font-size: 11px;
   color: var(--text-faint);

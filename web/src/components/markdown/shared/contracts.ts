@@ -9,15 +9,15 @@
 // Entity cross-references: a `TYPE@<hash>` code in a body is a typed link to that entity — every
 // type the backend lookup answers for (`core_lookup`). The order is free: `TASK` inside
 // `TASKGROUP@…` fails on the `@` and the alternation backtracks to the whole word.
-export const REF_TYPES = ['TASKGROUP', 'TASK', 'STAGE', 'JOURNAL', 'NOTE', 'WORKSPACE', 'CODEX'] as const
+export const REF_TYPES = ['TASKGROUP', 'TASK', 'STAGE', 'JOURNAL', 'NOTE', 'WORKSPACE', 'CODEX', 'FILE', 'IMAGE'] as const
 
 export type RefType = (typeof REF_TYPES)[number]
 
 // Where a code leads before its preview has arrived. The preview's `link` is the address; this is
 // the part of it the code alone can tell, so a pill is a link from the first paint. A stage, a
 // journal entry and a task note live on their task's page, and the task is not in the code — they
-// wait for the preview rather than lead to a guessed address. Part of the contract because both
-// zones navigate: one address for both.
+// wait for the preview rather than lead to a guessed address; so does a file, whose address the
+// preview carries. Part of the contract because both zones navigate: one address for both.
 const REF_PATH: Record<RefType, ((code: string) => string) | null> = {
   TASK: (code) => `/tasks/task/${code}`,
   TASKGROUP: () => '/tasks/groups',
@@ -26,12 +26,48 @@ const REF_PATH: Record<RefType, ((code: string) => string) | null> = {
   STAGE: null,
   JOURNAL: null,
   NOTE: null,
+  FILE: null,
+  IMAGE: null,
 }
 
 /** The address a canonical code leads to without its preview; `null` — only the preview knows. */
 export function refPath(code: string): string | null {
   const type = code.split('@')[0] as RefType
   return REF_PATH[type]?.(code) ?? null
+}
+
+// A file is served by the backend (`/storage/…`), not by a page of the SPA: followed through the
+// router, its address would land on the SPA's catch-all. Both zones and the hover card open it in a
+// new tab instead.
+const FILE_TYPES: ReadonlySet<string> = new Set<RefType>(['FILE', 'IMAGE'])
+
+/** The code names a stored file — `FILE@` as a link, `IMAGE@` as a picture. */
+export function refIsFile(code: string): boolean {
+  return FILE_TYPES.has(code.split('@')[0].toUpperCase())
+}
+
+// The prefix under which a code is drawn as a picture in the viewer.
+export const IMAGE_TYPE: RefType = 'IMAGE'
+
+/**
+ * How a stored file is quoted in a body: `IMAGE@` when the storage found it to be a picture
+ * (`kind` — its `type`, `image`), `FILE@` otherwise. `code` — the file's code, either prefix.
+ */
+export function fileQuote(code: string, kind: string): string {
+  const hash = code.split('@').pop() ?? ''
+  return `${kind === 'image' ? IMAGE_TYPE : 'FILE'}@${hash}`
+}
+
+// Which preview misses paint a pill red. An entity's page that belongs to another workspace or sits
+// in the trash still exists, and its pill keeps its colour. A file is shown from the storage
+// wherever it was brought in, so its only misses are the storage's own — no such file, or one
+// deleted — and both are red: there is nothing to show or open. A failed request is not a verdict.
+const FILE_MISSES: ReadonlySet<string> = new Set(['not_found', 'deleted'])
+
+/** The pill of `code` is drawn as missing, given the preview's miss (`undefined` — found or pending). */
+export function refIsMissing(code: string, miss: string | undefined): boolean {
+  if (!miss) return false
+  return refIsFile(code) ? FILE_MISSES.has(miss) : miss === 'not_found'
 }
 
 // Codes are exactly this many hex chars; the negative lookahead rejects a longer hex run, so a

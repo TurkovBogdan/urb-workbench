@@ -441,6 +441,17 @@
    its own. */
 .md-body {
   --md-ref-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 15l6-6'/%3E%3Cpath d='M11 6l.463-.536a5 5 0 0 1 7.071 7.072L18 13'/%3E%3Cpath d='M13 18l-.397.534a5.07 5.07 0 0 1-7.127 0 4.97 4.97 0 0 1 0-7.071L6 11'/%3E%3C/svg%3E");
+  /* The pill's colour, as the theme's `r, g, b`: the brand's for the things of the work — tasks,
+     their parts, the knowledge base. */
+  --md-ref-color: var(--v-theme-primary);
+}
+
+/* A file is green: material the work holds, not a part of it, so a pill tells the two apart before
+   anyone hovers it. `FILE@`, and `IMAGE@` wherever it is a pill — a field without pictures, a file
+   that is not a picture. A file that is gone stays red (`md-ref--missing`, below). */
+.md-body .md-ref--file,
+.md-body .md-ref--image {
+  --md-ref-color: var(--v-theme-success);
 }
 
 /* One Tabler glyph per type — the one the interface already shows for that thing, so a pill reads
@@ -475,6 +486,74 @@
   --md-ref-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 19a9 9 0 0 1 9 0a9 9 0 0 1 9 0'/%3E%3Cpath d='M3 6a9 9 0 0 1 9 0a9 9 0 0 1 9 0'/%3E%3Cpath d='M3 6l0 13'/%3E%3Cpath d='M12 6l0 13'/%3E%3Cpath d='M21 6l0 13'/%3E%3C/svg%3E");
 }
 
+/* A file `file`, a picture `photo` — the glyphs the files panel gives the same two kinds. An
+   `IMAGE@` whose file turned out not to be a picture takes the file's glyph: it is a link now. */
+.md-body .md-ref--file,
+.md-body .md-image--file .md-ref--image {
+  --md-ref-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 3v4a1 1 0 0 0 1 1h4'/%3E%3Cpath d='M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2'/%3E%3C/svg%3E");
+}
+
+.md-body .md-ref--image {
+  --md-ref-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M15 8h.01'/%3E%3Cpath d='M3 6a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v12a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3v-12'/%3E%3Cpath d='M3 16l5 -5c.928 -.893 2.072 -.893 3 0l5 5'/%3E%3Cpath d='M14 14l1 -1c.928 -.893 2.072 -.893 3 0l3 3'/%3E%3C/svg%3E");
+}
+
+/* A file's pill says what kind of file it is, once the preview has told its type
+   (`shared/fileKind.ts`): the glyph the files panel gives the same kind (`file-icon.ts`). Only the
+   glyph — the colour stays the pill's: a red PDF would read as a file that is gone. Named with the
+   pill's two classes: they outweigh the glyph of a not-a-picture `IMAGE@` above, and the missing
+   pill below, written the same way and later, outweighs them. */
+.md-body .md-ref.md-ref--kind-pdf {
+  --md-ref-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 3v4a1 1 0 0 0 1 1h4'/%3E%3Cpath d='M5 12v-7a2 2 0 0 1 2 -2h7l5 5v4'/%3E%3Cpath d='M5 18h1.5a1.5 1.5 0 0 0 0 -3h-1.5v6'/%3E%3Cpath d='M17 18h2'/%3E%3Cpath d='M20 15h-3v6'/%3E%3Cpath d='M11 15v6h1a2 2 0 0 0 2 -2v-2a2 2 0 0 0 -2 -2h-1'/%3E%3C/svg%3E");
+}
+
+.md-body .md-ref.md-ref--kind-doc {
+  --md-ref-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 3v4a1 1 0 0 0 1 1h4'/%3E%3Cpath d='M5 12v-7a2 2 0 0 1 2 -2h7l5 5v4'/%3E%3Cpath d='M5 15v6h1a2 2 0 0 0 2 -2v-2a2 2 0 0 0 -2 -2h-1'/%3E%3Cpath d='M20 16.5a1.5 1.5 0 0 0 -3 0v3a1.5 1.5 0 0 0 3 0'/%3E%3Cpath d='M12.5 15a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1 -3 0v-3a1.5 1.5 0 0 1 1.5 -1.5'/%3E%3C/svg%3E");
+}
+
+.md-body .md-ref.md-ref--kind-sheet {
+  --md-ref-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 3v4a1 1 0 0 0 1 1h4'/%3E%3Cpath d='M5 12v-7a2 2 0 0 1 2 -2h7l5 5v4'/%3E%3Cpath d='M4 15l4 6'/%3E%3Cpath d='M4 21l4 -6'/%3E%3Cpath d='M17 20.25c0 .414 .336 .75 .75 .75h1.25a1 1 0 0 0 1 -1v-1a1 1 0 0 0 -1 -1h-1a1 1 0 0 1 -1 -1v-1a1 1 0 0 1 1 -1h1.25a.75 .75 0 0 1 .75 .75'/%3E%3Cpath d='M11 15v6h3'/%3E%3C/svg%3E");
+}
+
+.md-body .md-ref.md-ref--kind-slides {
+  --md-ref-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 3v4a1 1 0 0 0 1 1h4'/%3E%3Cpath d='M5 18h1.5a1.5 1.5 0 0 0 0 -3h-1.5v6'/%3E%3Cpath d='M11 18h1.5a1.5 1.5 0 0 0 0 -3h-1.5v6'/%3E%3Cpath d='M16.5 15h3'/%3E%3Cpath d='M18 15v6'/%3E%3Cpath d='M5 12v-7a2 2 0 0 1 2 -2h7l5 5v4'/%3E%3C/svg%3E");
+}
+
+.md-body .md-ref.md-ref--kind-image {
+  --md-ref-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M15 8h.01'/%3E%3Cpath d='M3 6a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v12a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3v-12'/%3E%3Cpath d='M3 16l5 -5c.928 -.893 2.072 -.893 3 0l5 5'/%3E%3Cpath d='M14 14l1 -1c.928 -.893 2.072 -.893 3 0l3 3'/%3E%3C/svg%3E");
+}
+
+.md-body .md-ref.md-ref--kind-audio {
+  --md-ref-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 3v4a1 1 0 0 0 1 1h4'/%3E%3Cpath d='M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2'/%3E%3Cpath d='M10 16a1 1 0 1 0 2 0a1 1 0 1 0 -2 0'/%3E%3Cpath d='M12 16l0 -5l2 1'/%3E%3C/svg%3E");
+}
+
+.md-body .md-ref.md-ref--kind-video {
+  --md-ref-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2l0 -12'/%3E%3Cpath d='M8 4l0 16'/%3E%3Cpath d='M16 4l0 16'/%3E%3Cpath d='M4 8l4 0'/%3E%3Cpath d='M4 16l4 0'/%3E%3Cpath d='M4 12l16 0'/%3E%3Cpath d='M16 8l4 0'/%3E%3Cpath d='M16 16l4 0'/%3E%3C/svg%3E");
+}
+
+.md-body .md-ref.md-ref--kind-archive {
+  --md-ref-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 3v4a1 1 0 0 0 1 1h4'/%3E%3Cpath d='M5 12v-7a2 2 0 0 1 2 -2h7l5 5v4'/%3E%3Cpath d='M16 18h1.5a1.5 1.5 0 0 0 0 -3h-1.5v6'/%3E%3Cpath d='M12 15v6'/%3E%3Cpath d='M5 15h3l-3 6h3'/%3E%3C/svg%3E");
+}
+
+.md-body .md-ref.md-ref--kind-calendar {
+  --md-ref-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 7a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2l0 -12'/%3E%3Cpath d='M16 3l0 4'/%3E%3Cpath d='M8 3l0 4'/%3E%3Cpath d='M4 11l16 0'/%3E%3Cpath d='M8 15h2v2h-2l0 -2'/%3E%3C/svg%3E");
+}
+
+.md-body .md-ref.md-ref--kind-code {
+  --md-ref-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 3v4a1 1 0 0 0 1 1h4'/%3E%3Cpath d='M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2'/%3E%3Cpath d='M10 13l-1 2l1 2'/%3E%3Cpath d='M14 13l1 2l-1 2'/%3E%3C/svg%3E");
+}
+
+.md-body .md-ref.md-ref--kind-markdown {
+  --md-ref-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 7a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-10'/%3E%3Cpath d='M7 15v-6l2 2l2 -2v6'/%3E%3Cpath d='M14 13l2 2l2 -2m-2 2v-6'/%3E%3C/svg%3E");
+}
+
+.md-body .md-ref.md-ref--kind-csv {
+  --md-ref-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 3v4a1 1 0 0 0 1 1h4'/%3E%3Cpath d='M5 12v-7a2 2 0 0 1 2 -2h7l5 5v4'/%3E%3Cpath d='M7 16.5a1.5 1.5 0 0 0 -3 0v3a1.5 1.5 0 0 0 3 0'/%3E%3Cpath d='M10 20.25c0 .414 .336 .75 .75 .75h1.25a1 1 0 0 0 1 -1v-1a1 1 0 0 0 -1 -1h-1a1 1 0 0 1 -1 -1v-1a1 1 0 0 1 1 -1h1.25a.75 .75 0 0 1 .75 .75'/%3E%3Cpath d='M16 15l2 6l2 -6'/%3E%3C/svg%3E");
+}
+
+.md-body .md-ref.md-ref--kind-text {
+  --md-ref-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 3v4a1 1 0 0 0 1 1h4'/%3E%3Cpath d='M16.5 15h3'/%3E%3Cpath d='M5 12v-7a2 2 0 0 1 2 -2h7l5 5v4'/%3E%3Cpath d='M4.5 15h3'/%3E%3Cpath d='M6 15v6'/%3E%3Cpath d='M18 15v6'/%3E%3Cpath d='M10 15l4 6'/%3E%3Cpath d='M10 21l4 -6'/%3E%3C/svg%3E");
+}
+
 .md-body .md-ref {
   position: relative;
   display: inline-flex;
@@ -487,9 +566,9 @@
   margin: 0 1px;
   /* A tag, not a capsule: the same slight rounding as the other small plates of the interface. */
   border-radius: 4px;
-  color: rgb(var(--v-theme-primary));
-  background: color-mix(in srgb, rgb(var(--v-theme-primary)) 9%, transparent);
-  border: 1px solid color-mix(in srgb, rgb(var(--v-theme-primary)) 22%, transparent);
+  color: rgb(var(--md-ref-color));
+  background: color-mix(in srgb, rgb(var(--md-ref-color)) 9%, transparent);
+  border: 1px solid color-mix(in srgb, rgb(var(--md-ref-color)) 22%, transparent);
   text-decoration: none;
   white-space: nowrap;
   vertical-align: baseline;
@@ -525,8 +604,8 @@
 .md-body a.md-ref:hover,
 .md-body .md-ref--editable:hover {
   text-decoration: none;
-  background: color-mix(in srgb, rgb(var(--v-theme-primary)) 18%, transparent);
-  border-color: color-mix(in srgb, rgb(var(--v-theme-primary)) 45%, transparent);
+  background: color-mix(in srgb, rgb(var(--md-ref-color)) 18%, transparent);
+  border-color: color-mix(in srgb, rgb(var(--md-ref-color)) 45%, transparent);
 }
 
 /* A code whose entity does not exist: red, and the type's glyph gives way to Tabler `trash` — the
@@ -546,7 +625,8 @@
 
 /* ── Images ───────────────────────────────────────────────── */
 
-/* Viewer only: the editor does not carry images (see UNSUPPORTED in the bridge). */
+/* A markdown image `![](url)` is the viewer's only (see UNSUPPORTED in the bridge); the pictures
+   drawn by code below share this rule in both zones. */
 .md-body img {
   max-width: 100%;
   height: auto;
@@ -582,6 +662,307 @@
   opacity: 1;
 }
 
+/* `IMAGE@` codes in a row are a gallery. A picture always starts a new line: the text before it
+   stays above, the text after it goes on below. One picture keeps its own size, scaled down to the
+   width and to a height cap, never up. Several are laid out in justified rows: the pictures of a
+   row share one height and keep their proportions, so the row fills the width. How many stand in
+   a row comes from the count (`galleryColumns` in `pictures.ts`: 2, 3, 2+2, 3+2, 3+3, 4+3, 4+4,
+   then rows of three, the short last one at the height of the rows above), fewer on a narrow body.
+
+   Both zones carry the same markup on a picture — `md-image--cols-<n>`, `md-image--single`, the
+   state, the row breaks `.md-row-break--<width>` ahead of the pictures that start a row — and this
+   one rule set lays them out. The proportions are custom properties written by script once the
+   pictures load (`layOutGallery`): `--r` the picture's ratio, `--k-<width>`/`--s-<width>` how many
+   share its row and the sum of their ratios. A slot is `(row width − gaps) × r / s` wide and `r`
+   in proportion, capped at `--md-row-max` tall. The picture is fitted in its slot, not cut — the
+   ratio is clamped between 1:3 and 4:1, and a tiny picture is not blown up.
+
+   The viewer wraps a gallery in `.md-gallery`, a block of its own. The editor cannot wrap inline
+   nodes, so its decorations do the rest (`editor/blocks/entityRef/entityRef.ts`): `.md-image-break`
+   breaks the line around a run, `.md-image-space` turns the blank after a picture into the gap,
+   `.md-image-gap` hides the other blanks around it.
+
+   The state is a class the view sets (`MarkdownRenderer.vue`, `EntityImageView.vue`): pending — a
+   quiet slot while the preview is on its way; shown — the <img>; file — the file is not a
+   picture, its pill is a link; missing — a placeholder with the red pill. */
+.md-body {
+  --md-gallery-gap: 8px;
+  --md-row-max: 360px;
+}
+
+/* Flex, not a run of inline boxes: with nothing between them in the markup the line breaker finds
+   no place to wrap between every two tiles, and a row came out a tile short. The editor's tiles
+   have the spaces between them, and wrap at each one. */
+.md-body .md-gallery {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  /* The container a narrow gallery steps its columns down by. The editor's is its field
+     (`.editor__body`). */
+  container-type: inline-size;
+  margin: 0.4em 0 calc(0.4em - var(--md-gallery-gap));
+}
+
+.md-body .md-image-break {
+  display: block;
+  height: 4px;
+}
+
+.md-body .md-image-gap {
+  font-size: 0;
+}
+
+/* The blank after one of the editor's pictures, kept at the text's size: the caret stands in it as
+   after a word — a blank drawn at no width gave it no height, and it vanished. It stays a
+   plain inline space: in an inline-block Chrome draws no caret right after the picture.
+
+   The space and its margin are the gap, as wide as the picture's margin they stand in for — the
+   rows are laid out with that gap, a wider one would push a picture to the next row. The margin is
+   the caret's room: the caret after the space is drawn at the space's end, and the next picture,
+   painted over the text, must not start before the caret does. So the margin is fixed, and the
+   space gives way instead: a monospaced space is exactly `1ch`, and `word-spacing` brings it to the
+   gap less the margin, whatever the font. Making up the gap with the margin alone left it negative
+   where `1ch` came out wider than the gap (8.4 px in the 14 px mono), and the next picture covered
+   the caret. */
+.md-body .md-image-space {
+  --md-image-caret-room: 2px;
+  font-family: var(--font-mono);
+  word-spacing: calc(var(--md-gallery-gap) - var(--md-image-caret-room) - 1ch);
+  margin-right: var(--md-image-caret-room);
+}
+
+.md-body .md-image:has(+ .md-image-space) {
+  margin-right: 0;
+}
+
+.md-body br.md-image-gap {
+  display: none;
+}
+
+/* Until the script has measured the pictures every slot is a neutral 4:3, in rows as counted. */
+.md-body .md-image--cols-2 { --k-wide: 2; --s-wide: 2.6667; --k-mid: 2; --s-mid: 2.6667; }
+.md-body .md-image--cols-3 { --k-wide: 3; --s-wide: 4; --k-mid: 2; --s-mid: 2.6667; }
+.md-body .md-image--cols-4 { --k-wide: 4; --s-wide: 5.3333; --k-mid: 2; --s-mid: 2.6667; }
+
+.md-body .md-image:not(.md-image--single) {
+  --k: var(--k-wide);
+  --s: var(--s-wide);
+}
+
+@container (240px < width <= 480px) {
+  .md-body .md-image:not(.md-image--single) { --k: var(--k-mid, 2); --s: var(--s-mid, 2.6667); }
+}
+
+@container (width <= 240px) {
+  .md-body .md-image:not(.md-image--single) { --k: var(--k-narrow, 1); --s: var(--s-narrow, 1.3333); }
+}
+
+/* A row starts on a line of its own in the widths it is named for. Zero high and full wide: a
+   flex line in the viewer's gallery, a line break among the editor's inline pictures. */
+.md-body .md-row-break {
+  display: none;
+  flex-basis: 100%;
+  height: 0;
+}
+
+@container (width > 480px) {
+  .md-body .md-row-break--wide { display: block; }
+}
+
+@container (240px < width <= 480px) {
+  .md-body .md-row-break--mid { display: block; }
+}
+
+@container (width <= 240px) {
+  .md-body .md-row-break--narrow { display: block; }
+}
+
+.md-body .md-image {
+  /* The copy button's corner (`.md-image__copy`). */
+  position: relative;
+  display: inline-flex;
+  box-sizing: border-box;
+  max-width: 100%;
+  vertical-align: top;
+  margin: 0 var(--md-gallery-gap) var(--md-gallery-gap) 0;
+  border-radius: 6px;
+}
+
+/* A slot: its share of the row less the gaps, the half pixel keeping a full row from wrapping on a
+   rounding; or, when the row would stand taller than the cap, the cap's width. */
+.md-body .md-image:not(.md-image--single) {
+  width: min(
+    calc((100% - var(--k) * var(--md-gallery-gap)) * var(--r, 1.3333) / var(--s) - 0.5px),
+    calc(var(--md-row-max) * var(--r, 1.3333))
+  );
+  aspect-ratio: var(--r, 1.3333);
+}
+
+/* A pointer, not a loupe: the picture answers a click in both zones, but not the same way — the
+   viewer opens it, the editor selects it. */
+.md-body .md-image > img {
+  border-radius: 0;
+  cursor: pointer;
+}
+
+/* The slot alone rounds a shown picture, cutting the picture and its backdrop in one pass, and the
+   picture has no frame. Rounded each on its own, the cuts disagreed along the arc and light pixels
+   showed in the corners; a frame read as a light outline around a dark picture, and a border on
+   the <img> also took 2px off the box the picture is fitted in, leaving bands along its long side. */
+.md-body .md-image--shown {
+  overflow: hidden;
+}
+
+/* The picture's code, copied from its bottom-right corner: a small button over the picture, the way
+   the code block's copy button floats over a one-liner. A light plate with a darker glyph, the same
+   in both themes — it lies on the picture, not on the page — and a soft shadow keeps it apart from
+   a light picture. It shows under the pointer only — always where there is no pointer to hover
+   with — and the copy glyph turns into a check for a moment once the code is in the clipboard,
+   without colour, as every copy button of the interface does. Both zones draw the same markup: the
+   viewer in its script, the editor in the picture's view. */
+.md-body .md-image__copy {
+  --md-image-copy-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 9.667a2.667 2.667 0 0 1 2.667 -2.667h8.666a2.667 2.667 0 0 1 2.667 2.667v8.666a2.667 2.667 0 0 1 -2.667 2.667h-8.666a2.667 2.667 0 0 1 -2.667 -2.667l0 -8.666'/%3E%3Cpath d='M4.012 16.737a2.005 2.005 0 0 1 -1.012 -1.737v-10c0 -1.1 .9 -2 2 -2h10c.75 0 1.158 .385 1.5 1'/%3E%3C/svg%3E");
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  color: rgba(23, 26, 33, 0.7);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease, background 0.12s ease, color 0.12s ease;
+}
+
+.md-body .md-image__copy::before {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  background: currentColor;
+  -webkit-mask: var(--md-image-copy-icon) center / contain no-repeat;
+  mask: var(--md-image-copy-icon) center / contain no-repeat;
+}
+
+.md-body .md-image--shown:hover > .md-image__copy,
+.md-body .md-image__copy:focus-visible {
+  opacity: 1;
+}
+
+.md-body .md-image__copy:hover {
+  background: rgba(255, 255, 255, 0.96);
+  color: #171a21;
+}
+
+.md-body .md-image__copy--copied {
+  --md-image-copy-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l5 5l10 -10'/%3E%3C/svg%3E");
+}
+
+@media (hover: none) {
+  .md-body .md-image--shown > .md-image__copy {
+    opacity: 1;
+  }
+}
+
+/* Fitted, not cut: a picture whose ratio was clamped stands in its slot with a margin, and a
+   picture smaller than its slot keeps its own size. */
+.md-body .md-image:not(.md-image--single) > img {
+  width: 100%;
+  height: 100%;
+  object-fit: scale-down;
+  background: rgba(var(--v-theme-on-surface), 0.04);
+}
+
+.md-body .md-image--single > img {
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: 420px;
+  object-fit: contain;
+}
+
+/* A picture with no size of its own (an SVG with only a `viewBox`) would collapse alone in its
+   line: it takes a medium width, and its height from its own proportions. */
+.md-body .md-image--single.md-image--sizeless > img {
+  width: min(320px, 100%);
+}
+
+.md-body .md-image--shown > .md-ref,
+.md-body .md-image--pending > .md-ref {
+  display: none;
+}
+
+/* A placeholder takes the place of the picture it stands for: a tile in a grid, a 4:3 box alone. */
+.md-body .md-image--single:is(.md-image--pending, .md-image--missing) {
+  width: min(240px, 100%);
+  aspect-ratio: 4 / 3;
+}
+
+.md-body .md-image--pending {
+  background: rgba(var(--v-theme-on-surface), 0.06);
+}
+
+/* A file that turned out not to be a picture. Alone, it is a link in the line, like `FILE@`, and
+   the line does not break around it; in a gallery it keeps its cell, a quiet tile with its link,
+   so the grid keeps the shape its count gave it. */
+.md-body .md-image--file {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--border-soft);
+}
+
+.md-body .md-image--single.md-image--file {
+  display: inline;
+  margin: 0;
+  border: 0;
+}
+
+.md-body .md-gallery--single:has(> .md-image--file) {
+  display: inline;
+  margin: 0;
+}
+
+.md-body .md-image-break--single:has(+ .md-image--file),
+.md-body .md-image--file + .md-image-break--single,
+.md-body .md-image--file + .md-image-space + .md-image-break--single,
+.md-body .md-image--file + .md-image-space + .md-image-gap + .md-image-break--single {
+  display: none;
+}
+
+/* Tabler `photo-off` over the red pill: the picture that is not there, and which code it was. */
+.md-body .md-image--missing {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px dashed color-mix(in srgb, rgb(var(--v-theme-error)) 45%, transparent);
+  background: color-mix(in srgb, rgb(var(--v-theme-error)) 5%, transparent);
+}
+
+.md-body .md-image--missing::before {
+  content: "";
+  width: 28px;
+  height: 28px;
+  background: color-mix(in srgb, rgb(var(--v-theme-error)) 70%, transparent);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M15 8h.01'/%3E%3Cpath d='M7 3h11a3 3 0 0 1 3 3v11m-.856 3.099a2.991 2.991 0 0 1 -2.144 .901h-12a3 3 0 0 1 -3 -3v-12c0 -.845 .349 -1.608 .91 -2.153'/%3E%3Cpath d='M3 16l5 -5c.928 -.893 2.072 -.893 3 0l5 5'/%3E%3Cpath d='M16.33 12.338c.574 -.054 1.155 .166 1.67 .662l3 3'/%3E%3Cpath d='M3 3l18 18'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M15 8h.01'/%3E%3Cpath d='M7 3h11a3 3 0 0 1 3 3v11m-.856 3.099a2.991 2.991 0 0 1 -2.144 .901h-12a3 3 0 0 1 -3 -3v-12c0 -.845 .349 -1.608 .91 -2.153'/%3E%3Cpath d='M3 16l5 -5c.928 -.893 2.072 -.893 3 0l5 5'/%3E%3Cpath d='M16.33 12.338c.574 -.054 1.155 .166 1.67 .662l3 3'/%3E%3Cpath d='M3 3l18 18'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+/* The pill of a picture that is not there must fit its tile, which is narrower than a code. */
+.md-body .md-image--missing > .md-ref {
+  max-width: calc(100% - 8px);
+}
+
+.md-body .md-image--missing .md-ref-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* ── Compact variant ──────────────────────────────────────── */
 
 /* Compact is an interface role, not a reading one: settings descriptions and chat bubbles that
@@ -604,3 +985,4 @@
 .md-body--compact .md-code-slot            { margin: 0.6em 0; }
 .md-body--compact .md-table-wrap           { margin: 0.7em 0; }
 .md-body--compact hr                       { margin: 1em 0; }
+.md-body--compact .md-image--single > img  { max-height: 280px; }

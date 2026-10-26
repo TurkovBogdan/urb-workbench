@@ -1400,6 +1400,17 @@
       "diagram": "Diagram",
       "diagramHint": "A mermaid fence is shown as a drawn diagram; a double click opens it fullscreen. \"Edit\" on the right swaps the diagram for its source; \"Done\", Esc or leaving the block bring the diagram back. Insert a new one with \"/\" then \"Diagram\": the block opens for editing at once.",
       "noDiagram": "A field without diagrams: the same fence stays a code block",
+      "edges": "Document edges: empty lines",
+      "edgesHint": "Markdown stores no empty lines, and the editor keeps none: there is no line under the last block. To write on — Enter in an empty item leaves a list, ArrowDown or Ctrl+Enter leaves code, ArrowDown after a table, diagram or rule puts the caret into the gap after it, and typing opens a paragraph. A click below the text puts the caret there too. An empty line typed with Enter mid-text goes with Backspace or Delete; an empty first line before a block — with Delete only.",
+      "edgeSample": {
+        "list": "List",
+        "table": "Table",
+        "code": "Code",
+        "diagram": "Diagram",
+        "quote": "Quote",
+        "heading": "Heading",
+        "rule": "Rule"
+      },
       "roundtrip": "Round trip: markdown → document → markdown",
       "source": "Source",
       "emitted": "What the serializer returned",

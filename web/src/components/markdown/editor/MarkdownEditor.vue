@@ -13,8 +13,9 @@
 // The feature set (`mode` / `features`) is not styling but the field's contract: a disabled node
 // is NOT in the schema, incoming markdown is reduced to match, and the chrome shows exactly what
 // will work. Details and the sets themselves — `modes.ts`.
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, provide, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import ImageGallery from '@/components/files/ImageGallery.vue'
 import { EditorContent, useEditor } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import { Placeholder } from '@tiptap/extension-placeholder'
@@ -25,18 +26,27 @@ import {
   normalizeNestedOptions,
 } from '@tiptap/extension-drag-handle'
 import { IconGripVertical } from '@tabler/icons-vue'
-import { CodeBlock, Diagram, EntityRef, FlatBlocks } from './blocks'
+import { CodeBlock, Diagram, EntityRef, FlatBlocks, OPEN_PICTURE } from './blocks'
 import {
   BlockMoves,
+  continueBelow,
   DragSource,
+  DOCUMENT_REPLACED,
   DropSlot,
+  FileAttach,
   LENGTH_LIMIT_BYPASS,
   LengthLimit,
   MarkdownPaste,
   handleTop,
   useBlockMarks,
   useDragPreview,
+  type AttachFile,
+  type RefuseFile,
 } from './behavior'
+import { errorText } from '@/api/errorText'
+import { useFileDropZone } from '@/composables/useFileDrop'
+import { pushToast } from '@/composables/useToasts'
+import { droppedPaths } from '@/shared/utils/fileDrop'
 import {
   BubbleToolbar, SlashMenuExtension, SlashMenuPopup, TableControls,
   createSlashItems, useSlashMenu,
@@ -82,6 +92,17 @@ const props = withDefaults(defineProps<{
   label?: string
   /** A note under the field: what goes in here, if the field name does not make it obvious. */
   hint?: string
+  /**
+   * Files pasted or dropped into the field go to the field's holder: upload one and answer with the
+   * text it stands for in the body (its code). Unset — a paste and a drop are what they always were.
+   * The page knows the holder; see `behavior/fileAttach.ts`.
+   *
+   * With it the field is a drop zone of the window (`composables/useFileDrop.ts`) — marked while
+   * files are over the window, filled under the pointer — and the slash menu offers a file dialog.
+   */
+  attach?: AttachFile
+  /** A file the holder will not take, known before sending (over the size ceiling): the reason. */
+  refuse?: RefuseFile
 }>(), {
   minHeight: '320px',
   mode: 'full',
@@ -94,6 +115,8 @@ const props = withDefaults(defineProps<{
   ariaLabel: undefined,
   label: undefined,
   hint: undefined,
+  attach: undefined,
+  refuse: undefined,
 })
 
 // The set is resolved once: changing features on the fly would mean rebuilding the schema under a
@@ -114,11 +137,66 @@ const { t } = useI18n()
 
 const slash = useSlashMenu()
 
+// ── Files ─────────────────────────────────────────────────────────────────────
+// A file has somewhere to go only in a field that shows codes, has a holder and is being edited.
+const takesFiles = computed(() => has('entityRef') && Boolean(props.attach) && !props.readonly)
+
+// The slash command's dialog. Clicked inside the key press or the click that picked the command —
+// a browser opens a file dialog only in a gesture. The caret stays where the `/` was while the
+// dialog is open: nothing edits the field meanwhile, so the files land there.
+const filePicker = ref<HTMLInputElement | null>(null)
+
+function pickFile(): void {
+  filePicker.value?.click()
+}
+
+function filesPicked(event: Event): void {
+  const input = event.target as HTMLInputElement
+  const files = Array.from(input.files ?? [])
+  // The same file picked again must fire `change` again.
+  input.value = ''
+  if (files.length) editor.value?.chain().focus().attachFiles(files).run()
+}
+
+// One full-screen viewer for every picture of the document (`blocks/entityRef/EntityImageView.vue`). It takes
+// the focus while open, so the arrows that page through a gallery do not also move the caret.
+//
+// Closed, it hands the focus back to the field, on the picture it was opened from — selected, so
+// the person carries on where they were: Enter opens it again, the arrows step on from it. Its
+// position is asked when the viewer closes: the text may have changed meanwhile.
+const lightbox = ref<string | null>(null)
+const lightboxCodes = ref<string[]>([])
+let openedAt: (() => number | undefined) | null = null
+
+provide(OPEN_PICTURE, (code, gallery, at) => {
+  lightboxCodes.value = gallery
+  lightbox.value = code
+  openedAt = at
+})
+
+watch(lightbox, (code) => {
+  if (code !== null || !openedAt) return
+  const at = openedAt
+  openedAt = null
+  // After the dialog's own close: it puts the focus back where it was taken from, and the selection
+  // must land after that.
+  void nextTick(() => {
+    const pos = at()
+    const current = editor.value
+    if (pos === undefined || !current || current.isDestroyed) return
+    current.chain().focus().setNodeSelection(pos).run()
+  })
+})
+
 // Live region: the only working channel to a screen reader — the drag ARIA attributes
 // (`aria-grabbed`, `aria-dropeffect`) were deprecated back in ARIA 1.1, and nothing replaced them.
 // Messages speak in POSITIONS, not indexes: "position 3 of 39" makes sense to a person,
 // "index 2" does not. Polite mode, so announcements do not interrupt reading.
 const announcement = ref('')
+
+// A picture is being dragged (`blocks/entityRef/pictureDrag.ts`): the block handle and the marks
+// stay out of it, as they do for a block drag.
+const pictureDragging = ref(false)
 
 // The block under the handle. Move commands work from the selection, so before the menu opens the
 // selection is moved here — which also answers "what did I grab".
@@ -185,6 +263,24 @@ const editor = useEditor({
         return true
       },
     },
+    // A drop that brings only the files' addresses on the disk, not the files (`droppedPaths`) —
+    // some apps hand a dragged file over that way — would be typed in as `file:///…`. Taken here, in
+    // every field and ahead of the file handling, so a field that takes no files does not type it
+    // either; the field says what happened instead.
+    handleDrop: (_view, event, _slice, moved) => {
+      const data = event.dataTransfer
+      if (moved || !data || Array.from(data.items ?? []).some((item) => item.kind === 'file')) return false
+      const paths = droppedPaths(data)
+      if (!paths.length) return false
+      event.preventDefault()
+      pushToast(
+        takesFiles.value
+          ? t('common.file_drop.path_only', { name: paths.join(', ') })
+          : t('common.file_drop.not_here'),
+        'warn',
+      )
+      return true
+    },
   },
   extensions: [
     StarterKit.configure({
@@ -210,6 +306,12 @@ const editor = useEditor({
       orderedList: false,
       listItem: false,
       listKeymap: false,
+      // The editor shows what is stored, and markdown stores no empty paragraph. TrailingNode kept
+      // one after a closing list, table, code block or diagram that no key could delete — the same
+      // transaction put it back. Writing past the last block goes through each block's own exit:
+      // Enter in an empty item, Mod-Enter or ArrowDown out of code, ArrowDown into the gap after a
+      // table, diagram or rule — and a press below the text (`behavior/continueBelow.ts`).
+      trailingNode: false,
       // The insertion line: 2 px and the selected-border colour — values from Atlassian's design
       // framework. It answers "where will it land", and in a single container that is the only
       // signal needed: a background fill is added only when there are several competing zones.
@@ -230,6 +332,26 @@ const editor = useEditor({
         props.placeholder ??
         t(has('slash') ? 'common.editor.placeholder' : 'common.editor.placeholder_plain'),
     }),
+    // Files on the clipboard or in a drop go to the page's `attach`, ahead of the text paste. Only
+    // a field that can show a code takes them: the code is what the file becomes in the text.
+    ...(has('entityRef')
+      ? [FileAttach.configure({
+          attach: () => props.attach,
+          refuse: () => props.refuse,
+          contentFor: (text, state) => {
+            const block = state.schema.nodeFromJSON(markdownToDoc(text, features)).firstChild
+            return block?.isTextblock ? block.content : null
+          },
+          label: (done, total) => total === 1
+            ? t('common.editor.attach.uploading_one')
+            : t('common.editor.attach.uploading', { done, total }),
+          onFailure: (error) => pushToast(errorText(error)),
+          onRefused: (reason) => pushToast(reason),
+          onFolders: () => pushToast(t('common.file_drop.folder'), 'warn'),
+          onNoRoom: () => pushToast(t('common.editor.attach.no_room'), 'warn'),
+          onNotInserted: () => pushToast(t('common.editor.attach.not_inserted'), 'warn'),
+        })]
+      : []),
     // Paste must know the feature set just as loading does: the clipboard is how things the
     // field's schema does not know get into it.
     MarkdownPaste.configure({ features }),
@@ -248,13 +370,21 @@ const editor = useEditor({
           }),
         ]
       : []),
-    ...(has('entityRef') ? [EntityRef] : []),
+    ...(has('entityRef')
+      ? [EntityRef.configure({
+          images: has('image'),
+          onAnnounce: ({ position, total }) => {
+            announcement.value = t('common.editor.picture.announce', { position, total })
+          },
+          onDragging: (on) => { pictureDragging.value = on },
+        })]
+      : []),
     ...(has('diagram') ? [Diagram] : []),
     // The list is built by a function: labels come from the dictionary and survive a language switch.
     ...(has('slash')
       ? [SlashMenuExtension.configure({
           controller: slash.controller,
-          items: () => createSlashItems(t, features),
+          items: () => createSlashItems(t, features, { pickFile: takesFiles.value ? pickFile : undefined }),
         })]
       : []),
   ],
@@ -279,8 +409,10 @@ const drag = useDragPreview(editor, handlePos)
 /** The handle's box, see `.editor__grip`. The resting marks are laid out with it. */
 const GRIP_SIZE = { width: 20, height: 26 }
 
-// The frame both the live handle and the resting marks are positioned against (`.editor`).
+// The frame both the live handle and the resting marks are positioned against (`.editor`). It is
+// also the field's drop zone for files: the window's guard asks it whether it takes them.
 const frame = ref<HTMLElement | null>(null)
+const fileZone = useFileDropZone(frame, () => takesFiles.value)
 const marks = useBlockMarks(editor, frame, computed(() => has('handle') && !props.readonly), tick, GRIP_SIZE)
 
 // One glyph per block, never two. At rest a block shows its mark, and the live handle on top of it
@@ -289,11 +421,13 @@ const marks = useBlockMarks(editor, frame, computed(() => has('handle') && !prop
 // it steps aside. Two glyphs stacked on the same pixels read as one bolder icon.
 const gripHovered = ref(false)
 const gripFocused = ref(false)
-// While a block is being dragged nothing under the pointer answers it — not the handle, not a
-// block's mark: a highlight then reads as "drop here", and the drop place is the slot's to show.
-// The pointer's hover flag is also stale by then: a drag delivers no `mouseleave`.
+// While a block or a picture is being dragged nothing under the pointer answers it — not the
+// handle, not a block's mark: a highlight then reads as "drop here", and the drop place is the
+// slot's or the line's to show. The pointer's hover flag is also stale by then: a drag delivers no
+// `mouseleave`.
+const dragging = computed(() => drag.dragging.value || pictureDragging.value)
 const gripLit = computed(() =>
-  !drag.dragging.value && (gripHovered.value || gripFocused.value || moveMenu.value))
+  !dragging.value && (gripHovered.value || gripFocused.value || moveMenu.value))
 
 // The block under the pointer brings its mark up to full strength: the handle the pointer is
 // heading for stands out of the faint column. `handlePos` already follows the pointer from block
@@ -303,8 +437,14 @@ const zoneHovered = ref(false)
 watch(() => props.modelValue, (value) => {
   if (value === mine || !editor.value) return
   syncing = true
-  // The value comes from the database: it is shown as stored, even longer than the limit.
-  editor.value.chain().setMeta(LENGTH_LIMIT_BYPASS, true).setContent(markdownToDoc(value, features)).run()
+  // The value comes from the database: it is shown as stored, even longer than the limit. It is
+  // another text now, and a file still uploading has no place in it (`behavior/fileAttach.ts`).
+  editor.value
+    .chain()
+    .setMeta(LENGTH_LIMIT_BYPASS, true)
+    .setMeta(DOCUMENT_REPLACED, true)
+    .setContent(markdownToDoc(value, features))
+    .run()
   syncing = false
   mine = value
   chars.value = value.length
@@ -393,6 +533,11 @@ function move(target: 'up' | 'down' | 'start' | 'end'): void {
   editor.value?.chain().focus().moveBlock(target).run()
   moveMenu.value = false
 }
+
+// The empty part of the field below the text continues it: see `behavior/continueBelow.ts`.
+function onBodyPress(event: MouseEvent): void {
+  if (editor.value) continueBelow(editor.value, event)
+}
 </script>
 
 <template>
@@ -406,9 +551,13 @@ function move(target: 'up' | 'down' | 'start' | 'end'): void {
         `editor--${props.variant}`,
         {
           'is-dragging': drag.dragging.value,
+          'is-picture-dragging': pictureDragging,
           'editor--readonly': props.readonly,
           'editor--limited': props.maxLength !== undefined,
           'editor--handled': has('handle'),
+          'editor--file-target': fileZone.armed.value,
+          'editor--file-over': fileZone.over.value,
+          'editor--file-refused': fileZone.refused.value,
         },
       ]"
       @dragstart="onDragStart"
@@ -427,7 +576,7 @@ function move(target: 'up' | 'down' | 'start' | 'end'): void {
           :key="mark.pos"
           class="editor__mark"
           :class="{
-            'editor__mark--active': zoneHovered && !drag.dragging.value && mark.pos === handlePos,
+            'editor__mark--active': zoneHovered && !dragging && mark.pos === handlePos,
             'editor__mark--covered': gripLit && mark.pos === handlePos,
           }"
           :style="{ top: `${mark.top}px`, left: `${mark.left}px` }"
@@ -486,6 +635,7 @@ function move(target: 'up' | 'down' | 'start' | 'end'): void {
           // it would be an empty strip pushing the text away from the edge for nothing.
           '--editor-rail': has('handle') ? '20px' : '0px',
         }"
+        @mousedown="onBodyPress"
       />
 
       <!-- The counter sits in the bottom padding strip and is absolutely positioned: appearing
@@ -495,10 +645,20 @@ function move(target: 'up' | 'down' | 'start' | 'end'): void {
       </div>
 
       <SlashMenuPopup v-if="has('slash')" :state="slash.state" :controller="slash.controller" />
+      <input
+        v-if="has('slash') && has('entityRef')"
+        ref="filePicker"
+        type="file"
+        multiple
+        hidden
+        class="editor__file-picker"
+        @change="filesPicked"
+      >
       <BubbleToolbar :editor="editor" :tick="tick" :features="features" />
       <TableControls v-if="has('table')" :editor="editor" :tick="tick" />
 
-      <div v-if="has('handle')" class="editor__live" role="status" aria-live="polite">{{ announcement }}</div>
+      <div v-if="has('handle') || has('image')" class="editor__live" role="status" aria-live="polite">{{ announcement }}</div>
+      <ImageGallery v-if="has('image')" v-model="lightbox" :codes="lightboxCodes" />
     </div>
 
     <span v-if="props.hint" class="editor-field__hint">{{ props.hint }}</span>
@@ -624,14 +784,19 @@ function move(target: 'up' | 'down' | 'start' | 'end'): void {
 
 /* At rest the live handle is an empty grab area over its block's mark; its glyph shows only while
    it is in use (`--lit`, see `gripLit`), and the mark under it fades out for that time — a
-   cross-fade, both on the same 150ms, so the glyph never dips to nothing in between. */
+   cross-fade, both on the same 150ms, so the glyph never dips to nothing in between.
+   The glyphs fade by COLOUR, never by `opacity`: an opacity transition puts the glyph on a
+   compositor layer, the field's text, painted after it and overlapping it, is pushed onto a layer
+   too, and Chrome draws text there with greyscale antialiasing instead of subpixel — for the 150ms
+   of every fade the whole field's text turned lighter and thinner (TASK@C54172FEEF). A colour
+   change is only a repaint. */
 .editor__grip :deep(svg) {
-  opacity: 0;
-  transition: opacity 0.15s ease;
+  color: transparent;
+  transition: color 0.15s ease;
 }
 
 .editor__grip--lit :deep(svg) {
-  opacity: 1;
+  color: inherit;
 }
 
 /* The resting marks: the live handle's box and glyph at rest, and nothing to the pointer — a mark
@@ -651,19 +816,19 @@ function move(target: 'up' | 'down' | 'start' | 'end'): void {
   justify-content: center;
   width: 20px;
   height: 26px;
-  color: var(--text-faint);
-  opacity: 0.55;
-  transition: opacity 0.15s ease;
+  /* 55% of the handle's resting colour; faded by colour, not `opacity` — see `.editor__grip svg`. */
+  color: color-mix(in srgb, var(--text-faint) 55%, transparent);
+  transition: color 0.15s ease;
 }
 
 /* The block under the pointer: its mark at full strength, the handle's own resting colour. */
 .editor__mark--active {
-  opacity: 1;
+  color: var(--text-faint);
 }
 
 /* Declared after `--active`: a mark can be both, and covered wins. */
 .editor__mark--covered {
-  opacity: 0;
+  color: transparent;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -691,6 +856,9 @@ function move(target: 'up' | 'down' | 'start' | 'end'): void {
 
   position: relative;
   padding: 16px var(--editor-gutter) 28px;
+  /* The field's width is what a gallery steps its columns down by (`document.css`): the document
+     cannot wrap a gallery in a container of its own, as the viewer does. */
+  container-type: inline-size;
 }
 
 /* The caret needs the outline removed, and the drag handle column must lie INSIDE `.ProseMirror`:
@@ -736,6 +904,53 @@ function move(target: 'up' | 'down' | 'start' | 'end'): void {
   background: color-mix(in srgb, rgb(var(--v-theme-primary)) 9%, transparent);
 }
 
+/* ── Files from the computer ─────────────────────────────── */
+
+/* Two layers over the field, both inert and faded by `opacity` alone. While files are over the
+   window, a field that takes them wears a dashed line (`::after`) — the person sees the targets
+   before aiming. Under the pointer it also fills (`::before`): on a page with several zones the
+   fill says which one the drop goes to, and the insertion line inside says where in its text. */
+.editor::before,
+.editor::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.editor::before {
+  background: var(--accent-soft);
+  transition: opacity 350ms cubic-bezier(0.15, 1, 0.3, 1);
+}
+
+.editor::after {
+  border: 1px dashed var(--accent);
+  transition: opacity 150ms ease;
+}
+
+.editor--plain::before,
+.editor--plain::after {
+  border-radius: var(--radius-sm);
+}
+
+.editor--file-target::after,
+.editor--file-over::before {
+  opacity: 1;
+}
+
+/* A field that takes no files: the cursor already says "no", and a line promising a place in the
+   text would contradict it. Text dragged in still gets its line — this is for files only. */
+.editor--file-refused .editor__body :deep(.editor__dropcursor) {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .editor::before,
+  .editor::after { transition: none; }
+}
+
 /* ── Insertion line ──────────────────────────────────────── */
 
 /* The insertion line is just a line: thin, solid, accent-coloured. No glow, no shadows, no
@@ -744,6 +959,16 @@ function move(target: 'up' | 'down' | 'start' | 'end'): void {
 .editor__body :deep(.editor__dropcursor) {
   background-color: rgb(var(--v-theme-primary));
   border-radius: 0;
+  transition:
+    top 120ms ease,
+    left 120ms ease,
+    width 120ms ease;
+}
+
+/* Between blocks the line is horizontal, across the text column. Inside a line of text — where a
+   dropped file lands — it is the plugin's own caret, 2 px wide and a line tall: stretched across
+   the column like the block line, it read as a bar painted over the line it points into. */
+.editor__body :deep(.editor__dropcursor.prosemirror-dropcursor-block) {
   /* The plugin takes the width from the target block, and our blocks differ in width: paragraphs
      and headings have the measure, a code block and a divider do not. So the line jumped from
      block to block. We set it to the text column instead: the insertion point is a property of
@@ -754,10 +979,6 @@ function move(target: 'up' | 'down' | 'start' | 'end'): void {
   right: var(--editor-gutter) !important;
   width: auto !important;
   max-width: var(--reading-measure, 92ch);
-  transition:
-    top 120ms ease,
-    left 120ms ease,
-    width 120ms ease;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -848,6 +1069,64 @@ function move(target: 'up' | 'down' | 'start' | 'end'): void {
    exception: the card must hug its content. */
 .editor__body :deep(.editor__preview-doc > :last-child) { margin-bottom: 0; }
 
+/* ── A picture being dragged ─────────────────────────────── */
+
+/* The picture stays where it was, faded as a block's source is: where it was taken from and where
+   it returns if let go nowhere. Its copy button keeps quiet — the pointer crossing pictures is
+   aiming, not asking for a code. */
+.editor.is-picture-dragging .editor__body :deep(.md-image--drag-source) {
+  opacity: var(--editor-drag-source-opacity);
+}
+
+.editor.is-picture-dragging .editor__body :deep(.md-image__copy) {
+  opacity: 0;
+}
+
+/* The card under the pointer is the picture itself, scaled down (`pictureDrag.ts`), lifted by the
+   block preview's shadow. In the editing zone's tree, as that preview is; `fixed` so the editor
+   card's `overflow: hidden` does not clip it. The card alone is rounded and clips the picture: a
+   radius on the picture inside it would be a second arc, and light pixels show at the corners. */
+.editor__body :deep(.md-image-drag-preview) {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 3000;
+  overflow: hidden;
+  border-radius: var(--editor-drag-preview-radius);
+  background: var(--surface);
+  box-shadow: var(--editor-drag-preview-shadow);
+  pointer-events: none;
+}
+
+.editor__body :deep(.md-image-drag-preview > img) {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Where it lands: the insertion line, 2 px in the block line's colour. Upright between two pictures
+   (as tall as they are) and in a line of text (a caret tall); lying across a block between two blocks,
+   where the picture opens a line of its own. Its box is set by the gesture; it glides between places
+   like the block line. */
+.editor__body :deep(.md-image-drop-line) {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 3000;
+  background-color: rgb(var(--v-theme-primary));
+  pointer-events: none;
+  visibility: hidden;
+  transition:
+    transform 120ms ease,
+    width 120ms ease,
+    height 120ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .editor__body :deep(.md-image-drop-line) { transition-duration: 1ms; }
+}
+
 /* ── Move confirmation ───────────────────────────────────── */
 
 /* A 700 ms flash on the moved block: after a move the eye loses the object among its neighbours,
@@ -921,6 +1200,41 @@ function move(target: 'up' | 'down' | 'start' | 'end'): void {
   bottom: -4px;
 }
 
+/* An upload in flight, where its code will stand: a quiet chip in the line, not a block — the text
+   around it does not move until the code arrives. ProseMirror draws the widget, hence `:deep`. */
+.editor__body :deep(.editor__attaching) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 2px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 20px;
+  vertical-align: baseline;
+  user-select: none;
+}
+
+.editor__body :deep(.editor__attaching)::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: editor-attaching 0.8s linear infinite;
+}
+
+@keyframes editor-attaching {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .editor__body :deep(.editor__attaching)::before { animation: none; }
+}
+
 /* Yellow — "the limit is near", red — "you'll hit it in a couple of words", and red as well for a
    body that arrived over the limit. Theme colours, as in `LimitField`: in the light theme warning
    is a dark amber, pure yellow on white would not be readable. */
@@ -943,5 +1257,16 @@ function move(target: 'up' | 'down' | 'start' | 'end'): void {
   height: 0;
   pointer-events: none;
   color: var(--text-faint);
+}
+</style>
+
+<!-- Not `scoped`: while a picture is held the pointer leaves the field, and the gesture's cursor and
+     its stop on text selection go on `body` (`pictureDrag.ts`). In a scoped block `body.x *` would
+     compile to a bare `body.x` and lose the rest of itself. -->
+<style>
+body.md-picture-dragging,
+body.md-picture-dragging * {
+  cursor: grabbing !important;
+  user-select: none !important;
 }
 </style>

@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict'
 
 const contracts = await import(new URL('../../web/src/components/markdown/shared/contracts.ts', import.meta.url).href)
-const { REF_TYPES, REF_CODE, WHOLE_CODE_SPAN, canonicalCode, parseRefCode, refPath } = contracts
+const { REF_TYPES, REF_CODE, WHOLE_CODE_SPAN, canonicalCode, parseRefCode, refIsFile, refIsMissing, refPath } = contracts
 
 const HASH = '0123456789'
 
@@ -19,7 +19,7 @@ const scenarios = {
   every_backend_type_is_in_the_vocabulary() {
     assert.deepEqual(
       [...REF_TYPES].sort(),
-      ['CODEX', 'JOURNAL', 'NOTE', 'STAGE', 'TASK', 'TASKGROUP', 'WORKSPACE'],
+      ['CODEX', 'FILE', 'IMAGE', 'JOURNAL', 'NOTE', 'STAGE', 'TASK', 'TASKGROUP', 'WORKSPACE'],
     )
   },
 
@@ -75,9 +75,32 @@ const scenarios = {
     assert.equal(refPath(`TASKGROUP@${HASH}`), '/tasks/groups')
     assert.equal(refPath(`WORKSPACE@${HASH}`), '/workspaces')
     assert.equal(refPath(`CODEX@${HASH}`), `/codex/materials/CODEX@${HASH}`)
-    for (const type of ['STAGE', 'JOURNAL', 'NOTE']) {
+    for (const type of ['STAGE', 'JOURNAL', 'NOTE', 'FILE', 'IMAGE']) {
       assert.equal(refPath(`${type}@${HASH}`), null, `${type} waits for its preview`)
     }
+  },
+
+  only_a_file_opens_outside_the_app() {
+    assert.ok(refIsFile(`FILE@${HASH}`))
+    assert.ok(refIsFile(`IMAGE@${HASH}`))
+    assert.ok(refIsFile(`image@${HASH}`), 'a lower-case prefix is still a file')
+    for (const type of ['TASKGROUP', 'TASK', 'STAGE', 'JOURNAL', 'NOTE', 'WORKSPACE', 'CODEX']) {
+      assert.ok(!refIsFile(`${type}@${HASH}`), type)
+    }
+  },
+
+  a_file_gone_from_the_storage_is_red_but_only_not_found_of_the_rest() {
+    for (const miss of ['not_found', 'deleted']) {
+      assert.ok(refIsMissing(`FILE@${HASH}`, miss), `FILE ${miss}`)
+      assert.ok(refIsMissing(`IMAGE@${HASH}`, miss), `IMAGE ${miss}`)
+    }
+    // A file is shown wherever it was brought in; the workspace is not a verdict about it.
+    assert.ok(!refIsMissing(`FILE@${HASH}`, 'foreign_scope'), 'FILE foreign_scope')
+    assert.ok(!refIsMissing(`FILE@${HASH}`, 'failed'), 'a failed request is not a verdict')
+    assert.ok(!refIsMissing(`FILE@${HASH}`, undefined), 'found or pending')
+    assert.ok(refIsMissing(`TASK@${HASH}`, 'not_found'))
+    assert.ok(!refIsMissing(`TASK@${HASH}`, 'deleted'))
+    assert.ok(!refIsMissing(`CODEX@${HASH}`, 'foreign_scope'))
   },
 }
 

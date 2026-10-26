@@ -12,20 +12,22 @@
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3'
-import { usePreviewStore } from '@/stores/preview'
-import { refPath } from '../../shared/contracts'
-import EntityPreviewPopup from '../../shared/EntityPreviewPopup.vue'
+import { usePreviews } from '@/stores/preview'
+import { refIsFile, refIsMissing, refPath } from '../../../shared/contracts'
+import EntityPreviewPopup from '../../../shared/EntityPreviewPopup.vue'
+import { fileKindClass } from '../../../shared/fileKind'
 
 const props = defineProps(nodeViewProps)
 
 const router = useRouter()
-const previews = usePreviewStore()
+const previews = usePreviews()
 
 const code = computed(() => String(props.node.attrs.code ?? ''))
 const typeClass = computed(() => `md-ref--${code.value.split('@')[0].toLowerCase()}`)
 // The preview knows every type's page; before it comes, what the code alone can tell (or nothing).
 const href = computed(() => previews.get(code.value)?.link || refPath(code.value) || undefined)
-const missing = computed(() => previews.get(code.value)?.error?.code === 'not_found')
+const missing = computed(() => refIsMissing(code.value, previews.get(code.value)?.error?.code))
+const kindClass = computed(() => fileKindClass(code.value, previews.get(code.value)))
 
 // Every pill of a document mounts in the same tick, so the store gathers them into one request.
 watch(code, (value) => previews.ensure([value]), { immediate: true })
@@ -47,7 +49,7 @@ function open(event: MouseEvent): void {
   event.preventDefault()
   const target = href.value
   if (!target) return
-  if (event.ctrlKey || event.metaKey || event.shiftKey || event.button === 1) {
+  if (refIsFile(code.value) || event.ctrlKey || event.metaKey || event.shiftKey || event.button === 1) {
     window.open(target, '_blank', 'noopener')
     return
   }
@@ -62,7 +64,7 @@ function open(event: MouseEvent): void {
     ref="wrapper"
     as="span"
     class="md-ref md-ref--editable"
-    :class="[typeClass, { 'md-ref--selected': props.selected, 'md-ref--missing': missing }]"
+    :class="[typeClass, kindClass, { 'md-ref--selected': props.selected, 'md-ref--missing': missing }]"
     @mouseenter="onPointerEnter"
     @mouseleave="onPointerLeave"
   >
@@ -91,8 +93,9 @@ function open(event: MouseEvent): void {
   cursor: pointer;
 }
 
+/* In the pill's own colour (`--md-ref-color`, `shared/document.css`): a selected file stays green. */
 .md-ref--selected {
-  background: color-mix(in srgb, rgb(var(--v-theme-primary)) 22%, transparent);
-  border-color: rgb(var(--v-theme-primary));
+  background: color-mix(in srgb, rgb(var(--md-ref-color)) 22%, transparent);
+  border-color: rgb(var(--md-ref-color));
 }
 </style>

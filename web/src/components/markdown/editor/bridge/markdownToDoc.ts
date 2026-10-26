@@ -306,7 +306,8 @@ function inlineContent(children: Token[]): JSONContent[] {
 
       case 'code_inline': {
         const code = token.content.trim()
-        if (WHOLE_CODE_SPAN.test(code)) out.push(refNode(code))
+        // In a link label a code stays what it was written as, as in plain text (`textWithRefs`).
+        if (WHOLE_CODE_SPAN.test(code) && !inLink(marks)) out.push(refNode(code, marks))
         else out.push(textNode(token.content, [...marks, { type: 'code' }]))
         break
       }
@@ -325,8 +326,9 @@ function inlineContent(children: Token[]): JSONContent[] {
         drop('link')
         break
 
+      // A line break takes the marks of its run, as a pill does: `**a  \nb**` stays one run.
       case 'hardbreak':
-        out.push({ type: 'hardBreak' })
+        out.push(marks.length ? { type: 'hardBreak', marks: marks.map((mark) => ({ ...mark })) } : { type: 'hardBreak' })
         break
       case 'softbreak':
         out.push(textNode(' ', marks))
@@ -348,15 +350,19 @@ function inlineContent(children: Token[]): JSONContent[] {
 // A code is recognized only in plain text. Inside a link label it would nest an <a> in an <a>, and
 // the renderer refuses there too — but the label arrives here already carrying the link mark, so
 // splitting is skipped for it.
+function inLink(marks: Mark[]): boolean {
+  return marks.some((mark) => mark.type === 'link')
+}
+
 function textWithRefs(text: string, marks: Mark[]): JSONContent[] {
-  if (marks.some((mark) => mark.type === 'link')) return [textNode(text, marks)]
+  if (inLink(marks)) return [textNode(text, marks)]
 
   const parts: JSONContent[] = []
   let cursor = 0
   for (const match of text.matchAll(REF_CODE)) {
     const start = match.index ?? 0
     if (start > cursor) parts.push(textNode(text.slice(cursor, start), marks))
-    parts.push(refNode(match[0]))
+    parts.push(refNode(match[0], marks))
     cursor = start + match[0].length
   }
   if (!parts.length) return [textNode(text, marks)]
@@ -368,6 +374,9 @@ function textNode(text: string, marks: Mark[]): JSONContent {
   return marks.length ? { type: 'text', text, marks: marks.map((mark) => ({ ...mark })) } : { type: 'text', text }
 }
 
-function refNode(code: string): JSONContent {
-  return { type: 'entityRef', attrs: { code: canonicalCode(code) } }
+// A pill takes the marks of the run it stands in: without them `**bold CODE text**` became two runs
+// around a bare pill, and every save of the field rewrote it as `**bold** CODE **text**`.
+function refNode(code: string, marks: Mark[]): JSONContent {
+  const node: JSONContent = { type: 'entityRef', attrs: { code: canonicalCode(code) } }
+  return marks.length ? { ...node, marks: marks.map((mark) => ({ ...mark })) } : node
 }
