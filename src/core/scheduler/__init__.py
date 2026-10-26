@@ -95,6 +95,11 @@ async def start(config: Config) -> None:
     await _TICKER.start()
 
 
+def is_ticking() -> bool:
+    """Whether this process runs the ticker — after ``start``, the answer for its whole life."""
+    return _TICKER is not None
+
+
 async def stop() -> None:
     global _TICKER, _WORKER_OVERRIDE
     _WORKER_OVERRIDE = None
@@ -113,6 +118,7 @@ __all__ = [
     "Ticker",
     "configure_worker",
     "get_registry",
+    "is_ticking",
     "register",
     "run_entry",
     "start",
