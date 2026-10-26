@@ -27,6 +27,8 @@ module, in ``tests/modules/workbench/``.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
@@ -34,6 +36,9 @@ from httpx import ASGITransport, AsyncClient
 from src.core.api import register_exception_handlers
 from src.core.config import Config
 from src.core.database import close_database, init_database
+from src.modules.core_storage import layout as storage_layout
+from src.modules.core_storage import settings as storage_settings
+from src.modules.core_storage.layout import StorageLayout
 from src.modules.tasks.api import router
 from src.modules.workspace.crud.workspace import workspace_create
 
@@ -85,3 +90,15 @@ async def client(app):
         transport=ASGITransport(app=app), base_url="http://test"
     ) as c:
         yield c
+
+
+@pytest.fixture
+def storage(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> StorageLayout:
+    """A ``core_storage`` layout in a temp folder with the default settings — the files a task
+    attaches land here, never in ``runtime/``. The tables come with the ``db`` schema: the tasks
+    models pull the storage models in as their FK target."""
+    layout = StorageLayout(tmp_path / "storage", tmp_path / "tmp", ("public", "private"))
+    layout.ensure_dirs()
+    monkeypatch.setattr(storage_layout, "_layout", layout)
+    monkeypatch.setattr(storage_settings, "_current", None)
+    return layout

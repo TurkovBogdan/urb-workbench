@@ -7,9 +7,10 @@ this package imports it, otherwise the FK has nothing to point at.
 
 The ``notes`` table is the other FK target, and ``models/note.py`` imports its model itself: a
 task note is not a task note without its document, so every schema built from these models has
-both.
+both. ``models/file.py`` does the same with ``core_storage_file``.
 """
 
+from src.modules.tasks.models.file import TasksFile
 from src.modules.tasks.models.group import TasksGroup
 from src.modules.tasks.models.journal import TasksJournal
 from src.modules.tasks.models.link import TasksLink
@@ -24,4 +25,5 @@ __all__ = [
     "TasksStage",
     "TasksJournal",
     "TasksNote",
+    "TasksFile",
 ]

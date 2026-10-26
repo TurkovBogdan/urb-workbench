@@ -16,6 +16,8 @@ and an agent scan a list by, not prose (prose lives in ``body`` with no limit).
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 from src.modules.notes.constants import NOTE_CODE_PREFIX as NOTES_CODE_PREFIX
 
 # ── presentation code prefixes (the boundary, NOT storage — see tasks.codes) ──
@@ -32,6 +34,9 @@ STAGE_CODE_PREFIX = "STAGE"
 JOURNAL_CODE_PREFIX = "JOURNAL"
 # A task note is a document of the ``notes`` module linked to a task; its code is that module's.
 NOTE_CODE_PREFIX = NOTES_CODE_PREFIX
+# A file of ``core_storage``, as it is written in a text and sent to the change feed. The storage
+# hands out bare codes and leaves the type word to its consumers.
+FILE_CODE_PREFIX = "FILE"
 
 # Retired type words still accepted on input, mapped to the current one. Codes already written into
 # task bodies, journals and agents' notes keep resolving; output never uses them.
@@ -81,6 +86,18 @@ RESOLUTION_MAX = 1024
 # Width of columns holding a value from the vocabularies below (status/priority/type/actor). The
 # longest value is ``in_progress`` (11), with room for a future word or two.
 ENUM_VALUE_MAX = 16
+
+# ── files of a task ──
+# A file's title in the task (not its name — the name the file came under is the storage's) and
+# what is inside it. Both optional, refused over the limit rather than cut.
+FILE_TITLE_MAX = 256
+FILE_DESCRIPTION_MAX = 256
+# The ``core_storage`` store task files go to.
+FILE_STORE = "public"
+# The reconciliation releases only owners taken longer ago than this. An attach takes its owner
+# and writes its row a moment later; in another process the task's file lock does not hold it
+# off, the owner's age does — no attach is in flight for minutes.
+FILE_OWNER_GRACE = timedelta(minutes=10)
 
 # ── list positions ──
 # Higher ``sort`` = higher up. A non-zero starting value, so the first row can be moved both up
@@ -225,6 +242,11 @@ __all__ = [
     "DESCRIPTION_MAX",
     "ENUM_VALUE_MAX",
     "EVIDENCE_MAX",
+    "FILE_CODE_PREFIX",
+    "FILE_DESCRIPTION_MAX",
+    "FILE_OWNER_GRACE",
+    "FILE_STORE",
+    "FILE_TITLE_MAX",
     "GROUP_CODE_PREFIX",
     "GROUP_DESCRIPTION_MAX",
     "GROUP_TASKS_DELETE",

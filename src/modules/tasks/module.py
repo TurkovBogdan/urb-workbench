@@ -7,7 +7,8 @@ reverse dependency and cannot be: the lower-level module knows nothing about tas
 Five tables: ``tasks_group`` → ``tasks`` (the task itself, named after the module — ``tasks_task``
 would be a stutter), the task's place in the tree is split out into ``tasks_link`` (an edge:
 parent + position), and the work plan into ``tasks_stage`` (stages) and ``tasks_journal``
-(journal). The schema is built by ``tsm_*`` migrations on portable types — the chain runs on both
+(journal); ``tasks_note`` and ``tasks_file`` say which notes of ``notes`` and which files of
+``core_storage`` a task holds. The schema is built by ``tsm_*`` migrations on portable types — the chain runs on both
 SQLite (dev) and PostgreSQL. It starts at ``tsm_001_group``: the module does not create the
 workspace table — it belongs to ``workspace``, and our first revision only declares
 ``depends_on`` on it, because an FK target must exist before the reference.
@@ -47,6 +48,7 @@ from fastapi import FastAPI
 
 from src.core.config import Config
 from src.core.module import Module
+from src.core.scheduler.registry import get_registry
 from src.modules.core_changes import ChangeEntity, Code, register_entity
 from src.modules.core_lookup import LookupType, register_type
 from src.modules.tasks import lookup
@@ -54,7 +56,9 @@ from src.modules.tasks import models  # noqa: F401 — registers the models in B
 from src.modules.tasks.api import router
 from src.modules.tasks.crud import group as group_crud
 from src.modules.tasks.crud import task as task_crud
+from src.modules.tasks.file_holders import register_file_holders
 from src.modules.tasks.constants import (
+    FILE_CODE_PREFIX,
     GROUP_CODE_PREFIX,
     JOURNAL_CODE_PREFIX,
     LEGACY_CODE_PREFIXES,
@@ -62,7 +66,10 @@ from src.modules.tasks.constants import (
     STAGE_CODE_PREFIX,
     TASK_CODE_PREFIX,
 )
+from src.modules.tasks.scheduled.file_owners_task import FileOwnersTask
+from src.modules.tasks.workspace_purge import WORKSPACE_PURGE_HOOK
 from src.modules.workspace.constants import WORKSPACE_CODE_PREFIX
+from src.modules.workspace.purge import register_purge_hook
 from src.modules.workspace.stats import WorkspaceCounter, register_counter
 
 # What the change feed (``core_changes``) sees of this module. The names are a public contract
@@ -110,6 +117,18 @@ CHANGE_ENTITIES = (
         id=Code("note_code", NOTE_CODE_PREFIX),
         refs=(Code("task_code", TASK_CODE_PREFIX),),
     ),
+    # A file's binding to a task, named by the file; the task's page knows it by the task, and the
+    # note and the stage say where in it the file was attached.
+    ChangeEntity(
+        "tasks.file",
+        models.TasksFile,
+        id=Code("file_code", FILE_CODE_PREFIX),
+        refs=(
+            Code("task_code", TASK_CODE_PREFIX),
+            Code("note_code", NOTE_CODE_PREFIX),
+            Code("stage_code", STAGE_CODE_PREFIX),
+        ),
+    ),
 )
 
 # The codes this module answers for in the lookup. ``NOTE@`` belongs to ``notes``, but only this
@@ -139,9 +158,11 @@ class TasksModule(Module):
     internal_router_prefix = "/workbench"
 
     def configure(self, app: FastAPI, config: Config) -> None:
-        """Tell the workspace what we keep in it — and how to count it; tell the change feed what
-        of it the frontend sees (``CHANGE_ENTITIES``); answer for our codes in the lookup
-        (``LOOKUP_TYPES``).
+        """Tell the workspace what we keep in it — and how to count it, and what to let go of when
+        it is purged (``WORKSPACE_PURGE_HOOK``); tell the change feed what of it the frontend sees
+        (``CHANGE_ENTITIES``); answer for our codes in the lookup (``LOOKUP_TYPES``); schedule the
+        reconciliation of our storage owners (``FileOwnersTask``); read our codes as the holder of
+        a served file and of an upload (``file_holders``).
 
         Groups come before tasks (``sort``): on the card the layout reads first, then what fills
         it. The label keys are ours — renaming "group" is edited where the entity lives, not in a
@@ -167,6 +188,10 @@ class TasksModule(Module):
             register_entity(entity)
         for kind in LOOKUP_TYPES:
             register_type(kind)
+        register_purge_hook(WORKSPACE_PURGE_HOOK)
+        register_file_holders()
+        if get_registry().get(FileOwnersTask.MODULE, FileOwnersTask.CODE) is None:
+            FileOwnersTask.register()
 
 
 __all__ = ["TasksModule"]

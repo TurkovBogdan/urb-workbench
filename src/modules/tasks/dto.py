@@ -33,6 +33,7 @@ from pydantic import BaseModel, ConfigDict
 from src.core.utils.date import DatetimeUTCStr
 from src.modules.tasks.codes import prefixed
 from src.modules.tasks.constants import (
+    FILE_CODE_PREFIX,
     GROUP_CODE_PREFIX,
     JOURNAL_CODE_PREFIX,
     NOTE_CODE_PREFIX,
@@ -53,6 +54,7 @@ TaskCode = prefixed(TASK_CODE_PREFIX)
 StageCode = prefixed(STAGE_CODE_PREFIX)
 JournalCode = prefixed(JOURNAL_CODE_PREFIX)
 NoteCode = prefixed(NOTE_CODE_PREFIX)
+FileCode = prefixed(FILE_CODE_PREFIX)
 
 
 class GroupRow(BaseModel):
@@ -187,6 +189,31 @@ class TaskNoteDetail(TaskNoteRow):
     body: str = ""
 
 
+class TaskFileRow(BaseModel):
+    """A file in the task's list: the binding, and what the storage knows of the file.
+
+    ``title`` empty — the file is shown under the name it came in with,
+    ``original_filename + original_extension``. ``note_code`` / ``stage_code`` — where in the task
+    it was attached; both empty — the task as a whole. The list holds the files of the task's
+    notes and stages too: a file is in the task once.
+    """
+
+    code: FileCode
+    task_code: TaskCode
+    note_code: NoteCode | None = None
+    stage_code: StageCode | None = None
+    title: str = ""
+    description: str = ""
+    original_filename: str = ""
+    original_extension: str = ""
+    mime: str
+    type: str
+    size: int
+    sort: int = SORT_DEFAULT
+    created_at: DatetimeUTCStr
+    updated_at: DatetimeUTCStr
+
+
 class TaskDetail(TaskListRow):
     """The whole task: brief, plan, tree neighbours, group, stages, journal and notes.
 
@@ -219,6 +246,7 @@ class TaskDetail(TaskListRow):
 
 
 __all__ = [
+    "FileCode",
     "GroupCode",
     "GroupListRow",
     "GroupRow",
@@ -229,6 +257,7 @@ __all__ = [
     "StageRow",
     "TaskCode",
     "TaskDetail",
+    "TaskFileRow",
     "TaskListRow",
     "TaskNoteDetail",
     "TaskNoteRow",
