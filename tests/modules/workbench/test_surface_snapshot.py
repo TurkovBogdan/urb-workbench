@@ -2,8 +2,8 @@
 
 A connected client caches tool schemas at connect time: a renamed argument, a reworded refusal
 in a description, a field dropped from an answer's schema breaks it while the write still lands.
-So the whole listing — every tool with its name, description, input and output JSON schema, and
-the server instructions — is compared with ``workbench_surface.json`` as a whole, not field by
+So the whole listing — every tool with its name, description, input and output JSON schema, every
+resource template, and the server instructions — is compared with ``workbench_surface.json`` as a whole, not field by
 field: a difference anywhere is a deployment decision, not a refactoring detail.
 
 The server version is left out: it follows the release number, which changes on every release
@@ -49,6 +49,8 @@ _DISPATCH_CALLS = (
     ("content_set", {"code": "STAGE@0000000000", "field": "evidence", "text": "x"}),
     ("content_set", {"code": "JOURNAL@0000000000", "field": "resolution", "text": "x"}),
     ("content_set", {"code": "NOTE@0000000000", "field": "title", "text": "x"}),
+    ("attach_file", {"code": "SOURCE@0000000000"}),
+    ("delete", {"code": "TASK@0000000000", "holder": "TASK@0000000000"}),
 )
 
 
@@ -56,6 +58,7 @@ async def _surface() -> dict:
     server = mcp_server(McpServerContext(auth=None, audit=Middleware(), allowed_hosts=[]))
     async with Client(server) as client:
         tools = await client.list_tools()
+        templates = await client.list_resource_templates()
         instructions = client.initialize_result.instructions
         refusals = []
         for name, arguments in _DISPATCH_CALLS:
@@ -70,6 +73,9 @@ async def _surface() -> dict:
     return {
         "instructions": instructions,
         "tools": [tool.model_dump(mode="json", exclude_none=True) for tool in tools],
+        "resource_templates": [
+            template.model_dump(mode="json", exclude_none=True) for template in templates
+        ],
         "dispatch_refusals": refusals,
     }
 

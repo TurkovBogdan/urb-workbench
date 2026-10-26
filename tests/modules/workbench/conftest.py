@@ -7,6 +7,11 @@ every domain module below it, so their models are imported here: without an FK t
 metadata ``create_all`` fails with ``NoReferencedTableError`` — a full run hides this (another
 module has already pulled its models in), a single-module run catches it at once.
 
+``storage`` points the file storage and its settings at a temp folder for the tests that attach
+files, sets an installation key of the test's own, and registers what ``tasks``, ``codex`` and
+this module register from their ``configure()`` — the holders the path and the upload request
+hand the bytes to, and the answer to the PUT that completes a request.
+
 ``workspace`` spares almost every test the same first line: neither a group nor a task can be
 created without a workspace. The row is created by the ``workspace`` module's CRUD — the path the
 application takes.
@@ -21,15 +26,29 @@ in-memory — ``test_mcp_session_http.py`` does that.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from fastmcp import Client
 from fastmcp.server.middleware import Middleware
 
-from src.core.config import Config
+from src.core.config import Config, get_config
 from src.core.database import close_database, init_database
 from src.core.mcp.context import McpServerContext
+from src.modules.core_storage import layout as storage_layout
+from src.modules.core_storage import settings as storage_settings
+from src.modules.codex.file_holders import register_file_holders as register_codex_holders
+from src.modules.core_storage.layout import StorageLayout
+from src.modules.core_storage_upload import settings as upload_settings
+from src.modules.core_storage_upload.services import holders as upload_holders
+from src.modules.core_storage_upload.services import requests as requests_module
+from src.modules.tasks.file_holders import register_file_holders as register_task_holders
+from src.modules.workbench.files.answers import upload_answer
 from src.modules.workbench.server import mcp_server
 from src.modules.workspace.crud.workspace import workspace_create
+
+# The installation key these tests run with: an answer to the agent must never carry it.
+SECRETS_KEY = "test-secrets-key-not-for-production-0000000"
 
 
 @pytest.fixture
@@ -37,6 +56,7 @@ async def db(config: Config):
     engine = await init_database(config)
     from src.core.database.runtime import Base
     import src.modules.codex.models  # noqa: F401 — registers the codex tables
+    import src.modules.core_storage_upload.models  # noqa: F401 — the upload requests
     import src.modules.notes.models  # noqa: F401 — the ``note_code`` FK target of task notes
     import src.modules.tasks.models  # noqa: F401 — registers the tasks tables
     import src.modules.workspace.models  # noqa: F401 — the ``workspace_code`` FK target
@@ -47,6 +67,25 @@ async def db(config: Config):
         yield
     finally:
         await close_database()
+
+
+@pytest.fixture
+def storage(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> StorageLayout:
+    """The file storage in a temp folder, default settings, a known installation key, the
+    holders of both registries and the answer to an upload request — module-level state of
+    ``core_storage`` / ``core_storage_upload`` / ``core_storage_view``, one per test."""
+    layout = StorageLayout(tmp_path / "storage", tmp_path / "tmp", ("public", "private"))
+    layout.ensure_dirs()
+    monkeypatch.setattr(storage_layout, "_layout", layout)
+    monkeypatch.setattr(storage_settings, "_current", None)
+    monkeypatch.setattr(upload_settings, "_current", None)
+    monkeypatch.setenv("SECRETS_KEY", SECRETS_KEY)
+    get_config.cache_clear()
+    monkeypatch.setattr(upload_holders, "_holders", {})
+    monkeypatch.setattr(requests_module, "_answer", upload_answer)
+    register_task_holders()
+    register_codex_holders()
+    return layout
 
 
 @pytest.fixture

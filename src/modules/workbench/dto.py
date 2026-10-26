@@ -23,8 +23,12 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from src.core.utils.date import DatetimeUTCStr
 from src.modules.codex.dto import CodexCode
-from src.modules.tasks.dto import GroupCode, JournalCode, NoteCode, StageCode, TaskCode
+from src.modules.tasks.dto import FileCode, GroupCode, JournalCode, NoteCode, StageCode, TaskCode
 from src.modules.workspace.dto import WorkspaceCode
+
+
+def _absent(value: object) -> bool:
+    return value is None
 
 
 # ── workspace ─────────────────────────────────────────────────────────────────
@@ -182,6 +186,60 @@ class AgentTaskNoteCreated(AgentScope):
     code: NoteCode
 
 
+# ── file ──────────────────────────────────────────────────────────────────────
+# A file as its holder lists it (task_get, codex_get): the code to use and what it is called and
+# holds there — nothing else; file_get reads the rest when the work needs it.
+class AgentFileRow(BaseModel):
+    code: FileCode
+    title: str = ""
+    description: str = ""
+
+
+# Where to send the bytes when the server cannot reach the file: a one-time address, when it
+# closes, and the command that sends them. The PUT answers with ``AgentFileAttached``.
+class AgentFileUpload(BaseModel):
+    url: str
+    path: str
+    expires_at: DatetimeUTCStr
+    command: str
+
+
+# attach_file answers one of two ways, the other half left out: attached — the code, the insert for
+# a text (``IMAGE@`` for a picture, ``FILE@`` otherwise), the title and description as stored; or
+# not reachable from the server — ``upload``, and the same attached shape comes back from the PUT.
+class AgentFileAttached(AgentScope):
+    code: FileCode | None = Field(default=None, exclude_if=_absent)
+    insert: str | None = Field(default=None, exclude_if=_absent)
+    title: str | None = Field(default=None, exclude_if=_absent)
+    description: str | None = Field(default=None, exclude_if=_absent)
+    upload: AgentFileUpload | None = Field(default=None, exclude_if=_absent)
+
+
+# One place here holding the file — the holder to name in delete(code, holder), and what the file
+# is called and holds there.
+class AgentFilePlace(BaseModel):
+    holder: str
+    title: str = ""
+    description: str = ""
+
+
+# file_get: what the file is and three ways to it — ``url`` downloads it, ``resource`` shows it to
+# the model (a picture as a picture, text as text), ``path`` reads it where the server runs.
+# ``name`` is the name it came under.
+class AgentFile(AgentScope):
+    code: FileCode
+    insert: str
+    name: str
+    mime: str
+    type: str
+    size: int
+    url: str
+    download_url: str
+    resource: str
+    path: str
+    places: list[AgentFilePlace] = []
+
+
 # The work screen: brief, plan, stages and whatever is still open.
 #
 # Closed journal entries are not here, only their count: they answer "how did we get here", which
@@ -218,6 +276,7 @@ class AgentTaskDetail(AgentScope):
     closed_entries: int = 0
     unfinished_stages: int = 0
     notes: list[AgentTaskNoteRow] = []
+    files: list[AgentFileRow] = []
 
 
 # A creation receipt: the code and the workspace, nothing more. The agent would pay for an echo of
@@ -370,6 +429,7 @@ class AgentCodexNode(BaseModel):
     description: str = ""
     body: str = ""
     children: list[AgentCodexChild] = Field(default_factory=list, exclude_if=lambda v: not v)
+    files: list[AgentFileRow] = Field(default_factory=list, exclude_if=lambda v: not v)
 
 
 # Always a list, also for one node, in the order asked; no workspace fields, as in the index. A
@@ -433,6 +493,11 @@ __all__ = [
     "AgentContentReplaced",
     "AgentContentSectionSet",
     "AgentContentSet",
+    "AgentFile",
+    "AgentFileAttached",
+    "AgentFilePlace",
+    "AgentFileRow",
+    "AgentFileUpload",
     "AgentGroupList",
     "AgentGroupRow",
     "AgentJournalCreated",

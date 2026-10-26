@@ -71,6 +71,18 @@ class Deletable(Fence):
         raise NotImplementedError
 
 
+class Detachable(Deletable):
+    """An entity held in several places at once: ``delete`` with a holder takes it out of one.
+
+    Without a holder ``delete`` acts only when one place is visible; with several it refuses and
+    names them, so the agent never removes the copy it did not mean.
+    """
+
+    async def detach(self, bare: str, holder: str) -> bool:
+        """Take the entity out of the place ``holder`` (a code, as the agent passed it) names."""
+        raise NotImplementedError
+
+
 class Openable(Fence):
     """An entity ``interface_open`` can put on the person's screen."""
 
@@ -92,4 +104,4 @@ def by_prefix(*handlers: Handler) -> dict[str, Handler]:
     return registry
 
 
-__all__ = ["Deletable", "Fence", "Openable", "OwnedFence", "by_prefix"]
+__all__ = ["Deletable", "Detachable", "Fence", "Openable", "OwnedFence", "by_prefix"]

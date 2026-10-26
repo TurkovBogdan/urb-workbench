@@ -59,6 +59,8 @@ async def test_a_preview_and_an_error_come_back_as_records(client, seen):
             "title": "A",
             "description": "about A",
             "link": "/tasks/task/TASK@AA",
+            "mime": "",
+            "held": False,
             "error": None,
         },
         {
@@ -66,6 +68,8 @@ async def test_a_preview_and_an_error_come_back_as_records(client, seen):
             "title": "",
             "description": "",
             "link": "",
+            "mime": "",
+            "held": False,
             "error": {"code": "deleted", "message": "The entity is deleted."},
         },
     ]
@@ -76,6 +80,13 @@ async def test_the_workspace_reaches_the_handler_as_a_filter(client, seen):
     await client.post(URL, json={"codes": ["TASK@AA"]})
 
     assert seen == [{"workspace": "WORKSPACE@CC"}, {}]
+
+
+async def test_the_page_s_holder_reaches_the_handler_as_a_filter(client, seen):
+    await client.post(URL, json={"codes": ["TASK@AA"], "workspace": "WORKSPACE@CC", "holder": "TASK@DD"})
+    await client.post(URL, json={"codes": ["TASK@AA"], "holder": ""})
+
+    assert seen == [{"workspace": "WORKSPACE@CC", "holder": "TASK@DD"}, {}]
 
 
 async def test_a_batch_over_the_limit_is_refused_whole(client, seen):

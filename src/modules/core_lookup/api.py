@@ -10,7 +10,7 @@ from fastapi import APIRouter
 
 from src.modules.core_lookup import engine
 from src.modules.core_lookup.dto import PreviewOut, PreviewRequest
-from src.modules.core_lookup.registry import WORKSPACE_FILTER
+from src.modules.core_lookup.registry import HOLDER_FILTER, WORKSPACE_FILTER
 
 router = APIRouter(tags=["lookup"])
 
@@ -19,6 +19,8 @@ router = APIRouter(tags=["lookup"])
 async def preview_codes(body: PreviewRequest) -> list[PreviewOut]:
     """A record for every distinct requested code: title, description and link, or the error."""
     filters = {WORKSPACE_FILTER: body.workspace} if body.workspace else {}
+    if body.holder:
+        filters[HOLDER_FILTER] = body.holder
     return await engine.preview(body.codes, filters)
 
 

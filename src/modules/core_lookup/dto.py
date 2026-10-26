@@ -22,6 +22,8 @@ class PreviewRequest(BaseModel):
     codes: list[Annotated[str, StringConstraints(max_length=CODE_MAX)]] = Field(max_length=MAX_CODES)
     # The workspace the person works in (``WORKSPACE@…``); passed to the handlers as a filter.
     workspace: str | None = None
+    # The entity whose page shows the codes (``TASK@…``, ``CODEX@…``); a filter as well.
+    holder: Annotated[str, StringConstraints(max_length=CODE_MAX)] | None = None
 
 
 class PreviewErrorOut(BaseModel):
@@ -34,6 +36,10 @@ class PreviewOut(BaseModel):
     title: str = ""
     description: str = ""
     link: str = ""
+    # A stored file's type (``application/pdf``); empty for every other code.
+    mime: str = ""
+    # The request's holder holds the file: its title and description are the page's to edit.
+    held: bool = False
     error: PreviewErrorOut | None = None
 
 
