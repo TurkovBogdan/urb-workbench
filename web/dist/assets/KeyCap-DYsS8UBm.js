@@ -1,1 +1,0 @@
-import{bH as a,cU as s,by as t,dd as o,bd as c}from"./index-DitlXhVX.js";/* empty css                                                               */const p={class:"key-cap"},n=a({__name:"KeyCap",props:{label:{}},setup(e){return(r,_)=>(s(),t("kbd",p,o(e.label),1))}}),i=c(n,[["__scopeId","data-v-a54cea79"]]);export{i as K};
