@@ -15,7 +15,7 @@ const WEB_SRC = new URL('../../web/src/', import.meta.url)
 const FAKES = {
   '@/api/lookup': `
     export const PREVIEW_BATCH_MAX = 200
-    export function fetchPreviews(codes, workspace) { return globalThis.lookupFake(codes, workspace) }
+    export function fetchPreviews(codes, workspace, holder = null) { return globalThis.lookupFake(codes, workspace, holder) }
   `,
   '@/stores/changes': `
     export const ANY_ENTITY = '*'
@@ -55,9 +55,10 @@ function record(code, workspace) {
     : { code, title: `${title}${workspace ? ` in ${workspace}` : ''}`, description: '', link: `/x/${code}`, error: null }
 }
 
-globalThis.lookupFake = (codes, workspace) =>
+globalThis.lookupFake = (codes, workspace, holder) =>
   new Promise((resolve, reject) => {
-    requests.push({ codes, workspace, answer: () => resolve(codes.map((code) => record(code, workspace))), fail: reject })
+    const place = holder ? `${workspace} for ${holder}` : workspace
+    requests.push({ codes, workspace, holder, answer: () => resolve(codes.map((code) => record(code, place))), fail: reject })
   })
 
 /** Answer every pending request, in order, and let the store take the answers in. */
@@ -144,6 +145,19 @@ const scenarios = {
     })
   },
 
+  a_file_change_re_asks_the_file_under_either_word() {
+    titles.set('IMAGE@AB12', 'Shot')
+    return loaded('IMAGE@AB12', 'TASK@1').then(async () => {
+      titles.set('IMAGE@AB12', 'Renamed shot')
+      // The feed names a file by `FILE@`; the body quotes it as a picture.
+      feed('tasks.file', 'updated', 'FILE@AB12')
+      await tick()
+      assert.deepEqual(asked(), [['IMAGE@AB12']])
+      await answerAll()
+      assert.equal(store.get('IMAGE@AB12').title, 'Renamed shot')
+    })
+  },
+
   wide_events_re_ask_the_whole_map() {
     return loaded('TASK@1', 'STAGE@2').then(async () => {
       for (const [entity, event, ids] of [
@@ -208,6 +222,107 @@ const scenarios = {
       assert.equal(store.get('TASK@2'), undefined, 'the old workspace answer is not taken')
       await answerAll()
       assert.equal(store.get('TASK@1').title, 'One in WORKSPACE@B')
+    })
+  },
+
+  a_code_under_two_workspaces_has_a_record_in_each() {
+    titles.set('TASK@1', 'One')
+    store.setWorkspace('WORKSPACE@A')
+    store.ensure(['TASK@1'])
+    store.ensure(['TASK@1'], 'WORKSPACE@B')
+    return tick().then(async () => {
+      assert.deepEqual(
+        requests.map((request) => [request.codes, request.workspace]),
+        [
+          [['TASK@1'], 'WORKSPACE@A'],
+          [['TASK@1'], 'WORKSPACE@B'],
+        ],
+      )
+      await answerAll()
+      assert.equal(store.get('TASK@1').title, 'One in WORKSPACE@A', 'unnamed — the selected one')
+      assert.equal(store.get('TASK@1', 'WORKSPACE@A').title, 'One in WORKSPACE@A')
+      assert.equal(store.get('TASK@1', 'WORKSPACE@B').title, 'One in WORKSPACE@B')
+    })
+  },
+
+  an_answer_lands_only_in_the_workspace_it_was_asked_under() {
+    titles.set('TASK@1', 'One')
+    store.setWorkspace('WORKSPACE@A')
+    store.ensure(['TASK@1'], 'WORKSPACE@B')
+    return tick().then(async () => {
+      await answerAll()
+      assert.equal(store.get('TASK@1', 'WORKSPACE@B').title, 'One in WORKSPACE@B')
+      assert.equal(store.get('TASK@1'), undefined, 'the selected workspace never asked it')
+      store.ensure(['TASK@1'])
+      await tick()
+      assert.deepEqual(asked(), [['TASK@1']], 'asked under the selected one on its own')
+      assert.equal(requests[0].workspace, 'WORKSPACE@A')
+    })
+  },
+
+  a_page_s_workspace_outlives_a_sidebar_switch_and_goes_with_the_page() {
+    titles.set('TASK@1', 'One')
+    store.setWorkspace('WORKSPACE@B')
+    store.retain('WORKSPACE@B')
+    store.ensure(['TASK@1'], 'WORKSPACE@B')
+    return tick().then(async () => {
+      await answerAll()
+      store.setWorkspace('WORKSPACE@A')
+      assert.equal(store.get('TASK@1', 'WORKSPACE@B').title, 'One in WORKSPACE@B', 'the page keeps it')
+      await tick()
+      assert.deepEqual(
+        requests.map((request) => [request.codes, request.workspace]),
+        [[['TASK@1'], 'WORKSPACE@A']],
+        'the sidebar asks its codes under the new workspace, the page asks nothing again',
+      )
+      await answerAll()
+      store.release('WORKSPACE@B')
+      assert.equal(store.get('TASK@1', 'WORKSPACE@B'), undefined, 'dropped with its last page')
+      assert.equal(store.get('TASK@1').title, 'One in WORKSPACE@A')
+    })
+  },
+
+  a_change_re_asks_a_code_in_every_workspace_holding_it() {
+    titles.set('TASK@1', 'One')
+    store.setWorkspace('WORKSPACE@A')
+    store.retain('WORKSPACE@B')
+    store.ensure(['TASK@1', 'TASK@2'])
+    store.ensure(['TASK@1'], 'WORKSPACE@B')
+    return tick().then(async () => {
+      await answerAll()
+      feed('tasks.task', 'updated', 'TASK@1')
+      await tick()
+      assert.deepEqual(
+        requests.map((request) => [request.codes, request.workspace]).sort((a, b) => a[1].localeCompare(b[1])),
+        [
+          [['TASK@1'], 'WORKSPACE@A'],
+          [['TASK@1'], 'WORKSPACE@B'],
+        ],
+      )
+    })
+  },
+
+  a_page_s_entity_keeps_its_own_records_and_is_sent_along() {
+    titles.set('FILE@1', 'Shot')
+    store.setWorkspace('WORKSPACE@A')
+    store.retain('WORKSPACE@A', 'TASK@T')
+    store.ensure(['FILE@1'])
+    store.ensure(['FILE@1'], 'WORKSPACE@A', 'TASK@T')
+    return tick().then(async () => {
+      assert.deepEqual(
+        requests.map((request) => [request.codes, request.workspace, request.holder])
+          .sort((a, b) => (a[2] === null ? -1 : 1) - (b[2] === null ? -1 : 1)),
+        [
+          [['FILE@1'], 'WORKSPACE@A', null],
+          [['FILE@1'], 'WORKSPACE@A', 'TASK@T'],
+        ],
+      )
+      await answerAll()
+      assert.equal(store.get('FILE@1').title, 'Shot in WORKSPACE@A')
+      assert.equal(store.get('FILE@1', 'WORKSPACE@A', 'TASK@T').title, 'Shot in WORKSPACE@A for TASK@T')
+      store.release('WORKSPACE@A', 'TASK@T')
+      assert.equal(store.get('FILE@1', 'WORKSPACE@A', 'TASK@T'), undefined, 'dropped with its page')
+      assert.equal(store.get('FILE@1').title, 'Shot in WORKSPACE@A', 'the sidebar map stays')
     })
   },
 

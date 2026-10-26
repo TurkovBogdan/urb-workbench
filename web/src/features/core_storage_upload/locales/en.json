@@ -1,0 +1,26 @@
+{
+  "error": {
+    "request": {
+      "unauthorized": "A file is taken only from the app's own page or at an upload address",
+      "not_found": "The upload address is not valid or has been used — ask for a new one",
+      "foreign_holder": "The upload address was opened for another place"
+    },
+    "holder": {
+      "unknown": "It is not known where to put the file"
+    },
+    "filename": {
+      "control_character": "The file's name holds a control character — rename the file",
+      "too_long": "The file's name is too long — rename the file"
+    },
+    "file": {
+      "too_large": "The file is over {limit_mb} MB — the file storage's ceiling"
+    }
+  },
+  "task": {
+    "cleanup": {
+      "name": "Upload request cleanup",
+      "short": "Request cleanup",
+      "description": "Hourly: removes the upload requests whose lifetime is over — addresses an agent asked for and never sent a file to."
+    }
+  }
+}

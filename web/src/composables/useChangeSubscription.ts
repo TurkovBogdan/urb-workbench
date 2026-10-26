@@ -18,8 +18,8 @@ import { useChangesStore, type Change } from '@/stores/changes'
 //
 // A state change first removes all handlers of the previous state, then installs the new ones: a
 // "hidden watcher" cannot leak into the visible state, nor a handler beyond the screen's lifetime.
-// The echo of our own edits never reaches here at all — the store filters it out
-// (`stores/changes.ts`).
+// The echo of our own edits does not reach here — the store filters it out (`stores/changes.ts`) —
+// unless the subscription asks for it (`own`).
 
 /** How long to wait for quiet after a change before handing the batch to the screen. */
 const BATCH_MS = 250
@@ -35,6 +35,11 @@ export interface ChangeSubscription {
   onResync: () => void
   /** The screen reloads itself in `onActivated` — that covers whatever it missed while hidden. */
   reloadsOnReturn?: boolean
+  /**
+   * Hand `match` the echo of this tab's own edits too (`change.own`). For a part of a screen that
+   * shows what ANOTHER part of the same screen writes — a list of files fed by an editor field.
+   */
+  own?: boolean
 }
 
 type State = 'visible' | 'hidden' | 'disposed'
@@ -82,7 +87,7 @@ export function useChangeSubscription(spec: ChangeSubscription): void {
           batch.push(change)
           clearTimeout(timer)
           timer = setTimeout(flush, BATCH_MS)
-        }),
+        }, { own: spec.own }),
       ),
       changes.onResync(() => spec.onResync()),
     ]
@@ -102,7 +107,7 @@ export function useChangeSubscription(spec: ChangeSubscription): void {
       ...spec.entities.map((entity) =>
         changes.on(entity, (change) => {
           if (spec.match(change)) missed = true
-        }),
+        }, { own: spec.own }),
       ),
       changes.onResync(() => { missed = true }),
     ]

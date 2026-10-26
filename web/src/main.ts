@@ -9,6 +9,7 @@ import { startSettingsSync } from './shared/utils/settings-sync'
 import { setShellError } from './composables/useShellError'
 import { useChangesStore } from './stores/changes'
 import { useAppStore } from './stores/app'
+import { installFileDragGuard } from './composables/useFileDrop'
 import './styles/fonts.scss'
 import './styles/main.scss'
 import './styles/selection-controls.scss'
@@ -37,6 +38,10 @@ app.use(vuetify)
 // truth is the database, but fetching it before the first frame means showing the wrong styling
 // or holding the splash.
 useSettingsStore()
+
+// From the first frame: a file dropped on the splash or beside any drop zone would otherwise take
+// the browser away from the app to open it.
+installFileDragGuard()
 
 // Mount only after the initial navigation is fully resolved, so the destination
 // route's `meta` (fullscreen/scroll) is already correct at first paint and the app

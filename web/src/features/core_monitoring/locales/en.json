@@ -70,6 +70,16 @@
     "core": {
       "heartbeat": { "name": "Heartbeat", "short": "Heartbeat", "description": "A marker that the scheduler is alive: records a successful run in core_tasks every minute." },
       "sqlite_health": { "name": "SQLite health", "short": "SQLite", "description": "Hourly: size of the WAL companion file relative to the database (checkpoint starvation shows no other sign), quick_check and foreign_key_check." }
+    },
+    "core_storage": {
+      "cleanup": { "name": "File cleanup", "short": "Cleanup", "description": "Hourly: removes from disk the files marked deleted longer ago than the term in the module settings, up to the per-run limit from the same settings, and the temporary files of uploads left untouched for an hour." },
+      "reconcile": { "name": "File reconciliation", "short": "Reconciliation", "description": "Hourly: compares the stored files with the disk — reports files whose bytes are missing or of another size, and removes bytes no file points at once they are an hour old, unless there are too many of them to be a crash's leftovers." }
+    },
+    "tasks": {
+      "file_owners": { "name": "Task file owners", "short": "Task files", "description": "Hourly: releases the storage owners of task files that no binding row holds any more, and reports bindings whose file the storage counts no owner for." }
+    },
+    "codex": {
+      "file_owners": { "name": "Codex note file owners", "short": "Note files", "description": "Hourly: releases the storage owners of codex note files that no binding row holds any more, and reports bindings whose file the storage counts no owner for." }
     }
   }
 }

@@ -3,7 +3,8 @@
 `web/src/stores/preview.ts` is invisible when it works and silently wrong when it does not: a pill
 that shows yesterday's title, or a body that fires a request per render. Its rules — one request
 per tick, misses kept, a change re-asking the codes it names, wide events re-asking everything,
-an answer of the previous workspace dropped — are checked here.
+a map per workspace asked, an answer of the previous workspace dropped, a page's workspace kept
+while the page holds it — are checked here.
 
 The scenarios live in `web_preview_store.mjs` and run under Node (`--experimental-strip-types`)
 against the real store, with the lookup client and the change feed faked; each scenario is its own

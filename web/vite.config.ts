@@ -13,6 +13,9 @@ export default defineConfig(({ mode }) => {
     // `ws` — the change feed (`core_changes`) is a WebSocket under /internal.
     '/internal': { target: `http://localhost:${serverPort}`, ws: true },
     '/api': `http://localhost:${serverPort}`,
+    // Stored files: a picture in a body and a file opened from its pill (`core_storage_view`), and
+    // a file sent from a files card or a text field (`core_storage_upload`).
+    '/storage': `http://localhost:${serverPort}`,
   }
 
   return {

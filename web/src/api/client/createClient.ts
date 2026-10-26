@@ -211,18 +211,30 @@ function protocolError(status: number, what: string): ApiError {
 
 // Map an error response to our normalized ApiError body.
 async function toApiError(res: Response): Promise<ApiError> {
-  const body: ApiErrorBody = { error: res.statusText || `HTTP ${res.status}` }
+  // Read the body once, as a string: an empty response is fine (a failure may have no body).
+  const text = await res.text().catch(() => '')
+  return apiErrorFromText(res.status, res.statusText, text, res.headers.get('retry-after'))
+}
+
+/**
+ * An error response already read as text, normalized — for a transport other than `fetch` (an
+ * upload with progress goes through XHR, `upload.ts`), so both read the envelope one way.
+ */
+export function apiErrorFromText(
+  status: number,
+  statusText: string,
+  text: string,
+  retryAfterHeader: string | null,
+): ApiError {
+  const body: ApiErrorBody = { error: statusText || `HTTP ${status}` }
 
   // How long to wait before the next attempt is said by the server itself, not guessed by us.
-  const retryAfter = Number.parseInt(res.headers.get('retry-after') ?? '', 10)
+  const retryAfter = Number.parseInt(retryAfterHeader ?? '', 10)
   if (Number.isFinite(retryAfter)) body.retryAfter = retryAfter
 
-  // Read the body once, as a string: an empty response is fine (a failure may have no body), but a
-  // NON-EMPTY non-JSON one means something other than our stack answered (a proxy page, a WAF
+  // A NON-EMPTY non-JSON body means something other than our stack answered (a proxy page, a WAF
   // stub). Such a failure gets `protocol`, otherwise the person would see an English `statusText`
   // from a foreign node.
-  const text = await res.text().catch(() => '')
-
   if (text !== '') {
     try {
       const data = JSON.parse(text)
@@ -247,7 +259,7 @@ async function toApiError(res: Response): Promise<ApiError> {
     }
   }
 
-  return new ApiError(res.status, body)
+  return new ApiError(status, body)
 }
 
 /**
