@@ -9,7 +9,7 @@
 // Rows are reachable without the toolbar — Tab from the last cell and Enter from the last row add
 // a new one, as in any word processor. Columns and alignment are unreachable otherwise, so they
 // are the main reason the toolbar exists at all.
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Editor } from '@tiptap/core'
 import {
@@ -17,7 +17,9 @@ import {
   IconColumnInsertRight, IconColumnRemove,
   IconRowInsertBottom, IconRowRemove, IconTrash,
 } from '@tabler/icons-vue'
+import { usePageActive } from '@/composables/usePageActive'
 import { activeColumnAlign, activeTable, type ColumnAlign } from '../blocks'
+import { usePanelPlacement } from './usePanelPlacement'
 
 const props = defineProps<{ editor: Editor | undefined; tick: number }>()
 
@@ -27,9 +29,15 @@ const MARGIN = 6
 
 const spot = ref<{ right: number; top: number } | null>(null)
 
+// Teleported to <body>, the toolbar does not leave with its page (KeepAlive); a table detached
+// from the document measures as zeros, so it is not placed from one. Its life on and off the page —
+// `usePanelPlacement` below.
+const pageActive = usePageActive()
+
 function place(): void {
   const editor = props.editor
   if (!editor || editor.isDestroyed) return hide()
+  if (!pageActive.value || !editor.view.dom.isConnected) return hide()
 
   const found = activeTable(editor.state)
   if (!found) return hide()
@@ -62,16 +70,8 @@ function hold(event: Event): void {
 watch(() => props.tick, place)
 watch(() => props.editor, place)
 
-onMounted(() => {
-  place()
-  window.addEventListener('scroll', place, true)
-  window.addEventListener('resize', place)
-})
-
-onBeforeUnmount(() => {
-  window.removeEventListener('scroll', place, true)
-  window.removeEventListener('resize', place)
-})
+onMounted(place)
+usePanelPlacement(place, hide)
 
 const align = computed<ColumnAlign>(() => {
   void props.tick

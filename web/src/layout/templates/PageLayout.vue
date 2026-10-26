@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, nextTick, onMounted, onActivated, watch } from 'vue'
+import { computed, ref, nextTick, onMounted, onActivated, watch } from 'vue'
 import { useRoute, onBeforeRouteLeave } from 'vue-router'
 import { useLayoutStore } from '../store'
 import { scrollClass } from '@/router/meta'
 import { isBackNavigation } from '@/router/scroll'
 import { restoreScrollTop } from '@/composables/useScrollRestore'
+import { providePageActive } from '@/composables/usePageActive'
 
 // `nested` is set by a frame that hosts a nested `RouterView` (`DetailShell`): it survives an
 // address change, and so must start the new page itself — snapshot its meta and scroll back to the
@@ -58,6 +59,26 @@ function startPage(path: string) {
 onMounted(syncLayoutMeta)
 onActivated(() => startPage(route.fullPath))
 
+// Leaving a page does not unmount it (KeepAlive), and Vuetify's overlays are teleported to <body>:
+// an open tooltip, dialog or snackbar would outlive its page on top of the next one. `disabled`
+// closes an open overlay and keeps the activator from opening it, so every overlay on the page gets
+// it while the page is away. `VMenu` closes itself on deactivation — except in a Tiptap node view,
+// which is mounted outside the component tree and gets no KeepAlive hooks, though it does get these
+// defaults. An overlay opened from code (`v-model`) passes by `disabled`: its opener asks
+// `usePageActive` first. An overlay meant to outlive the page says so with an explicit
+// `:disabled="false"` — a passed prop beats a default.
+const active = providePageActive()
+const overlayDefaults = computed(() => {
+  const disabled = !active.value
+  return {
+    VTooltip: { disabled },
+    VDialog: { disabled },
+    VSnackbar: { disabled },
+    VBottomSheet: { disabled },
+    VMenu: { disabled },
+  }
+})
+
 // A nested frame is not re-activated — the nested address changes instead, and that is the same
 // moment: the leaving page's reading position is remembered, the incoming one opens at the top.
 watch(() => route.fullPath, (path, previous) => {
@@ -69,18 +90,20 @@ watch(() => route.fullPath, (path, previous) => {
 
 <template>
   <div class="page-layout">
+    <VDefaultsProvider :defaults="overlayDefaults">
 
-    <div v-if="layout.showTopBar && $slots.toolbar" class="page-layout__top">
-      <slot name="toolbar" />
-    </div>
+      <div v-if="layout.showTopBar && $slots.toolbar" class="page-layout__top">
+        <slot name="toolbar" />
+      </div>
 
-    <div ref="contentRef" :class="contentClass">
-      <slot />
-    </div>
+      <div ref="contentRef" :class="contentClass">
+        <slot />
+      </div>
 
-    <div v-if="layout.showBottomBar && $slots.footer" class="page-layout__bottom">
-      <slot name="footer" />
-    </div>
+      <div v-if="layout.showBottomBar && $slots.footer" class="page-layout__bottom">
+        <slot name="footer" />
+      </div>
 
+    </VDefaultsProvider>
   </div>
 </template>
