@@ -2,7 +2,7 @@
 
 English · [Русский](docs/changelog/ru.md)
 
-## [Unreleased]
+## [0.10.13] — 2026-10-26
 
 ### Added
 
