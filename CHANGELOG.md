@@ -2,6 +2,32 @@
 
 English · [Русский](docs/changelog/ru.md)
 
+## [0.10.15] — 2026-10-26
+
+### Added
+
+#### Moving tasks and knowledge bases
+
+- A task can be exported to a `.utsk` file: "Export" in the task row's menu (right click or "⋯") and in the "⋯" menu of the task's page.
+- The file carries the task with its subtasks, stages, journal, notes and every file attached to them, bytes included. The group stays behind, and so do deleted subtasks and notes. A subtask exported on its own comes in as a task of its own.
+- A knowledge base is exported whole to a `.ucdx` file: its rules, every record of every level, the bin and the files. "Export" is in the row menu of "Available" — the bin's rows have it too — and in the menu of the knowledge base in the materials tree.
+- "Import a task" and "Import a knowledge base" are in the new "⋯" menu at the top of each section. The window takes a dropped file or one chosen by a click. A task goes into the group you choose; a knowledge base can be mounted into the current workspace at once.
+- Before anything is written, the window shows what the archive holds and which of its codes are already taken here.
+- The codes of tasks, notes, records and files are kept. Where a code is taken, you choose for each: "Update" writes the archive over the one here, "Replace" brings a new one with a new code. "Update all" and "Replace all" choose for the whole list; nothing is chosen for you.
+- Each conflict shows when both sides were last changed — here and in the archive — with the fresher one marked. A file shows its size.
+- Where updating would touch something that is not this task's or this knowledge base's — a task of another workspace, a note of another task, a record of another knowledge base — only "Replace" is offered, and the window says why.
+- A code that holds a file with other content here offers only "Replace" too: a stored file is never overwritten, the archive's comes in as a new one.
+- "Update" never deletes what exists only here: stages, journal entries, notes, records and files absent from the archive stay.
+- A file with the same content is never a conflict: the one already here is used, and its bytes are not copied again.
+- Where "Replace" gives a new code, the references in the imported texts follow it.
+- A knowledge base or record whose path is taken here gets a free one (`-2`, `-3`…), shown under "Paths that change" before you import.
+- A damaged archive, one of another kind or one from a newer version of the app is refused before anything is written.
+
+#### Storage
+
+- A file can be stored under a code it already had, so an imported file keeps its `FILE@` code.
+- A new module, `core_transfer`, holds what both transfers share: the archive format, its checks, the conflicts and the file step.
+
 ## [0.10.13] — 2026-10-26
 
 ### Added
