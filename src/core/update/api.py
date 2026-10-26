@@ -3,11 +3,12 @@
 Three routes for three costs. `GET ""` is local and instant — it is what the About page opens
 with. `POST "/check"` fetches, so it is slow, may fail, and is a POST because it changes the
 checkout's tracking refs. `POST "/start"` hands the installation over to `update.sh` and answers
-before this process goes down.
+before this process goes down. Beside them, `GET "/changelog"` — the installed release's
+changelog for the same page, read from the checkout (`src/core/changelog.py`).
 
-The handlers are **sync** on purpose: each one shells out to git, and a blocking call in an
-`async def` would freeze the event loop — health, MCP and every other page with it. FastAPI runs
-a `def` handler in a threadpool.
+The handlers are **sync** on purpose: each one shells out to git or reads a file, and a blocking
+call in an `async def` would freeze the event loop — health, MCP and every other page with it.
+FastAPI runs a `def` handler in a threadpool.
 
 No `@guard` here: the zone default applies, so the day an auth module arrives these routes are
 covered by it. A route that can stop the installation must not be the one that opted out.
@@ -21,6 +22,7 @@ from typing import Any
 from fastapi import APIRouter, Request
 
 from src.core.api import ApiError
+from src.core.changelog import SOURCE_LANGUAGE, installed_changelog
 from src.core.update import spawn, status
 from src.core.update.sequence import WINDOWS_PLATFORM
 
@@ -69,6 +71,19 @@ def get_installation(request: Request) -> dict[str, Any]:
         "dirty": installation.dirty,
         "refusal": _refusal(installation),
     }
+
+
+@router.get("/changelog")
+def get_changelog(language: str = SOURCE_LANGUAGE) -> dict[str, Any]:
+    """The changelog of what is installed, in the interface's language when it has a file.
+
+    No file at all is an answer, not an error: a checkout without a changelog has nothing to
+    show, and the page says so instead of a failure.
+    """
+    changelog = installed_changelog(language)
+    if changelog is None:
+        return {"language": None, "text": None}
+    return {"language": changelog.language, "text": changelog.text}
 
 
 @router.post("/check")

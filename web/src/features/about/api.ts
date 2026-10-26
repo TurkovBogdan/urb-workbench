@@ -47,8 +47,17 @@ export interface StartedUpdate {
   log: string
 }
 
+/** The installed release's changelog, from its first release heading on; `null` — no file. */
+export interface Changelog {
+  /** The language the text is in: the one asked for, or English when it has no file. */
+  language: string | null
+  text: string | null
+}
+
 export const updateApi = {
   installation: () => internalApi.get<Installation>(BASE),
+  changelog: (language: string) =>
+    internalApi.get<Changelog>(`${BASE}/changelog`, { query: { language } }),
   check: () => internalApi.post<UpstreamHead>(`${BASE}/check`),
   start: () => internalApi.post<StartedUpdate>(`${BASE}/start`),
 }

@@ -42,5 +42,10 @@
     "waiting": "The installation is restarting. The page will reload by itself as soon as the backend responds.",
     "timeout": "The backend didn't respond in time. See the log: {log}",
     "unchanged": "The installation stayed on the same version — the update refused to run. See the log: {log}"
+  },
+  "changelog": {
+    "title": "What's new",
+    "empty": "This installation has no changelog.",
+    "unavailable": "Could not read the changelog"
   }
 }

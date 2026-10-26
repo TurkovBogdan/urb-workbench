@@ -1,15 +1,16 @@
 <script setup lang="ts">
-import { computed, onActivated, onMounted, ref } from 'vue'
+import { computed, onActivated, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { IconRefresh, IconDownload, IconGitBranch, IconInfoCircle } from '@tabler/icons-vue'
+import { IconRefresh, IconDownload, IconGitBranch, IconHistory, IconInfoCircle } from '@tabler/icons-vue'
 
 import PageLayout from '@/layout/templates/PageLayout.vue'
 import PageHeader from '@/layout/components/PageHeader.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
-import { updateApi, type Installation, type UpstreamHead } from '../api'
+import MarkdownRenderer from '@/components/markdown/renderer/MarkdownRenderer.vue'
+import { updateApi, type Changelog, type Installation, type UpstreamHead } from '../api'
 import { waitForRestart } from '../waitForRestart'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const installation = ref<Installation | null>(null)
 const upstream = ref<UpstreamHead | null>(null)
@@ -42,12 +43,36 @@ async function checkUpstream() {
   }
 }
 
+// The changelog of what is installed, in the interface's language: read from the checkout, so it is
+// local and cheap like the facts above, and reread with them.
+const changelog = ref<Changelog | null>(null)
+const changelogLoading = ref(true)
+const changelogFailed = ref(false)
+
+async function loadChangelog() {
+  changelogFailed.value = false
+  try {
+    changelog.value = await updateApi.changelog(locale.value)
+  } catch {
+    changelogFailed.value = true
+  } finally {
+    changelogLoading.value = false
+  }
+}
+
+watch(locale, loadChangelog)
+
 onMounted(async () => {
+  void loadChangelog()
   await loadInstallation()
   await checkUpstream()
 })
 // Returning to the page reloads only the local facts: a call to the remote costs seconds.
-onActivated(() => { if (!loading.value) loadInstallation() })
+onActivated(() => {
+  if (loading.value) return
+  loadInstallation()
+  loadChangelog()
+})
 
 const unknown = computed(() => t('about.installed.unknown'))
 
@@ -208,6 +233,21 @@ async function startUpdate() {
             <p v-if="refusalText" class="facts__warn">{{ refusalText }}</p>
             <p v-if="updateNote" class="update__note">{{ updateNote }}</p>
             <p v-if="updating" class="update__note">{{ t('about.update.waiting') }}</p>
+          </VCardText>
+        </VCard>
+      </VCol>
+
+      <VCol cols="12">
+        <VCard variant="outlined" rounded="lg">
+          <VCardTitle class="section-title">
+            <IconHistory :size="18" />
+            {{ t('about.changelog.title') }}
+          </VCardTitle>
+          <VCardText>
+            <VSkeletonLoader v-if="changelogLoading" type="paragraph@2" />
+            <p v-else-if="changelogFailed" class="facts__warn">{{ t('about.changelog.unavailable') }}</p>
+            <MarkdownRenderer v-else-if="changelog?.text" :text="changelog.text" heavy />
+            <p v-else class="update__text">{{ t('about.changelog.empty') }}</p>
           </VCardText>
         </VCard>
       </VCol>
