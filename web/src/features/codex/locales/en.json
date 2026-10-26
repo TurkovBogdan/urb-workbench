@@ -69,6 +69,11 @@
     "body": "Note",
     "body_hint": "A note with nested ones is a section: the summary of what lies below."
   },
+  "file": {
+    "hint": "The note's files: schemas, screenshots, examples. The agent attaches them where the mount lets it write, and so do you: with “Upload files” or by dropping them here. The text refers to a file by its FILE or IMAGE code. The order is yours: drag a card by its handle.",
+    "duplicate": "“{name}” is in the note already",
+    "drop_note": "They go to the note."
+  },
   "tree": {
     "actions": "Record actions",
     "expand": "Expand",
@@ -101,6 +106,14 @@
     },
     "mount": {
       "not_found": "The knowledge base is not mounted into this workspace"
+    },
+    "file": {
+      "not_found": "The file is not in this note",
+      "already_attached": "The file is in the note already",
+      "holder_is_codex": "Files are attached to notes, not to the knowledge base itself",
+      "not_stored": "The file is not in the storage",
+      "foreign_store": "The file lies in another store — a note takes public files only",
+      "control_character": "The file's title or description holds a control character ({field}) — remove it"
     }
   }
 }

@@ -5,6 +5,6 @@ import type { Feature } from '@/components/markdown/editor/modes'
 
 export const CODEX_DOCUMENT_FEATURES: readonly Feature[] = [
   'heading', 'list', 'quote', 'codeBlock', 'diagram', 'divider', 'table',
-  'bold', 'italic', 'strike', 'code', 'link', 'entityRef',
+  'bold', 'italic', 'strike', 'code', 'link', 'entityRef', 'image',
   'slash', 'handle',
 ]
