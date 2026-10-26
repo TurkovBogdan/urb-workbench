@@ -24,6 +24,7 @@ dependencies = [
     "fastmcp>=3.4,<4",
     "psutil>=6.0",
     "watchfiles>=0.24",
+    "filetype>=1.2",
 ]
 
 [dependency-groups]
