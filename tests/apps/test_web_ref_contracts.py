@@ -63,7 +63,7 @@ def test_the_vocabulary_matches_the_backend_lookup(config):
         module.configure(app, config)
     backend = {kind.prefix for kind in registered_types()}
 
-    assert len(backend) == 7
+    assert len(backend) == 9
     source = (Path(__file__).parents[2] / "web/src/components/markdown/shared/contracts.ts").read_text()
     vocabulary = source.split("export const REF_TYPES = [", 1)[1].split("]", 1)[0]
     assert {word.strip(" '") for word in vocabulary.split(",")} == backend

@@ -22,9 +22,13 @@ _TEXT_FIELDS = ("description", "context", "constraints", "criteria", "plan", "pr
 
 @pytest.fixture(scope="module")
 def seeder():
-    spec = importlib.util.spec_from_file_location("seed_demo", _SEEDER)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    # The seeder imports its sibling `seed_demo_bulk` by name, as a script does: Python puts a
+    # running script's folder on the path. Loaded here by file, the folder has to be put there.
+    with pytest.MonkeyPatch.context() as patch:
+        patch.syspath_prepend(str(_SEEDER.parent))
+        spec = importlib.util.spec_from_file_location("seed_demo", _SEEDER)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
     return module
 
 
@@ -40,9 +44,11 @@ async def test_every_text_of_every_demo_task_lands(db, seeder):
         (seeder.WORKSPACES[1], seeder.PERSONAL_TASKS),
         (seeder.WORKSPACES[2], seeder.CLIENT_TASKS),
     ]
+    # The seeder's own order: the codexes first, so the workspaces mount them.
+    codexes, _ = await seeder.seed_codexes(seeder.CODEXES)
     stored = {}
     for workspace_spec, tasks in plan:
-        report = await seeder.seed_workspace(workspace_spec, tasks)
+        report = await seeder.seed_workspace(workspace_spec, tasks, codexes)
         for row in await task_crud.task_list_by_workspace(report["code"], include_deleted=True):
             stored[row.title] = await task_crud.task_get(row.code, include_deleted=True)
 

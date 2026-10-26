@@ -35,7 +35,9 @@ from src.modules.tasks.constants import (
     TASK_TYPES_WITH_STAGES,
     TITLE_MAX,
 )
+from src.modules.tasks.crud.file import task_files_take
 from src.modules.tasks.errors import STAGE_EVIDENCE_REQUIRED, TaskRuleError
+from src.modules.tasks.file_owner import release_task_files, task_files_lock
 from src.modules.tasks.models.stage import TasksStage
 from src.modules.tasks.models.task import TasksTask
 from src.modules.tasks.text import clip, fit
@@ -224,14 +226,28 @@ async def stage_delete(code: str) -> bool:
 
     A stage has no soft delete: an abandoned stage is the ``canceled`` status, and a hidden plan
     row would leave the history of the work incomplete.
+
+    The files attached to the stage leave the task with it: their binding rows go in the same
+    transaction, and the task's storage owner of each is released after the commit — every path
+    deleting a stage comes through here, so none can leave a file held for good. The task's file
+    lock is held from taking the rows to the release: an attach to the same task waits instead of
+    binding a file whose owner this deletion is about to release.
     """
-    async with write_scope() as s:
-        row = await s.get(TasksStage, code)
-        if row is None:
-            return False
-        await s.execute(sa_delete(TasksStage).where(TasksStage.code == code))
-        # A bulk statement yields no objects — so we name the code to the change feed ourselves.
-        mark_changes(s, "tasks.stage", DELETED, [code])
+    async with session_scope() as s:
+        task_code = await s.scalar(select(TasksStage.task_code).where(TasksStage.code == code))
+    if task_code is None:
+        return False
+    async with task_files_lock(task_code):
+        async with write_scope() as s:
+            row = await s.get(TasksStage, code)
+            if row is None:
+                return False
+            taken = await task_files_take(s, stage_code=code)
+            await s.execute(sa_delete(TasksStage).where(TasksStage.code == code))
+            # A bulk statement yields no objects — so we name the code to the change feed
+            # ourselves.
+            mark_changes(s, "tasks.stage", DELETED, [code])
+        await release_task_files(taken)
     return True
 
 

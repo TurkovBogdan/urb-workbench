@@ -6,8 +6,10 @@
 // (the drag source highlight, the flash after a move) or in `controls/`.
 export { handleTop, useBlockMarks, type BlockMark } from './blockMarks'
 export { BlockMoves, type MoveTarget } from './blockMoves'
+export { continueBelow } from './continueBelow'
 export { DragSource } from './dragSource'
 export { DropSlot } from './dropSlot'
+export { DOCUMENT_REPLACED, FileAttach, type AttachFile, type RefuseFile } from './fileAttach'
 export { LENGTH_LIMIT_BYPASS, LengthLimit } from './lengthLimit'
 export { MarkdownPaste } from './markdownPaste'
 export { useDragPreview, type DragPreview } from './useDragPreview'

@@ -18,12 +18,45 @@ The `migrate` subcommand — DB migrations as a separate run (without bringing u
     uv run python src/app.py migrate check
     uv run python src/app.py migrate upgrade    — apply core + modules up to head
 
-The `backup` subcommand — a database copy (`src/core/backup.py`) before a migration: SQLite via
-`VACUUM INTO` + `integrity_check`, PostgreSQL via `pg_dump --format=custom` verified with
-`pg_restore --list`. Without an argument the path is chosen by provider:
+The `backup` subcommand — a copy of the database and of the stored files (`src/core/backup.py`)
+before a migration. The copy is a directory: the database (SQLite via `VACUUM INTO` +
+`integrity_check`, PostgreSQL via `pg_dump --format=custom` verified with `pg_restore --list`),
+then `storage/` — the storage root hard-linked, copied where a link cannot be made — its
+inventory `inventory.json` (every file by name and size) and `backup.json`. Without an argument
+the path is chosen by provider:
 
     uv run python src/app.py backup            — next to the file DB / runtime/<profile>/backup
-    uv run python src/app.py backup <path>     — an explicit file (never overwrites an existing one)
+    uv run python src/app.py backup <path>     — an explicit directory (never overwrites anything)
+
+`backup.json` records who took the copy: `manual` by default, `update` for the update's own
+(`--made-by update`). `--prune` removes the update's copies past `UPDATE_KEEP_BACKUPS` (0 — keep
+all) from that folder, never one taken by hand (`src/core/backup_retention.py`); the update runs
+it after a successful restart. Exit codes: 0 — done, 1 — refused or something was not removed.
+
+    uv run python src/app.py backup --prune --dry-run   — what would go, what stays and why
+    uv run python src/app.py backup --prune
+
+`--verify` checks a copy without restoring it — the database copy, and the stored files against
+the inventory — and changes nothing. Exit codes: 0 — whole, 1 — not whole or not a copy.
+
+    uv run python src/app.py backup --verify <copy directory>
+
+The `restore` subcommand — put such a copy back, the database and the files together
+(`src/core/restore.py`). The install must be stopped; what stands there now is moved aside as
+`*.before-restore.<stamp>`, not deleted. A copy whose files differ from its inventory is refused
+before anything moves. Exit codes: 0 — restored, 1 — refused, nothing changed, 2 — stopped
+midway, the message names where every piece is.
+
+    uv run python src/app.py restore <copy directory>
+
+The `storage` subcommand — the stored files against the database (`core_storage`'s
+reconciliation, also run hourly by the scheduler): rows without bytes, bytes without a row, bytes
+of another size. Reports only unless `--fix`; safe beside a running install. Exit codes: 0 —
+consistent, 1 — discrepancies remain, 2 — the check could not run.
+
+    uv run python src/app.py storage check          — report
+    uv run python src/app.py storage check --fix    — also remove bytes without a row (> 1 hour)
+    uv run python src/app.py storage check --sha    — also compare every file's sha256
 
 The `update` subcommand — updating the whole installation (wrapped by `./update.sh`): checks,
 maintenance flag, stopping processes, fast-forward to origin/UPDATE_BRANCH, `uv sync`,
@@ -103,6 +136,8 @@ GRACEFUL_SHUTDOWN_SECONDS = 2
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    from src.core.backup import MADE_BY_CHOICES, MADE_BY_MANUAL
+
     p = argparse.ArgumentParser(
         prog="app",
         description="Launch a process (server/worker) or run DB migrations (migrate).",
@@ -191,13 +226,70 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
 
     # ── backup subcommand ────────────────────────────────────────────────────
-    bak = sub.add_parser("backup", help="database copy before a migration (sqlite/postgres)")
+    bak = sub.add_parser(
+        "backup", help="copy of the database and the stored files before a migration"
+    )
     bak.add_argument(
         "target",
         nargs="?",
         default=None,
         metavar="PATH",
-        help="where to put the copy; empty — next to the file database or runtime/<profile>/backup",
+        help="the directory to put the copy in; empty — next to the file database or "
+        "runtime/<profile>/backup",
+    )
+    bak.add_argument(
+        "--made-by",
+        choices=MADE_BY_CHOICES,
+        default=MADE_BY_MANUAL,
+        help="who takes the copy, recorded in backup.json; only the update's own copies are "
+        "ever pruned (default: manual)",
+    )
+    bak.add_argument(
+        "--prune",
+        action="store_true",
+        help="instead of taking a copy, remove the update's copies past UPDATE_KEEP_BACKUPS",
+    )
+    bak.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="with --prune: only list what would be removed and what stays",
+    )
+    bak.add_argument(
+        "--spare",
+        default=None,
+        metavar="PATH",
+        help="with --prune: a copy that stays whatever the count (the update's newest)",
+    )
+    bak.add_argument(
+        "--verify",
+        default=None,
+        metavar="PATH",
+        help="instead of taking a copy, check an existing one — its database copy and its stored "
+        "files against the inventory — without restoring or changing anything",
+    )
+
+    # ── restore subcommand ───────────────────────────────────────────────────
+    rst = sub.add_parser(
+        "restore", help="put a copy back — database and stored files; the install must be stopped"
+    )
+    rst.add_argument("copy", metavar="PATH", help="a copy directory made by `backup`")
+
+    # ── storage subcommand ───────────────────────────────────────────────────
+    sto = sub.add_parser("storage", help="the stored files against the database")
+    sto.add_argument(
+        "action",
+        choices=("check",),
+        help="check — rows without bytes, bytes without a row, bytes not as recorded",
+    )
+    sto.add_argument(
+        "--fix",
+        action="store_true",
+        help="remove the bytes without a row older than an hour (otherwise only report)",
+    )
+    sto.add_argument(
+        "--sha",
+        action="store_true",
+        help="read every stored byte and compare its sha256 with the row (otherwise size only)",
     )
 
     # ── update subcommand ────────────────────────────────────────────────────
@@ -228,7 +320,28 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="also stop this checkout's processes that have no registry record (otherwise refuse "
         "with code 10)",
     )
-    return p.parse_args(argv)
+    args = p.parse_args(argv)
+    if args.command == "backup":
+        _check_backup_arguments(bak, args)
+    return args
+
+
+def _check_backup_arguments(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
+    """Taking a copy, checking one and pruning old ones share the subcommand, not their options."""
+    from src.core.backup import MADE_BY_MANUAL
+
+    if args.verify is not None and (
+        args.target is not None
+        or args.made_by != MADE_BY_MANUAL
+        or args.prune
+        or args.dry_run
+        or args.spare is not None
+    ):
+        parser.error("--verify takes the copy to check and no other option")
+    if args.prune and (args.target is not None or args.made_by != MADE_BY_MANUAL):
+        parser.error("--prune takes no PATH and no --made-by: it removes copies, it takes none")
+    if not args.prune and (args.dry_run or args.spare is not None):
+        parser.error("--dry-run and --spare go with --prune")
 
 
 def _apply_env_overrides(args: argparse.Namespace) -> None:
@@ -403,13 +516,22 @@ async def _run_migrate(action: str) -> int:
     return 0
 
 
+async def _run_storage_check(*, fix: bool, hash_bytes: bool) -> int:
+    """The stores come from the module list of this application, as the server would build them."""
+    from src.apps.app.modules import build_modules
+    from src.core.config import Config
+    from src.modules.core_storage.cli import storage_check_command
+
+    return await storage_check_command(build_modules(), Config(), fix=fix, hash_bytes=hash_bytes)
+
+
 def _launches_a_process(args: argparse.Namespace) -> bool:
     """No subcommand means we are launching a process (`--mcp-stdio` included).
 
-    Subcommands (`migrate`, `backup`, `update`, `stop`) are exempt from the gate on purpose: the
-    updater itself runs `backup` and `migrate upgrade` with the flag up, and a failed migration
-    does not lower the flag — gating subcommands would lock the update in from the inside and
-    rule out a retry.
+    Subcommands (`migrate`, `backup`, `restore`, `storage`, `update`, `stop`) are exempt from the
+    gate on purpose: the updater itself runs `backup` and `migrate upgrade` with the flag up, and
+    a failed migration does not lower the flag — gating subcommands would lock the update in from
+    the inside and rule out a retry. `restore` raises the flag itself.
     """
     return args.command is None
 
@@ -433,10 +555,28 @@ def main(argv: list[str] | None = None) -> int | None:
     if args.command == "migrate":
         return asyncio.run(_run_migrate(args.action))
 
+    if args.command == "backup" and args.prune:
+        from src.core.backup_retention import prune_command
+
+        return prune_command(dry_run=args.dry_run, spare=args.spare)
+
+    if args.command == "backup" and args.verify is not None:
+        from src.core.restore import verify_command
+
+        return verify_command(args.verify)
+
     if args.command == "backup":
         from src.core.backup import backup_command
 
-        return backup_command(args.target)
+        return backup_command(args.target, made_by=args.made_by)
+
+    if args.command == "restore":
+        from src.core.restore import restore_command
+
+        return restore_command(args.copy)
+
+    if args.command == "storage":
+        return asyncio.run(_run_storage_check(fix=args.fix, hash_bytes=args.sha))
 
     if args.command == "update":
         from src.core.update import update_command

@@ -25,6 +25,8 @@ import {
   type StageRow,
 } from '../api'
 import { TASK_BRIEF_FEATURES, TASK_DOCUMENT_FEATURES } from '../editor'
+import { taskFileAttach, taskFileRefuse } from '../fileAttach'
+import type { AttachFile } from '@/components/markdown/editor/behavior'
 import CollectionHeader from './CollectionHeader.vue'
 import {
   BODY_MAX,
@@ -45,6 +47,20 @@ const props = defineProps<{
 const emit = defineEmits<{ changed: [] }>()
 
 const { t } = useI18n()
+
+// A file pasted or dropped into a stage's text is the task's, attached to that stage. One function
+// per stage, kept: a new one on every render would be a new prop for the field each time.
+const stageAttach = new Map<string, AttachFile>()
+
+function attachToStage(stage: string): AttachFile {
+  const key = `${props.taskCode}/${stage}`
+  let attach = stageAttach.get(key)
+  if (!attach) {
+    attach = taskFileAttach(props.taskCode, { stage_code: stage })
+    stageAttach.set(key, attach)
+  }
+  return attach
+}
 
 const open = ref<string | null>(null)
 const busy = ref(false)
@@ -197,6 +213,8 @@ async function remove() {
           :max-length="BODY_MAX"
           :readonly="props.disabled || busy"
           :features="TASK_DOCUMENT_FEATURES"
+          :attach="attachToStage(stage.code)"
+          :refuse="taskFileRefuse"
           min-height="0"
           @update:model-value="(value) => stash(stage, 'body', value)"
           @blur="flush(stage, 'body')"
@@ -212,6 +230,8 @@ async function remove() {
           :max-length="STAGE_EVIDENCE_MAX"
           :readonly="props.disabled || busy"
           :features="TASK_BRIEF_FEATURES"
+          :attach="attachToStage(stage.code)"
+          :refuse="taskFileRefuse"
           min-height="0"
           @update:model-value="(value) => stash(stage, 'evidence', value)"
           @blur="flush(stage, 'evidence')"

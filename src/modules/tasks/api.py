@@ -59,6 +59,9 @@ from src.modules.tasks.codes import bare_code, tagged
 from src.modules.tasks.constants import (
     COLOR_MAX,
     DESCRIPTION_MAX,
+    FILE_CODE_PREFIX,
+    FILE_DESCRIPTION_MAX,
+    FILE_TITLE_MAX,
     GROUP_CODE_PREFIX,
     GROUP_DESCRIPTION_MAX,
     GROUP_TASK_DISPOSALS,
@@ -78,6 +81,8 @@ from src.modules.notes.constants import DESCRIPTION_MAX as NOTE_DESCRIPTION_MAX
 from src.modules.notes.constants import TITLE_MAX as NOTE_TITLE_MAX
 from src.modules.notes.crud import note as notes_crud
 from src.modules.notes.models.note import Note
+from src.modules.tasks import files as task_files
+from src.modules.tasks.crud import file as file_crud
 from src.modules.tasks.crud import group as group_crud
 from src.modules.tasks.crud import journal as journal_crud
 from src.modules.tasks.crud import link as link_crud
@@ -85,6 +90,7 @@ from src.modules.tasks.crud import note as note_crud
 from src.modules.tasks.crud import stage as stage_crud
 from src.modules.tasks.crud import task as task_crud
 from src.modules.tasks.errors import (
+    FILE_NOT_FOUND,
     GROUP_DELETED,
     GROUP_NOT_DELETED,
     GROUP_NOT_FOUND,
@@ -103,6 +109,7 @@ from src.modules.tasks.dto import (
     JournalRow,
     StageRow,
     TaskDetail,
+    TaskFileRow,
     TaskListRow,
     TaskNoteDetail,
     TaskNoteRow,
@@ -1239,6 +1246,109 @@ async def reorder_task_notes(code: str, payload: TaskNoteOrderBody) -> list[Task
     return [TaskNoteRow.model_validate(row) for row in await note_crud.task_note_list(bare)]
 
 
+# ── task files ────────────────────────────────────────────────────────────────
+# The files a task holds — its notes' and stages' included: a file is in the task once. Bytes and
+# names are ``core_storage``'s; here the person reads the list, re-titles, reorders and detaches.
+# The person uploads through ``core_storage_upload`` (``POST /storage/upload?holder=TASK@…``),
+# which answers with ``task_file_row`` (``file_holders.py``); the agent's tools attach through
+# ``tasks.files`` too.
+
+
+class TaskFilePatchBody(_Body):
+    """The fields the page changed — only those: a title edit leaves the description alone."""
+
+    title: Annotated[str, StringConstraints(max_length=FILE_TITLE_MAX)] | None = None
+    description: Annotated[str, StringConstraints(max_length=FILE_DESCRIPTION_MAX)] | None = None
+
+
+class TaskFileOrderBody(_Body):
+    """The task's files top to bottom, as the person left them after a drag."""
+
+    codes: list[str]
+
+
+def _file_code(value: str) -> str:
+    return _bare(value, FILE_CODE_PREFIX) or ""
+
+
+def task_file_row(view: task_files.TaskFileView) -> TaskFileRow:
+    """A file as the task's list shows it — the list's rows and the answer to an upload."""
+    binding, stored = view.binding, view.stored
+    return TaskFileRow(
+        code=binding.file_code,
+        task_code=binding.task_code,
+        note_code=binding.note_code,
+        stage_code=binding.stage_code,
+        title=binding.title,
+        description=binding.description,
+        original_filename=view.original_filename,
+        original_extension=view.original_extension,
+        mime=stored.mime,
+        type=stored.type,
+        size=stored.size,
+        sort=binding.sort,
+        created_at=binding.created_at,
+        updated_at=binding.updated_at,
+    )
+
+
+async def _file_rows(task: str) -> list[TaskFileRow]:
+    return [task_file_row(view) for view in await task_files.task_file_views(task)]
+
+
+@router.get("/tasks/{code}/files")
+async def list_task_files(code: str) -> list[TaskFileRow]:
+    """The task's files top to bottom — on a deleted task too: they are read, not changed."""
+    bare = _task_code(code)
+    await _require_task(bare)
+    return await _file_rows(bare)
+
+
+def _refuse_control_characters(*, title: str | None = None, description: str | None = None) -> None:
+    """The service's rule (``file_crud.refuse_control_characters``), worded for the page."""
+    try:
+        file_crud.refuse_control_characters(title=title, description=description)
+    except TaskRuleError as error:
+        raise ApiError.bad_request(str(error), code=error.code, params=error.params) from error
+
+
+@router.put("/tasks/{code}/files/order")
+async def reorder_task_files(code: str, payload: TaskFileOrderBody) -> list[TaskFileRow]:
+    bare = _task_code(code)
+    _live(await _require_task(bare))
+    try:
+        await file_crud.task_file_reorder(bare, [_file_code(value) for value in payload.codes])
+    except TaskRuleError as error:
+        raise ApiError.bad_request(str(error), code=error.code) from error
+    return await _file_rows(bare)
+
+
+@router.patch("/tasks/{code}/files/{file}")
+async def update_task_file(code: str, file: str, payload: TaskFilePatchBody) -> TaskFileRow:
+    _refuse_control_characters(title=payload.title, description=payload.description)
+    bare, file_bare = _task_code(code), _file_code(file)
+    _live(await _require_task(bare))
+    try:
+        view = await task_files.task_file_retitle(
+            bare, file_bare, title=payload.title, description=payload.description
+        )
+    except ValueError as error:
+        raise ApiError.bad_request(str(error)) from error
+    if view is None:
+        raise ApiError.not_found("The file is not in this task", code=FILE_NOT_FOUND)
+    return task_file_row(view)
+
+
+@router.delete("/tasks/{code}/files/{file}", status_code=204)
+async def detach_task_file(code: str, file: str) -> Response:
+    """Take the file out of the task. The file itself goes once nothing else holds it."""
+    bare = _task_code(code)
+    _live(await _require_task(bare))
+    if not await task_files.task_file_detach(bare, _file_code(file)):
+        raise ApiError.not_found("The file is not in this task", code=FILE_NOT_FOUND)
+    return Response(status_code=204)
+
+
 __all__ = [
     "GroupBody",
     "JournalBody",
@@ -1250,4 +1360,5 @@ __all__ = [
     "TaskStatusBody",
     "TaskUpdateBody",
     "router",
+    "task_file_row",
 ]

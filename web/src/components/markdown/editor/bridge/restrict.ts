@@ -88,17 +88,21 @@ function inlineOf(node: JSONContent, features: FeatureSet): JSONContent[] {
 
 function inline(node: JSONContent, features: FeatureSet): JSONContent[] {
   // A pill without its feature becomes plain text holding the code: the entity code stays
-  // readable and still goes into the body, it just stops being an object.
+  // readable and still goes into the body, it just stops being an object. Either way it keeps the
+  // marks of its run, so the run stays one.
   if (node.type === 'entityRef') {
-    if (features.has('entityRef')) return [node]
+    if (features.has('entityRef')) return [withMarks(node, features)]
     const code = String(node.attrs?.code ?? '')
-    return code ? [{ type: 'text', text: code }] : []
+    return code ? [withMarks({ type: 'text', text: code, marks: node.marks }, features)] : []
   }
 
-  if (node.type !== 'text') return [node]
+  return [withMarks(node, features)]
+}
 
-  const marks = (node.marks ?? []).filter((mark) => isAllowed(mark.type, features))
-  return marks.length ? [{ ...node, marks }] : [{ ...node, marks: undefined }]
+function withMarks(node: JSONContent, features: FeatureSet): JSONContent {
+  const { marks: all, ...rest } = node
+  const marks = (all ?? []).filter((mark) => isAllowed(mark.type, features))
+  return marks.length ? { ...rest, marks } : rest
 }
 
 // A mark's schema name and its feature name coincide for every mark, the link included — its mark

@@ -6,7 +6,8 @@
 // It opens after a short pause — a pointer crossing a line of pills must not flash a card per pill
 // — and closes after a shorter one, so the pointer can travel from the pill onto the card and stay.
 // It never takes focus: in the editor the caret stays where the person left it.
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
+import { usePageActive } from '@/composables/usePageActive'
 import EntityPreviewCard from './EntityPreviewCard.vue'
 
 const OPEN_DELAY_MS = 400
@@ -19,6 +20,19 @@ const code = ref('')
 let openTimer: ReturnType<typeof setTimeout> | undefined
 let closeTimer: ReturnType<typeof setTimeout> | undefined
 
+// A click on a pill navigates within the pause, and the pointer that stays put sends no `leave`:
+// the timer fired on the next page, opened the card over a pill no longer in the document, and the
+// card stood in its top left corner. Opening from code passes by the page frame's `disabled`, so
+// the card asks itself whether its page and its pill are still there.
+const pageActive = usePageActive()
+
+watch(pageActive, (active) => {
+  if (active) return
+  clearTimeout(openTimer)
+  clearTimeout(closeTimer)
+  open.value = false
+})
+
 function hover(pill: HTMLElement, pillCode: string): void {
   clearTimeout(closeTimer)
   clearTimeout(openTimer)
@@ -26,6 +40,7 @@ function hover(pill: HTMLElement, pillCode: string): void {
   // Moving from one pill to the next while a card is up swaps it at once.
   const pause = open.value ? 0 : OPEN_DELAY_MS
   openTimer = setTimeout(() => {
+    if (!pageActive.value || !pill.isConnected) return
     target.value = pill
     code.value = pillCode
     open.value = true

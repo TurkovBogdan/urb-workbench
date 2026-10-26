@@ -119,6 +119,7 @@ async def sync_vacancies(ctx):
 
 - **Embedded (dev, `--backend --worker`):** starts according to `config.worker_enabled`; scope/knobs come from `config` (`worker_modules_set`, `worker_tick_seconds`, `worker_max_concurrent_runs`). One process carries both the web and the tasks.
 - **Pure worker (`--worker` without `--backend`):** the `src/app.py` entry point calls `scheduler.configure_worker(modules, max_concurrent, tick)` BEFORE the lifespan — this forces the ticker to start (bypassing `worker_enabled`) and sets the scope. The process has no uvicorn/port; the lifespan is driven directly.
+- **Nothing runs the tasks:** a backend whose ticker did not start checks, right after `start`, whether a live worker of this installation (`worker` or `backend+worker` in the process registry, the same `APP_ENV`) is there to run them (`coverage.py::warn_if_unattended`). If not, and enabled scheduled tasks are registered, the `tasks` log names them and the ways to run them.
 
 The process role is a composition of the `--backend`/`--worker` flags (precedence flag > env > default); see [`dev/docs/ENV.md`](../../../dev/docs/ENV.md).
 
@@ -188,4 +189,5 @@ In `lifespan`, `scheduler.stop()` is called before `close_database`, so tasks st
 - `runner.py` — `run_entry`, the heartbeat loop.
 - `ticker.py` — `Ticker` + the `is_due(expression, now, last)` function (5-field cron). Skips entries with `schedule=None`.
 - `task_base.py` — `CoreTaskBase`; attributes: `SCHEDULE: str | None`, `MANUAL_RUN: bool = False`.
-- `__init__.py` — public API + `register/start/stop` + `configure_worker` (worker override). The task HTTP endpoints are in `src/core/api/system.py` (the `/api/core/tasks` router).
+- `coverage.py` — `unattended_tasks`, `warn_if_unattended`: whether anything runs the scheduled tasks.
+- `__init__.py` — public API + `register/start/stop/is_ticking` + `configure_worker` (worker override). The task HTTP endpoints are in `src/core/api/system.py` (the `/api/core/tasks` router).

@@ -16,6 +16,7 @@ import {
   onActivated,
   onBeforeUnmount,
   onDeactivated,
+  provide,
   reactive,
   ref,
   watch,
@@ -29,6 +30,7 @@ import PageHeader from '@/layout/components/PageHeader.vue'
 import AppDialog from '@/components/AppDialog.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import CopyCodeButton from '@/components/CopyCodeButton.vue'
+import { FILE_BINDING_EDITOR } from '@/components/files/fileBinding'
 import InvisibleField from '@/components/InvisibleField.vue'
 import SectionError from '@/components/SectionError.vue'
 import IconSwatch from '@/components/IconSwatch.vue'
@@ -44,11 +46,13 @@ import { useFindShortcut } from '@/composables/useFindShortcut'
 import { useClipboard } from '@/composables/useClipboard'
 import { IconCheck, IconCopy, IconFileText, IconSettings } from '@tabler/icons-vue'
 import type { Change } from '@/stores/changes'
+import { providePreviewWorkspace } from '@/stores/preview'
 import { useSettingsStore } from '@/stores/settings'
 import { useWorkspaceContextStore } from '@/features/workspace/stores/workspace-context.store'
 import { persisted, strCodec } from '@/shared/utils/persisted'
 import { keepSegmentChars } from '@/shared/utils/validators'
 
+import CodexNoteFiles from '../components/CodexNoteFiles.vue'
 import CodexTree from '../components/CodexTree.vue'
 import {
   canvasTree,
@@ -76,6 +80,7 @@ import {
   CODEX_TITLE_MAX,
 } from '../labels'
 import { CODEX_DOCUMENT_FEATURES } from '../editor'
+import { noteFileAttach, noteFileEditor, noteFileRefuse } from '../fileAttach'
 import type { NoteDrop } from '../drag'
 import { CODEX_AVAILABLE, codexNodePath, displayPath } from '../paths'
 
@@ -137,9 +142,23 @@ const workspace = computed(() => context.currentWorkspace?.code ?? '')
 const tree = ref<TreeNode[]>([])
 const codex = ref<CodexDetail | null>(null)
 const note = ref<CodexNote | null>(null)
+// A file pasted or dropped into a live note's text is the note's; the codex itself holds none. One
+// function per note code, not per read of the note: the editor tells a holder change by a new
+// function, and cancels an insertion still uploading (`behavior/fileAttach.ts`).
+const attachHolder = computed(() => (note.value && !note.value.deleted_at ? note.value.code : null))
+const attachToNote = computed(() => (attachHolder.value ? noteFileAttach(attachHolder.value) : undefined))
 const loading = ref(false)
 const error = ref<unknown>(null)
 const saveError = ref<string | null>(null)
+
+// The codes of a note are read in the current workspace, as everywhere on this page, and its files
+// are named as the note names them in its files panel.
+providePreviewWorkspace(workspace, () => (note.value?.code === code.value ? code.value : undefined))
+// A picture of the note shown full screen: its title and description are the note's to edit.
+provide(
+  FILE_BINDING_EDITOR,
+  noteFileEditor(() => (note.value?.code === code.value ? code.value : null), () => Boolean(note.value?.deleted_at)),
+)
 
 /** Every node of the canvas by code, with its parent's code and its codex's. */
 const index = computed(() => {
@@ -307,12 +326,22 @@ function revealOpenNode() {
 watch(code, (value) => { reveal = value; revealOpenNode() }, { immediate: true })
 watch(index, revealOpenNode)
 
+// A re-read of the node on screen keeps it on screen until the fresh one arrives: emptied, the
+// editor would unmount, and a file still uploading into the note's text would lose its place
+// without a word. Another node starts empty, as before.
 async function loadNode(): Promise<void> {
-  codex.value = null
-  note.value = null
+  if ((codex.value ?? note.value)?.code !== code.value || !inCanvas.value) {
+    codex.value = null
+    note.value = null
+  }
   if (!inCanvas.value) return
-  if (isCodex.value) codex.value = await getCodex(code.value, { report: false })
-  else note.value = await getNote(code.value, { report: false })
+  if (isCodex.value) {
+    codex.value = await getCodex(code.value, { report: false })
+    note.value = null
+  } else {
+    note.value = await getNote(code.value, { report: false })
+    codex.value = null
+  }
 }
 
 async function load(): Promise<void> {
@@ -866,12 +895,17 @@ async function afterRemove(node: TreeNode) {
               :aria-label="codex ? t('codex.editor.rules') : t('codex.editor.body')"
               :max-length="CODEX_BODY_MAX"
               :features="CODEX_DOCUMENT_FEATURES"
+              :attach="attachToNote"
+              :refuse="noteFileRefuse"
               variant="plain"
               min-height="0"
               @update:model-value="(value) => { draft.body = value; schedule() }"
               @blur="commit"
             />
           </VCard>
+
+          <!-- A note holds files, a codex does not. -->
+          <CodexNoteFiles v-if="note" :note-code="note.code" :disabled="Boolean(note.deleted_at)" />
 
           <p v-if="saveError" class="codex-editor__error">{{ saveError }}</p>
         </template>

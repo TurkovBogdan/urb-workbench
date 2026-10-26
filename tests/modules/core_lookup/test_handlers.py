@@ -149,7 +149,17 @@ def _error(record: dict) -> str | None:
 def test_the_assembled_app_registers_every_prefix(registered):
     words = {kind.prefix for kind in registered_types()}
 
-    assert words == {"WORKSPACE", "TASK", "TASKGROUP", "STAGE", "JOURNAL", "NOTE", "CODEX"}
+    assert words == {
+        "WORKSPACE",
+        "TASK",
+        "TASKGROUP",
+        "STAGE",
+        "JOURNAL",
+        "NOTE",
+        "CODEX",
+        "FILE",
+        "IMAGE",
+    }
 
 
 async def test_every_type_answers_with_its_title_description_and_page(db, registered):

@@ -1,9 +1,10 @@
 """Fixtures for the ``codex`` tests: a fresh in-memory DB with the module schema and a workspace.
 
 ``db`` builds the schema from the ORM models (``create_all``) — migrations are the subject of
-``test_migration_codex.py``. Only ``codex`` and ``workspace`` models are registered: a level-2
-module that depends on ``workspace`` alone must stand up without any other module's table, and a
-single-module run is what catches a stray FK target.
+``test_migration_codex.py``. Only ``codex`` and ``workspace`` models are registered (the
+``core_storage`` tables come along, pulled in by ``codex_file``'s FK): a level-2 module that
+depends on ``workspace`` alone must stand up without any other module's table, and a single-module
+run is what catches a stray FK target.
 
 ``workspace`` is created through its own module's CRUD — the path the application takes.
 
@@ -14,6 +15,8 @@ production prefix — without the handlers ``ApiError`` would fly past as an exc
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
@@ -22,6 +25,9 @@ from src.core.api import register_exception_handlers
 from src.core.config import Config
 from src.core.database import close_database, init_database
 from src.modules.codex.api import router
+from src.modules.core_storage import layout as storage_layout
+from src.modules.core_storage import settings as storage_settings
+from src.modules.core_storage.layout import StorageLayout
 from src.modules.workspace.crud.workspace import workspace_create
 
 
@@ -52,3 +58,15 @@ async def client(db):
     app.include_router(router, prefix="/internal/codex")
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         yield c
+
+
+@pytest.fixture
+def storage(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> StorageLayout:
+    """A ``core_storage`` layout in a temp folder with the default settings — the files a note
+    attaches land here, never in ``runtime/``. The tables come with the ``db`` schema: the codex
+    models pull the storage models in as their FK target."""
+    layout = StorageLayout(tmp_path / "storage", tmp_path / "tmp", ("public", "private"))
+    layout.ensure_dirs()
+    monkeypatch.setattr(storage_layout, "_layout", layout)
+    monkeypatch.setattr(storage_settings, "_current", None)
+    return layout

@@ -29,6 +29,7 @@ from src.core.config import get_config
 from src.modules.workbench.codes import bare_code, code_prefix
 from src.modules.workbench.contracts import Openable, by_prefix
 from src.modules.workbench.entities.codex import CodexPage
+from src.modules.workbench.entities.file import FilePage, as_file_code
 from src.modules.workbench.entities.tasks import (
     GroupPage,
     JournalPage,
@@ -50,6 +51,7 @@ OPENABLE: dict[str, Openable] = by_prefix(
     JournalPage(),
     NotePage(),
     CodexPage(),
+    FilePage(),
 )
 
 
@@ -73,14 +75,16 @@ def register(mcp: "FastMCP") -> None:
         A STAGE@ or a JOURNAL@ opens the task it belongs to: they live on its page and have none
         of their own. A NOTE@ opens its own page, inside its task's. A CODEX@ opens the codex
         editor on that codex or note. A WORKSPACE@ or a TASKGROUP@ opens the list it is a row in.
+        A FILE@ opens the file itself.
 
         It acts on the user's machine, so do it when it was asked for or clearly helps, not
         after every call.
 
         Args:
-            code: What to show — a TASK@, STAGE@, JOURNAL@, NOTE@, CODEX@, TASKGROUP@ or
-                WORKSPACE@ code.
+            code: What to show — a TASK@, STAGE@, JOURNAL@, NOTE@, CODEX@, TASKGROUP@,
+                WORKSPACE@ or FILE@ code (an IMAGE@ names the same file).
         """
+        code = as_file_code(code)
         prefix = code_prefix(code)
         handler = OPENABLE.get(prefix)
         if handler is None:

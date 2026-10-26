@@ -58,6 +58,7 @@ const navEntries: NavSectionEntry[] = [
   { section: 'codex', order: 20, path: '/codex/available', label: 'Manage', labelKey: 'codex.nav_available', icon: IconAdjustments },
   { section: 'mcp', order: 10, path: '/mcp-servers', label: 'MCP servers', labelKey: 'core_mcp.nav', icon: IconServerBolt },
   { section: 'settings', order: 10, path: '/settings/interface', label: 'Interface', labelKey: 'settings.interface.nav', icon: IconTypography },
+  { section: 'settings', order: 30, path: '/settings/modules', label: 'Modules', labelKey: 'settings.nav_modules', icon: IconAdjustments },
   { section: 'settings', order: 40, path: '/monitoring', label: 'Job monitoring', labelKey: 'core_monitoring.nav', icon: IconClock },
   { section: 'settings', order: 50, path: '/settings/core', label: 'Server', labelKey: 'setup.nav', icon: IconServerCog },
   { section: 'about', order: 10, path: '/about', label: 'Version and update', labelKey: 'about.nav', icon: IconInfoCircle },

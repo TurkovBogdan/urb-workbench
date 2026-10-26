@@ -164,10 +164,13 @@ function text(nodes: JSONContent[] | undefined): string {
 // Marks are printed in RUNS, not per node. Tiptap stores `**bold `code` text**` as three adjacent
 // nodes carrying the same mark, and wrapping each one separately would give
 // `**bold** `code` **text**` — the same on screen, different in the text, and so on every save.
-// Delimiters open when the set of marks changes and close in reverse order — like tags.
+// Delimiters open when the set of marks changes and close in reverse order — like tags. Of the
+// marks opening at one node, the one whose run lasts longer opens first, outside: in `***a** b*`
+// the italic outlives the bold, and opened inside it would have to close with the bold and open
+// again in front of the blank, where an asterisk opens nothing. MARK_ORDER settles a tie.
 const MARK_ORDER = ['link', 'bold', 'italic', 'strike']
 
-interface Wrap { key: string; open: string; close: string }
+interface Wrap { key: string; open: string; close: string; emphasis: boolean }
 
 // A link whose text equals its address is a bare URL, not a markdown link. Parsing enables
 // `linkify`, so an `https://…` written in the text arrives here ALREADY as a node with a link;
@@ -189,10 +192,10 @@ function wraps(node: JSONContent): Wrap[] {
     if (!mark) continue
     if (name === 'link') {
       const href = String(mark.attrs?.href ?? '')
-      out.push({ key: `link|${href}`, open: '[', close: `](${href})` })
-    } else if (name === 'bold') out.push({ key: 'bold', open: '**', close: '**' })
-    else if (name === 'italic') out.push({ key: 'italic', open: '*', close: '*' })
-    else out.push({ key: 'strike', open: '~~', close: '~~' })
+      out.push({ key: `link|${href}`, open: '[', close: `](${href})`, emphasis: false })
+    } else if (name === 'bold') out.push({ key: 'bold', open: '**', close: '**', emphasis: true })
+    else if (name === 'italic') out.push({ key: 'italic', open: '*', close: '*', emphasis: true })
+    else out.push({ key: 'strike', open: '~~', close: '~~', emphasis: true })
   }
   return out
 }
@@ -217,92 +220,187 @@ function sameMarks(a: JSONContent, b: JSONContent): boolean {
   return JSON.stringify(a.marks ?? []) === JSON.stringify(b.marks ?? [])
 }
 
-function inline(nodes: JSONContent[] | undefined): string {
-  let out = ''
-  let active: Wrap[] = []
+// A code ends as a word of its own. A pill the document holds right before a letter, a digit or
+// another pill — text pasted after it, a word typed there — would otherwise print glued: before a
+// hex letter or digit (`FILE@`, `CODEX@` begin with one) the code reads as no code at all, before
+// any other letter it reads as one word to the person and to an agent reading the body. The space
+// carries the pill's marks, so a bold run around the pill stays one run. Nothing changes where
+// anything is printed between the two already — a delimiter, a backtick, punctuation, a blank —
+// nor before a code: a code has no boundary on the left (`REF_CODE`). Such texts keep their bytes.
+const WORD_START = /^[\p{L}\p{N}\p{M}]/u
 
-  for (const node of liftEdgeSpaces(merged(nodes ?? []))) {
-    const want = wraps(node)
-    let keep = 0
-    while (keep < active.length && keep < want.length && active[keep].key === want[keep].key) keep += 1
-    for (let i = active.length - 1; i >= keep; i -= 1) out += active[i].close
-    active = active.slice(0, keep)
-    for (let i = keep; i < want.length; i += 1) { out += want[i].open; active.push(want[i]) }
-    out += content(node)
-  }
+function startsWord(node: JSONContent): boolean {
+  if (node.type === 'entityRef') return true
+  return node.type === 'text' && !hasMark(node, 'code') && WORD_START.test(node.text ?? '')
+}
 
-  for (let i = active.length - 1; i >= 0; i -= 1) out += active[i].close
+function wrapKeys(node: JSONContent): string {
+  return wraps(node).map((wrap) => wrap.key).join('|')
+}
+
+function separatedRefs(nodes: JSONContent[]): JSONContent[] {
+  const out: JSONContent[] = []
+  nodes.forEach((node, index) => {
+    const previous = nodes[index - 1]
+    if (previous?.type === 'entityRef' && startsWord(node) && wrapKeys(previous) === wrapKeys(node)) {
+      out.push(previous.marks?.length ? { type: 'text', text: ' ', marks: previous.marks } : plain(' '))
+    }
+    out.push(node)
+  })
   return out
 }
 
-function content(node: JSONContent): string {
-  if (node.type === 'entityRef') return String(node.attrs?.code ?? '')
-  // Two spaces are the only line break markdown knows inside a paragraph.
-  if (node.type === 'hardBreak') return '  \n'
-  // The URL prints as is, unescaped: an underscore or asterisk inside a URL is part of the
-  // address, and a backslash before it would break it.
-  if (isAutolink(node)) return node.text ?? ''
-  if (node.type !== 'text') return ''
-  // Nothing is escaped inside code — the code span itself is the escaping.
-  const code = (node.marks ?? []).some((mark) => mark.type === 'code')
-  return code ? codeSpan(node.text ?? '') : escapeText(node.text ?? '')
+/** Index of the first node from `start` on that no longer carries the wrap `key`. */
+function runEnd(plan: Wrap[][], start: number, key: string): number {
+  let end = start
+  while (end < plan.length && plan[end].some((wrap) => wrap.key === key)) end += 1
+  return end
 }
 
-// Emphasis is keyed on these marks only: a link survives edge spaces (`[ text ](url)` reads back
-// the same), an asterisk does not.
-function emphasisKey(node: JSONContent): string {
-  return (node.marks ?? [])
-    .filter((mark) => mark.type === 'bold' || mark.type === 'italic' || mark.type === 'strike')
-    .map((mark) => mark.type)
-    .sort()
-    .join(',')
+function inline(nodes: JSONContent[] | undefined): string {
+  const flat = liftEdgeSpaces(merged(separatedRefs(nodes ?? [])))
+  const plan = flat.map(wraps)
+  let out = ''
+  let active: Wrap[] = []
+  // The blank a node ended with, held until it is known whether delimiters close after it.
+  let held = ''
+
+  // Innermost first. The held blank leaves through the emphasis delimiters next to it: an asterisk
+  // after a blank closes nothing. A link keeps it — `[text ](url)` reads back the same.
+  const closeFrom = (keep: number): void => {
+    for (let i = active.length - 1; i >= keep; i -= 1) {
+      if (!active[i].emphasis) { out += held; held = '' }
+      out += active[i].close
+    }
+    out += held
+    held = ''
+    active = active.slice(0, keep)
+  }
+
+  flat.forEach((node, index) => {
+    const want = plan[index]
+    // Marks still wanted stay open in the order they were opened, whatever their place in
+    // MARK_ORDER: `*italic **bold** italic*` must not close the italic run to open the bold one.
+    let keep = 0
+    while (keep < active.length && want.some((wrap) => wrap.key === active[keep].key)) keep += 1
+    closeFrom(keep)
+
+    const opening = want
+      .filter((wrap) => !active.some((open) => open.key === wrap.key))
+      .sort((a, b) => runEnd(plan, index, b.key) - runEnd(plan, index, a.key))
+    const { lead, body, trail } = content(node)
+    // The leading blank goes ahead of the emphasis delimiters next to it, for the same reason.
+    const lastLink = opening.map((wrap) => wrap.emphasis).lastIndexOf(false)
+    let opens = ''
+    opening.forEach((wrap, at) => {
+      if (at === lastLink + 1) opens += lead
+      opens += wrap.open
+      active.push(wrap)
+    })
+    if (lastLink + 1 >= opening.length) opens += lead
+    out += opens + body
+    held = trail
+  })
+
+  closeFrom(0)
+  return out
 }
+
+interface Printed { lead: string; body: string; trail: string }
+
+function content(node: JSONContent): Printed {
+  const whole = (body: string): Printed => ({ lead: '', body, trail: '' })
+  if (node.type === 'entityRef') return whole(String(node.attrs?.code ?? ''))
+  // Two spaces are the only line break markdown knows inside a paragraph.
+  if (node.type === 'hardBreak') return whole('  \n')
+  // The URL prints as is, unescaped: an underscore or asterisk inside a URL is part of the
+  // address, and a backslash before it would break it.
+  if (isAutolink(node)) return whole(node.text ?? '')
+  if (node.type !== 'text') return whole('')
+  // Nothing is escaped inside code — the code span itself is the escaping.
+  if (hasMark(node, 'code')) return whole(codeSpan(node.text ?? ''))
+  const value = node.text ?? ''
+  const lead = /^\s*/.exec(value)?.[0] ?? ''
+  const trail = lead.length === value.length ? '' : /\s*$/.exec(value)?.[0] ?? ''
+  return { lead, body: escapeText(value.slice(lead.length, value.length - trail.length)), trail }
+}
+
+// Only emphasis has edges to lift: a link survives edge spaces (`[ text ](url)` reads back the
+// same), an asterisk does not.
+const EMPHASIS = ['bold', 'italic', 'strike']
 
 function plain(value: string): JSONContent {
   return { type: 'text', text: value }
 }
 
+function hasMark(node: JSONContent, type: string): boolean {
+  return (node.marks ?? []).some((mark) => mark.type === type)
+}
+
+function withoutMark(node: JSONContent, type: string): JSONContent {
+  const { marks: all, ...rest } = node
+  const marks = (all ?? []).filter((mark) => mark.type !== type)
+  return marks.length ? { ...rest, marks } : rest
+}
+
 // Spaces at the edges of an emphasized run are moved outside. Per CommonMark a closing asterisk
 // after a space closes nothing — `**word **` would spill over the rest of the paragraph. Edges
 // are found for the run as a whole, not per node: otherwise a space inside
-// `**bold `code` text**` would also be taken for an edge.
+// `**bold `code` text**` would also be taken for an edge. And they are found per mark, not per
+// set of marks: in `**bold *italic* bold**` the italic run's edge is not the bold run's, and
+// lifting the space out of both split the bold run in three.
 function liftEdgeSpaces(nodes: JSONContent[]): JSONContent[] {
+  let out = nodes
+  // A run of nothing but spaces stays unmarked — there is nothing to emphasize. Before the next
+  // pass the text emptied by this one goes, and blanks it split off rejoin their neighbours: a run
+  // edge hidden behind an empty node, or spread over two, would be only half lifted. A blank lifted
+  // out of an inner mark can land on the edge of an outer one already passed, so the passes repeat
+  // until nothing moves; each only takes marks off blanks, so that comes soon.
+  for (let round = 0; round <= EMPHASIS.length; round += 1) {
+    const before = JSON.stringify(out)
+    for (const type of EMPHASIS) {
+      out = merged(liftEdgesOf(out, type).filter((node) => !(node.type === 'text' && node.text === '')))
+    }
+    if (JSON.stringify(out) === before) break
+  }
+  return out
+}
+
+function liftEdgesOf(nodes: JSONContent[], type: string): JSONContent[] {
   const out: JSONContent[] = []
 
   for (let i = 0; i < nodes.length;) {
-    const key = emphasisKey(nodes[i])
-    let end = i
-    while (end < nodes.length && emphasisKey(nodes[end]) === key) end += 1
-    let run = nodes.slice(i, end)
-    i = end
-
-    if (!key) {
-      out.push(...run)
+    if (!hasMark(nodes[i], type)) {
+      out.push(nodes[i])
+      i += 1
       continue
     }
+    let end = i
+    while (end < nodes.length && hasMark(nodes[end], type)) end += 1
+    const run = nodes.slice(i, end)
+    i = end
 
     const head = run[0]
     if (head.type === 'text') {
       const lead = /^\s*/.exec(head.text ?? '')?.[0] ?? ''
       if (lead) {
-        out.push(plain(lead))
-        run = [{ ...head, text: (head.text ?? '').slice(lead.length) }, ...run.slice(1)]
+        out.push(withoutMark({ ...head, text: lead }, type))
+        run[0] = { ...head, text: (head.text ?? '').slice(lead.length) }
       }
     }
 
-    let trail = ''
+    let trail: JSONContent | null = null
     const tail = run[run.length - 1]
-    if (tail?.type === 'text') {
-      trail = /\s*$/.exec(tail.text ?? '')?.[0] ?? ''
-      if (trail) {
-        const kept = (tail.text ?? '').slice(0, (tail.text ?? '').length - trail.length)
-        run = [...run.slice(0, -1), { ...tail, text: kept }]
+    if (tail.type === 'text') {
+      const spaces = /\s*$/.exec(tail.text ?? '')?.[0] ?? ''
+      if (spaces) {
+        trail = withoutMark({ ...tail, text: spaces }, type)
+        run[run.length - 1] = { ...tail, text: (tail.text ?? '').slice(0, (tail.text ?? '').length - spaces.length) }
       }
     }
 
-    // A run of nothing but spaces stays unmarked — there is nothing to emphasize.
-    out.push(...run.filter((node) => !(node.type === 'text' && node.text === '')))
-    if (trail) out.push(plain(trail))
+    out.push(...run)
+    if (trail) out.push(trail)
   }
 
   return out

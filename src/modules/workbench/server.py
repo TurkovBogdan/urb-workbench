@@ -28,8 +28,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from src.modules.workbench.content import register as _register_content
+from src.modules.workbench.resources import register as _register_resources
 from src.modules.workbench.tools.codex import register as _register_codex
 from src.modules.workbench.tools.delete import register as _register_delete
+from src.modules.workbench.tools.file import register as _register_file
 from src.modules.workbench.tools.group import register as _register_group
 from src.modules.workbench.tools.interface import register as _register_interface
 from src.modules.workbench.tools.journal import register as _register_journal
@@ -59,7 +61,9 @@ _INSTRUCTIONS = (
     "CODES. Every entity has a code that says what it is — WORKSPACE@ (a workspace), TASKGROUP@ "
     "(a standing theme inside one), TASK@, STAGE@ (a step of a task's plan), JOURNAL@ (a journal "
     "entry), NOTE@ (a task note — a document written at a task), CODEX@ (a codex or a note in "
-    "one). Pass a code back whole, exactly as you received it; never invent one. A code from "
+    "one), FILE@ (a file attached to a task or a codex note; IMAGE@ is the same code where a "
+    "text shows it as a picture). Pass a code back whole, exactly as you received it; never "
+    "invent one. A code from "
     "another workspace is refused by name rather than acted on quietly — that refusal means you "
     "are in the wrong workspace, not that the entity is missing.\n\n"
     "ANSWERS ABOUT THE WORK NAME THEIR WORKSPACE. Read it. It is the only way to notice that "
@@ -94,8 +98,9 @@ _INSTRUCTIONS = (
     "SKILLS. This server carries its own reference material — how it expects a brief, a plan "
     "and a journal to be written, and what its interface actually renders. skills_list() names "
     "what is available; skill_get(name, section?) returns it. Read skill_get('task-brief') "
-    "before writing a brief and skill_get('task-plan') before planning: those are conventions "
-    "of this app, not things to infer.\n\n"
+    "before writing a brief, skill_get('task-plan') before planning and skill_get('markdown') "
+    "before putting a file or a diagram into a text: those are conventions of this app, not "
+    "things to infer.\n\n"
     "TOOLS. Space: workspaces_list, workspace_use. Layout: groups_list, group_create, "
     "group_update, tasks_regroup. Work: tasks_list, task_get, "
     "task_create, task_update, task_status. Plan: stage_add, stage_update, stage_close. "
@@ -105,6 +110,11 @@ _INSTRUCTIONS = (
     "journal); written at any stage of the work, and always when the user asks for one: "
     "task_note_add, task_note_get, task_note_update; task_get lists them without text. "
     "Codexes: codex_index, codex_get, codex_tree, codex_search, codex_add, codex_update. "
+    "Files — a screenshot of the work, a diagram, a document: attach_file(holder code, path) "
+    "puts one on a TASK@, NOTE@, STAGE@ or codex note and gives the code to put into a text — "
+    "IMAGE@ shows the picture, FILE@ a link. A file is in a task once; NOTE@ and STAGE@ mark "
+    "where it came in. file_get reads what a file is and where to get it; the resource "
+    "workbench://file/{code} shows it to you; task_get and codex_get list a holder's files. "
     "CONTENT — the long markdown fields — is "
     "edited by content_set / content_replace / content_set_section / content_add, addressed by "
     "the entity code and the field: TASK@ context, and from `standard` up constraints, "
@@ -112,8 +122,9 @@ _INSTRUCTIONS = (
     "body. None of them "
     "echoes the text you sent: content_replace "
     "and content_add answer with the SEAM of the edit, content_set_section with what it CUT, "
-    "content_set with the new length. Plus delete(code), one door for every type, and "
-    "interface_open(code) to put something on the user's screen."
+    "content_set with the new length. Plus delete(code), one door for every type — for a "
+    "FILE@ it takes the file out of its place — and interface_open(code) to put something on "
+    "the user's screen."
 )
 
 
@@ -129,10 +140,12 @@ def mcp_server(ctx: "McpServerContext") -> "FastMCP":
     _register_journal(mcp)
     _register_task_note(mcp)
     _register_codex(mcp)
+    _register_file(mcp)
     _register_content(mcp)
     _register_delete(mcp)
     _register_skill(mcp)
     _register_interface(mcp)
+    _register_resources(mcp)
     return mcp
 
 

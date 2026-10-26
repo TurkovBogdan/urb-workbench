@@ -72,8 +72,8 @@ def _template(source: str) -> str:
 def _is_page(name: str) -> bool:
     """A view is a file in a ``views/`` folder, not everything ending in ``View.vue``.
 
-    The name pattern swept in ``components/markdown/editor/EntityRefView.vue`` — a Tiptap editor
-    node that renders an entity link INSIDE text. It has no page frame and cannot have one, so the
+    The name pattern swept in ``components/markdown/editor/blocks/entityRef/EntityRefView.vue`` —
+    a Tiptap editor node that renders an entity link INSIDE text. It has no page frame and cannot have one, so the
     test demanded the impossible of it and was always red. A page route always points at a file
     in ``views/``, so the folder is an exact mark and the suffix is not.
     """

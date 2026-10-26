@@ -14,16 +14,29 @@ export interface PreviewRecord {
   description: string
   /** App path of the entity's page, without the host; empty on an error. */
   link: string
+  /** A stored file's type (`application/pdf`); empty for every other code. */
+  mime: string
+  /** The page's holder holds the file: the title and description are its own to edit. */
+  held: boolean
   error: { code: PreviewMiss; message: string } | null
 }
 
 /** The most codes one request may carry; the backend refuses a longer batch whole. */
 export const PREVIEW_BATCH_MAX = 200
 
-export function fetchPreviews(codes: string[], workspace: string | null): Promise<PreviewRecord[]> {
+/**
+ * @param workspace the workspace the codes are read in (`WORKSPACE@…`)
+ * @param holder the entity whose page shows them (`TASK@…`, `CODEX@…`): a file is named as that
+ *   entity names it
+ */
+export function fetchPreviews(
+  codes: string[],
+  workspace: string | null,
+  holder: string | null = null,
+): Promise<PreviewRecord[]> {
   return internalApi.post<PreviewRecord[]>(
     '/core/lookup/preview',
-    { codes, workspace },
+    holder ? { codes, workspace, holder } : { codes, workspace },
     { report: false },
   )
 }

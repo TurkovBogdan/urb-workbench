@@ -20,8 +20,12 @@
 /** Block constructs. The paragraph is not listed: it is always present and cannot be disabled. */
 export type BlockFeature = 'heading' | 'list' | 'quote' | 'codeBlock' | 'diagram' | 'divider' | 'table'
 
-/** Inline: text marks and the entity reference pill. */
-export type InlineFeature = 'bold' | 'italic' | 'strike' | 'code' | 'link' | 'entityRef'
+/**
+ * Inline: text marks and the entity reference pill. `image` draws an `IMAGE@` reference as the
+ * picture itself, as the viewer does; it is a way of showing `entityRef` and means nothing without
+ * it. The node and the stored text are the same either way.
+ */
+export type InlineFeature = 'bold' | 'italic' | 'strike' | 'code' | 'link' | 'entityRef' | 'image'
 
 /** Chrome: the block drag handle and the slash menu. */
 export type ChromeFeature = 'handle' | 'slash'
@@ -33,7 +37,7 @@ export const BLOCK_FEATURES: readonly BlockFeature[] = [
 ]
 
 export const INLINE_FEATURES: readonly InlineFeature[] = [
-  'bold', 'italic', 'strike', 'code', 'link', 'entityRef',
+  'bold', 'italic', 'strike', 'code', 'link', 'entityRef', 'image',
 ]
 
 /** Ready-made sets. The mode name is what goes into the markup; the list is what it means. */

@@ -9,7 +9,8 @@ user, and a workspace divides contexts, not access.
 
 ## Responsibility
 
-The module holds one entity — the workspace card — and one extension point for it.
+The module holds one entity — the workspace card — and two extension points for it: the card's
+counters and the hooks of its final deletion.
 
 Its job: create a workspace, read it, rename it, delete it, bring it back from the deleted, and
 build the list with content counters. A human edits all of this, so the set of endpoints is
@@ -65,6 +66,30 @@ Two details that are easy to get wrong:
 - **The label travels as a key, not text.** It is owned by whoever owns the entity: renaming
   "zones" is done in `tasks`, not in a module that knows nothing about zones.
 
+## Purge hooks: letting go of what the cascade takes
+
+`purge` removes the workspace row, and the database cascade removes the rows of the modules above.
+What those rows held outside the database — a storage owner of a file — no cascade can let go of,
+and the module that owned the rows is never told they are gone. So it registers a hook, the same
+way it registers a counter:
+
+```python
+# tasks/module.py, configure()
+register_purge_hook(WorkspacePurgeHook(key="tasks", before_purge=collect_purged_tasks))
+```
+
+`workspace_delete(hard=True)` — the only final deletion, reached by `DELETE /{code}/purge` — runs
+each hook in key order in two steps:
+
+1. `before_purge(session, workspace_code)` inside the deleting transaction, before the row goes:
+   the rows about to be cascaded are still there to be read. It only reads, and returns a step
+   for after the commit, or `None`.
+2. The steps after the commit, one by one. A step that opens a write transaction of its own — the
+   file storage does — must not run inside ours. A failing step is logged and the rest still run;
+   the deletion stays done.
+
+A soft delete calls no hook: the contents stay, and so does everything they hold.
+
 ## Storage and codes
 
 | Table | Columns | Indexes | Revisions |
@@ -100,6 +125,7 @@ them by one character in the URL.
 | `module.py` | The module declaration: name, migrations directory, the `internal` zone router at `/workspace` |
 | `api.py` | HTTP: list, create, read, update, soft delete, `restore`, `purge` |
 | `stats.py` | The counter registry — the hook the modules above attach to |
+| `purge.py` | The registry of hooks run by a final deletion — before the cascade and after the commit |
 | `models/workspace.py` | The ORM row of the `workspaces` table |
 | `crud/workspace.py` | Store access; truncates long text rather than rejecting it — except the description, which is refused over 128 |
 | `dto.py` | Response contracts: `WorkspaceRow`, `WorkspaceListRow`, `WorkspaceCounterRow` |

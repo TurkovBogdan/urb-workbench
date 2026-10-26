@@ -145,6 +145,53 @@ def test_stop_is_a_subcommand_with_the_same_safe_defaults():
 
 
 @pytest.mark.pure
+def test_a_copy_is_manual_unless_the_update_says_otherwise():
+    """Only the update's own copies are ever pruned, so a copy taken by hand must not need a flag
+    to stay."""
+    plain = app._parse_args(["backup"])
+    assert (plain.made_by, plain.prune, plain.target) == ("manual", False, None)
+    marked = app._parse_args(["backup", "--made-by", "update", "/tmp/copy"])
+    assert (marked.made_by, marked.target) == ("update", "/tmp/copy")
+    pruning = app._parse_args(["backup", "--prune", "--dry-run", "--spare", "/tmp/copy"])
+    assert (pruning.prune, pruning.dry_run, pruning.spare) == (True, True, "/tmp/copy")
+    verifying = app._parse_args(["backup", "--verify", "/tmp/copy"])
+    assert (verifying.verify, verifying.target, verifying.prune) == ("/tmp/copy", None, False)
+    assert plain.verify is None
+
+
+@pytest.mark.pure
+def test_backup_verify_runs_the_check_and_returns_its_code(monkeypatch):
+    from src.core import restore
+
+    checked: list[str] = []
+    monkeypatch.setattr(restore, "verify_command", lambda copy: checked.append(copy) or 1)
+
+    assert app.main(["backup", "--verify", "/tmp/copy"]) == 1
+    assert checked == ["/tmp/copy"]
+
+
+@pytest.mark.pure
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["backup", "--prune", "/tmp/copy"],
+        ["backup", "--prune", "--made-by", "update"],
+        ["backup", "--dry-run"],
+        ["backup", "--spare", "/tmp/copy"],
+        ["backup", "--made-by", "cron"],
+        ["backup", "--verify", "/tmp/copy", "/tmp/other"],
+        ["backup", "--verify", "/tmp/copy", "--prune"],
+        ["backup", "--verify", "/tmp/copy", "--made-by", "update"],
+        ["backup", "--verify", "/tmp/copy", "--prune", "--dry-run"],
+        ["backup", "--verify"],
+    ],
+)
+def test_taking_a_copy_and_pruning_do_not_mix_their_options(argv: list[str]):
+    with pytest.raises(SystemExit):
+        app._parse_args(argv)
+
+
+@pytest.mark.pure
 def test_worker_module_is_repeatable():
     a = app._parse_args(["--worker-module", "alpha", "--worker-module", "beta"])
     assert a.worker_module == ["alpha", "beta"]

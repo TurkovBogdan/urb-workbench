@@ -76,7 +76,12 @@ def _record(code: str, answer: Preview | Miss) -> PreviewOut:
     if isinstance(answer, Miss):
         return PreviewOut(code=code, error=PreviewErrorOut(code=answer, message=MISS_MESSAGES[answer]))
     return PreviewOut(
-        code=code, title=answer.title, description=answer.description, link=answer.link
+        code=code,
+        title=answer.title,
+        description=answer.description,
+        link=answer.link,
+        mime=answer.mime,
+        held=answer.held,
     )
 
 

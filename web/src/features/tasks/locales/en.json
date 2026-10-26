@@ -241,6 +241,17 @@
     "task": "Task",
     "task_deleted": "The task is deleted — the note can be read, not edited."
   },
+  "file": {
+    "hint": "The task's files: screenshots, exports, documents. The agent attaches them — to the task, a note or a stage — and so do you: with “Upload files” or by dropping them here. A file dropped into a stage's or a note's field is attached to it. The text refers to a file by its FILE or IMAGE code. The order is yours: drag a card by its handle. The task's own files always show, the notes' and the stages' while the “Notes” and “Stages” switches are on.",
+    "with_notes": "Notes ({count})",
+    "with_stages": "Stages ({count})",
+    "drop_note": "They go to the task. To a note or a stage — through its field.",
+    "duplicate": "“{name}” is in the task already",
+    "place": {
+      "note": "note “{title}”",
+      "stage": "stage {number}. {title}"
+    }
+  },
   "group": {
     "list": {
       "title": "Task groups",
@@ -331,6 +342,14 @@
     },
     "note": {
       "not_found": "Note not found"
+    },
+    "file": {
+      "not_found": "The file is not in this task",
+      "already_attached": "The file is in the task already",
+      "foreign_place": "The note or the stage is not of this task",
+      "not_stored": "The file is not in the storage",
+      "foreign_store": "The file lies in another store — a task takes public files only",
+      "control_character": "The file's title or description holds a control character ({field}) — remove it"
     }
   }
 }

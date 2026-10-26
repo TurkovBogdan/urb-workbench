@@ -25,6 +25,11 @@ from enum import StrEnum
 # prefixed code. A handler whose type does not live in a workspace ignores it.
 WORKSPACE_FILTER = "workspace"
 
+# The entity whose page shows the codes (``TASK@…``, ``CODEX@…``), as a prefixed code. A handler
+# whose entities sit in several places at once may prefer what this one says about them; the
+# others ignore it.
+HOLDER_FILTER = "holder"
+
 
 class Miss(StrEnum):
     """Why a code has no preview. The values are a contract with the interface's translations."""
@@ -42,11 +47,16 @@ class Preview:
 
     ``link`` is an app path without the host (``/tasks/task/TASK@…``) — the interface routes by
     it, and a type whose page lives inside its owner's (a stage on its task's page) says so here.
+    ``mime`` is the type of a stored file the code names, by which the interface picks its glyph;
+    empty for any other code. ``held`` — the entity the request names as the page's holder holds
+    the file, and the title and description are its own: the page may edit them.
     """
 
     title: str
     description: str = ""
     link: str = ""
+    mime: str = ""
+    held: bool = False
 
 
 Filters = Mapping[str, str]
@@ -102,6 +112,7 @@ __all__ = [
     "Preview",
     "PreviewHandler",
     "PreviewResult",
+    "HOLDER_FILTER",
     "WORKSPACE_FILTER",
     "clear_types",
     "register_type",

@@ -21,11 +21,13 @@ from src.modules.tasks.crud import journal as journal_crud
 from src.modules.tasks.crud import note as note_crud
 from src.modules.tasks.crud import stage as stage_crud
 from src.modules.tasks.crud import task as task_crud
+from tests.modules.tasks.file_support import task_file_attach_bytes
 
 pytestmark = pytest.mark.db
 
 _CODE_IN_TEXT = re.compile(
-    r"\b(?:WORKSPACE|TASKGROUP|GROUP|TASK|STAGE|JOURNAL|NOTE)@([0-9A-Za-z]{10})", re.IGNORECASE
+    r"\b(?:WORKSPACE|TASKGROUP|GROUP|TASK|STAGE|JOURNAL|NOTE|FILE|IMAGE)@([0-9A-Za-z]{10})",
+    re.IGNORECASE,
 )
 
 
@@ -39,6 +41,7 @@ class World:
     stage: str
     entry: str
     note: str
+    file: str
 
 
 def low(prefix: str, bare: str) -> str:
@@ -53,7 +56,7 @@ def no_browser(monkeypatch):
 
 
 @pytest.fixture
-async def world(call, workspace) -> World:
+async def world(call, workspace, storage) -> World:
     a = await group_crud.group_create(workspace_code=workspace.code, title="Биллинг")
     b = await group_crud.group_create(workspace_code=workspace.code, title="Инфра")
     staged = await task_crud.task_create(
@@ -71,9 +74,18 @@ async def world(call, workspace) -> World:
         task_code=staged.code, type="decision", title="Почему так"
     )
     note = await note_crud.task_note_add(task_code=staged.code, title="Схема", body="# Схема\n")
+    bound = await task_file_attach_bytes(staged.code, b"spec", filename="spec.md")
     await call("workspace_use", workspace_code=low("WORKSPACE", workspace.code))
     return World(
-        workspace.code, a.code, b.code, staged.code, plain.code, stage.code, entry.code, note.code
+        workspace.code,
+        a.code,
+        b.code,
+        staged.code,
+        plain.code,
+        stage.code,
+        entry.code,
+        note.code,
+        bound.file_code,
     )
 
 
@@ -107,6 +119,8 @@ CASES = [
     ("task_note_add", {"task_code"}, lambda w: {"task_code": low("TASK", w.plain), "title": "Разбор"}),
     ("task_note_get", {"note_code"}, lambda w: {"note_code": low("NOTE", w.note)}),
     ("task_note_update", {"note_code"}, lambda w: {"note_code": low("NOTE", w.note), "title": "Схема v2"}),
+    ("attach_file", {"code"}, lambda w: {"code": low("TASK", w.plain), "file": low("FILE", w.file)}),
+    ("file_get", {"file_code"}, lambda w: {"file_code": low("FILE", w.file)}),
 ]
 
 

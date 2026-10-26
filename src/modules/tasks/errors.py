@@ -37,6 +37,18 @@ TASK_NOT_DELETED = "tasks.task.not_deleted"
 STAGE_NOT_FOUND = "tasks.stage.not_found"
 JOURNAL_NOT_FOUND = "tasks.journal.not_found"
 NOTE_NOT_FOUND = "tasks.note.not_found"
+FILE_NOT_FOUND = "tasks.file.not_found"
+"""The file is not in this task."""
+FILE_ALREADY_ATTACHED = "tasks.file.already_attached"
+"""The file is in the task already — a file is in a task once."""
+FILE_FOREIGN_PLACE = "tasks.file.foreign_place"
+"""The note or the stage named as the file's place is not a live one of this task, or both are named."""
+FILE_NOT_STORED = "tasks.file.not_stored"
+"""No file under this code in the storage."""
+FILE_FOREIGN_STORE = "tasks.file.foreign_store"
+"""The stored file lies in a store other than the one task files are served from."""
+FILE_CONTROL_CHARACTER = "tasks.file.control_character"
+"""A file's title or description holds a control character (``params.field`` names which)."""
 
 
 class TaskRuleError(ValueError):
@@ -45,14 +57,24 @@ class TaskRuleError(ValueError):
     It subclasses ``ValueError`` on purpose: all of CRUD already raises that, and the API
     handlers catch it with a single ``except`` — adding a code must not require a second branch
     in every endpoint.
+
+    ``params`` — what a surface needs to word the refusal or act on it, as ``ApiError`` carries
+    them: the file a task holds already, so the page can quote it instead of failing.
     """
 
-    def __init__(self, code: str, message: str) -> None:
+    def __init__(self, code: str, message: str, *, params: dict[str, str | int] | None = None) -> None:
         super().__init__(message)
         self.code = code
+        self.params = params or {}
 
 
 __all__ = [
+    "FILE_ALREADY_ATTACHED",
+    "FILE_CONTROL_CHARACTER",
+    "FILE_FOREIGN_PLACE",
+    "FILE_FOREIGN_STORE",
+    "FILE_NOT_FOUND",
+    "FILE_NOT_STORED",
     "GROUP_DELETED",
     "GROUP_HAS_TASKS",
     "GROUP_NOT_DELETED",

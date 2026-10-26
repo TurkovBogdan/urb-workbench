@@ -26,7 +26,7 @@ from src.core.database.sqlite import WRITE_EXECUTION_OPTIONS, configure_sqlite, 
 from src.modules.codex.models import Codex, CodexNote
 
 _BASE = "cxm_001_codex@base"
-_TABLES = {"codex", "codex_note", "codex_mount"}
+_TABLES = {"codex", "codex_note", "codex_mount", "codex_file"}
 _NOW = "CURRENT_TIMESTAMP"
 
 

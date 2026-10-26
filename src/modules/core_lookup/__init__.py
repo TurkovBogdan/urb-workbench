@@ -6,6 +6,7 @@ The module that owns the codes registers a prefix and its ``preview`` handler
 
 from src.modules.core_lookup.module import CoreLookupModule
 from src.modules.core_lookup.registry import (
+    HOLDER_FILTER,
     WORKSPACE_FILTER,
     Filters,
     LookupType,
@@ -18,6 +19,7 @@ from src.modules.core_lookup.registry import (
 __all__ = [
     "CoreLookupModule",
     "Filters",
+    "HOLDER_FILTER",
     "LookupType",
     "Miss",
     "Preview",

@@ -104,9 +104,12 @@ class Config(BaseSettings):
     # at rest; the backend outlives the shim (stopped by hand). See apps/app/mcp_stdio.py.
     # Open the system browser on the home page when the backend was actually started.
     mcp_stdio_open_browser: bool = True
-    # Whether to start the worker (scheduler) together with the backend. Research/search
-    # are synchronous — not needed by default; enable it if background jobs appear.
-    mcp_stdio_start_worker: bool = False
+    # Whether the backend the shim brings up carries the scheduler (`--worker`). On by
+    # default: the backend is the only process there is, and without it the scheduled jobs —
+    # the storage cleanup of released files and temporaries, the reconciliation of file owners —
+    # never run. Off only when a separate worker of this installation runs them; a backend
+    # started with nothing to run them warns at startup (`scheduler/coverage.py`).
+    mcp_stdio_start_worker: bool = True
     # How many seconds to wait for the backend to become ready (/internal/health) after spawn.
     mcp_stdio_boot_timeout: int = 30
     # Code of the proxied MCP server. Empty → the only one the modules mount.
@@ -125,6 +128,11 @@ class Config(BaseSettings):
     # not exposed in ENV: `.env` is written without escaping and without auth, and a
     # value like `--upload-pack=…` is arbitrary code execution.
     update_branch: str = "main"
+    # How many copies taken by the update to keep: after a successful update the older ones
+    # are removed (`app.py backup --prune`). 0 keeps them all; copies taken by hand are never
+    # removed. Not validated here on purpose: the settings page writes `.env` unchecked, and a
+    # negative typo must refuse the prune, not keep the backend from starting.
+    update_keep_backups: int = 10
 
     # ── SECRETS — master key for encrypting values in the DB ───────────────
     # The installation key (32 bytes, base64url) that wraps the keys of encrypted
@@ -143,6 +151,20 @@ class Config(BaseSettings):
     db_provider: Literal["postgres", "sqlite"] = "sqlite"
     # SQLite file (only when db_provider=sqlite). Empty → <runtime_root>/app.sqlite3.
     db_path: str = ""
+
+    # ── STORAGE — the root of the file stores ──────────────────────────────
+    # The stored files' bytes belong to the database that counts their owners: a copy of the
+    # database (a rehearsal, DB_PATH elsewhere) needs its own copy of the stores, or its cleanup
+    # deletes the files the original still holds. Empty → <runtime_root>/storage; a relative
+    # path is read from the application root, as DB_PATH is.
+    storage_path: str = ""
+
+    @property
+    def storage_root(self) -> Path:
+        """The folder the storage keeps its stores in: ``storage_path`` or the profile's own."""
+        if self.storage_path:
+            return self._resolve(self.storage_path)
+        return resolve_runtime_root() / "storage"
 
     # ── DATABASE: postgres connection ──────────────────────────────────────
     # Required when db_provider=postgres; ignored with sqlite (see _validate_db).

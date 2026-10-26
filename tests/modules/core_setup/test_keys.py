@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from src.core.config import Config
 from src.modules.core_setup.keys import FIELD_BY_KEY, UPDATE_BRANCHES
 
 pytestmark = pytest.mark.pure
@@ -29,3 +30,9 @@ def test_update_branch_offers_the_lines_the_project_keeps():
     """The branch goes into git args; a typo in it surfaces only after the install is stopped."""
     assert FIELD_BY_KEY["UPDATE_BRANCH"].choices == UPDATE_BRANCHES
     assert set(UPDATE_BRANCHES) == {"main", "dev"}
+
+
+def test_the_count_of_update_copies_is_a_number_kept_ten_by_default():
+    """The form's key is the Config field: `.env` is topped up with the Config default."""
+    assert FIELD_BY_KEY["UPDATE_KEEP_BACKUPS"].type == "int"
+    assert Config.model_fields["update_keep_backups"].default == 10

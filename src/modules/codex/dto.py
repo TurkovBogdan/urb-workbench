@@ -11,12 +11,13 @@ from pydantic import BaseModel, ConfigDict
 
 from src.core.utils.date import DatetimeUTCStr
 from src.modules.codex.codes import prefixed
-from src.modules.codex.constants import CODEX_CODE_PREFIX
+from src.modules.codex.constants import CODEX_CODE_PREFIX, FILE_CODE_PREFIX, SORT_DEFAULT
 from src.modules.codex.crud.read import Branch
 from src.modules.workspace.constants import WORKSPACE_CODE_PREFIX
 
 CodexCode = prefixed(CODEX_CODE_PREFIX)
 WorkspaceCode = prefixed(WORKSPACE_CODE_PREFIX)
+FileCode = prefixed(FILE_CODE_PREFIX)
 
 
 class CodexSummaryRow(BaseModel):
@@ -106,6 +107,27 @@ class WorkspaceCodexRow(BaseModel):
     agent_can_edit: bool
 
 
+class NoteFileRow(BaseModel):
+    """A file in a note's list: the binding, and what the storage knows of the file.
+
+    ``title`` empty — the file is shown under the name it came in with,
+    ``original_filename + original_extension``.
+    """
+
+    code: FileCode
+    note_code: CodexCode
+    title: str = ""
+    description: str = ""
+    original_filename: str = ""
+    original_extension: str = ""
+    mime: str
+    type: str
+    size: int
+    sort: int = SORT_DEFAULT
+    created_at: DatetimeUTCStr
+    updated_at: DatetimeUTCStr
+
+
 class MountRow(BaseModel):
     """A codex in a workspace's canvas: the codex, its place there, and the agent's right."""
 
@@ -120,7 +142,9 @@ __all__ = [
     "CodexCode",
     "CodexRow",
     "CodexSummaryRow",
+    "FileCode",
     "MountRow",
+    "NoteFileRow",
     "NoteRow",
     "TreeNode",
     "WorkspaceCodexRow",

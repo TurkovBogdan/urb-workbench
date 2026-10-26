@@ -74,6 +74,11 @@ FIELDS: tuple[SetupField, ...] = (
         choices=UPDATE_BRANCHES,
     ),
     SetupField(
+        "UPDATE_KEEP_BACKUPS", _APP, "int", "Update copies kept",
+        "How many copies taken by the update to keep; older ones are removed after a successful "
+        "update. 0 — keep all; copies taken by hand are never removed",
+    ),
+    SetupField(
         "APP_DEV_MODE", _APP, "bool", "Developer mode",
         "Development tools and diagnostics in the interface",
     ),
@@ -86,6 +91,11 @@ FIELDS: tuple[SetupField, ...] = (
         "DB_PATH", _DB, "str", "SQLite file",
         "Path to the database file; empty — runtime/<profile>/app.sqlite3",
         visible_when=_SQLITE,
+    ),
+    SetupField(
+        "STORAGE_PATH", _DB, "str", "File storage folder",
+        "Folder of the stored files; empty — runtime/<profile>/storage. A copy of the database "
+        "needs a folder of its own",
     ),
     SetupField(
         "DB_HOST", _DB, "str", "Database host",

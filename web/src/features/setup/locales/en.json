@@ -22,6 +22,7 @@
     "APP_DEV_MODE": { "label": "Developer mode", "description": "Development tools and diagnostics in the interface" },
     "DB_PROVIDER": { "label": "Database provider", "description": "postgres — an external server (full-featured); sqlite — a local file, nothing to install" },
     "DB_PATH": { "label": "SQLite file", "description": "Path to the database file; empty — runtime/<profile>/app.sqlite3" },
+    "STORAGE_PATH": { "label": "File storage folder", "description": "Folder of the stored files; empty — runtime/<profile>/storage. A copy of the database needs a folder of its own" },
     "DB_HOST": { "label": "Database host", "description": "PostgreSQL server address" },
     "DB_PORT": { "label": "Database port", "description": "PostgreSQL port (usually 5432)" },
     "DB_NAME": { "label": "Database name", "description": "Name of the database" },
@@ -34,6 +35,7 @@
     "WORKER_ENABLED": { "label": "Background jobs", "description": "Run the scheduler and job execution in this same process" },
     "WORKER_TICK_SECONDS": { "label": "Scheduler interval, s", "description": "How often to check the job queue" },
     "WORKER_MAX_CONCURRENT_RUNS": { "label": "Concurrent jobs", "description": "Maximum number of jobs running at once" },
-    "UPDATE_BRANCH": { "label": "Update branch", "description": "Branch the installation updates to (origin/<branch>); the update fast-forwards and refuses to run if the checkout is on another branch" }
+    "UPDATE_BRANCH": { "label": "Update branch", "description": "Branch the installation updates to (origin/<branch>); the update fast-forwards and refuses to run if the checkout is on another branch" },
+    "UPDATE_KEEP_BACKUPS": { "label": "Update copies kept", "description": "How many copies taken by the update to keep; older ones are removed after a successful update. 0 — keep all; copies taken by hand are never removed" }
   }
 }

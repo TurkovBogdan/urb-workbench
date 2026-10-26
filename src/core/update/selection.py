@@ -22,9 +22,10 @@ from src.core.process_table import Process
 
 VETO_ARGV_MARKERS = ("--mcp-", "claude")
 
-# These subcommands act ON the install — the updater's own subprocesses and the stop command —
-# so none of them is the served install itself.
-NON_SERVICE_SUBCOMMANDS = frozenset({"migrate", "backup", "stop", "update"})
+# These subcommands act ON the install — the updater's own subprocesses, the stop command, a
+# restore, which runs only with the install down, the check of the stored files — so none of
+# them is the served install itself.
+NON_SERVICE_SUBCOMMANDS = frozenset({"migrate", "backup", "restore", "storage", "stop", "update"})
 
 MATCH_LAUNCHER = "launcher"
 MATCH_DESCENDANT = "descendant"

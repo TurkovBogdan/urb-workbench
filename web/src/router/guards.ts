@@ -1,7 +1,6 @@
 import { watch } from 'vue'
 import type { RouteLocationNormalized, Router } from 'vue-router'
 import { startNavigationProgress, stopNavigationProgress } from './progress'
-import { dismissHoverTooltips } from './overlays'
 import { recordNavigation } from '@/composables/useNavigationHistory'
 import { beginRouteTransition, endRouteTransition } from '@/composables/useRouteTransition'
 import { clearShellError } from '@/composables/useShellError'
@@ -29,10 +28,6 @@ function focusContent(): void {
 
 export function setupGuards(router: Router): void {
   router.beforeEach(() => {
-    // Close any hover tooltip before KeepAlive deactivates its page and orphans the
-    // teleported overlay (the activator's mouseleave never fires on a navigating click).
-    dismissHoverTooltips()
-
     // A failure screen belongs to the address it was shown at: leaving the address clears it.
     clearShellError()
 

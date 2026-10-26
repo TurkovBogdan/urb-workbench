@@ -38,6 +38,22 @@ def test_ensure_dirs_creates(tmp_path: Path):
 
 
 @pytest.mark.pure
+def test_storage_root_holds_the_tier_folders(tmp_path: Path):
+    paths = AppPath.from_root(tmp_path)
+    assert paths.storage == tmp_path / "storage"
+    assert {paths.storage_public.parent, paths.storage_protected.parent, paths.storage_private.parent} == {
+        paths.storage
+    }
+
+
+@pytest.mark.pure
+def test_ensure_dirs_creates_the_storage_root(tmp_path: Path):
+    paths = AppPath.from_root(tmp_path)
+    ensure_dirs(paths)
+    assert paths.storage.is_dir()
+
+
+@pytest.mark.pure
 def test_ensure_dirs_idempotent(tmp_path: Path):
     paths = AppPath.from_root(tmp_path)
     ensure_dirs(paths)

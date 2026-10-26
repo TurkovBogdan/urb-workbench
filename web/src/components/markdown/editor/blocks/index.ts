@@ -28,7 +28,8 @@ export {
   activeColumnAlign, activeTable,
   type ColumnAlign,
 } from './table'
-export { EntityRef } from './entityRef'
+export { EntityRef } from './entityRef/entityRef'
+export { OPEN_PICTURE, type OpenPicture } from './entityRef/pictureViewer'
 export { Diagram } from './diagram'
 export { CodeBlock } from './codeBlock'
 

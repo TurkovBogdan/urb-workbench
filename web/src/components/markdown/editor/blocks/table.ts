@@ -82,6 +82,12 @@ export const TableCell = Node.create({
 export const TableRow = Node.create({
   name: 'tableRow',
   content: 'tableCell+',
+  // Cells are isolating textblocks, so ProseMirror's gap cursor counts every edge between them as
+  // a gap: an arrow key put one before the first cell, between cells or after the last. Drawn as a
+  // `div` inside `<tr>`, it took the place of a cell — an empty white box that shifted the row — and
+  // a key typed there added a cell, leaving the table no longer a rectangle. The gap a person needs
+  // is after the whole table, at the document's level.
+  allowGapCursor: false,
 
   parseHTML() {
     return [{ tag: 'tr' }]

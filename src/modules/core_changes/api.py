@@ -24,9 +24,9 @@ What was missed during a drop is not re-sent: the bus stores nothing (``bus.py``
 treats the reconnect itself as "re-read".
 
 The handshake checks ``Origin``. CORS does not cover WebSocket, so without the check any page
-open in the same browser could connect and read the feed. Allowed are the backend's own origin
-and the dev origins of ``cors_origins``; a client that sends no ``Origin`` is not a browser and
-is let through.
+open in the same browser could connect and read the feed. The rule is the core's
+(``src/core/router/origin.py``): the backend's own origin and the dev origins of ``cors_origins``;
+a client that sends no ``Origin`` is not a browser and is let through.
 """
 
 from __future__ import annotations
@@ -35,10 +35,10 @@ import asyncio
 import json
 from collections.abc import AsyncIterator
 from contextlib import aclosing
-from urllib.parse import urlsplit
 
 from fastapi import APIRouter, WebSocket
 
+from src.core.router.origin import connection_dev_origins, origin_allowed
 from src.modules.core_changes.bus import Message, bus
 
 PING_SECONDS = 15
@@ -66,12 +66,6 @@ async def _frames() -> AsyncIterator[str]:
             yield _frame(message)
 
 
-def origin_allowed(origin: str | None, host: str | None, dev_origins: list[str]) -> bool:
-    if origin is None:
-        return True
-    return urlsplit(origin).netloc == host or origin in dev_origins
-
-
 async def _send(websocket: WebSocket) -> None:
     async with aclosing(_frames()) as frames:
         async for frame in frames:
@@ -86,8 +80,7 @@ async def _until_closed(websocket: WebSocket) -> None:
 @router.websocket("/ws")
 async def feed(websocket: WebSocket) -> None:
     headers = websocket.headers
-    dev_origins = websocket.app.state.config.cors_origins
-    if not origin_allowed(headers.get("origin"), headers.get("host"), dev_origins):
+    if not origin_allowed(headers.get("origin"), headers.get("host"), connection_dev_origins(websocket)):
         await websocket.close(code=POLICY_VIOLATION)
         return
     await websocket.accept()

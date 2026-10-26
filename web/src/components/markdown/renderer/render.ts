@@ -1,10 +1,13 @@
 // Markdown → sanitised HTML for document bodies: CommonMark + GFM (markdown-it) with the
-// project's own rendering decisions on top — entity-reference pills, task-list checkboxes,
+// project's own rendering decisions on top — entity-reference pills, `IMAGE@` galleries, task-list checkboxes,
 // scrollable tables, external-link targets — and a DOMPurify pass as the closing step.
 import MarkdownIt from 'markdown-it'
 import type { Env, MarkdownIt as MarkdownParser, StateCore, Token } from 'markdown-it'
 import DOMPurify from 'dompurify'
-import { canonicalCode, REF_CODE, refPath, TASK_MARKER, WHOLE_CODE_SPAN } from '../shared/contracts'
+import {
+  canonicalCode, IMAGE_TYPE, REF_CODE, refIsFile, refPath, TASK_MARKER, WHOLE_CODE_SPAN,
+} from '../shared/contracts'
+import { pictureClasses } from '../shared/pictures'
 
 // What a code *is* and where it leads — the vocabulary, its length, the patterns, the address —
 // is a contract shared with the editor and lives in `shared/contracts`.
@@ -68,6 +71,94 @@ function textToken(content: string, level: number, state: StateCore): Token {
   token.content = content
   token.level = level
   return token
+}
+
+// `IMAGE@<code>` is drawn as the picture itself, and pictures written in a row — apart only by
+// blanks or a line break inside the paragraph — are one gallery: the lightbox pages through it. A
+// blank line ends the paragraph and with it the gallery. Runs after `entity_refs`, so a code is
+// already a token of its own and a code inside a link (left as text there) never becomes a picture.
+function imageGalleries(state: StateCore): void {
+  for (const block of state.tokens) {
+    if (block.type !== 'inline' || !block.children) continue
+    block.children = groupImages(block.children, state)
+  }
+}
+
+function isImageRef(token: Token | undefined): boolean {
+  return token?.type === 'entity_ref' && (token.meta as RefMeta).refType === IMAGE_TYPE
+}
+
+function isGap(token: Token): boolean {
+  return (token.type === 'text' && !token.content.trim()) || token.type === 'softbreak' || token.type === 'hardbreak'
+}
+
+function groupImages(children: Token[], state: StateCore): Token[] {
+  const result: Token[] = []
+  let index = 0
+  while (index < children.length) {
+    const first = children[index]
+    if (!isImageRef(first)) {
+      result.push(first)
+      index += 1
+      continue
+    }
+    const codes = [refCodeOf(first)]
+    // `index` moves past an image only: gaps after the last one stay text around the gallery.
+    index += 1
+    let probe = index
+    for (;;) {
+      while (probe < children.length && isGap(children[probe])) probe += 1
+      if (!isImageRef(children[probe])) break
+      codes.push(refCodeOf(children[probe]))
+      probe += 1
+      index = probe
+    }
+    const gallery = new state.Token('image_gallery', '', 0)
+    gallery.level = first.level
+    gallery.meta = { codes }
+    result.push(gallery)
+  }
+  return result
+}
+
+// A type alias, not an interface: `Token.meta` is a record, and only an alias is comparable with it.
+type RefMeta = { refType: string; hash: string }
+
+function refCodeOf(token: Token): string {
+  const { refType, hash } = token.meta as RefMeta
+  return `${refType}@${hash}`
+}
+
+// The label is the full code: a hash prefix looked like a fragment, and what the entity is shows
+// in the hover card (`data-ref` is what the body hands to it — no native `title`, which would pop
+// up over the card). The type goes into a class, which picks the pill's glyph. Both parts of the
+// code come from the scanner (fixed word + hex), so they need no escaping. The label sits in its
+// own <span> so it can be the element that ellipsises when the pill is capped (inside a table
+// cell) — `text-overflow` has no effect on the flex pill itself.
+function refPill(code: string): string {
+  const typeClass = `md-ref--${code.split('@')[0].toLowerCase()}`
+  // A type whose page the code alone cannot tell gets its `href` from the preview, once it comes.
+  const path = refPath(code)
+  const href = path ? ` href="${path}"` : ''
+  // A file is not a page of the app: the browser opens it in a tab of its own, the router never.
+  const target = refIsFile(code) ? ' target="_blank" rel="noopener noreferrer"' : ''
+  return `<a class="md-ref ${typeClass}"${href}${target} data-ref="${code}"><span class="md-ref-label">${code}</span></a>`
+}
+
+// Each picture holds its pill: the view puts the <img> in once the preview says the file is there
+// (`MarkdownRenderer.vue`), and until then — or for good, when it is missing or not a picture — the
+// pill is what stands for it. The <img> is not in this HTML: its address is the preview's, so a
+// file the storage no longer serves is never even fetched.
+//
+// The gallery is a block of its own — a picture always starts a new line — and its pictures carry
+// the classes the editor's carry (`pictureClasses`), so one stylesheet lays out both zones. Where
+// its rows break depends on the pictures' proportions: the view puts the breaks in once they are
+// known (`placeRowBreaks`).
+function galleryHtml(codes: string[]): string {
+  const single = codes.length === 1 ? ' md-gallery--single' : ''
+  const tile = pictureClasses(codes.length).join(' ')
+  const images = codes.map((code) => `<span class="md-image ${tile}">${refPill(code)}</span>`).join('')
+  return `<span class="md-gallery${single}">${images}</span>`
 }
 
 // GFM task list: the shared marker (`shared/contracts`) becomes a disabled checkbox token here —
@@ -180,6 +271,7 @@ function createParser(breaks: boolean): MarkdownParser {
   md.linkify.set({ fuzzyLink: false, fuzzyEmail: false })
 
   md.core.ruler.push('entity_refs', entityRefs)
+  md.core.ruler.push('image_galleries', imageGalleries)
   md.core.ruler.push('task_list_checkboxes', taskListCheckboxes)
   // After `entity_refs`, so a heading's reference codes are already separate tokens by the time
   // its plain-text label is built.
@@ -226,21 +318,8 @@ function createParser(breaks: boolean): MarkdownParser {
     return self.renderToken(tokens, idx, options)
   }
 
-  // The label is the full code: a hash prefix looked like a fragment, and what the entity is shows
-  // in the hover card (`data-ref` is what the body hands to it — no native `title`, which would
-  // pop up over the card). The type goes into a class, which picks the pill's glyph. Both parts of
-  // the code come from the regex above (fixed word + hex), so they need no escaping. The label sits
-  // in its own <span> so it can be the element that ellipsises when the pill is capped (inside a
-  // table cell) — `text-overflow` has no effect on the flex pill itself.
-  md.renderer.rules.entity_ref = (tokens, idx) => {
-    const { refType, hash } = tokens[idx].meta as { refType: string; hash: string }
-    const code = `${refType}@${hash}`
-    const typeClass = `md-ref--${refType.toLowerCase()}`
-    // A type whose page the code alone cannot tell gets its `href` from the preview, once it comes.
-    const path = refPath(code)
-    const href = path ? ` href="${path}"` : ''
-    return `<a class="md-ref ${typeClass}"${href} data-ref="${code}"><span class="md-ref-label">${code}</span></a>`
-  }
+  md.renderer.rules.entity_ref = (tokens, idx) => refPill(refCodeOf(tokens[idx]))
+  md.renderer.rules.image_gallery = (tokens, idx) => galleryHtml((tokens[idx].meta as { codes: string[] }).codes)
 
   return md
 }

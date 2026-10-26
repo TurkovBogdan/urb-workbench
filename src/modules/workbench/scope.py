@@ -21,6 +21,7 @@ from __future__ import annotations
 from src.modules.workbench import session
 from src.modules.workbench.contracts import Fence, OwnedFence, by_prefix
 from src.modules.workbench.entities.codex import CodexFence
+from src.modules.workbench.entities.file import FileFence
 from src.modules.workbench.entities.tasks import (
     GroupFence,
     JournalFence,
@@ -39,6 +40,7 @@ FENCES: dict[str, Fence] = by_prefix(
     JournalFence(),
     NoteFence(),
     CodexFence(),
+    FileFence(),
 )
 
 

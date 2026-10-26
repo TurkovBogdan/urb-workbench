@@ -16,12 +16,12 @@ import type { Feature } from '@/components/markdown/editor/modes'
  * Brief, plan, work, journal, a note's body — everything the editor can do.
  *
  * These hold reasoned prose: subsections, lists, code listings, diagrams, comparison tables,
- * references to neighbouring entities. There is nothing to restrict here — this is exactly the set
- * the renderer displays.
+ * references to neighbouring entities, screenshots of the work by `IMAGE@`. There is nothing to
+ * restrict here — this is exactly the set the renderer displays.
  */
 export const TASK_DOCUMENT_FEATURES: readonly Feature[] = [
   'heading', 'list', 'quote', 'codeBlock', 'diagram', 'divider', 'table',
-  'bold', 'italic', 'strike', 'code', 'link', 'entityRef',
+  'bold', 'italic', 'strike', 'code', 'link', 'entityRef', 'image',
   'slash', 'handle',
 ]
 
@@ -30,10 +30,11 @@ export const TASK_DOCUMENT_FEATURES: readonly Feature[] = [
  *
  * A field a paragraph and a half long cannot have a heading: it would split into sections what is
  * already a single section. Tables and dividers are out of place there too. Lists stay — criteria
- * are almost always a list.
+ * are almost always a list. A picture by its code stays too: a criterion may point at the screen
+ * it is about, and the viewer shows such a code as the picture anyway.
  */
 export const TASK_BRIEF_FEATURES: readonly Feature[] = [
   'list',
-  'bold', 'italic', 'strike', 'code', 'link', 'entityRef',
+  'bold', 'italic', 'strike', 'code', 'link', 'entityRef', 'image',
   'slash', 'handle',
 ]

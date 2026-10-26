@@ -22,14 +22,8 @@ interface FieldBlock {
   fields: FieldDescriptor[]
 }
 
-const { t } = useI18n()
+const { t, te } = useI18n()
 const { localizeField } = useSettingLabels()
-
-// Module names in the card headers: a label is needed where the module name reads worse than the
-// section name. Without a key the name is shown as is, so an empty map is legitimate.
-// It is empty now: no module in this build declares settings, and the former three entries
-// (`hh`, `core_connectors`, `web_search`) outlived their modules.
-const MODULE_LABELS: Record<string, string> = {}
 
 const modules = ref<ModulePayload[]>([])
 const loading = ref(true)
@@ -42,8 +36,15 @@ const saved = reactive<Record<string, Record<string, unknown>>>({})
 // Per-field validation errors (filled on save).
 const fieldErrors = reactive<Record<string, Record<string, string | null>>>({})
 
+// The backend names a module by its code and describes it in English; the dictionary
+// `settings.module.<leaf>.<module>` translates both, the backend text stays the fallback.
+function moduleText(module: string, leaf: 'title' | 'description', fallback: string): string {
+  const key = `settings.module.${leaf}.${module}`
+  return te(key) ? t(key) : fallback
+}
+
 function moduleLabel(name: string): string {
-  return MODULE_LABELS[name] ?? name
+  return moduleText(name, 'title', name)
 }
 
 // Field label/description are backend-owned; translate them at render time so the
@@ -51,6 +52,7 @@ function moduleLabel(name: string): string {
 const localizedModules = computed(() =>
   modules.value.map((m) => ({
     ...m,
+    description: moduleText(m.module, 'description', m.description),
     fields: m.fields.map((f) => localizeField(m.module, f)),
   })),
 )

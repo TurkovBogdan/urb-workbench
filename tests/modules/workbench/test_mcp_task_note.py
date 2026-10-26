@@ -142,6 +142,7 @@ async def test_a_note_of_another_workspace_is_refused_by_name(call, task):
 # The arguments that may carry a NOTE@ or a JOURNAL@, by name, and what else each tool needs.
 _NOTE_OR_JOURNAL = {"code", "note_code", "journal_code"}
 _REST = {
+    "attach_file": {},
     "content_set": {"field": "body", "text": "х"},
     "content_replace": {"field": "body", "find": "а", "text": "б"},
     "content_set_section": {"field": "body", "heading": "# А", "text": "х"},

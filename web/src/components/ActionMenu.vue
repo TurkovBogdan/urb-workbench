@@ -26,8 +26,8 @@ export interface ActionMenuItem {
 // The action menu of a list entry — a task row, a group card, a workspace row: one for the whole
 // app, so that it opens, closes and answers keys the same way wherever there is a "⋯".
 //
-// It opens from its "⋯" and, through `openAt`, on a right click anywhere on the entry; how it
-// is pinned and what closes it is `usePointerMenu`. `v-model:open` is for the entry: while the
+// It opens from its "⋯" and, through `openAt`, on a right click anywhere on the entry — or only
+// that way, with `pointerOnly`; how it is pinned and what closes it is `usePointerMenu`. `v-model:open` is for the entry: while the
 // menu is open the pointer has left for the items, and only the entry's own mark still says which
 // one the actions will hit.
 //
@@ -51,6 +51,11 @@ const props = defineProps<{
    * that has a code is named to the agent by it, a deleted one included.
    */
   code?: string
+  /**
+   * No "⋯" of its own: the menu opens only through `openAt`, on a right click. For an entry that has
+   * no row to hold a button — a picture in a text.
+   */
+  pointerOnly?: boolean
 }>()
 
 const open = defineModel<boolean>('open', { default: false })
@@ -121,9 +126,9 @@ defineExpose({ openAt })
 
 <template>
   <!-- A control, not part of the entry: a click on the "⋯" must not also open what it sits on. -->
-  <span ref="root" class="action-menu" @click.stop>
+  <span ref="root" class="action-menu" :class="{ 'action-menu--pointer-only': props.pointerOnly }" @click.stop>
     <VMenu ref="overlay" v-model="open" v-bind="placement">
-      <template #activator="{ props: activator }">
+      <template v-if="!props.pointerOnly" #activator="{ props: activator }">
         <VBtn
           v-bind="activator"
           icon
@@ -165,6 +170,12 @@ defineExpose({ openAt })
 .action-menu {
   display: inline-flex;
   flex: none;
+}
+
+/* Without its "⋯" the menu has nothing to show in place — its list opens in the overlay layer —
+   so its box leaves the layout: an empty item would still take a flex gap or a line in a text. */
+.action-menu--pointer-only {
+  display: contents;
 }
 
 /* The box is set here, not via `size`/`density`: for an icon button Vuetify computes the side as

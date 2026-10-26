@@ -27,11 +27,16 @@ from src.modules.codex.constants import (
     CODEX_CODE_PREFIX,
     COLOR_MAX,
     DESCRIPTION_MAX,
+    FILE_CODE_PREFIX,
+    FILE_DESCRIPTION_MAX,
+    FILE_TITLE_MAX,
     ICON_MAX,
     SEGMENT_MAX,
     TITLE_MAX,
 )
+from src.modules.codex import files as codex_files
 from src.modules.codex.crud import codex as codex_crud
+from src.modules.codex.crud import file as file_crud
 from src.modules.codex.crud import mount as mount_crud
 from src.modules.codex.crud import note as note_crud
 from src.modules.codex.crud.read import codex_branch, note_node, search, subtree
@@ -40,6 +45,7 @@ from src.modules.codex.dto import (
     CodexRow,
     CodexSummaryRow,
     MountRow,
+    NoteFileRow,
     NoteRow,
     TreeNode,
     WorkspaceCodexRow,
@@ -48,11 +54,14 @@ from src.modules.codex.errors import (
     CODEX_DELETED,
     CODEX_NOT_DELETED,
     CODEX_NOT_FOUND,
+    FILE_HOLDER_IS_CODEX,
+    FILE_NOT_FOUND,
     MOUNT_NOT_FOUND,
     NOTE_DELETED,
     NOTE_HAS_CHILDREN,
     NOTE_NOT_DELETED,
     NOTE_NOT_FOUND,
+    CodexRuleError,
 )
 from src.modules.codex.models import Codex, CodexNote
 from src.modules.workspace.codes import bare_code as workspace_bare_code
@@ -342,6 +351,131 @@ async def restore_note(code: str) -> NoteRow:
     return await _note_row(await _require_note(bare))
 
 
+# ── note files ────────────────────────────────────────────────────────────────
+# The files a codex note holds. Bytes and names are ``core_storage``'s; here the person reads the
+# list, re-titles, reorders and detaches. The person uploads through ``core_storage_upload``
+# (``POST /storage/upload?holder=CODEX@…``), which answers with ``note_file_row``
+# (``file_holders.py``); the agent's tools attach through ``codex.files`` too. A codex itself
+# holds no files.
+
+
+class NoteFilePatchBody(_Body):
+    """The fields the page changed — only those."""
+
+    title: Annotated[str, StringConstraints(max_length=FILE_TITLE_MAX)] | None = None
+    description: Annotated[str, StringConstraints(max_length=FILE_DESCRIPTION_MAX)] | None = None
+
+
+class NoteFileOrderBody(_Body):
+    """The note's files top to bottom, as the person left them after a drag."""
+
+    codes: list[str]
+
+
+def _file_code(value: str) -> str:
+    try:
+        return bare_code(value, FILE_CODE_PREFIX) or ""
+    except ValueError as error:
+        raise ApiError.bad_request(str(error)) from error
+
+
+async def _file_holder(code: str, *, live: bool) -> str:
+    """The bare code of a note that may hold files; a codex is refused by name, not as missing.
+
+    ``live`` — the files are about to change: the note and its codex must both be live, since a
+    soft deletion of either keeps the files as they are for the restore.
+    """
+    bare = _code(code)
+    if await codex_crud.codex_get(bare, include_deleted=True) is not None:
+        raise ApiError.bad_request(
+            "A codex holds no files — they are attached to the notes inside it",
+            code=FILE_HOLDER_IS_CODEX,
+        )
+    note = await _require_note(bare)
+    if live and note.deleted_at is not None:
+        raise ApiError.conflict("Note is deleted — restore it first", code=NOTE_DELETED)
+    if live and await codex_crud.codex_get(note.codex_code) is None:
+        raise ApiError.conflict("Codex is deleted — restore it first", code=CODEX_DELETED)
+    return bare
+
+
+def note_file_row(view: codex_files.CodexFileView) -> NoteFileRow:
+    """A file as the note's list shows it — the list's rows and the answer to an upload."""
+    binding, stored = view.binding, view.stored
+    return NoteFileRow(
+        code=binding.file_code,
+        note_code=binding.note_code,
+        title=binding.title,
+        description=binding.description,
+        original_filename=view.original_filename,
+        original_extension=view.original_extension,
+        mime=stored.mime,
+        type=stored.type,
+        size=stored.size,
+        sort=binding.sort,
+        created_at=binding.created_at,
+        updated_at=binding.updated_at,
+    )
+
+
+async def _file_rows(note: str) -> list[NoteFileRow]:
+    return [note_file_row(view) for view in await codex_files.codex_file_views(note)]
+
+
+@router.get("/notes/{code}/files")
+async def list_note_files(code: str) -> list[NoteFileRow]:
+    """The note's files top to bottom — of a deleted note too: they are kept for its restore."""
+    return await _file_rows(await _file_holder(code, live=False))
+
+
+def _refuse_control_characters(*, title: str | None = None, description: str | None = None) -> None:
+    """The service's rule (``file_crud.refuse_control_characters``), worded for the page."""
+    try:
+        file_crud.refuse_control_characters(title=title, description=description)
+    except CodexRuleError as error:
+        raise ApiError.bad_request(str(error), code=error.code, params=error.params) from error
+
+
+@router.put("/notes/{code}/files/order")
+async def reorder_note_files(code: str, payload: NoteFileOrderBody) -> list[NoteFileRow]:
+    bare = await _file_holder(code, live=True)
+    try:
+        await file_crud.codex_file_reorder(bare, [_file_code(value) for value in payload.codes])
+    except CodexRuleError as error:
+        raise ApiError.bad_request(str(error), code=error.code) from error
+    return await _file_rows(bare)
+
+
+@router.patch("/notes/{code}/files/{file}")
+async def update_note_file(code: str, file: str, payload: NoteFilePatchBody) -> NoteFileRow:
+    _refuse_control_characters(title=payload.title, description=payload.description)
+    bare, file_bare = await _file_holder(code, live=True), _file_code(file)
+    try:
+        view = await codex_files.codex_file_retitle(
+            bare, file_bare, title=payload.title, description=payload.description
+        )
+    except CodexRuleError as error:
+        raise ApiError.conflict(str(error), code=error.code) from error
+    except ValueError as error:
+        raise ApiError.bad_request(str(error)) from error
+    if view is None:
+        raise ApiError.not_found("The file is not in this note", code=FILE_NOT_FOUND)
+    return note_file_row(view)
+
+
+@router.delete("/notes/{code}/files/{file}", status_code=204)
+async def detach_note_file(code: str, file: str) -> Response:
+    """Take the file out of the note. The file itself goes once nothing else holds it."""
+    bare = await _file_holder(code, live=True)
+    try:
+        detached = await codex_files.codex_file_detach(bare, _file_code(file))
+    except CodexRuleError as error:
+        raise ApiError.conflict(str(error), code=error.code) from error
+    if not detached:
+        raise ApiError.not_found("The file is not in this note", code=FILE_NOT_FOUND)
+    return Response(status_code=204)
+
+
 # ── mounts ────────────────────────────────────────────────────────────────────
 
 
@@ -472,4 +606,4 @@ async def remove_mount(workspace: str, code: str) -> Response:
     return Response(status_code=204)
 
 
-__all__ = ["router"]
+__all__ = ["note_file_row", "router"]

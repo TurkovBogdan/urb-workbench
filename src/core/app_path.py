@@ -51,6 +51,8 @@ class AppPath:
     user: Path
     import_: Path
     tmp: Path
+    # The root of the file stores: a storage module keeps its stores as folders inside it.
+    storage: Path
     storage_public: Path
     storage_protected: Path
     storage_private: Path
@@ -66,6 +68,7 @@ class AppPath:
             user=r / "user",
             import_=r / "import",
             tmp=r / "tmp",
+            storage=r / "storage",
             storage_public=r / "storage" / "public",
             storage_protected=r / "storage" / "protected",
             storage_private=r / "storage" / "private",
@@ -80,6 +83,7 @@ def ensure_dirs(paths: AppPath) -> None:
     paths.user.mkdir(parents=True, exist_ok=True)
     paths.import_.mkdir(parents=True, exist_ok=True)
     paths.tmp.mkdir(parents=True, exist_ok=True)
+    paths.storage.mkdir(parents=True, exist_ok=True)
     paths.storage_public.mkdir(parents=True, exist_ok=True)
     paths.storage_protected.mkdir(parents=True, exist_ok=True)
     paths.storage_private.mkdir(parents=True, exist_ok=True)

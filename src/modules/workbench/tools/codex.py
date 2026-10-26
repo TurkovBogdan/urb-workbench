@@ -49,6 +49,7 @@ from src.modules.workbench.entities.codex import (
     not_mounted,
     require_writable_codex,
 )
+from src.modules.workbench.files.rows import codex_note_file_rows
 from src.modules.workbench.scope import require_active
 from src.modules.workspace.models.workspace import Workspace
 
@@ -163,6 +164,7 @@ async def _read_node(active: Workspace, node: read.Node) -> AgentCodexNode:
             )
             for child in children
         ],
+        files=[] if note is None else await codex_note_file_rows(note.code),
     )
 
 
@@ -246,7 +248,8 @@ def register(mcp: "FastMCP") -> None:
         — without their text. Open the ones the work needs with the next codex_get, all of them
         in one call: the description says whether a child bears on your work, and a body runs up
         to 65 536 characters, so not every child. No `children` key means no children, not a cut
-        answer.
+        answer. A note's `files` — FILE@ code, title, description — likewise come only when it
+        has some; file_get reads one.
 
         Always answers with a list, in the order asked, each node once. Either every item is
         found or the call refuses and names every item at fault.

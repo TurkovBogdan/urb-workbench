@@ -24,8 +24,8 @@ that retells the diary.
 Not before. That is why there is no `plan` argument on `task_create` — at the moment a task is
 created nothing has been read yet.
 
-What makes a plan a plan rather than a promise: **it names the files**. The ones you read, and
-the ones you are going to change. A plan without them is a paragraph of intent that nothing can
+What makes a plan a plan rather than a promise: **it names the code files**. The ones you read,
+and the ones you are going to change. A plan without them is a paragraph of intent that nothing can
 be checked against afterwards.
 
 ```
@@ -36,9 +36,9 @@ Read: src/billing/tariff.py, src/billing/invoice.py, tests/billing/test_tariff.p
 Changing: src/billing/tariff.py, tests/billing/test_tariff.py
 ```
 
-The limit refuses instead of trimming, and that is deliberate — the file list lives at the end,
-so trimming would cut exactly the part worth keeping. If you hit it, the detail belongs in
-stages, not in the plan.
+The limit refuses instead of trimming, and that is deliberate — the list of code files lives at
+the end, so trimming would cut exactly the part worth keeping. If you hit it, the detail belongs
+in stages, not in the plan.
 
 ## Progress is a diary, appended to
 
@@ -116,11 +116,17 @@ saying why, and a new stage after the one you are on.
 - ✅ `pytest tests/billing -q → 12 passed`
 - ✅ `src/billing/tariff.py:40-88, new Calculator.apply`
 - ✅ `alembic upgrade head → ok, integrity_check clean`
+- ✅ `IMAGE@3F2A9C01B7` — a screenshot of the finished page
 - ❌ «done», «works», «all good»
 
 The field is short on purpose: a command's full output does not belong in it, a pointer to the
 command does. A step marked finished with no trace makes every step after it reason on a claim
 nobody checked — and that failure is silent, which is what makes it expensive.
+
+When the proof is something seen — a page, a dialog, a chart — attach the screenshot to the
+stage with `attach_file(STAGE@…, path=…)` and put the `IMAGE@` it answers with into `evidence`:
+the person sees the picture there. A file attached at a stage leaves the task when the stage is
+deleted; attach it to the task itself if other texts rely on it.
 
 A cancelled stage takes evidence too. Why it was abandoned is worth the same line.
 

@@ -56,6 +56,27 @@ const SIMPLE_SAMPLE = 'Short field: **bold** and *italic* are supported, nothing
 const simpleBody = ref(SIMPLE_SAMPLE)
 const SIMPLE_LIMIT = 120
 
+// The document's edges: one body per block the document may close with. Markdown stores no empty
+// line, so none stands under the last block — the stand shows how a person gets past it anyway.
+const EDGE_SAMPLES = {
+  list: 'The document closes with a list:\n\n- first item\n- second item',
+  table: 'The document closes with a table:\n\n| Key | Value |\n| --- | --- |\n| a | 1 |',
+  code: 'The document closes with a code block:\n\n```js\nconst answer = 42\n```',
+  diagram: 'The document closes with a diagram:\n\n```mermaid\nflowchart LR\n  A --> B\n```',
+  quote: 'The document closes with a quote:\n\n> A quoted line',
+  heading: 'The document closes with a heading:\n\n## Heading',
+  rule: 'The document closes with a rule:\n\n---',
+} as const
+type EdgeSample = keyof typeof EDGE_SAMPLES
+
+const edgeSample = ref<EdgeSample>('list')
+const edgeBody = ref<string>(EDGE_SAMPLES.list)
+
+function loadEdge(sample: EdgeSample): void {
+  edgeSample.value = sample
+  edgeBody.value = EDGE_SAMPLES[sample]
+}
+
 // Editing the source reloads the editor; editing in the editor changes only `body`. The verdict
 // below is computed from the source and so doesn't depend on whatever the user has clicked in.
 watch(source, (value) => { body.value = value })
@@ -186,6 +207,32 @@ const diff = computed(() => diffLines(source.value.trimEnd().split('\n'), roundt
           <div class="pane">
             <span class="ds-tag mb-2">{{ t('design-system.section.markdown-editor.noDiagram') }}</span>
             <MarkdownEditor v-model="codeOnlyBody" :features="CODE_ONLY" min-height="120px" />
+          </div>
+        </div>
+      </section>
+
+      <!-- Document edges: no empty line under the last block, and the ways past it -->
+      <section class="ds-section">
+        <h6 class="mb-3">{{ t('design-system.section.markdown-editor.edges') }}</h6>
+        <div class="edge-samples mb-3">
+          <VBtn
+            v-for="sample in (Object.keys(EDGE_SAMPLES) as EdgeSample[])"
+            :key="sample"
+            size="small"
+            :variant="sample === edgeSample ? 'tonal' : 'text'"
+            :color="sample === edgeSample ? 'primary' : undefined"
+            @click="loadEdge(sample)"
+          >
+            {{ t(`design-system.section.markdown-editor.edgeSample.${sample}`) }}
+          </VBtn>
+        </div>
+        <MarkdownEditor v-model="edgeBody" min-height="220px" />
+        <p class="ds-note mt-2">{{ t('design-system.section.markdown-editor.edgesHint') }}</p>
+
+        <div class="pane-grid mt-4">
+          <div class="pane">
+            <span class="ds-tag mb-2">{{ t('design-system.section.markdown-editor.emitted') }}</span>
+            <pre class="code-box code-box--short">{{ edgeBody }}</pre>
           </div>
         </div>
       </section>
@@ -345,6 +392,12 @@ const diff = computed(() => diffLines(source.value.trimEnd().split('\n'), roundt
 .verdicts {
   display: flex;
   gap: 12px;
+  flex-wrap: wrap;
+}
+
+.edge-samples {
+  display: flex;
+  gap: 4px;
   flex-wrap: wrap;
 }
 

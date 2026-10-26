@@ -113,6 +113,7 @@
     "throttled": "Too many requests — wait a moment",
     "throttled_wait": "Too many requests — try again in {seconds} s",
     "route_closed": "The route is closed",
+    "origin_refused": "The request came from a page of another site",
     "validation_error": "The data didn't pass validation",
     "internal_error": "Internal server error"
   },
@@ -157,6 +158,68 @@
     "key": "Keys",
     "font": "Fonts",
     "other": "Other"
+  },
+  "attached_files": {
+    "section": "Files",
+    "list": "File list",
+    "drag": "Move the file",
+    "actions": "File actions",
+    "open": "Open in a new tab",
+    "download": "Download",
+    "delete": "Delete",
+    "move_back": "Move back",
+    "move_forward": "Move forward",
+    "add": "Upload files",
+    "empty": "Drop files here or press “Upload files”",
+    "drop": {
+      "title": "Release to upload {n} file | Release to upload {n} files",
+      "title_unknown": "Release to upload the files",
+      "limits": "Up to {mb} MB a file · folders are not uploaded",
+      "limits_unknown": "Folders are not uploaded"
+    },
+    "uploads": "Uploading files",
+    "queued": "queued",
+    "dismiss": "Dismiss",
+    "show_all": "Show all ({count})",
+    "fold": "Collapse",
+    "delete_confirm": {
+      "title": "Delete the file?",
+      "text": "“{name}” leaves the list, and its code in the text turns red. Where the same file is attached elsewhere, it stays there.",
+      "confirm": "Delete"
+    }
+  },
+  "file_drop": {
+    "folder": "Folders are not uploaded — pick the files",
+    "path_only": "The file did not come — the app passed only its path: {name}. Drag the file from a folder on your computer",
+    "not_here": "This field takes no files"
+  },
+  "lightbox": {
+    "previous": "Previous image",
+    "next": "Next image",
+    "position": "{index} of {total}"
+  },
+  "media_panel": {
+    "title": "Title",
+    "description": "Description",
+    "download": "Download",
+    "open": "Open in a new tab",
+    "save_failed": "Not saved: {reason}"
+  },
+  "picture_menu": {
+    "label": "Picture actions",
+    "copy_content": "Copy the picture",
+    "content_copied": "Picture copied",
+    "content_not_copied": "Could not copy the picture",
+    "open": "Open",
+    "open_tab": "Open in a new tab",
+    "download": "Download",
+    "remove": "Remove from the text",
+    "delete_file": "Delete the file",
+    "delete_confirm": {
+      "title": "Delete the file?",
+      "text": "«{name}» leaves the files, and its codes left in the text turn red. Where the same file is attached elsewhere, it stays there.",
+      "confirm": "Delete"
+    }
   },
   "prefs": {
     "auto": "Auto",
@@ -205,6 +268,12 @@
   "editor": {
     "placeholder": "Type / for commands…",
     "placeholder_plain": "Start typing…",
+    "attach": {
+      "uploading_one": "Uploading the file…",
+      "uploading": "Uploading files: {done} of {total}…",
+      "no_room": "The file is attached, but its code did not fit in the field — it is in the file list",
+      "not_inserted": "The file is attached, but the field's text changed while it uploaded — the code was not inserted; the file is in the file list"
+    },
     "code": {
       "search_language": "Language or alias",
       "no_highlighting": "no highlighting"
@@ -221,10 +290,13 @@
       "codeBlock": "Code block",
       "diagram": "Diagram",
       "divider": "Divider",
-      "table": "Table"
+      "table": "Table",
+      "file": "Picture or file…"
     },
     "diagram": {
       "edit": "Edit",
+      "delete": "Delete",
+      "menu": "Diagram actions",
       "done": "Done",
       "source": "Diagram source"
     },
@@ -235,7 +307,18 @@
         "deleted": "Deleted",
         "failed": "Could not load",
         "open": "Open",
-        "open_new_tab": "Open in new tab"
+        "open_new_tab": "New tab",
+        "code": "Code",
+        "code_of": {
+          "TASK": "Task code",
+          "TASKGROUP": "Group code",
+          "STAGE": "Stage code",
+          "JOURNAL": "Entry code",
+          "NOTE": "Note code",
+          "FILE": "File code",
+          "IMAGE": "File code"
+        },
+        "download": "Download"
       }
     },
     "toolbar": {
@@ -261,6 +344,9 @@
       "down": "Move down",
       "end": "To the end of the document",
       "announce": "Block moved to position {position} of {total}"
+    },
+    "picture": {
+      "announce": "Picture moved to place {position} of {total} in the gallery"
     },
     "table": {
       "column_after": "Column to the right",

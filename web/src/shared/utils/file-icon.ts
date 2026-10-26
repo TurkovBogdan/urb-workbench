@@ -16,9 +16,10 @@ import {
   IconCalendarEvent,
 } from '@tabler/icons-vue'
 
-// Single source of truth for "file → glyph" used by FileCards and any table cell that
-// renders a file. The kind is resolved from the MIME type first (authoritative when the
-// store recorded it), then the filename extension as a fallback; the glyph from the kind.
+// Single source of truth for "file → glyph" and "file → colour" used by FileCards, the files
+// section's tiles and any table cell that renders a file. The kind is resolved from the MIME type
+// first (authoritative when the store recorded it), then the filename extension as a fallback; the
+// glyph and the colour from the kind.
 
 export type FileKind =
   | 'pdf' | 'doc' | 'sheet' | 'slides' | 'image' | 'audio' | 'video'
@@ -101,6 +102,28 @@ const KIND_ICON: Record<FileKind, FunctionalComponent> = {
   other: IconFile,
 }
 
+// The colour a kind is painted in where a file stands as a tile (`components/files/FileTile.vue`):
+// the hue people know the format by — a spreadsheet green, a document blue, a PDF red, slides
+// orange. Names of the app's palette (`shared/colors.ts`), so each reads in both themes; the kinds
+// that are plain text, and the unknown, share the neutral. A file's pill in a text takes the glyph
+// only, never the colour (`markdown/shared/document.css`).
+const KIND_COLOR: Record<FileKind, string> = {
+  pdf: 'red',
+  doc: 'blue',
+  sheet: 'green',
+  csv: 'green',
+  slides: 'orange',
+  archive: 'yellow',
+  calendar: 'teal',
+  image: 'sky',
+  video: 'violet',
+  audio: 'rose',
+  code: 'slate',
+  markdown: 'slate',
+  text: 'slate',
+  other: 'slate',
+}
+
 export function fileExt(filename: string | null): string {
   const name = (filename || '').toLowerCase().trim()
   const dot = name.lastIndexOf('.')
@@ -122,6 +145,11 @@ export function fileKind(filename: string | null, mime: string | null = null): F
 
 export function fileIcon(filename: string | null, mime: string | null = null): FunctionalComponent {
   return KIND_ICON[fileKind(filename, mime)]
+}
+
+/** The palette name of the file's kind — for `colorVarsByName`. */
+export function fileColor(filename: string | null, mime: string | null = null): string {
+  return KIND_COLOR[fileKind(filename, mime)]
 }
 
 export function humanSize(bytes: number | null): string {

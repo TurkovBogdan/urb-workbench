@@ -32,6 +32,7 @@ from src.core.router.degraded import (
 )
 from src.core.router.internal import HEALTH_PATH
 from src.core.router.mounting import mount_router_zones
+from src.core.scheduler.coverage import warn_if_unattended
 from src.core.scheduler.registry import get_registry
 from src.core.tasks import register as register_core_tasks
 
@@ -128,6 +129,7 @@ def create_app(modules: Sequence[Module], config: Config) -> FastAPI:
                 await mcp_stack.enter_async_context(cm)
             if serves_data:
                 await scheduler.start(config)
+                warn_if_unattended(config, registry=get_registry(), ticking=scheduler.is_ticking())
             else:
                 _LOG.error(
                     "lifespan: scheduler not started — the DB schema is behind the code; a pure "

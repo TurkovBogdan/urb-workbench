@@ -61,7 +61,9 @@ from src.modules.tasks.crud.link import (
     require_parent_group_alive,
     require_root_parent,
 )
+from src.modules.tasks.crud.file import task_files_take
 from src.modules.tasks.errors import GROUP_HAS_TASKS, TaskRuleError
+from src.modules.tasks.file_owner import release_tasks_everywhere, tasks_files_lock
 from src.modules.tasks.models.group import TasksGroup
 from src.modules.tasks.models.link import TasksLink
 from src.modules.tasks.models.journal import TasksJournal
@@ -749,34 +751,51 @@ async def task_delete(code: str, *, hard: bool = False) -> bool:
     the FK cascade would remove only the edges (``tasks_link``), and the descendant tasks
     themselves would stay in the database with no place in the tree at all — invisible to any
     walk.
+
+    The hard path is also the end of the branch's files: their binding rows go in the same
+    transaction, and every task of the branch is released from the storage after the commit. The
+    soft path leaves both alone — a restored task comes back with its files. The hard path holds
+    the file lock of every task of the branch, read before the deletion, until the release: an
+    attach to one of them waits, then finds its task gone.
     """
-    async with write_scope() as s:
-        row = await s.get(TasksTask, code)
-        if row is None:
-            return False
-        branch = [code, *await _descendant_codes(s, code)]
-        if hard:
-            await s.execute(
-                sa_delete(TasksLink).where(
-                    or_(
-                        TasksLink.task_code.in_(branch),
-                        TasksLink.parent_code.in_(branch),
+    locked: list[str] = []
+    if hard:
+        async with session_scope() as s:
+            if await s.get(TasksTask, code) is None:
+                return False
+            locked = [code, *await _descendant_codes(s, code)]
+    async with tasks_files_lock(locked):
+        async with write_scope() as s:
+            row = await s.get(TasksTask, code)
+            if row is None:
+                return False
+            branch = [code, *await _descendant_codes(s, code)]
+            if hard:
+                await task_files_take(s, task_codes=branch)
+                await s.execute(
+                    sa_delete(TasksLink).where(
+                        or_(
+                            TasksLink.task_code.in_(branch),
+                            TasksLink.parent_code.in_(branch),
+                        )
                     )
                 )
-            )
-            await s.execute(sa_delete(TasksTask).where(TasksTask.code.in_(branch)))
-            # Bulk statements yield no objects — so we name the branch to the change feed ourselves.
-            mark_changes(s, "tasks.task", DELETED, branch)
-            mark_changes(s, "tasks.link", DELETED, branch)
-        else:
-            stamp = await _branch_stamp(s, branch)
-            await s.execute(
-                update(TasksTask)
-                .where(TasksTask.code.in_(branch), TasksTask.deleted_at.is_(None))
-                .values(deleted_at=stamp)
-            )
-            # A soft delete is a row edit (the ``deleted_at`` mark), not a disappearance.
-            mark_changes(s, "tasks.task", UPDATED, branch)
+                await s.execute(sa_delete(TasksTask).where(TasksTask.code.in_(branch)))
+                # Bulk statements yield no objects — so we name the branch to the change feed
+                # ourselves.
+                mark_changes(s, "tasks.task", DELETED, branch)
+                mark_changes(s, "tasks.link", DELETED, branch)
+            else:
+                stamp = await _branch_stamp(s, branch)
+                await s.execute(
+                    update(TasksTask)
+                    .where(TasksTask.code.in_(branch), TasksTask.deleted_at.is_(None))
+                    .values(deleted_at=stamp)
+                )
+                # A soft delete is a row edit (the ``deleted_at`` mark), not a disappearance.
+                mark_changes(s, "tasks.task", UPDATED, branch)
+        if hard:
+            await release_tasks_everywhere(branch)
     return True
 
 

@@ -1,5 +1,5 @@
 """`app.py update`: fast-forward this checkout to `origin/<UPDATE_BRANCH>`, sync dependencies,
-back the database up, migrate it and start the install back up.
+back the database up, migrate it, start the install back up and prune the update's old copies.
 
 `run_update` walks the steps and returns the process exit code (`EXIT_*`); everything it does to
 the world goes through `UpdateHost`, which `DryRunHost` replaces with a narration.
@@ -76,8 +76,9 @@ SYNC_COMMAND = ("uv", "sync", "--all-groups")
 # Shipped code, not `AGENTS/tools/…`: `AGENTS/` is not in git, so a tool that lives only in a
 # developer's checkout is missing on exactly the install this command exists for — and it would
 # be missing at step 7, with the merge already done and the old schema still in place.
-BACKUP_COMMAND = (*UV_RUN_PYTHON, "src/app.py", "backup")
+BACKUP_COMMAND = (*UV_RUN_PYTHON, "src/app.py", "backup", "--made-by", backup.MADE_BY_UPDATE)
 MIGRATE_COMMAND = (*UV_RUN_PYTHON, "src/app.py", "migrate", "upgrade")
+PRUNE_COMMAND = (*UV_RUN_PYTHON, "src/app.py", "backup", "--prune")
 
 # `git ls-remote --exit-code` answers 2 when the remote has no ref matching the pattern.
 LS_REMOTE_NO_MATCH = 2
@@ -100,6 +101,7 @@ FETCH_TIMEOUT_SECONDS = 300
 SYNC_TIMEOUT_SECONDS = 3600
 BACKUP_TIMEOUT_SECONDS = 3600
 MIGRATE_TIMEOUT_SECONDS = 1800
+PRUNE_TIMEOUT_SECONDS = 600
 
 DIRTY_ENTRIES_SHOWN = 10
 
@@ -167,7 +169,8 @@ class UpdateHost:
         self._report(line)
 
     def backup_target(self) -> Path:
-        """Where the copy of the database goes — chosen here and handed to the tool.
+        """Where the copy of the database and the stored files goes — chosen here and handed to
+        the tool.
 
         The updater picks the path instead of reading it back out of the tool's output: a path
         recovered by parsing a report is a path that changes when a label does.
@@ -175,7 +178,7 @@ class UpdateHost:
         try:
             return backup.default_target(self.config)
         except backup.BackupRefused as refusal:
-            raise UpdateRefused(f"nowhere to put the database copy: {refusal}") from refusal
+            raise UpdateRefused(f"nowhere to put the copy: {refusal}") from refusal
 
     def inspect(
         self,
@@ -433,18 +436,19 @@ def _walk_the_sequence(host: UpdateHost, branch: str) -> int:
         host.report(f"backup failed, so nothing will be migrated: {failure}")
         host.lower_flag()
         return _restart(host, outcome=EXIT_BACKUP_FAILED)
-    host.report(f"database backed up to {copy_path}")
+    host.report(f"database and stored files backed up to {copy_path}")
 
     try:
         _apply_migrations(host)
     except UpdateRefused as failure:
         host.report(f"migration failed: {failure}")
-        host.report(_migration_recovery(copy_path))
+        host.report(_migration_recovery(copy_path, start))
         return EXIT_MIGRATION_FAILED
 
     host.lower_flag()
     outcome = _restart(host, outcome=EXIT_OK)
     if outcome == EXIT_OK:
+        _prune_old_copies(host, copy_path)
         host.report("update complete")
     return outcome
 
@@ -568,6 +572,21 @@ def _apply_migrations(host: UpdateHost) -> None:
     _must_succeed(host.execute(MIGRATE_COMMAND, timeout=MIGRATE_TIMEOUT_SECONDS))
 
 
+def _prune_old_copies(host: UpdateHost, copy_path: str) -> None:
+    """Only once the restarted install answers: after any failure the old copies are what the
+    operator goes back to. A prune that fails costs disk space, not the install, so it is
+    reported and the update stays a success. The copy just taken is spared by name, whatever
+    the count and the clock say."""
+    result = host.execute((*PRUNE_COMMAND, "--spare", copy_path), timeout=PRUNE_TIMEOUT_SECONDS)
+    if result.stdout.strip():
+        host.report(result.stdout.strip())
+    if not result.succeeded:
+        host.report(
+            "WARNING: the old copies were not pruned — the update itself succeeded: "
+            f"{result.describe_failure()}"
+        )
+
+
 def _roll_back(host: UpdateHost, start: StartingPoint) -> None:
     """Safe only because the merge was strictly fast-forward onto a tree verified clean.
 
@@ -655,13 +674,16 @@ def _must_succeed(result: CommandResult) -> CommandResult:
     return result
 
 
-def _migration_recovery(backup_path: str) -> str:
+def _migration_recovery(backup_path: str, start: StartingPoint) -> str:
     return (
         "the code stays new and the maintenance flag stays UP — nothing may start on a stale "
         "schema. Recovery:\n"
         "  see what is pending:  uv run python src/app.py migrate check\n"
         "  retry the update:     ./update.sh\n"
         f"  pre-migration copy:   {backup_path}\n"
+        "  or go back to it — the copy, then the code it belongs to:\n"
+        f"    uv run python src/app.py restore {backup_path}\n"
+        f"    git reset --hard {start.head} && uv sync --all-groups\n"
         f"  the flag itself:      {maintenance.flag_path()}"
     )
 

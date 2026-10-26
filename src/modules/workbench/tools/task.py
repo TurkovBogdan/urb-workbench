@@ -44,6 +44,7 @@ from src.modules.workbench.dto import (
     AgentTaskRow,
     AgentTaskStatus,
 )
+from src.modules.workbench.files.rows import task_file_rows
 from src.modules.workbench.scope import require_active, require_scope
 
 if TYPE_CHECKING:  # fastmcp fork — backend only (via mcp_server(ctx))
@@ -161,7 +162,9 @@ def register(mcp: "FastMCP") -> None:
 
         Closed journal entries are not included, only their count: they answer "how was this
         decided", which is a separate question — journal_list when you have it. The task's
-        `notes` come by title and description only; task_note_get reads one whole.
+        `notes` come by title and description only; task_note_get reads one whole. Its `files`
+        — every file of the task, those brought in through its notes and stages included —
+        come the same way: the FILE@ code, title and description; file_get reads one.
 
         Args:
             task_code: The task to read — a TASK@ code from tasks_list.
@@ -221,6 +224,7 @@ def register(mcp: "FastMCP") -> None:
                 AgentTaskNoteRow.model_validate(note)
                 for note in await note_crud.task_note_list(bare)
             ],
+            files=await task_file_rows(bare),
         )
 
     @mcp.tool()

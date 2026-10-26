@@ -6,16 +6,19 @@
 // when the editor is created, so the toolbar would have to exist before the component mounts.
 // Reversing the initialization order for that costs more than computing the coordinates: with
 // ProseMirror they come straight from the view.
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Editor } from '@tiptap/core'
+import { NodeSelection } from '@tiptap/pm/state'
 import {
   IconBold, IconItalic, IconStrikethrough, IconCode, IconLink, IconQuote,
   IconClearFormatting, IconList, IconListNumbers, IconListCheck, IconChevronDown,
   IconHash,
 } from '@tabler/icons-vue'
+import { usePageActive } from '@/composables/usePageActive'
 import type { Feature, FeatureSet } from '../modes'
 import { parseRefCode } from '../../shared/contracts'
+import { usePanelPlacement } from './usePanelPlacement'
 
 const props = defineProps<{ editor: Editor | undefined; tick: number; features: FeatureSet }>()
 
@@ -50,15 +53,24 @@ const linkHref = ref('')
 const refMenu = ref(false)
 const refCode = ref('')
 
+// The toolbar is teleported to <body>, so it does not leave with its page. A page that is away
+// (KeepAlive) has an editor detached from the document, whose coordinates are all zeros: placed
+// from them, the toolbar stood in the top left corner of the next page. The rest of its life on and
+// off the page — `usePanelPlacement` below.
+const pageActive = usePageActive()
+
 function place(): void {
   const editor = props.editor
   if (!editor || editor.isDestroyed || !showPanel.value) return hide()
+  if (!pageActive.value || !editor.view.dom.isConnected) return hide()
 
   const { selection } = editor.state
   // The toolbar edits text: without a selection there is nothing to edit. A code block has no
   // inline marks, so there it would only get in the way; a selected diagram has no text at all —
-  // its source is edited in its own field.
+  // its source is edited in its own field. Neither has a selected reference: a click on a picture
+  // selects it on the way to the full-screen viewer, and a toolbar would stand over the viewer.
   if (selection.empty || editor.isActive('codeBlock') || editor.isActive('diagram')) return hide()
+  if (selection instanceof NodeSelection && selection.node.type.name === 'entityRef') return hide()
 
   const start = editor.view.coordsAtPos(selection.from)
   const end = editor.view.coordsAtPos(selection.to)
@@ -107,15 +119,14 @@ watch(() => props.editor, place)
 // The button set is fixed, but the dropdowns change their label from "Aa" to "H2" — remeasure.
 watch(spot, () => void nextTick(measure))
 
-onMounted(() => {
-  measure()
-  window.addEventListener('scroll', place, true)
-  window.addEventListener('resize', place)
-})
+onMounted(measure)
 
-onBeforeUnmount(() => {
-  window.removeEventListener('scroll', place, true)
-  window.removeEventListener('resize', place)
+// Leaving the page closes the toolbar whatever holds it open: `hide` keeps it under an open link
+// or reference field.
+usePanelPlacement(place, () => {
+  linkMenu.value = false
+  refMenu.value = false
+  spot.value = null
 })
 
 // ── State ─────────────────────────────────────────────────────────────────────

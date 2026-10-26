@@ -1,21 +1,34 @@
 <script setup lang="ts">
 import { computed, getCurrentInstance, h, nextTick, onBeforeUnmount, onMounted, ref, render, watch, watchEffect } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
+import type { PreviewRecord } from '@/api/lookup'
 import CodeBlock from '@/components/CodeBlock.vue'
 import DiagramBlock from '@/components/DiagramBlock.vue'
+import ImageGallery from '@/components/files/ImageGallery.vue'
+import { useClipboard } from '@/composables/useClipboard'
 import { useAfterRouteTransition } from '@/composables/useRouteTransition'
-import { usePreviewStore } from '@/stores/preview'
+import { usePreviews } from '@/stores/preview'
 import { useSettingsStore } from '@/stores/settings'
+import { refIsMissing } from '../shared/contracts'
 import EntityPreviewPopup from '../shared/EntityPreviewPopup.vue'
+import { fileKindClass, setFileKindClass } from '../shared/fileKind'
+import PictureMenu from '../shared/PictureMenu.vue'
+import {
+  galleryVersion, isSizeless, layOutGallery, markNotPicture, notePicture, PICTURE_STATES, pictureCode,
+  pictureState, placeRowBreaks,
+} from '../shared/pictures'
 import { renderMarkdown, type HeadingAnchor } from './render'
 
 // The body is the component's face, the hover card its sibling: attributes a parent sets (a class,
 // a style) belong on the body.
 defineOptions({ inheritAttrs: false })
 
+const { t } = useI18n()
 const router = useRouter()
 const settings = useSettingsStore()
-const previews = usePreviewStore()
+const previews = usePreviews()
+const { copy, isCopied } = useClipboard()
 
 const props = defineProps<{
   text: string
@@ -132,16 +145,106 @@ watch(html, () => nextTick(askForPreviews))
 onMounted(askForPreviews)
 
 // A pill takes its address and its state from its preview: the HTML carries only what the code
-// alone can tell — a stage or a note learns its task's page here, and a code that leads nowhere is
-// marked as such, once the preview comes.
+// alone can tell — a stage or a note learns its task's page here, a file the glyph of its kind, and
+// a code that leads nowhere is marked as such, once the preview comes.
 watchEffect(() => {
   const records = new Map(pillCodes.value.map((code) => [code, previews.get(code)]))
   for (const pill of pills()) {
-    const record = records.get(pill.dataset.ref ?? '')
+    const code = pill.dataset.ref ?? ''
+    const record = records.get(code)
     if (record?.link) pill.setAttribute('href', record.link)
-    pill.classList.toggle('md-ref--missing', record?.error?.code === 'not_found')
+    pill.classList.toggle('md-ref--missing', refIsMissing(code, record?.error?.code))
+    setFileKindClass(pill, fileKindClass(code, record))
+  }
+  for (const slot of imageSlots()) {
+    const code = slot.querySelector<HTMLElement>('.md-ref[data-ref]')?.dataset.ref ?? ''
+    paintImage(slot, code, records.get(code))
+  }
+  // Read here so a picture that loads lays its gallery out again with its own proportions.
+  void galleryVersion.value
+  for (const gallery of body.value?.querySelectorAll<HTMLElement>('.md-gallery') ?? []) {
+    const tiles = [...gallery.querySelectorAll<HTMLElement>('.md-image')]
+    placeRowBreaks(gallery, tiles)
+    layOutGallery(tiles)
   }
 }, { flush: 'post' })
+
+// ── `IMAGE@` pictures ─────────────────────────────────────────────────────────
+// The parser leaves each picture its pill (`span.md-image`); the <img> goes in here, at the
+// preview's address once the preview says the file is there. Which state a picture is in is the
+// same answer the editor gives (`shared/pictures.ts`).
+function imageSlots(): HTMLElement[] {
+  return [...(body.value?.querySelectorAll<HTMLElement>('.md-image') ?? [])]
+}
+
+function paintImage(slot: HTMLElement, code: string, record: PreviewRecord | undefined): void {
+  const state = pictureState(record)
+  for (const one of PICTURE_STATES) slot.classList.toggle(`md-image--${one}`, one === state)
+  const existing = slot.querySelector('img')
+  if (state !== 'shown' || !record) {
+    existing?.remove()
+    slot.querySelector('.md-image__copy')?.remove()
+    return
+  }
+  paintCopyButton(slot, code)
+  const image = existing ?? slot.insertBefore(document.createElement('img'), slot.firstChild)
+  if (existing) {
+    if (image.getAttribute('src') !== record.link) image.setAttribute('src', record.link)
+    return
+  }
+  image.alt = record.title || code
+  image.decoding = 'async'
+  image.addEventListener('error', () => markNotPicture(image.getAttribute('src') ?? ''), { once: true })
+  image.addEventListener('load', () => {
+    notePicture(code, image.naturalWidth, image.naturalHeight)
+    slot.classList.toggle('md-image--sizeless', isSizeless(image))
+  }, { once: true })
+  image.setAttribute('src', record.link)
+}
+
+// The button in a shown picture's corner copies its code (`.md-image__copy`, the editor's markup).
+// Read inside the painting effect: the copied mark follows the clipboard without a watcher of its own.
+function paintCopyButton(slot: HTMLElement, code: string): void {
+  const button = slot.querySelector<HTMLButtonElement>('.md-image__copy') ?? slot.appendChild(document.createElement('button'))
+  button.type = 'button'
+  button.className = 'md-image__copy'
+  const copied = isCopied(code)
+  button.classList.toggle('md-image__copy--copied', copied)
+  const label = copied ? t('common.action.copied') : t('common.action.copy_code')
+  button.title = label
+  button.setAttribute('aria-label', label)
+}
+
+// A click on a picture opens it full screen, with the rest of its gallery to page through — the
+// shown pictures of the gallery by their codes; the viewer reads each from its preview.
+const lightbox = ref<string | null>(null)
+const lightboxCodes = ref<string[]>([])
+
+function openPicture(image: HTMLImageElement): void {
+  const gallery = image.closest('.md-gallery') ?? image
+  lightboxCodes.value = [...gallery.querySelectorAll<HTMLElement>('.md-image--shown')].map(pictureCode)
+  lightbox.value = image.parentElement ? pictureCode(image.parentElement) : null
+}
+
+// A right click on a shown picture opens its menu (`PictureMenu.vue`). The pictures are plain HTML,
+// so the body keeps one menu and aims it at the picture clicked; the text here is read, not edited,
+// so the menu has no "delete from the text". Shift keeps the browser's own menu.
+const pictureMenu = ref<InstanceType<typeof PictureMenu> | null>(null)
+const menuPicture = ref<HTMLImageElement | null>(null)
+const menuCode = computed(() => (menuPicture.value?.parentElement ? pictureCode(menuPicture.value.parentElement) : ''))
+
+function onContextMenu(event: MouseEvent): void {
+  if (event.shiftKey) return
+  const slot = (event.target as HTMLElement).closest<HTMLElement>('.md-image--shown')
+  const picture = slot?.querySelector<HTMLImageElement>(':scope > img')
+  if (!picture) return
+  menuPicture.value = picture
+  pictureMenu.value?.openAt(event)
+}
+
+function openMenuPicture(): void {
+  if (menuPicture.value) openPicture(menuPicture.value)
+}
 
 // The pills are plain HTML, so the body keeps one hover card and points it at whichever pill the
 // pointer is on. `mouseover`/`mouseout` bubble, unlike `mouseenter`; moves between a pill and its
@@ -165,12 +268,26 @@ function onPointerOut(event: MouseEvent) {
 }
 
 function onClick(event: MouseEvent) {
+  const copyButton = (event.target as HTMLElement).closest<HTMLElement>('.md-image__copy')
+  if (copyButton) {
+    event.preventDefault()
+    const slot = copyButton.closest<HTMLElement>('.md-image')
+    if (slot) void copy(pictureCode(slot))
+    return
+  }
+  const picture = (event.target as HTMLElement).closest<HTMLImageElement>('.md-image--shown > img')
+  if (picture) {
+    openPicture(picture)
+    return
+  }
   const anchor = (event.target as HTMLElement).closest('a')
   if (anchor) {
     const href = anchor.getAttribute('href') ?? ''
     // Internal links (source citations et al.) navigate via the router — no full reload.
-    // Modifier-click falls through to the browser so open-in-new-tab keeps working.
-    if (href.startsWith('/') && !event.metaKey && !event.ctrlKey && !event.shiftKey) {
+    // Modifier-click falls through to the browser so open-in-new-tab keeps working, and so does a
+    // link that opens a tab of its own — a file, which no route of the app serves.
+    const ownTab = anchor.getAttribute('target') === '_blank'
+    if (href.startsWith('/') && !ownTab && !event.metaKey && !event.ctrlKey && !event.shiftKey) {
       event.preventDefault()
       router.push(href)
     }
@@ -189,11 +306,14 @@ function onClick(event: MouseEvent) {
     class="md-body"
     :class="{ 'md-body--compact': compact }"
     @click="onClick"
+    @contextmenu="onContextMenu"
     @mouseover="onPointerOver"
     @mouseout="onPointerOut"
     v-html="html"
   />
   <EntityPreviewPopup ref="popup" />
+  <PictureMenu ref="pictureMenu" :code="menuCode" @open="openMenuPicture" />
+  <ImageGallery v-model="lightbox" :codes="lightboxCodes" />
 </template>
 
 <!-- Body typography lives in the shared file and serves both zones — viewing and editing. The

@@ -14,7 +14,7 @@ import type { Component } from 'vue'
 import type { BlockFeature, FeatureSet } from '../modes'
 import {
   IconAlignLeft, IconH1, IconH2, IconH3, IconList, IconListNumbers, IconListCheck,
-  IconBlockquote, IconSourceCode, IconSchema, IconSeparatorHorizontal, IconTable,
+  IconBlockquote, IconSourceCode, IconSchema, IconSeparatorHorizontal, IconTable, IconPaperclip,
 } from '@tabler/icons-vue'
 
 export interface SlashItem {
@@ -70,8 +70,17 @@ function bindings(keys: string): string[] {
  *
  * `features` filters out items this field does not have: the menu must show what will work, not
  * the full catalogue with half of the rows dead.
+ *
+ * `pickFile` is the field's file dialog, given only where a file has somewhere to go — a holder,
+ * and a field that shows codes (`entityRef`). With it the menu offers «Картинка или файл…»: the
+ * way to attach a file without dragging one (WCAG 2.2 SC 2.5.7). The dialog must open inside the
+ * key press or the click that picked the item: a browser opens a file dialog only in a gesture.
  */
-export function createSlashItems(t: (key: string) => string, features?: FeatureSet): SlashItem[] {
+export function createSlashItems(
+  t: (key: string) => string,
+  features?: FeatureSet,
+  extras: { pickFile?: () => void } = {},
+): SlashItem[] {
   const items: SlashItem[] = [
     {
       id: 'paragraph', group: 1, icon: IconAlignLeft, feature: null,
@@ -150,6 +159,19 @@ export function createSlashItems(t: (key: string) => string, features?: FeatureS
       run: (editor, range) => at(editor, range).insertTable({ rows: 2, cols: 3 }).run(),
     },
   ]
+
+  const { pickFile } = extras
+  if (pickFile && (!features || features.has('entityRef'))) {
+    items.push({
+      id: 'file', group: 6, icon: IconPaperclip, feature: null,
+      title: t('common.editor.slash.file'), keys: null,
+      keywords: ['file', 'image', 'picture', 'upload', 'attach', 'файл', 'картинка', 'изображение', 'скриншот', 'загрузить', 'вложение'],
+      run: (editor, range) => {
+        at(editor, range).run()
+        pickFile()
+      },
+    })
+  }
 
   if (!features) return items
   return items.filter((item) => item.feature === null || features.has(item.feature))

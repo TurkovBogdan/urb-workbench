@@ -1,5 +1,5 @@
 {
-  "instructions": "Workbench MCP server — the developer's own workspaces and the work inside them.\n\nWORKSPACE FIRST. Everything here lives inside a workspace, and nothing reads across workspaces: it is what keeps work apart from personal, one client apart from another. This session works in exactly one, and no tool takes it as an argument — you set it once. If a tool answers that nothing is bound yet, call workspaces_list() to see what exists and workspace_use(workspace_code) to pick one. Some connections are already configured with a workspace; workspaces_list() marks the active one either way.\nThe binding is yours alone — a second agent working elsewhere does not move it, and it lasts as long as this connection.\nOnce the workspace is set, read codex_index before any work: it lists the development rules mounted here (CODEXES below).\n\nCODES. Every entity has a code that says what it is — WORKSPACE@ (a workspace), TASKGROUP@ (a standing theme inside one), TASK@, STAGE@ (a step of a task's plan), JOURNAL@ (a journal entry), NOTE@ (a task note — a document written at a task), CODEX@ (a codex or a note in one). Pass a code back whole, exactly as you received it; never invent one. A code from another workspace is refused by name rather than acted on quietly — that refusal means you are in the wrong workspace, not that the entity is missing.\n\nANSWERS ABOUT THE WORK NAME THEIR WORKSPACE. Read it. It is the only way to notice that you are working in the wrong one: a list of someone else's tasks looks exactly like a list of tasks. codex_index, codex_get and codex_tree do not name it — they read what is mounted into the active one.\n\nHOW WORK IS SHAPED. Three depths, and each adds one way of working. `simple` — a title, a goal and the context, often a job for a person. `standard` — plus the rest of the brief (constraints, criteria of done), your work in three fields — the plan you write after reading the code, the progress diary you keep along the way, the result you write at hand-over — and a journal of decisions, findings and facts. `extended` — plus STAGES: the plan broken into steps, each with its own state and its own evidence. Stages are what separates extended from standard, and they earn their keep only when the work outlasts one sitting; a standard task refuses them and says so.\nThe brief is yours to fill in and correct on any task, including one a person set — when you change theirs, say what and why in a decision entry. The verdict on whether the work is accepted is never yours: write what you did in `result`, then hand over at in_review.\n\nTHE LAYOUT IS THEIRS, THE HANDS ARE YOURS. Groups are how the person sees their own work, and you can make and re-word them — on request. Make one when they ask for it, not because the backlog looks untidy to you: three themes they recognise beat seven you invented. Deleting a group stays theirs, because undoing it is theirs.\n\nCODEXES. Development rules that do not depend on the project — «Python backend», «Vue frontend». A codex's root text holds the rules of working in its area, a tree of notes below it the details, at most four levels deep. The person mounts codexes into a workspace; together they are one canvas, and a path starts with a codex segment: /python/test/fixtures. The way through it: codex_index — each codex says when to turn to it; before work a codex covers, its root with codex_get, and follow its rules; then the notes that bear on the work — codex_tree to find your bearings, codex_search by words, codex_get for the text. You write notes, never a codex, and only where codex_index shows it editable — when the work settles something that holds beyond this task.\n\nSKILLS. This server carries its own reference material — how it expects a brief, a plan and a journal to be written, and what its interface actually renders. skills_list() names what is available; skill_get(name, section?) returns it. Read skill_get('task-brief') before writing a brief and skill_get('task-plan') before planning: those are conventions of this app, not things to infer.\n\nTOOLS. Space: workspaces_list, workspace_use. Layout: groups_list, group_create, group_update, tasks_regroup. Work: tasks_list, task_get, task_create, task_update, task_status. Plan: stage_add, stage_update, stage_close. Journal: journal_add, journal_resolve, journal_list. Task notes — planning material: schemas, option breakdowns, concepts the plan rests on, shown under the plan, on a task of any type; substantial documents, never a few paragraphs (those go into the plan or the journal); written at any stage of the work, and always when the user asks for one: task_note_add, task_note_get, task_note_update; task_get lists them without text. Codexes: codex_index, codex_get, codex_tree, codex_search, codex_add, codex_update. CONTENT — the long markdown fields — is edited by content_set / content_replace / content_set_section / content_add, addressed by the entity code and the field: TASK@ context, and from `standard` up constraints, criteria, plan, progress, result; STAGE@ body; JOURNAL@ body; NOTE@ body; CODEX@ (a note) body. None of them echoes the text you sent: content_replace and content_add answer with the SEAM of the edit, content_set_section with what it CUT, content_set with the new length. Plus delete(code), one door for every type, and interface_open(code) to put something on the user's screen.",
+  "instructions": "Workbench MCP server — the developer's own workspaces and the work inside them.\n\nWORKSPACE FIRST. Everything here lives inside a workspace, and nothing reads across workspaces: it is what keeps work apart from personal, one client apart from another. This session works in exactly one, and no tool takes it as an argument — you set it once. If a tool answers that nothing is bound yet, call workspaces_list() to see what exists and workspace_use(workspace_code) to pick one. Some connections are already configured with a workspace; workspaces_list() marks the active one either way.\nThe binding is yours alone — a second agent working elsewhere does not move it, and it lasts as long as this connection.\nOnce the workspace is set, read codex_index before any work: it lists the development rules mounted here (CODEXES below).\n\nCODES. Every entity has a code that says what it is — WORKSPACE@ (a workspace), TASKGROUP@ (a standing theme inside one), TASK@, STAGE@ (a step of a task's plan), JOURNAL@ (a journal entry), NOTE@ (a task note — a document written at a task), CODEX@ (a codex or a note in one), FILE@ (a file attached to a task or a codex note; IMAGE@ is the same code where a text shows it as a picture). Pass a code back whole, exactly as you received it; never invent one. A code from another workspace is refused by name rather than acted on quietly — that refusal means you are in the wrong workspace, not that the entity is missing.\n\nANSWERS ABOUT THE WORK NAME THEIR WORKSPACE. Read it. It is the only way to notice that you are working in the wrong one: a list of someone else's tasks looks exactly like a list of tasks. codex_index, codex_get and codex_tree do not name it — they read what is mounted into the active one.\n\nHOW WORK IS SHAPED. Three depths, and each adds one way of working. `simple` — a title, a goal and the context, often a job for a person. `standard` — plus the rest of the brief (constraints, criteria of done), your work in three fields — the plan you write after reading the code, the progress diary you keep along the way, the result you write at hand-over — and a journal of decisions, findings and facts. `extended` — plus STAGES: the plan broken into steps, each with its own state and its own evidence. Stages are what separates extended from standard, and they earn their keep only when the work outlasts one sitting; a standard task refuses them and says so.\nThe brief is yours to fill in and correct on any task, including one a person set — when you change theirs, say what and why in a decision entry. The verdict on whether the work is accepted is never yours: write what you did in `result`, then hand over at in_review.\n\nTHE LAYOUT IS THEIRS, THE HANDS ARE YOURS. Groups are how the person sees their own work, and you can make and re-word them — on request. Make one when they ask for it, not because the backlog looks untidy to you: three themes they recognise beat seven you invented. Deleting a group stays theirs, because undoing it is theirs.\n\nCODEXES. Development rules that do not depend on the project — «Python backend», «Vue frontend». A codex's root text holds the rules of working in its area, a tree of notes below it the details, at most four levels deep. The person mounts codexes into a workspace; together they are one canvas, and a path starts with a codex segment: /python/test/fixtures. The way through it: codex_index — each codex says when to turn to it; before work a codex covers, its root with codex_get, and follow its rules; then the notes that bear on the work — codex_tree to find your bearings, codex_search by words, codex_get for the text. You write notes, never a codex, and only where codex_index shows it editable — when the work settles something that holds beyond this task.\n\nSKILLS. This server carries its own reference material — how it expects a brief, a plan and a journal to be written, and what its interface actually renders. skills_list() names what is available; skill_get(name, section?) returns it. Read skill_get('task-brief') before writing a brief, skill_get('task-plan') before planning and skill_get('markdown') before putting a file or a diagram into a text: those are conventions of this app, not things to infer.\n\nTOOLS. Space: workspaces_list, workspace_use. Layout: groups_list, group_create, group_update, tasks_regroup. Work: tasks_list, task_get, task_create, task_update, task_status. Plan: stage_add, stage_update, stage_close. Journal: journal_add, journal_resolve, journal_list. Task notes — planning material: schemas, option breakdowns, concepts the plan rests on, shown under the plan, on a task of any type; substantial documents, never a few paragraphs (those go into the plan or the journal); written at any stage of the work, and always when the user asks for one: task_note_add, task_note_get, task_note_update; task_get lists them without text. Codexes: codex_index, codex_get, codex_tree, codex_search, codex_add, codex_update. Files — a screenshot of the work, a diagram, a document: attach_file(holder code, path) puts one on a TASK@, NOTE@, STAGE@ or codex note and gives the code to put into a text — IMAGE@ shows the picture, FILE@ a link. A file is in a task once; NOTE@ and STAGE@ mark where it came in. file_get reads what a file is and where to get it; the resource workbench://file/{code} shows it to you; task_get and codex_get list a holder's files. CONTENT — the long markdown fields — is edited by content_set / content_replace / content_set_section / content_add, addressed by the entity code and the field: TASK@ context, and from `standard` up constraints, criteria, plan, progress, result; STAGE@ body; JOURNAL@ body; NOTE@ body; CODEX@ (a note) body. None of them echoes the text you sent: content_replace and content_add answer with the SEAM of the edit, content_set_section with what it CUT, content_set with the new length. Plus delete(code), one door for every type — for a FILE@ it takes the file out of its place — and interface_open(code) to put something on the user's screen.",
   "tools": [
     {
       "name": "workspaces_list",
@@ -591,7 +591,7 @@
     },
     {
       "name": "task_get",
-      "description": "Read one task in full — the brief, your work, its stages, and what is still open.\n\nYour work comes in three fields: `plan` (the approach, written before the code changes),\n`progress` (the diary along the way), `result` (what came out, written at hand-over).\n\nThis is the working view: what you need before touching the work, and nothing you would\nhave to ask twice for. Read it before you start and after anyone else has been here —\nthe brief is the only place that says what \"done\" means here.\n\nClosed journal entries are not included, only their count: they answer \"how was this\ndecided\", which is a separate question — journal_list when you have it. The task's\n`notes` come by title and description only; task_note_get reads one whole.",
+      "description": "Read one task in full — the brief, your work, its stages, and what is still open.\n\nYour work comes in three fields: `plan` (the approach, written before the code changes),\n`progress` (the diary along the way), `result` (what came out, written at hand-over).\n\nThis is the working view: what you need before touching the work, and nothing you would\nhave to ask twice for. Read it before you start and after anyone else has been here —\nthe brief is the only place that says what \"done\" means here.\n\nClosed journal entries are not included, only their count: they answer \"how was this\ndecided\", which is a separate question — journal_list when you have it. The task's\n`notes` come by title and description only; task_note_get reads one whole. Its `files`\n— every file of the task, those brought in through its notes and stages included —\ncome the same way: the FILE@ code, title and description; file_get reads one.",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {
@@ -920,6 +920,29 @@
                 "code",
                 "title",
                 "updated_at"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "files": {
+            "default": [],
+            "items": {
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "title": {
+                  "default": "",
+                  "type": "string"
+                },
+                "description": {
+                  "default": "",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code"
               ],
               "type": "object"
             },
@@ -2170,7 +2193,7 @@
     },
     {
       "name": "codex_get",
-      "description": "Read codexes and notes whole, and see what lies directly under each.\n\nA codex's `body` is its rules of working in its area: read it before the work the codex\ncovers, then go down to the notes that bear on that work. A note's `body` is its text; a\nnote with children is a section, and its text sums up what lies below.\n\nEach node comes with its path and parent (a codex has none) and its children as a list\nto choose from — code, path, segment, title, description and how many children each has\n— without their text. Open the ones the work needs with the next codex_get, all of them\nin one call: the description says whether a child bears on your work, and a body runs up\nto 65 536 characters, so not every child. No `children` key means no children, not a cut\nanswer.\n\nAlways answers with a list, in the order asked, each node once. Either every item is\nfound or the call refuses and names every item at fault.",
+      "description": "Read codexes and notes whole, and see what lies directly under each.\n\nA codex's `body` is its rules of working in its area: read it before the work the codex\ncovers, then go down to the notes that bear on that work. A note's `body` is its text; a\nnote with children is a section, and its text sums up what lies below.\n\nEach node comes with its path and parent (a codex has none) and its children as a list\nto choose from — code, path, segment, title, description and how many children each has\n— without their text. Open the ones the work needs with the next codex_get, all of them\nin one call: the description says whether a child bears on your work, and a body runs up\nto 65 536 characters, so not every child. No `children` key means no children, not a cut\nanswer. A note's `files` — FILE@ code, title, description — likewise come only when it\nhas some; file_get reads one.\n\nAlways answers with a list, in the order asked, each node once. Either every item is\nfound or the call refuses and names every item at fault.",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {
@@ -2253,6 +2276,28 @@
                       "path",
                       "segment",
                       "title"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "files": {
+                  "items": {
+                    "properties": {
+                      "code": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "default": "",
+                        "type": "string"
+                      },
+                      "description": {
+                        "default": "",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "code"
                     ],
                     "type": "object"
                   },
@@ -2643,6 +2688,252 @@
       }
     },
     {
+      "name": "attach_file",
+      "description": "Attach a file to a task, a task note, a stage or a codex note — and get the code to\nput it into a text.\n\nThe holder: TASK@ — the task. NOTE@ or STAGE@ — the same task, with the file marked as\nbrought in there; it is not a second place. A file is in a task once, and its code\nserves every text of the task. A file the task already has is refused, whatever its\nname: the same bytes are the same file. To show it in a note or a stage, put its code\ninto that text instead — task_get lists the task's files. CODEX@ — a codex note, only\nwhere codex_index shows the codex editable.\n\nThe file, one of:\n- `path` — a file on the server's disk, read and left where it is. A server on your\n  machine reaches your absolute paths; its own files — /proc, /sys, /dev, its runtime\n  folder, .env files, database, stored files and copies — it refuses.\n- `file` — a FILE@ already stored here (from task_get, codex_get or file_get): the same\n  file, attached to one more holder.\n- neither, or a `path` the server cannot see (another machine, a relative path) — the\n  answer carries `upload`: a one-time address, open for minutes, and a ready `command`\n  (`curl -T <file> '<url>'`). Nothing is attached until you run it; what it prints is\n  this same answer with the file attached. Add `&filename=<name>` to the url to name a\n  file sent without a path.\n\nAttached, the answer has `code` (FILE@) and `insert` — what to put into a text:\nIMAGE@ for a picture (shown as one), FILE@ for anything else (a link). No sorting: a\nnew file goes last among the holder's.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "What holds the file — a TASK@, NOTE@, STAGE@ or CODEX@ (a note) code."
+          },
+          "title": {
+            "default": "",
+            "type": "string",
+            "description": "What the file is called at this holder, up to 256 characters; empty shows its\nname."
+          },
+          "description": {
+            "default": "",
+            "type": "string",
+            "description": "What is inside the file, up to 256 characters."
+          },
+          "path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The file — an absolute path on the server, or your path to upload from."
+          },
+          "file": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Instead of `path` — a FILE@ code of a file stored already."
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "workspace": {
+            "type": "string"
+          },
+          "workspace_title": {
+            "type": "string"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "insert": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "upload": {
+            "anyOf": [
+              {
+                "properties": {
+                  "url": {
+                    "type": "string"
+                  },
+                  "path": {
+                    "type": "string"
+                  },
+                  "expires_at": {
+                    "type": "string"
+                  },
+                  "command": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "url",
+                  "path",
+                  "expires_at",
+                  "command"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "workspace",
+          "workspace_title"
+        ],
+        "type": "object"
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
+      "name": "file_get",
+      "description": "Read what a file is, where it is held here, and how to get at it.\n\n`url` opens it; `download_url` saves it under its `name` here. `resource` shows it to\nyou through MCP — a picture as a picture, text as text; other types only download.\n`path` is where its bytes lie on the server — when the server runs on your machine,\nreading it directly is the shortest way to look at the file; never write there. `places` — the holders here: a task (once, whatever\nnote or stage the file came in through) or a codex note, with what the file is called\nand holds at each; name one as `holder` in delete to take the file out of it.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "file_code": {
+            "type": "string",
+            "description": "The file — a FILE@ code (an IMAGE@ in a text names the same file)."
+          }
+        },
+        "required": [
+          "file_code"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "workspace": {
+            "type": "string"
+          },
+          "workspace_title": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "insert": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "mime": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer"
+          },
+          "url": {
+            "type": "string"
+          },
+          "download_url": {
+            "type": "string"
+          },
+          "resource": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "places": {
+            "default": [],
+            "items": {
+              "properties": {
+                "holder": {
+                  "type": "string"
+                },
+                "title": {
+                  "default": "",
+                  "type": "string"
+                },
+                "description": {
+                  "default": "",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "holder"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "workspace",
+          "workspace_title",
+          "code",
+          "insert",
+          "name",
+          "mime",
+          "type",
+          "size",
+          "url",
+          "download_url",
+          "resource",
+          "path"
+        ],
+        "type": "object"
+      },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    },
+    {
       "name": "content_set",
       "description": "Replace a content field of a TASK@, STAGE@, JOURNAL@, NOTE@ or codex note (CODEX@) whole.\n\nThis is how a field is first written — a plan after reading the code, a result at\nhand-over. Naming the files you read and the files you will change is what separates a\nplan from a promise.\n\nReturns a receipt only — the new length, since the field is the text you just sent.\nWatch it against the limit: going over is refused, not trimmed. To amend part of a\nfield, use content_replace / content_set_section / content_add instead of rewriting it.\n\nA `simple` task has only its context: constraints, criteria, plan, progress and result\nare refused there by every content tool until the type is raised with task_update.",
       "inputSchema": {
@@ -2902,13 +3193,25 @@
     },
     {
       "name": "delete",
-      "description": "Delete one entity. The code decides what goes, and what goes with it.\n\nTASK@ — the task and the whole branch under it, reversibly: it goes to the bin, and a\nperson can bring it back. You cannot: restoring is theirs, so say so rather than\ncreating a replacement.\nSTAGE@ — removed outright. A plan has no hidden steps; a step you decided against is\nclosed with stage_close(outcome=\"canceled\"), which keeps why. Deleting leaves a gap in\nthe numbering, and that is fine — numbers order the plan, they do not count it.\nNOTE@ — the task note, reversibly: it leaves the task's list, and a person can bring it\nback.\nCODEX@ — a codex note, reversibly, and only alone: one with child notes is refused with\ntheir list — delete those first. Only where the mount lets you write; a codex itself is\nthe person's.\n\nA journal entry is not deletable, and neither is a group or a workspace.",
+      "description": "Delete one entity. The code decides what goes, and what goes with it.\n\nTASK@ — the task and the whole branch under it, reversibly: it goes to the bin, and a\nperson can bring it back. You cannot: restoring is theirs, so say so rather than\ncreating a replacement.\nSTAGE@ — removed outright, with the files attached at it: they leave the task, and their\ncodes in any text stop resolving. Attach a file to the task itself to keep it past the\nstage. A plan has no hidden steps; a step you decided against is closed with\nstage_close(outcome=\"canceled\"), which keeps why. Deleting leaves a gap in the\nnumbering, and that is fine — numbers order the plan, they do not count it.\nNOTE@ — the task note, reversibly: it leaves the task's list, and a person can bring it\nback. Its files stay in the task.\nCODEX@ — a codex note, reversibly, and only alone: one with child notes is refused with\ntheir list — delete those first. Only where the mount lets you write; a codex itself is\nthe person's.\nFILE@ — the file is taken out of its place here: its binding goes, and the stored bytes\ngo once nothing holds them. Held in one place here, that one; held in several, the call\nrefuses, changes nothing and lists them — repeat with `holder` naming the place. Taking\na file out of a codex note needs the mount's write right, out of a task a live task.\n\nA journal entry is not deletable, and neither is a group or a workspace.",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {
           "code": {
             "type": "string",
-            "description": "The entity to delete — a TASK@, STAGE@, NOTE@ or CODEX@ (a note) code."
+            "description": "The entity to delete — a TASK@, STAGE@, NOTE@, CODEX@ (a note) or FILE@ code\n(an IMAGE@ names the same file)."
+          },
+          "holder": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "FILE@ only — the place to take the file out of: a TASK@ or a CODEX@ note.\nA NOTE@ or STAGE@ names its task: the file leaves the whole task, wherever in it\nit was brought in. There is no taking a file out of a note alone."
           }
         },
         "required": [
@@ -3048,13 +3351,13 @@
     },
     {
       "name": "interface_open",
-      "description": "Open the page for a code in the user's browser and return its address.\n\nThis is how you SHOW something instead of describing it. Use it when the user asks to\nsee something, and when you have finished a piece of work worth looking at — it puts the\nthing on screen rather than a paragraph about it. Returning the address also lets you\npaste it into the conversation.\n\nA STAGE@ or a JOURNAL@ opens the task it belongs to: they live on its page and have none\nof their own. A NOTE@ opens its own page, inside its task's. A CODEX@ opens the codex\neditor on that codex or note. A WORKSPACE@ or a TASKGROUP@ opens the list it is a row in.\n\nIt acts on the user's machine, so do it when it was asked for or clearly helps, not\nafter every call.",
+      "description": "Open the page for a code in the user's browser and return its address.\n\nThis is how you SHOW something instead of describing it. Use it when the user asks to\nsee something, and when you have finished a piece of work worth looking at — it puts the\nthing on screen rather than a paragraph about it. Returning the address also lets you\npaste it into the conversation.\n\nA STAGE@ or a JOURNAL@ opens the task it belongs to: they live on its page and have none\nof their own. A NOTE@ opens its own page, inside its task's. A CODEX@ opens the codex\neditor on that codex or note. A WORKSPACE@ or a TASKGROUP@ opens the list it is a row in.\nA FILE@ opens the file itself.\n\nIt acts on the user's machine, so do it when it was asked for or clearly helps, not\nafter every call.",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {
           "code": {
             "type": "string",
-            "description": "What to show — a TASK@, STAGE@, JOURNAL@, NOTE@, CODEX@, TASKGROUP@ or\nWORKSPACE@ code."
+            "description": "What to show — a TASK@, STAGE@, JOURNAL@, NOTE@, CODEX@, TASKGROUP@,\nWORKSPACE@ or FILE@ code (an IMAGE@ names the same file)."
           }
         },
         "required": [
@@ -3074,6 +3377,19 @@
         "type": "object",
         "x-fastmcp-wrap-result": true
       },
+      "meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      }
+    }
+  ],
+  "resource_templates": [
+    {
+      "name": "file",
+      "uriTemplate": "workbench://file/{code}",
+      "description": "A file attached here, shown to you: a picture as a picture, text as text. `code` is the file's code, bare or as FILE@; file_get gives the whole URI. A client that saves a picture to disk instead of showing it names the path — open the file there. Other types, and files over 10 MB, are downloaded from the url file_get gives.",
+      "mimeType": "text/plain",
       "meta": {
         "fastmcp": {
           "tags": []
@@ -3115,14 +3431,14 @@
       "arguments": {
         "code": "SOURCE@0000000000"
       },
-      "refusal": "Error calling tool 'delete': 'SOURCE@0000000000' is not something this deletes — pass a TASK@ or STAGE@ or NOTE@ or CODEX@ code."
+      "refusal": "Error calling tool 'delete': 'SOURCE@0000000000' is not something this deletes — pass a TASK@ or STAGE@ or NOTE@ or CODEX@ or FILE@ code."
     },
     {
       "tool": "interface_open",
       "arguments": {
         "code": "SOURCE@0000000000"
       },
-      "refusal": "Error calling tool 'interface_open': 'SOURCE@0000000000' is not something with a page — pass a WORKSPACE@ / TASKGROUP@ / TASK@ / STAGE@ / JOURNAL@ / NOTE@ / CODEX@ code."
+      "refusal": "Error calling tool 'interface_open': 'SOURCE@0000000000' is not something with a page — pass a WORKSPACE@ / TASKGROUP@ / TASK@ / STAGE@ / JOURNAL@ / NOTE@ / CODEX@ / FILE@ code."
     },
     {
       "tool": "content_set",
@@ -3186,6 +3502,21 @@
         "text": "x"
       },
       "refusal": "Error calling tool 'content_set': 'title' of a NOTE@ is not content — it is set with task_note_update. Content fields of a NOTE@: body."
+    },
+    {
+      "tool": "attach_file",
+      "arguments": {
+        "code": "SOURCE@0000000000"
+      },
+      "refusal": "Error calling tool 'attach_file': 'SOURCE@0000000000' cannot hold a file — pass a TASK@ / NOTE@ / STAGE@ / CODEX@ code (CODEX@ — a codex note)."
+    },
+    {
+      "tool": "delete",
+      "arguments": {
+        "code": "TASK@0000000000",
+        "holder": "TASK@0000000000"
+      },
+      "refusal": "Error calling tool 'delete': `holder` names the place to take a file out of — a TASK@ is held in one place only. Call delete('TASK@0000000000') without it."
     }
   ]
 }

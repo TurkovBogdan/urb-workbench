@@ -3,10 +3,16 @@
 // density and focus styling because it is made of the same parts as the rest of the interface.
 import { computed, nextTick, ref, watch } from 'vue'
 import KeyCap from '@/components/KeyCap.vue'
+import { usePageActive } from '@/composables/usePageActive'
 import { shortcutLabels } from './slashMenu'
 import type { SlashController, SlashState } from './slashMenu'
 
 const props = defineProps<{ state: SlashState; controller: SlashController }>()
+
+// Teleported to <body>, the menu does not leave with its page (KeepAlive). Leaving closes it as
+// Escape would: the typed `/query` stays in the text, and a new `/` opens the menu again.
+const pageActive = usePageActive()
+watch(pageActive, (active) => { if (!active) props.controller.exit() })
 
 const MENU_HEIGHT = 320
 
@@ -42,7 +48,7 @@ const style = computed(() => ({
 
 <template>
   <Teleport to="body">
-    <div v-if="state.open && state.items.length" class="slash" :style="style">
+    <div v-if="pageActive && state.open && state.items.length" class="slash" :style="style">
       <VCard elevation="8" rounded="lg" class="slash__card">
         <div ref="scroller" class="slash__scroll">
           <VList density="compact" nav class="py-1">

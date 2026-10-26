@@ -10,6 +10,7 @@
  */
 
 import { internalApi, type RequestOptions } from '@/api/client/internal'
+import { uploadFile, type UploadOptions } from '@/api/upload'
 
 const BASE = '/codex'
 
@@ -167,6 +168,65 @@ export async function deleteNote(code: string, branch = false, opts?: RequestOpt
     ...opts,
     query: { branch },
   })
+}
+
+// ── a note's files ────────────────────────────────────────────────────────────
+// Only a note holds files; the code of a codex is refused (`codex.file.holder_is_codex`).
+
+export interface NoteFileRow {
+  /** `FILE@…` */
+  code: string
+  note_code: string
+  /** Empty — the file goes by `original_filename + original_extension`. */
+  title: string
+  description: string
+  original_filename: string
+  original_extension: string
+  mime: string
+  /** `core_storage`'s kind of file: `image`, `document`, … */
+  type: string
+  size: number
+  sort: number
+  created_at: string
+  updated_at: string
+}
+
+export function listNoteFiles(note: string, opts?: RequestOptions): Promise<NoteFileRow[]> {
+  return internalApi.get<NoteFileRow[]>(`${BASE}/notes/${seg(note)}/files`, opts)
+}
+
+/**
+ * Send one file into the note, at the end of its files — through the file upload module, the note
+ * named by its `CODEX@` code. The body is the file itself; a refusal is an `ApiError` the caller
+ * shows — `codex.file.already_attached` carries the file the note holds (`params.file`,
+ * `params.name`, `params.type`), `core_storage_upload.file.too_large` the ceiling.
+ */
+export function uploadNoteFile(
+  note: string,
+  file: File,
+  opts: Omit<UploadOptions, 'query'> = {},
+): Promise<NoteFileRow> {
+  return uploadFile<NoteFileRow>(note.includes('@') ? note : `CODEX@${note}`, file, opts)
+}
+
+/** The whole order, top to bottom, as the person left it. */
+export function reorderNoteFiles(note: string, codes: string[], opts?: RequestOptions): Promise<NoteFileRow[]> {
+  return internalApi.put<NoteFileRow[]>(`${BASE}/notes/${seg(note)}/files/order`, { codes }, opts)
+}
+
+/** What the note calls the file and says is in it; a field left out stays as it is. */
+export function updateNoteFile(
+  note: string,
+  file: string,
+  body: { title?: string; description?: string },
+  opts?: RequestOptions,
+): Promise<NoteFileRow> {
+  return internalApi.patch<NoteFileRow>(`${BASE}/notes/${seg(note)}/files/${seg(file)}`, body, opts)
+}
+
+/** Take the file out of the note; the file itself goes once nothing else holds it. */
+export async function detachNoteFile(note: string, file: string, opts?: RequestOptions): Promise<void> {
+  await internalApi.del<void>(`${BASE}/notes/${seg(note)}/files/${seg(file)}`, undefined, opts)
 }
 
 // ── the workspace's canvas ────────────────────────────────────────────────────

@@ -86,9 +86,6 @@ export interface CodeToken {
   style: string
 }
 
-/** Counters for the diagnostics stand — how much of the work the cache saves. */
-export const tokenCounters = { tokenized: 0, cacheHits: 0 }
-
 /** Called whenever the highlighter or a language becomes available. Returns the unsubscribe. */
 export function onLanguageReady(listener: () => void): () => void {
   readyListeners.add(listener)
@@ -121,14 +118,12 @@ export function tokensFor(code: string, lang: string): CodeToken[] | null {
   const key = `${language}\u0000${code}`
   const cached = tokenCache.get(key)
   if (cached) {
-    tokenCounters.cacheHits++
     // Re-insert so the entry counts as recently used.
     tokenCache.delete(key)
     tokenCache.set(key, cached)
     return cached
   }
 
-  tokenCounters.tokenized++
   const { tokens } = highlighter.codeToTokens(code, {
     lang: language as BundledLanguage,
     themes: THEMES,

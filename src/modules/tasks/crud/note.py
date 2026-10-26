@@ -18,6 +18,8 @@ from src.modules.notes.crud import note as notes_crud
 from src.modules.notes.models.note import Note
 from src.modules.tasks.codes import tagged
 from src.modules.tasks.constants import NOTE_CODE_PREFIX, SORT_DEFAULT, SORT_STEP, TASK_CODE_PREFIX
+from src.modules.tasks.crud.file import task_files_take
+from src.modules.tasks.file_owner import release_task_files, task_files_lock
 from src.modules.tasks.models.note import TasksNote
 from src.modules.tasks.models.task import TasksTask
 
@@ -106,10 +108,47 @@ async def task_note_reorder(task_code: str, codes: list[str]) -> None:
             row.sort = top - position * SORT_STEP
 
 
+async def task_note_purge(note_code: str) -> bool:
+    """Delete a task note for good — the document, its link and the files attached to it.
+    ``True`` — a task held the note.
+
+    The only final deletion of a task note: the page and the agent delete a note softly, and a
+    soft-deleted note keeps its files for a restore. The files attached here leave the task, and
+    the task's storage owner of each is released — in a ``finally``, so a document that refused to
+    go does not keep its files held with no row to say whose they are.
+
+    Two transactions, not one: the document is the ``notes`` module's and goes through its own
+    CRUD, which opens its own. The binding rows and the link go first, through the ORM, so the
+    task's page hears of both; a document left behind by a failure after that is held by no task,
+    as a hard-deleted task leaves its notes' documents.
+
+    The task's file lock is held from taking the rows to the release, as in ``stage_delete``.
+    """
+    async with session_scope() as s:
+        task_code = await s.scalar(
+            select(TasksNote.task_code).where(TasksNote.note_code == note_code)
+        )
+    if task_code is None:
+        return False
+    async with task_files_lock(task_code):
+        async with write_scope() as s:
+            link = await s.get(TasksNote, note_code)
+            if link is None:
+                return False
+            taken = await task_files_take(s, note_code=note_code)
+            await s.delete(link)
+        try:
+            await notes_crud.note_delete(note_code, hard=True)
+        finally:
+            await release_task_files(taken)
+    return True
+
+
 __all__ = [
     "task_note_add",
     "task_note_list",
     "task_note_owner",
+    "task_note_purge",
     "task_note_reorder",
     "task_note_task",
 ]
