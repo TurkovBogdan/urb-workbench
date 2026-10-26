@@ -1,8 +1,9 @@
 {
   "nav": "Settings",
+  "nav_modules": "Modules",
   "page": {
     "title": "Module settings",
-    "description": "Parameters of the modules in this build. Changes take effect after saving. No module declares configurable parameters right now — the page stays empty until one does."
+    "description": "Parameters of the modules in this build. Changes take effect after saving."
   },
   "action": {
     "discard": "Discard",
@@ -12,7 +13,41 @@
     "save_failed": "Some settings couldn't be saved — see the field errors."
   },
   "module": {
-    "no_fields": "This module has no user settings."
+    "no_fields": "This module has no user settings.",
+    "title": {
+      "core_storage": "File storage",
+      "core_storage_upload": "File upload"
+    },
+    "description": {
+      "core_storage": "File registration, dedup by content, ownership, soft deletion and cleanup.",
+      "core_storage_upload": "Taking files in from the person in the interface and from the agent — by a path on the server or at a one-time upload address."
+    }
+  },
+  "catalog": {
+    "core_storage": {
+      "cleanup_after_hours": {
+        "label": "Hours before a file is removed",
+        "description": "How long a file nobody holds waits before the cleanup task removes it from disk."
+      },
+      "cleanup_limit": {
+        "label": "Files per cleanup run",
+        "description": "How many files one cleanup run removes; 0 — no limit."
+      },
+      "max_file_size_mb": {
+        "label": "File size ceiling, MB",
+        "description": "The storage refuses a file larger than this."
+      }
+    },
+    "core_storage_upload": {
+      "request_ttl_minutes": {
+        "label": "Upload request lifetime, minutes",
+        "description": "How many minutes a one-time upload address stays open, for a client that cannot hand the server a path to the file. A new value holds for the next request."
+      },
+      "server_path_enabled": {
+        "label": "Read files by a path on the server",
+        "description": "A client may name a file on the server's disk instead of sending it. Off — the server reads no path and answers with an upload address."
+      }
+    }
   },
   "language": {
     "title": "Interface language",
