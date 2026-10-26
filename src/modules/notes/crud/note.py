@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator, Iterable
 from contextlib import asynccontextmanager
+from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -68,6 +69,40 @@ async def note_create(
         s.add(row)
         await s.flush()
         await s.refresh(row)
+    return row
+
+
+async def note_put(
+    code: str,
+    *,
+    title: str,
+    description: str = "",
+    body: str = "",
+    created_at: datetime | None = None,
+    session: AsyncSession,
+) -> Note:
+    """Write a note under a code it already has — created, or overwritten and taken out of the bin.
+
+    For a note coming back from another installation with the code its texts quote. The limits are
+    ``note_create``'s, checked before the row is touched; ``session`` is the consumer's open write
+    transaction, where its link to the note is written too.
+    """
+    values = {
+        "title": _title(title),
+        "description": fit(description, DESCRIPTION_MAX, "Note description"),
+        "body": fit(body, BODY_MAX, "Note body"),
+    }
+    row = await session.get(Note, code)
+    if row is None:
+        row = Note(code=code, **values)
+        if created_at is not None:
+            row.created_at = created_at
+        session.add(row)
+    else:
+        for field, value in values.items():
+            setattr(row, field, value)
+        row.deleted_at = None
+    await session.flush()
     return row
 
 
@@ -162,6 +197,7 @@ __all__ = [
     "note_delete",
     "note_get",
     "note_get_many",
+    "note_put",
     "note_restore",
     "note_update",
 ]

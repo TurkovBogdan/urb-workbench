@@ -12,7 +12,7 @@
 import { computed, onActivated, ref, watch, type Component } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { IconFolderPlus, IconList, IconPlus, IconRefresh } from '@tabler/icons-vue'
+import { IconDotsVertical, IconFileImport, IconFolderPlus, IconList, IconPlus, IconRefresh } from '@tabler/icons-vue'
 
 import PageLayout from '@/layout/templates/PageLayout.vue'
 import PageHeader from '@/layout/components/PageHeader.vue'
@@ -25,6 +25,7 @@ import GroupDeleteDialog from '../components/GroupDeleteDialog.vue'
 import GroupFormDialog from '../components/GroupFormDialog.vue'
 import TaskFilters from '../components/TaskFilters.vue'
 import TaskFormDialog from '../components/TaskFormDialog.vue'
+import TaskImportDialog from '../components/TaskImportDialog.vue'
 import TaskListTable from '../components/TaskListTable.vue'
 import { useTasksStore } from '../stores/tasks.store'
 import { useWorkspaceContextStore } from '@/features/workspace/stores/workspace-context.store'
@@ -154,6 +155,9 @@ function onSaved(code: string, openIt: boolean) {
   if (openIt) openTask(code)
 }
 
+// ── Import from an archive ────────────────────────────────────────────────────
+const importOpen = ref(false)
+
 // ── Group form ────────────────────────────────────────────────────────────────
 // The same dialog as on the groups page — editing is called from the card header in the list. It
 // lives here, not inside the list: the page has one dialog per entity, and the display format (a
@@ -238,6 +242,20 @@ async function removeGroup(fate: { tasks?: GroupTaskDisposal; target?: string })
           <template #prepend><IconPlus :size="16" /></template>
           {{ t('tasks.task.list.add') }}
         </VBtn>
+
+        <!-- The rare actions of the section — bringing a task in from an archive. -->
+        <VMenu location="bottom end" :offset="4">
+          <template #activator="{ props: menu }">
+            <VBtn v-bind="menu" icon variant="text" :title="t('tasks.transfer.section_menu')">
+              <IconDotsVertical :size="18" />
+            </VBtn>
+          </template>
+          <VList density="compact">
+            <VListItem :prepend-icon="IconFileImport" :disabled="!workspace" @click="importOpen = true">
+              <VListItemTitle>{{ t('tasks.transfer.import') }}</VListItemTitle>
+            </VListItem>
+          </VList>
+        </VMenu>
       </template>
     </PageHeader>
 
@@ -281,6 +299,8 @@ async function removeGroup(fate: { tasks?: GroupTaskDisposal; target?: string })
       :group="presetGroup"
       @saved="onSaved"
     />
+
+    <TaskImportDialog v-model="importOpen" :workspace="workspace" @imported="store.load" />
 
     <!-- Editing a group changes both its card and the section layout, so the list is re-read in
          full — the same way as after editing a task. -->

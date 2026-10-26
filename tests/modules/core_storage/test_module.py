@@ -23,8 +23,8 @@ _MODULE_DOC = Path(__file__).resolve().parents[3] / "src" / "modules" / "core_st
 
 @pytest.mark.pure
 def test_the_version_is_kept_in_the_class_and_the_module_doc():
-    assert CoreStorageModule.version == "2.5.0"
-    assert "Version: `2.5.0`" in _MODULE_DOC.read_text(encoding="utf-8")
+    assert CoreStorageModule.version == "2.6.0"
+    assert "Version: `2.6.0`" in _MODULE_DOC.read_text(encoding="utf-8")
 
 
 @pytest.mark.pure

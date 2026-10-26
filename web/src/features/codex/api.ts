@@ -9,8 +9,9 @@
  * the prefix, which is why the editor lives at one address for both.
  */
 
-import { internalApi, type RequestOptions } from '@/api/client/internal'
+import { internalApi, internalUpload, internalUrl, type RequestOptions } from '@/api/client/internal'
 import { uploadFile, type UploadOptions } from '@/api/upload'
+import type { TransferChoice, TransferPlanBase, TransferRecoded, TransferUpload } from '@/components/transfer/types'
 
 const BASE = '/codex'
 
@@ -315,4 +316,68 @@ export function reorderWorkspaceCodex(
     { after_code: afterCode },
     opts,
   )
+}
+
+// ── Transfer between installations (.ucdx) ────────────────────────────────────
+// The export is fetched by the browser itself: the answer is a file named by the server.
+
+/** Where the browser downloads a codex's archive from — the whole codex, its bin included. */
+export function codexExportUrl(code: string): string {
+  return internalUrl(`${BASE}/codexes/${seg(code)}/export`)
+}
+
+// Reading and applying go through the whole archive — every record and every file.
+const TRANSFER_TIMEOUT_MS = 10 * 60 * 1000
+
+export interface CodexImportPlan extends TransferPlanBase {
+  root: { code: string; title: string; path: string; deleted: boolean }
+  counts: { notes: number; deleted_notes: number; files: number }
+  notices: TransferPlanBase['notices'] & { repathed: TransferRecoded[] }
+}
+
+export interface CodexImportReport {
+  codex: { code: string; title: string; segment: string }
+  mounted: boolean
+  counts: { created: Record<string, number>; updated: Record<string, number> }
+  recoded: TransferRecoded[]
+  repathed: (TransferRecoded & { code?: string })[]
+  /** Records here that went to the bin with a parent the archive brought in the bin. */
+  binned: { code: string; title: string }[]
+  truncated: { entity: string; code: string; field: string }[]
+  refs_rewritten: number
+  dangling_refs: string[]
+}
+
+export function uploadCodexArchive(
+  file: File,
+  onProgress: (loaded: number, total: number) => void,
+  signal?: AbortSignal,
+): Promise<TransferUpload> {
+  return internalUpload<TransferUpload>(`${BASE}/transfer/upload`, file, {
+    query: { filename: file.name },
+    onProgress,
+    signal,
+  })
+}
+
+export function analyzeCodexImport(uploadId: string): Promise<CodexImportPlan> {
+  return internalApi.post<CodexImportPlan>(`${BASE}/transfer/${seg(uploadId)}/analyze`, {}, {
+    report: false,
+    timeoutMs: TRANSFER_TIMEOUT_MS,
+  })
+}
+
+export function applyCodexImport(
+  uploadId: string,
+  body: { workspace: string | null; decisions: Record<string, TransferChoice>; plan_token: string },
+): Promise<CodexImportReport> {
+  return internalApi.post<CodexImportReport>(`${BASE}/transfer/${seg(uploadId)}/apply`, body, {
+    report: false,
+    timeoutMs: TRANSFER_TIMEOUT_MS,
+  })
+}
+
+/** Give the uploaded archive back without importing it. */
+export async function cancelCodexImport(uploadId: string): Promise<void> {
+  await internalApi.del<void>(`${BASE}/transfer/${seg(uploadId)}`, undefined, { report: false })
 }

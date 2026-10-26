@@ -1,6 +1,6 @@
 # core_storage
 
-Version: `2.5.0`
+Version: `2.6.0`
 
 The module registers files and keeps their bytes. A consumer hands over a file in any form — bytes,
 a stream, a path on disk — and gets back a code; the module puts the bytes into one of its stores,
@@ -19,6 +19,7 @@ once nobody does. For each owner it keeps the name the file came in under.
 | live places of a type | `held_by_type` | every live place of one owner type as `HeldFile(file_code, owner)` — for a consumer reconciling its bindings with what the storage counts; `taken_before` keeps only the places that took their file before that moment |
 | owners | `file_owners` | who holds a file, each as a `FileOwner`: the `Owner`, its original name and extension, when it took the file (a revived place — when it was revived) and when it released it |
 | get | `file_get`, `file_get_many`, `file_path`, `file_open` | the file's data, its path, its bytes; a soft-deleted file only with `include_deleted=True` |
+| find by content | `file_find_content` | the file holding these bytes (by sha256) in a store, a soft-deleted one too — read only: what a registration of that content would answer with |
 | delete | `file_delete` | the file manager's soft deletion of a file and all its owners |
 | clean up | `purge_expired`, `purge_temporaries`, task `core_storage.cleanup` | removes files marked longer than the term, with their bytes and the code folders they leave empty; a file an owner takes back during the run is kept, the run goes on. The same task removes temporary files untouched for an hour — the module's spools `tmp/core_storage-*.part`, the cross-device copies `.<CODE><ext>.<hex>.part` inside the stores, and a consumer's own (`register_temporaries(folder, prefix)`) |
 | reconcile | `reconcile_storage`, task `core_storage.reconcile`, `app.py storage check [--fix] [--sha]` | the base against the disk, past a grace of an hour: a held file whose bytes are gone is reported and logged, never removed — the same content uploaded again brings its bytes back; a marked one is left to the cleanup; bytes of another size (or sha256, with `--sha`) are reported; bytes no row points at are removed under the file's row lock. The hourly task removes them only when they are few and the root is not likely another base's; the command only reports unless `--fix` |
@@ -40,6 +41,11 @@ writes `created_at` anew for the same reason.
 
 A code is taken in any case. A malformed code is `FileNotFound`, the same as a code nobody
 registered: `file_get_many` leaves it out, `file_owners` answers that nobody holds it.
+
+A code is random, unless the registration names one: `preferred_code` of `file_register_path` and
+`file_register_spooled` is the first code tried — for a file coming back from another installation
+under the code its texts quote. Taken or malformed, the random tries follow as usual; the dedup
+comes first, so the same content answers with the code it has here. Read `StoredFile.code`.
 
 An owner is the consumer's triple: `owner_type` + `owner_id` name its entity, `owner_key` the place
 inside it (`''` — the whole entity). The module does not read it, but checks it on construction:

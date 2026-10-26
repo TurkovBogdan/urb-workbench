@@ -2,6 +2,26 @@
 
 English · [Русский](docs/changelog/ru.md)
 
+## [0.10.15] — 2026-10-26
+
+### Added
+
+#### Moving tasks and knowledge bases
+
+- A task can be exported to `.utsk` from its row menu (right click or "⋯") and from the "⋯" menu of its page. The archive holds the task, its subtasks, stages, journal, notes and files. The group and deleted items stay behind.
+- A knowledge base can be exported whole to `.ucdx`: rules, every record including the bin, files. "Export" is in the row menu of "Available" and in the materials tree.
+- Import is in the new "⋯" menu at the top of each section: drop the file into the window or pick it with a click. A task goes into the group you choose; a knowledge base can be mounted into the workspace at once.
+- Codes are kept. For each taken code you choose "Update" or "Replace". A replacement comes in as a copy with a new code, and references in texts follow it. Both sides' change dates are shown alongside.
+- A task of another workspace, a note of another task, a record of another knowledge base and a file with other content can only be replaced. "Update" never deletes what exists only here.
+- A file with the same content is not a conflict: the one here is used.
+- A taken knowledge base path gets a suffix: `-2`, `-3`…
+- A damaged archive is refused before anything is written.
+
+#### Storage
+
+- An imported file keeps its `FILE@` code.
+- The new `core_transfer` module holds what both transfers share.
+
 ## [0.10.13] — 2026-10-26
 
 ### Added

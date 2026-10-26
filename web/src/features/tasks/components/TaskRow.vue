@@ -23,6 +23,7 @@ import {
   IconArrowDown,
   IconArrowUp,
   IconExternalLink,
+  IconFileExport,
   IconFileText,
   IconRestore,
   IconSubtask,
@@ -34,11 +35,12 @@ import ActionMenu, { type ActionMenuItem } from '@/components/ActionMenu.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import CounterButton from '@/components/CounterButton.vue'
 import DragHandle from '@/components/DragHandle.vue'
+import { startDownload } from '@/components/files/download'
 import { fmtDate, fmtDateShort } from '@/shared/utils/date'
 
 import { isTerminal, priorityColor, priorityIcon, statusColor, statusIcon } from '../labels'
 import { useTasksStore } from '../stores/tasks.store'
-import type { TaskListRow } from '../api'
+import { taskExportUrl, type TaskListRow } from '../api'
 
 const props = defineProps<{
   task: TaskListRow
@@ -187,6 +189,15 @@ const menuItems = computed<ActionMenuItem[]>(() => {
       run: () => emit('addChild', task),
     })
   }
+  // The archive is taken by the browser itself: the server names the file after the task. No key
+  // letter until the interface's author names one.
+  items.push({
+    key: 'export',
+    icon: IconFileExport,
+    label: t('tasks.transfer.export'),
+    divider: task.parent_code !== null,
+    run: () => startDownload(taskExportUrl(task.code), ''),
+  })
 
   items.push(
     task.status === 'done'

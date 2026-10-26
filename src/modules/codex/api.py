@@ -64,6 +64,7 @@ from src.modules.codex.errors import (
     CodexRuleError,
 )
 from src.modules.codex.models import Codex, CodexNote
+from src.modules.codex.transfer.api import router as transfer_router
 from src.modules.workspace.codes import bare_code as workspace_bare_code
 from src.modules.workspace.constants import WORKSPACE_CODE_PREFIX
 from src.modules.workspace.crud.workspace import workspace_get
@@ -604,6 +605,11 @@ async def remove_mount(workspace: str, code: str) -> Response:
     if not await mount_crud.mount_remove(_code(code), _workspace_code(workspace)):
         raise ApiError.not_found("Codex is not mounted here", code=MOUNT_NOT_FOUND)
     return Response(status_code=204)
+
+
+# ── transfer between installations ─────────────────────────────────────────────
+# Last, so that ``/codexes/{code}/export`` is only reached once nothing above has claimed the path.
+router.include_router(transfer_router)
 
 
 __all__ = ["note_file_row", "router"]

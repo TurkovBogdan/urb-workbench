@@ -42,6 +42,14 @@ async def file_get_many(
     return {row.code: stored_file(row) for row in rows}
 
 
+async def file_find_content(store: str, sha256: str) -> StoredFile | None:
+    """The file holding these bytes in this store, a soft-deleted one too — it still holds the
+    content's key, and registering the bytes would revive it. Read only: what a registration of
+    the same content would answer with, asked before any write."""
+    row = await file_crud.file_find_by_sha256(store, sha256.strip().lower())
+    return stored_file(row) if row is not None else None
+
+
 def file_path(file: StoredFile) -> Path:
     """The absolute path of the bytes. They are read-only: copy before changing."""
     return get_layout().file_path(file.store, file.code, file.extension)
@@ -73,4 +81,11 @@ async def file_delete(code: str) -> None:
         await owner_crud.owner_mark_all_of_file(code, now, session=s)
 
 
-__all__ = ["file_delete", "file_get", "file_get_many", "file_open", "file_path"]
+__all__ = [
+    "file_delete",
+    "file_find_content",
+    "file_get",
+    "file_get_many",
+    "file_open",
+    "file_path",
+]

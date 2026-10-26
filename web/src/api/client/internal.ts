@@ -4,12 +4,28 @@
 // ('/workbench/tasks') — the prefix belongs to this file.
 import { CLIENT_ID, CLIENT_ID_HEADER } from './client-id'
 import { createClient } from './createClient'
+import { createUploader } from './upload'
 import { errorText } from '@/api/errorText'
 import { setShellError } from '@/composables/useShellError'
 import { pushToast } from '@/composables/useToasts'
 
 export { ApiError } from './createClient'
 export type { ApiErrorBody, RequestOptions } from './createClient'
+export type { UploadOptions } from './upload'
+
+/** The zone's URL of a path — for what the browser fetches itself: a download link. */
+export function internalUrl(path: string): string {
+  return `${import.meta.env.VITE_API_BASE ?? ''}/internal${path}`
+}
+
+// A file sent as the body of a request to this zone, with progress — an archive an import reads.
+// Like the storage zone's uploader it reports nothing itself: the refusal belongs where the file was
+// dropped.
+export const internalUpload = createUploader({
+  prefix: '/internal',
+  origin: import.meta.env.VITE_API_BASE ?? '',
+  headers: { [CLIENT_ID_HEADER]: CLIENT_ID },
+})
 
 export const internalApi = createClient({
   prefix: '/internal',
