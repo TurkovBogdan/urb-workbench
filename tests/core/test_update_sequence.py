@@ -203,8 +203,9 @@ def test_updates_in_order_and_ends_with_the_flag_down_before_the_restart():
         "git fetch --prune origin",
         f"git merge --ff-only {REMOTE_HEAD}",
         "uv sync --all-groups",
-        f"uv run python src/app.py backup {BACKUP_PATH}",
+        f"uv run python src/app.py backup --made-by update {BACKUP_PATH}",
         "uv run python src/app.py migrate upgrade",
+        f"uv run python src/app.py backup --prune --spare {BACKUP_PATH}",
     ]
     assert host.head == REMOTE_HEAD
     assert host.flag_up is False
@@ -224,15 +225,16 @@ def test_the_flag_goes_up_before_anything_is_stopped():
 @pytest.mark.pure
 def test_the_backup_runs_shipped_code_and_is_told_where_to_write():
     """`AGENTS/` is not in git, and a path scraped back out of the tool's output is a path that
-    breaks when a label changes — so the command is `src/app.py backup <target>`."""
+    breaks when a label changes — so the command is `src/app.py backup <target>`. The copy is
+    marked as the update's own: only such copies are ever pruned."""
     host = FakeHost()
 
     run_update(host, branch=BRANCH)
 
     backup_run = next(command for command in host.executed if " backup " in command)
-    assert backup_run == f"uv run python src/app.py backup {BACKUP_PATH}"
+    assert backup_run == f"uv run python src/app.py backup --made-by update {BACKUP_PATH}"
     assert not any("AGENTS/" in command for command in host.executed)
-    assert f"database backed up to {BACKUP_PATH}" in host.events
+    assert f"database and stored files backed up to {BACKUP_PATH}" in host.events
 
 
 @pytest.mark.pure
@@ -533,6 +535,70 @@ def test_failed_migration_keeps_the_flag_up_and_starts_nothing():
     assert host.head == REMOTE_HEAD
     assert not ran(host, "git reset --hard")
     assert any(str(BACKUP_PATH) in line for line in host.events)
+
+
+@pytest.mark.pure
+def test_a_failed_migration_names_the_way_back_to_the_copy_and_its_code():
+    """Going back is the copy and the code it belongs to together: the old base under the new
+    code is a base with pending revisions again."""
+    host = FakeHost(failing_commands=("migrate upgrade",))
+
+    run_update(host, branch=BRANCH)
+
+    recovery = next(line for line in host.events if "Recovery:" in line)
+    assert f"uv run python src/app.py restore {BACKUP_PATH}" in recovery
+    assert f"git reset --hard {HEAD_BEFORE}" in recovery
+
+
+# ── pruning the update's old copies ──────────────────────────────────────────
+
+@pytest.mark.pure
+def test_old_copies_are_pruned_only_once_the_restarted_install_answers():
+    """The copy just taken is spared by name: the count and the clock are not trusted with it."""
+
+    class WatchingHost(FakeHost):
+        def execute(self, argv, **options) -> CommandResult:
+            if "backup --prune" in " ".join(argv):
+                self.events.append("pruning")
+            return super().execute(argv, **options)
+
+    host = WatchingHost()
+
+    assert run_update(host, branch=BRANCH) == EXIT_OK
+    assert step(host, "started the backend") < step(host, "pruning")
+    assert host.executed[-1] == f"uv run python src/app.py backup --prune --spare {BACKUP_PATH}"
+    assert host.events[-1] == "update complete"
+
+
+@pytest.mark.pure
+@pytest.mark.parametrize(
+    ("failing", "backend_comes_up", "outcome"),
+    [
+        (("git fetch",), True, EXIT_ROLLED_BACK),
+        (("app.py backup --made-by",), True, EXIT_BACKUP_FAILED),
+        (("migrate upgrade",), True, EXIT_MIGRATION_FAILED),
+        ((), False, EXIT_BACKEND_DEAD),
+    ],
+)
+def test_no_copy_is_pruned_after_an_update_that_did_not_succeed(
+    failing: tuple[str, ...], backend_comes_up: bool, outcome: int
+):
+    """After any failure the old copies are what the operator goes back to."""
+    host = FakeHost(failing_commands=failing, backend_comes_up=backend_comes_up)
+
+    assert run_update(host, branch=BRANCH) == outcome
+    assert not ran(host, "backup --prune")
+
+
+@pytest.mark.pure
+def test_a_failed_prune_is_reported_and_the_update_stays_a_success():
+    host = FakeHost(failing_commands=("backup --prune",))
+
+    assert run_update(host, branch=BRANCH) == EXIT_OK
+    warning = next(line for line in host.events if line.startswith("WARNING: the old copies"))
+    assert "scripted failure" in warning
+    assert host.events[-1] == "update complete"
+    assert host.flag_up is False
 
 
 @pytest.mark.pure
