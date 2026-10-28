@@ -213,6 +213,7 @@
     }
   },
   "note": {
+    "print_of_task": "task \"{title}\" ({code})",
     "section": "Notes",
     "add": "Note",
     "new_title": "New note",

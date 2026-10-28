@@ -1,0 +1,1 @@
+import{bG as r,C as s,c as t}from"./index-BZBeLbdV.js";const l=r({prefix:"/storage",origin:"",headers:{[t]:s}}),p="core_storage_upload.file.too_large";function _(e,a,o={}){return l("/upload",a,{...o,query:{holder:e,filename:a.name}})}export{p as F,_ as u};

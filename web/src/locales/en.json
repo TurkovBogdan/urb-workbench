@@ -377,6 +377,12 @@
   "code": {
     "line_numbers": "Line numbers"
   },
+  "print": {
+    "export_pdf": "Export to PDF",
+    "title": "Print",
+    "failed": "Could not prepare the document for printing",
+    "updated": "updated {date}"
+  },
   "diagram": {
     "loading": "loading diagram",
     "open_hint": "double-click for full screen",

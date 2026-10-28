@@ -30,11 +30,14 @@ WEB_SRC = Path(__file__).resolve().parents[2] / "web" / "src"
 # Pages without a header are only those with no page frame at all:
 # home (a full-screen welcome showcase) and the "not found" screen (it draws itself). The codex
 # materials run their tree navigation from the top of the page, and the record's heading opens the
-# column beside it rather than the page — a layout decided for that page alone.
+# column beside it rather than the page — a layout decided for that page alone. The print pages are
+# a sheet of paper (`PrintDocument`), printed from a hidden frame: a frame there would be printed too.
 EXEMPT = {
     "views/HomeView.vue",
     "views/errors/NotFoundView.vue",
     "features/codex/views/CodexEditorView.vue",
+    "features/codex/views/CodexPrintView.vue",
+    "features/tasks/views/TaskNotePrintView.vue",
 }
 
 PAGE_FRAME = "<PageHeader"

@@ -14,7 +14,7 @@
 import { computed, onActivated, onBeforeUnmount, onDeactivated, provide, reactive, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { IconRefresh } from '@tabler/icons-vue'
+import { IconDotsVertical, IconFileTypePdf, IconRefresh } from '@tabler/icons-vue'
 
 import PageLayout from '@/layout/templates/PageLayout.vue'
 import PageHeader from '@/layout/components/PageHeader.vue'
@@ -26,6 +26,7 @@ import SectionError from '@/components/SectionError.vue'
 import SectionHeader from '@/components/SectionHeader.vue'
 import { errorText } from '@/api/errorText'
 import { useChangeSubscription } from '@/composables/useChangeSubscription'
+import { usePrint } from '@/composables/usePrint'
 import type { Change } from '@/stores/changes'
 import { providePreviewWorkspace } from '@/stores/preview'
 import { useStorageStore } from '@/stores/storage'
@@ -72,6 +73,11 @@ providePreviewWorkspace(
 // The note's files are the task's: a picture shown full screen is named as the task names it.
 provide(FILE_BINDING_EDITOR, taskFileEditor(() => taskCode.value, () => readonly.value))
 const taskPath = computed(() => `/tasks/task/${encodeURIComponent(taskCode.value)}`)
+const printTarget = computed(() => ({
+  name: 'tasks-task-note-print',
+  params: { code: taskCode.value, note: noteCode.value },
+}))
+const { printing, print } = usePrint()
 
 // ── Loading ───────────────────────────────────────────────────────────────────
 // The page lives in KeepAlive: `onActivated` covers both the first display and every return.
@@ -228,6 +234,13 @@ function schedule(): void {
 onBeforeUnmount(stopTimer)
 onBeforeRouteLeave(() => { void commit() })
 
+// The print page reads the note from the database: the draft goes first, and a save already in
+// flight is waited for too. Its failure is the page's to show (`saveError`), not the print's.
+async function saveForPrint(): Promise<void> {
+  await commit()
+  await saving.catch(() => undefined)
+}
+
 // ── Live updates ──────────────────────────────────────────────────────────────
 // The agent edits a note by parts (`content_*`) and renames it (`task_note_update`): the document
 // changes as `notes.note`. The task's own changes matter too — a deleted task makes the note read-only.
@@ -289,6 +302,21 @@ async function refresh(): Promise<void> {
           <template #prepend><IconRefresh :size="16" :class="{ 'icon-spin': refreshing }" /></template>
           {{ t('common.action.refresh') }}
         </VBtn>
+
+        <!-- The rare stuff goes in the menu, as on the task page. While the sheet is being prepared
+             the menu is already closed, so its own button shows the wait. -->
+        <VMenu location="bottom end" :offset="4">
+          <template #activator="{ props: menu }">
+            <VBtn v-bind="menu" icon variant="text" :loading="printing" :title="t('common.action.more')">
+              <IconDotsVertical :size="18" />
+            </VBtn>
+          </template>
+          <VList density="compact">
+            <VListItem :prepend-icon="IconFileTypePdf" @click="print(printTarget, saveForPrint)">
+              <VListItemTitle>{{ t('common.print.export_pdf') }}</VListItemTitle>
+            </VListItem>
+          </VList>
+        </VMenu>
       </template>
     </PageHeader>
 

@@ -2,6 +2,17 @@
 
 English · [Русский](docs/changelog/ru.md)
 
+## [0.10.16] — 2026-10-28
+
+### Added
+
+#### PDF
+
+- A task note and a knowledge base record — a note or the knowledge base itself — can be saved as PDF: "Export to PDF" in the "⋯" menu at the top of the page opens the print dialog, choose "Save as PDF".
+- The sheet reads as a document, not as a page of the app: the title, the description under it and a line with the code, the path and the date of the last change, then the text. Pictures, galleries, diagrams, tables and code come out as on screen, without buttons and hints; long code lines and wide tables wrap instead of being cut off. Pages are numbered at the foot; the browser's date and address do not appear in the margins.
+- The sheet is white under the dark theme too, and diagrams take the app's own colours on it whatever palette is chosen. The chosen theme and palette stay as they are.
+- What was typed a moment ago is saved before printing.
+
 ## [0.10.15] — 2026-10-26
 
 ### Added

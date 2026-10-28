@@ -36,4 +36,12 @@ export const tasksRoutes: RouteRecordRaw[] = [
     component: () => import('./views/TaskNoteView.vue'),
     meta: { scroll: 'y', title: 'tasks.note.page_title' },
   },
+  // The note alone on a sheet, outside the app's frame: the "PDF" button prints this address in a
+  // hidden frame. A segment of its own after the note's — the two never compete.
+  {
+    path: '/tasks/task/:code/note/:note/print',
+    name: 'tasks-task-note-print',
+    component: () => import('./views/TaskNotePrintView.vue'),
+    meta: { scroll: 'none', fullscreen: true, transition: 'none', title: 'common.print.title' },
+  },
 ]

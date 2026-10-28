@@ -7,6 +7,14 @@ import { CODEX_AVAILABLE, CODEX_MATERIALS } from './paths'
 // prefix (the page `interface_open(CODEX@…)` opens) — and the available codexes, every one of them.
 export const codexRoutes: RouteRecordRaw[] = [
   { path: '/codex', redirect: CODEX_MATERIALS },
+  // A record alone on a sheet, outside the app's frame: the "PDF" button prints this address in a
+  // hidden frame. Two segments after the materials, so the editor's optional one never takes it.
+  {
+    path: `${CODEX_MATERIALS}/:code/print`,
+    name: 'codex-print',
+    component: () => import('./views/CodexPrintView.vue'),
+    meta: { scroll: 'none', fullscreen: true, transition: 'none', title: 'common.print.title' },
+  },
   {
     path: `${CODEX_MATERIALS}/:code?`,
     name: 'codex-editor',
