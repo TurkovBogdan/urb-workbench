@@ -1,0 +1,1 @@
+function s(_){return _.toLowerCase().replace(/[^a-z0-9_-]/g,"")}const a=64,E=128,X=512,t=65536,D=/^[a-z0-9][a-z0-9_-]*$/,n=4,o=200,C=640;export{t as C,n as a,X as b,C as c,o as d,a as e,D as f,E as g,s as k};
