@@ -135,7 +135,7 @@ async function draw() {
     // A built-in palette brings its own background, so transparency is turned off along with it:
     // otherwise the diagram would sit on the card background and half the palette would vanish.
     // An unknown code (the palette disappeared from the engine) means system colors, not an empty diagram.
-    const palette = THEMES[settings.diagrams.theme]
+    const palette = THEMES[settings.diagramPalette]
     svg.value = renderMermaidSVG(props.code, {
       ...(palette ? wholePalette(palette) : THEME_COLORS),
       font: family.value,
@@ -152,7 +152,7 @@ onMounted(draw)
 // The typeface and palette are baked into the diagram markup, so changing them means a redraw.
 // One exception: the system palette goes into the SVG as references to app tokens, and a
 // dark/light theme switch reaches it through the cascade, without re-layout.
-watch([() => props.code, family, () => settings.diagrams.theme], draw)
+watch([() => props.code, family, () => settings.diagramPalette], draw)
 
 // ── Fullscreen mode: zoom toward the pointer, pan by dragging ─────────────────
 const ZOOM_LIMITS = { min: 0.2, max: 8 }

@@ -41,6 +41,10 @@ PAGE_FLAG_CALLS = ("usePageActive(", "usePanelPlacement(")
 PAGES_WITHOUT_LAYOUT = {
     # Draws itself full screen and opens no overlay.
     "views/errors/NotFoundView.vue",
+    # A sheet of paper printed from a hidden frame, which no one navigates away from; the page
+    # frame's scrolling zone would cut the print down to its first page.
+    "features/codex/views/CodexPrintView.vue",
+    "features/tasks/views/TaskNotePrintView.vue",
 }
 
 

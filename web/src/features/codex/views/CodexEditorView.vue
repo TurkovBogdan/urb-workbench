@@ -44,7 +44,8 @@ import { pushToast } from '@/composables/useToasts'
 import { useChangeSubscription } from '@/composables/useChangeSubscription'
 import { useFindShortcut } from '@/composables/useFindShortcut'
 import { useClipboard } from '@/composables/useClipboard'
-import { IconCheck, IconCopy, IconFileText, IconSettings } from '@tabler/icons-vue'
+import { usePrint } from '@/composables/usePrint'
+import { IconCheck, IconCopy, IconDotsVertical, IconFileText, IconFileTypePdf, IconSettings } from '@tabler/icons-vue'
 import type { Change } from '@/stores/changes'
 import { providePreviewWorkspace } from '@/stores/preview'
 import { useSettingsStore } from '@/stores/settings'
@@ -442,6 +443,20 @@ async function onSegmentInput(value: string) {
 
 onBeforeUnmount(() => { if (timer) clearTimeout(timer) })
 onBeforeRouteLeave(() => { void commit() })
+
+// The print page reads the record from the database: the draft goes first, and a save already in
+// flight is waited for too. Its failure is the page's to show (`saveError`), not the print's.
+async function saveForPrint(): Promise<void> {
+  await commit()
+  await saving.catch(() => undefined)
+}
+
+const printTarget = computed(() => ({
+  name: 'codex-print',
+  params: { code: code.value },
+  query: { workspace: workspace.value },
+}))
+const { printing, print } = usePrint()
 
 // ── Live updates ──────────────────────────────────────────────────────────────
 // The agent writes notes through MCP: the tree follows every change of the canvas; the open node
@@ -852,6 +867,20 @@ async function afterRemove(node: TreeNode) {
                 {{ t('codex.editor.copy_path') }}
               </VBtn>
               <CopyCodeButton :code="code" />
+              <!-- The rare stuff goes in the menu, last in the row, as on the task pages. While the
+                   sheet is being prepared the menu is already closed, so its own button shows the wait. -->
+              <VMenu location="bottom end" :offset="4">
+                <template #activator="{ props: menu }">
+                  <VBtn v-bind="menu" icon variant="text" :loading="printing" :title="t('common.action.more')">
+                    <IconDotsVertical :size="18" />
+                  </VBtn>
+                </template>
+                <VList density="compact">
+                  <VListItem :prepend-icon="IconFileTypePdf" @click="print(printTarget, saveForPrint)">
+                    <VListItemTitle>{{ t('common.print.export_pdf') }}</VListItemTitle>
+                  </VListItem>
+                </VList>
+              </VMenu>
             </template>
           </PageHeader>
 

@@ -22,8 +22,8 @@ interface PrintSignalMessage {
 const FRAME_WIDTH_PX = 794
 const FRAME_HEIGHT_PX = 1123
 
-// How long to wait for the ready signal: the print page has to re-fetch the research, parse the
-// body, render diagrams and wait for fonts.
+// How long to wait for the ready signal: the print page has to re-fetch the document, parse the
+// body, render diagrams, load pictures and wait for fonts.
 const READY_TIMEOUT_MS = 60_000
 
 // Some browsers return from `print()` without waiting for printing to finish. A frame removed

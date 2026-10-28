@@ -213,6 +213,7 @@
     }
   },
   "note": {
+    "print_of_task": "задача «{title}» ({code})",
     "section": "Заметки",
     "add": "Заметка",
     "new_title": "Новая заметка",

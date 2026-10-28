@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { reactive, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { setLocale } from '@/plugins/i18n'
 import { DEFAULT_LANGUAGE, appLocale, type AppLocale } from '@/constants/language'
 import { boolCodec, intCodec, persisted, strCodec, type Codec } from '@/shared/utils/persisted'
@@ -31,6 +31,7 @@ import {
   DEFAULT_DIAGRAM_ALIGN,
   DEFAULT_DIAGRAM_HEIGHT,
   DEFAULT_DIAGRAM_THEME,
+  SYSTEM_DIAGRAM_THEME,
   diagramTheme,
   type DiagramAlign,
 } from '@/constants/diagrams'
@@ -95,11 +96,26 @@ export const useSettingsStore = defineStore('settings', () => {
     theme: synced<ThemeMode>('interface_theme', DEFAULT_THEME, strCodec as Codec<ThemeMode>),
   })
 
+  // Paper: a print sheet is white whatever the person chose, so while one is on screen the light
+  // scheme is applied and diagrams take the app's own colours — a palette with its own dark
+  // background would print as a black slab. It is a state of the screen rather than a write of
+  // `data-theme`: the choice hydrated from the backend later would arrive through the watcher below
+  // and repaint over it. The choices themselves stay untouched, so nothing of it reaches the database.
+  const paper = ref(false)
+
+  function setPaper(on: boolean): void {
+    paper.value = on
+  }
+
   // While the mode is `system` the OS can flip underneath us, so the scheme is re-applied on
   // the media-query event as well as on the choice itself.
-  watch(() => appearance.theme, (mode) => applyScheme(resolveScheme(mode)), { immediate: true })
+  watch(
+    [() => appearance.theme, paper],
+    ([mode, onPaper]) => applyScheme(onPaper ? 'light' : resolveScheme(mode)),
+    { immediate: true },
+  )
   onSystemSchemeChange((scheme) => {
-    if (appearance.theme === 'system') applyScheme(scheme)
+    if (appearance.theme === 'system' && !paper.value) applyScheme(scheme)
   })
 
   const typography = reactive({
@@ -152,7 +168,9 @@ export const useSettingsStore = defineStore('settings', () => {
     { immediate: true },
   )
 
-  return { locale, ui, message, appearance, typography, diagrams }
+  const diagramPalette = computed(() => (paper.value ? SYSTEM_DIAGRAM_THEME : diagrams.theme))
+
+  return { locale, ui, message, appearance, paper, setPaper, typography, diagrams, diagramPalette }
 })
 
 // Two consumers, one name: the attribute drives the CSS token palettes (styles/main.scss),
